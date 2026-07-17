@@ -1,6 +1,5 @@
-export interface WorldMapContext {
-    getTile(x: number, y: number, z: number): number | null;
-}
+import { WorldMapContext } from './WorldMapContext';
+
 
 /**
  * Calculates the autotiling bitmask for a given tile on a specific Z-layer.
