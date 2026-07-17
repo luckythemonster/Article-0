@@ -13,8 +13,9 @@ describe('PlayerController', () => {
                     return TileType.AIR;
                 }
                 return TileType.CONCRETE_WALL;
-            })
-        };
+            }),
+                setTile: jest.fn()
+            };
     });
 
     describe('Angle Snapping', () => {

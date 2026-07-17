@@ -7,7 +7,13 @@ export const enum TileType {
     LADDER = 5,
     GLASS = 6,
     WHITE_TILE = 7,
-    WINDOWS_TERRAIN48 = 8
+    WINDOWS_TERRAIN48 = 8,
+    DOOR_CLOSED_HORIZONTAL = 10,
+    DOOR_OPEN_HORIZONTAL = 11,
+    DOOR_CLOSED_VERTICAL = 12,
+    DOOR_OPEN_VERTICAL = 13,
+    DOOR_GLASS_CLOSED = 14,
+    DOOR_GLASS_OPEN = 15
 }
 
 /**
@@ -22,7 +28,39 @@ export function isTileSolid(tileType: number | null): boolean {
         case TileType.CONCRETE_WALL:
         case TileType.GLASS:
         case TileType.WINDOWS_TERRAIN48:
+        case TileType.DOOR_CLOSED_HORIZONTAL:
+        case TileType.DOOR_CLOSED_VERTICAL:
+        case TileType.DOOR_GLASS_CLOSED:
             return true;
+        default:
+            return false;
+    }
+}
+
+
+/**
+ * Checks if a given tile type is opaque and blocks line-of-sight.
+ */
+export function isTileOpaque(tileType: number | null): boolean {
+    // Treat out-of-bounds as opaque
+    if (tileType === null) return true;
+
+    switch (tileType) {
+        case TileType.BOUNDARY:
+        case TileType.CONCRETE_WALL:
+        case TileType.DOOR_CLOSED_HORIZONTAL:
+        case TileType.DOOR_CLOSED_VERTICAL:
+            return true;
+        case TileType.GLASS:
+        case TileType.WINDOWS_TERRAIN48:
+        case TileType.DOOR_GLASS_CLOSED:
+        case TileType.DOOR_OPEN_HORIZONTAL:
+        case TileType.DOOR_OPEN_VERTICAL:
+        case TileType.DOOR_GLASS_OPEN:
+        case TileType.AIR:
+        case TileType.LADDER:
+        case TileType.WHITE_TILE:
+            return false;
         default:
             return false;
     }
