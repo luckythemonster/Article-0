@@ -1,4 +1,4 @@
-import { isTileSolid, isPositionClear, TileType } from './CollisionRegistry';
+import { isTileSolid, isPositionClear, TileType, isTileOpaque } from './CollisionRegistry';
 import { WorldMapContext } from './WorldMapContext';
 
 describe('CollisionRegistry', () => {
@@ -8,6 +8,9 @@ describe('CollisionRegistry', () => {
             expect(isTileSolid(TileType.WINDOWS_TERRAIN48)).toBe(true);
             expect(isTileSolid(TileType.GLASS)).toBe(true);
             expect(isTileSolid(TileType.BOUNDARY)).toBe(true);
+            expect(isTileSolid(TileType.DOOR_CLOSED_HORIZONTAL)).toBe(true);
+            expect(isTileSolid(TileType.DOOR_CLOSED_VERTICAL)).toBe(true);
+            expect(isTileSolid(TileType.DOOR_GLASS_CLOSED)).toBe(true);
             expect(isTileSolid(null)).toBe(true); // out of bounds
         });
 
@@ -15,6 +18,9 @@ describe('CollisionRegistry', () => {
             expect(isTileSolid(TileType.AIR)).toBe(false);
             expect(isTileSolid(TileType.LADDER)).toBe(false);
             expect(isTileSolid(TileType.WHITE_TILE)).toBe(false);
+            expect(isTileSolid(TileType.DOOR_OPEN_HORIZONTAL)).toBe(false);
+            expect(isTileSolid(TileType.DOOR_OPEN_VERTICAL)).toBe(false);
+            expect(isTileSolid(TileType.DOOR_GLASS_OPEN)).toBe(false);
         });
     });
 
@@ -29,7 +35,8 @@ describe('CollisionRegistry', () => {
                         return TileType.AIR;
                     }
                     return TileType.CONCRETE_WALL;
-                })
+                }),
+                setTile: jest.fn()
             };
         });
 
@@ -50,5 +57,29 @@ describe('CollisionRegistry', () => {
             const result = isPositionClear(mockWorldMap, 2.7, 1.5, 0, 0.4, 0.4);
             expect(result).toBe(false);
         });
+    });
+});
+
+describe('isTileOpaque', () => {
+
+
+    it('should identify opaque tiles correctly', () => {
+        expect(isTileOpaque(TileType.CONCRETE_WALL)).toBe(true);
+        expect(isTileOpaque(TileType.BOUNDARY)).toBe(true);
+        expect(isTileOpaque(TileType.DOOR_CLOSED_HORIZONTAL)).toBe(true);
+        expect(isTileOpaque(TileType.DOOR_CLOSED_VERTICAL)).toBe(true);
+        expect(isTileOpaque(null)).toBe(true);
+    });
+
+    it('should identify non-opaque tiles correctly', () => {
+        expect(isTileOpaque(TileType.AIR)).toBe(false);
+        expect(isTileOpaque(TileType.GLASS)).toBe(false);
+        expect(isTileOpaque(TileType.WINDOWS_TERRAIN48)).toBe(false);
+        expect(isTileOpaque(TileType.DOOR_GLASS_CLOSED)).toBe(false);
+        expect(isTileOpaque(TileType.DOOR_OPEN_HORIZONTAL)).toBe(false);
+        expect(isTileOpaque(TileType.DOOR_OPEN_VERTICAL)).toBe(false);
+        expect(isTileOpaque(TileType.DOOR_GLASS_OPEN)).toBe(false);
+        expect(isTileOpaque(TileType.WHITE_TILE)).toBe(false);
+        expect(isTileOpaque(TileType.LADDER)).toBe(false);
     });
 });
