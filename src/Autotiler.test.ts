@@ -1,4 +1,5 @@
-import { calculateBitmask, WorldMapContext } from './Autotiler';
+import { calculateBitmask } from './Autotiler';
+import { WorldMapContext } from './WorldMapContext';
 
 describe('Autotiler', () => {
     // 3x3 grid centered on (1, 1)
