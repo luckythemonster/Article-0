@@ -32,7 +32,7 @@ interface EdPlayJson {
  * Maps TileType (number) to another Record mapping BitMask (number) to AtlasIndex (number).
  * Example: Registry[2][3844] = 15
  */
-export type TileRegistry = Record<number, Record<number, number>>;
+export type TileRegistry = Record<number, Record<number, { atlasIndex: number, sheetIndex: number }>>;
 
 /**
  * Parses an 'Ed by Chilling Moose' JSON map export to extract a TileRegistry.
@@ -56,7 +56,8 @@ export function parseEdPlayJson(jsonString: string, mappingConfig: Record<string
         return registry; // Return empty registry if no SpriteSheets are found
     }
 
-    for (const sheet of data.SpriteSheets) {
+    for (let sheetIndex = 0; sheetIndex < data.SpriteSheets.length; sheetIndex++) {
+        const sheet = data.SpriteSheets[sheetIndex];
         if (!sheet.Sprites || !Array.isArray(sheet.Sprites)) {
             continue;
         }
@@ -89,11 +90,11 @@ export function parseEdPlayJson(jsonString: string, mappingConfig: Record<string
 
             if (bitMasks.length === 0) {
                 // Empty array -> fallback to default mask 0
-                registry[tileType][0] = atlasIndex;
+                registry[tileType][0] = { atlasIndex, sheetIndex };
             } else {
                 // Multiple masks -> explode entries so all point to the same atlas slice
                 for (const mask of bitMasks) {
-                    registry[tileType][mask] = atlasIndex;
+                    registry[tileType][mask] = { atlasIndex, sheetIndex };
                 }
             }
         }

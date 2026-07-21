@@ -68,16 +68,16 @@ describe('parseEdPlayJson', () => {
 
         // concrete_wall (2)
         expect(registry[2]).toBeDefined();
-        expect(registry[2][3844]).toBe(671);
+        expect(registry[2][3844]).toEqual({ atlasIndex: 671, sheetIndex: 0 });
 
         // glass (6) with multiple bitmasks
         expect(registry[6]).toBeDefined();
-        expect(registry[6][24397]).toBe(692);
-        expect(registry[6][1234]).toBe(692);
+        expect(registry[6][24397]).toEqual({ atlasIndex: 692, sheetIndex: 0 });
+        expect(registry[6][1234]).toEqual({ atlasIndex: 692, sheetIndex: 0 });
 
         // b_metal_floor_spritesheet1 (5) with empty bitmasks (fallback to 0)
         expect(registry[5]).toBeDefined();
-        expect(registry[5][0]).toBe(667);
+        expect(registry[5][0]).toEqual({ atlasIndex: 667, sheetIndex: 0 });
 
         // Ensure ignored ones are not in registry
         // (If there are no other entries mapped to unknown tile types)

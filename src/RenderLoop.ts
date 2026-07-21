@@ -26,7 +26,7 @@ export function drawTilesetTestGrid(
 
         // Loop through every procedural BitMask variation registered under this type
         for (const bitmaskStr in bitmaskGroup) {
-            const index = bitmaskGroup[bitmaskStr];
+            const index = bitmaskGroup[bitmaskStr].atlasIndex;
 
             // Reverse the 1D atlas index back into clean 2D grid canvas coordinates
             const gridX = index % atlasColumns;
