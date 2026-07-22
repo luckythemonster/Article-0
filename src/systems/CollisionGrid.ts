@@ -34,6 +34,16 @@ export class CollisionGrid {
   }
 
   /**
+   * Marks a tile blocked or clear at runtime — used by doors, which block
+   * movement, line of sight, radar, and enforcer pathing while closed and clear
+   * all of those the instant they open. Out-of-bounds writes are ignored.
+   */
+  setBlocked(tileX: number, tileY: number, blocked: boolean): void {
+    if (!this.inBounds(tileX, tileY)) return;
+    this.blocked[tileY * this.width + tileX] = blocked ? 1 : 0;
+  }
+
+  /**
    * Blocked-tile offsets within a circular radius (in tiles) of a centre point,
    * as (dx, dy) relative to that centre. Used by the radar to sample nearby
    * terrain without scanning the whole level each frame.

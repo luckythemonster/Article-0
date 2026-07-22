@@ -32,13 +32,22 @@ npm run build    # tsc --noEmit + vite build
 | WASD / Arrows | Move (free 8-directional) |
 | Shift | Sneak — slower, quieter, harder to spot |
 | Space | Run — faster but louder |
-| E | Use a maintenance hatch / ladder to change level |
+| E | Contextual: open/close a door, hack a terminal (hold), or use a hatch/ladder |
 
 Walk onto a **staircase** and you descend/ascend automatically; **hatches and
 ladders** show a `[E] Use access` prompt and change level when you press **E**.
 Either way the screen fades and you arrive at the connected level's matching
 access point — `main1` links to `main2` (stairs) and to `duct1`/`duct2`
 (maintenance hatches).
+
+**Doors** are closed by default and block both movement and line of sight —
+they're real chokepoints. Stand next to one and tap **E** to open or close it
+(opening makes noise: nearby guards turn to look and grow suspicious, so timing
+matters). **Terminals** are hacked by holding **E** while adjacent — a progress
+bar fills over the terminal's hack time, and finishing releases every door in
+the surrounding sector (the classic "hack the panel, the doors open" beat).
+Since the map carries no explicit terminal→door wiring, that link is derived by
+proximity.
 
 Walk into a guard's yellow vision cone with a clear line of sight and the
 detection meter fills; fill it completely and the base goes to **ALERT** (the
@@ -69,11 +78,14 @@ The whole pipeline lives in `src/`:
   wall collision, spawns entities, and drives the systems each frame.
   `UIScene` is a parallel, unzoomed overlay for the HUD.
 - **`src/entities/`** — `Player` (arcade-body 8-dir movement, stance/noise,
-  animated character sprite) and `Enforcer` (patrol + wall-clipped vision cone
-  + per-guard detection meter, animated scanner-drone sprite).
-- **`src/systems/`** — `CollisionGrid` (wall grid + line-of-sight raycast,
-  plus a radius query for nearby walls), `DetectionSystem` (light/cover
-  modifiers), `AlertState` (the INFILTRATION → ALERT → EVASION FSM),
+  animated character sprite), `Enforcer` (patrol + wall-clipped vision cone
+  + per-guard detection meter, animated scanner-drone sprite), `Door`
+  (blocks movement + LOS when closed, opens on interact) and `Terminal`
+  (hold-to-hack, releases nearby doors).
+- **`src/systems/`** — `CollisionGrid` (wall/door grid + line-of-sight raycast
+  + runtime `setBlocked` for doors, plus a radius query for nearby walls),
+  `DetectionSystem` (light/cover modifiers), `AlertState` (the
+  INFILTRATION → ALERT → EVASION FSM),
   `TransitionGraph` (auto-derived level-to-level connections for
   stairs/hatches/ladders), `Radar` (builds the player-relative radar snapshot
   each frame), and `EntityStats` (engine-side default tuning per entity type).
@@ -100,14 +112,19 @@ engine will use that value instead.
 - Radar: a Soliton-style circular minimap (nearby walls + guard blips,
   player-facing marker), jammed during ALERT (`src/systems/Radar.ts` +
   `src/ui/Radar.ts`).
+- Interactables: `door`s block movement and line of sight when closed and open
+  on interact (with an operation-noise ping that alerts nearby guards);
+  `terminal`s hack on a held interact and release the doors in their sector
+  (`src/entities/Door.ts`, `src/entities/Terminal.ts`). Terminal→door links are
+  derived by proximity, since the map carries none.
 
 ## Roadmap
 
 2. **The rest of the complex** — done: level transitions through `stairs` and
    `maintenance_access` hatches, plus a Soliton-style radar minimap.
-3. **Interactables** — hackable `terminal`s, keyed/stateful `door`s, `power`
-   breakers that cut lights and sensors, `chest`/item pickups, `audio_hazard`
-   noise traps (loose grates, steam).
+3. **Interactables** — done: hackable `terminal`s + blocking/openable `door`s.
+   Still to come: `power` breakers that cut lights and sensors, `chest`/item
+   pickups, `audio_hazard` noise traps (loose grates, steam).
 4. **More threats & the RPG layer** — `orderly`/`drone`/`security` enemy types,
    `sensor` cameras, thermal detection, inventory, and alert-network stats.
 
@@ -120,7 +137,7 @@ public/assets/enforcer/ enforcer drone frames (see below)
 src/main.ts         boot: load assets, parse map, start scenes
 src/map/            format types, loader, sprite atlas
 src/scenes/         GameScene, UIScene
-src/entities/       Player, Enforcer, PlayerAnimations, EnforcerAnimations
+src/entities/       Player, Enforcer, Door, Terminal, PlayerAnimations, EnforcerAnimations
 src/systems/        CollisionGrid, DetectionSystem, AlertState,
                     TransitionGraph, Radar, EntityStats
 src/ui/             Hud, Radar

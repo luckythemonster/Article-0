@@ -9,6 +9,8 @@ import { TransitionGraph } from "../systems/TransitionGraph";
 import { buildRadarSnapshot } from "../systems/Radar";
 import { Player, type InputState } from "../entities/Player";
 import { Enforcer } from "../entities/Enforcer";
+import { Door } from "../entities/Door";
+import { Terminal } from "../entities/Terminal";
 
 /** Data passed to {@link GameScene} when (re)starting for a level swap. */
 interface GameSceneData {
@@ -28,7 +30,15 @@ const ENTITY_LAYERS = new Set([
   "drones",
   "security",
   "items",
+  "doors",
+  "terminals",
 ]);
+
+/** How close (in tiles) the player must be to interact with a door/terminal. */
+const INTERACT_RANGE = 1.4;
+
+/** Radius (tiles) around a hacked terminal whose doors it releases. */
+const HACK_UNLOCK_RADIUS = 6;
 
 /**
  * The playable scene. Renders one level's tile art in board z-order, builds the
@@ -42,6 +52,8 @@ export class GameScene extends Phaser.Scene {
 
   private player!: Player;
   private enforcers: Enforcer[] = [];
+  private doors: Door[] = [];
+  private terminals: Terminal[] = [];
   private grid!: CollisionGrid;
   private detection!: DetectionSystem;
   private alert = new AlertState();
@@ -92,6 +104,8 @@ export class GameScene extends Phaser.Scene {
 
     // Reset per-run state: class-field initializers don't re-run on restart.
     this.enforcers = [];
+    this.doors = [];
+    this.terminals = [];
     this.alert = new AlertState();
     this.transitioning = false;
     // Arm only after stepping off the arrival tile (see update()).
@@ -120,8 +134,10 @@ export class GameScene extends Phaser.Scene {
 
     const wallBodies = this.renderLevel();
     this.spawnEntities();
+    const doorBodies = this.spawnInteractables();
 
     this.physics.add.collider(this.player.sprite, wallBodies);
+    this.physics.add.collider(this.player.sprite, doorBodies);
 
     this.cameras.main.startFollow(this.player.sprite, true, 0.15, 0.15);
     this.cameras.main.setZoom(2);
@@ -196,6 +212,45 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Instantiates doors and terminals from their layers. Doors register their
+   * closed cells on the collision grid (built just before this) and expose an
+   * Arcade body for player collision; those bodies are returned so the scene can
+   * add them to the player collider.
+   */
+  private spawnInteractables(): Phaser.GameObjects.GameObject[] {
+    const doorBodies: Phaser.GameObjects.GameObject[] = [];
+
+    const doorLayer = this.level.layers.find((l) => l.name === "doors");
+    if (doorLayer) {
+      for (const t of doorLayer.tiles) {
+        // Only tiles carrying a `door` component are real doors; the board can
+        // also hold stray art (e.g. a laser strip) that should stay decorative.
+        if (!t.components.some((c) => c.type === "door")) {
+          if (t.frame) {
+            this.add
+              .image(t.x * this.tileSize + this.tileSize / 2, t.y * this.tileSize + this.tileSize / 2, t.frame.textureKey, t.frame.frameKey)
+              .setDepth(120);
+          }
+          continue;
+        }
+        const door = new Door(this, t, this.tileSize, this.grid);
+        this.doors.push(door);
+        if (door.body) doorBodies.push(door.body);
+      }
+    }
+
+    const terminalLayer = this.level.layers.find((l) => l.name === "terminals");
+    if (terminalLayer) {
+      for (const t of terminalLayer.tiles) {
+        if (!t.components.some((c) => c.type === "terminal")) continue;
+        this.terminals.push(new Terminal(this, t, this.tileSize));
+      }
+    }
+
+    return doorBodies;
+  }
+
   private bindInput(): void {
     const kb = this.input.keyboard!;
     this.keys = {
@@ -234,7 +289,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.player.update(this.readInput(), dt);
-    this.checkTransitions();
+    this.updateInteractions(dt);
 
     let maxDetection = 0;
     const ctx = {
@@ -271,30 +326,124 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Detects when the player is on a transition tile and fires the level swap:
-   * stairs trigger by walking over (once armed), hatches/ladders on the
-   * interact key. Either way the tile is "armed" only after the player has
-   * stepped off the one they arrived on, so a swap never bounces straight back.
+   * Unified interact (`E`) handling for the frame: level transitions (stairs
+   * auto-trigger; hatches/ladders on tap), doors (tap to open/close), and
+   * terminals (hold to hack). A single nearest-target prompt is shown. Stairs
+   * and hatches are "armed" only after the player steps off the tile they
+   * arrived on, so a swap never bounces straight back.
    */
-  private checkTransitions(): void {
-    const tx = Math.floor(this.player.x / this.tileSize);
-    const ty = Math.floor(this.player.y / this.tileSize);
-    const tr = this.transitions.at(this.level.name, tx, ty);
+  private updateInteractions(dt: number): void {
+    const ts = this.tileSize;
+    const ptx = this.player.x / ts;
+    const pty = this.player.y / ts;
 
-    // Off any transition tile → clear to trigger the next one we step onto.
+    // --- Transitions ---
+    const tr = this.transitions.at(this.level.name, Math.floor(ptx), Math.floor(pty));
     if (!tr) this.transitionArmed = true;
-
-    const onMaintenance = tr?.kind === "maintenance_access" && this.transitionArmed;
-    if (onMaintenance) {
-      this.prompt.setPosition(this.player.x, this.player.y - this.tileSize * 0.9);
+    if (tr && tr.kind === "stairs" && this.transitionArmed) {
+      this.beginTransition(tr);
+      return;
     }
-    this.prompt.setVisible(onMaintenance);
+    const hatch =
+      tr && tr.kind === "maintenance_access" && this.transitionArmed ? tr : undefined;
 
-    if (!tr || !this.transitionArmed) return;
-    if (tr.kind === "stairs") {
-      this.beginTransition(tr);
-    } else if (Phaser.Input.Keyboard.JustDown(this.keys.interact)) {
-      this.beginTransition(tr);
+    const interactDown = this.keys.interact.isDown;
+    const interactJust = Phaser.Input.Keyboard.JustDown(this.keys.interact);
+
+    // --- Terminals (hold E) ---
+    let nearestTerminal: Terminal | undefined;
+    let nearestTerminalDist = Infinity;
+    for (const term of this.terminals) {
+      if (term.isHacked) continue;
+      const d = Math.hypot(term.x / ts - ptx, term.y / ts - pty);
+      if (d <= INTERACT_RANGE && d < nearestTerminalDist) {
+        nearestTerminalDist = d;
+        nearestTerminal = term;
+      }
+    }
+    const hacking = !!nearestTerminal && interactDown;
+    if (hacking && nearestTerminal!.hack(dt)) this.applyHack(nearestTerminal!);
+    for (const term of this.terminals) {
+      if (term !== nearestTerminal || !interactDown) term.idle(dt);
+    }
+
+    // --- Doors (tap E) ---
+    let nearestDoor: Door | undefined;
+    let nearestDoorDist = Infinity;
+    for (const door of this.doors) {
+      if (!door.isManual) continue;
+      const d = Math.hypot(door.tileX + 0.5 - ptx, door.tileY + 0.5 - pty);
+      if (d <= INTERACT_RANGE && d < nearestDoorDist) {
+        nearestDoorDist = d;
+        nearestDoor = door;
+      }
+    }
+
+    // A tap not consumed by a hack opens/closes a door, or uses a hatch —
+    // whichever is nearer (a hatch you're standing on always wins).
+    if (!hacking && interactJust) {
+      const hatchDist = hatch ? 0.2 : Infinity;
+      if (nearestDoor && nearestDoorDist <= hatchDist) {
+        if (nearestDoor.toggle() && nearestDoor.isOpen) this.emitDoorNoise(nearestDoor);
+      } else if (hatch) {
+        this.beginTransition(hatch);
+        return;
+      }
+    }
+
+    this.showPrompt(nearestTerminal, nearestTerminalDist, nearestDoor, nearestDoorDist, hatch !== undefined);
+  }
+
+  /** Shows a single `[E] …` hint over the player for the nearest interactable. */
+  private showPrompt(
+    terminal: Terminal | undefined,
+    terminalDist: number,
+    door: Door | undefined,
+    doorDist: number,
+    hatch: boolean,
+  ): void {
+    let label: string | undefined;
+    let best = Infinity;
+    if (terminal && terminalDist < best) {
+      best = terminalDist;
+      label = "[E] Hack";
+    }
+    if (door && doorDist < best) {
+      best = doorDist;
+      label = door.isOpen ? "[E] Close" : "[E] Open";
+    }
+    if (hatch && 0.2 < best) {
+      label = "[E] Use access";
+    }
+
+    if (label) {
+      this.prompt.setText(label);
+      this.prompt.setPosition(this.player.x, this.player.y - this.tileSize * 0.9);
+      this.prompt.setVisible(true);
+    } else {
+      this.prompt.setVisible(false);
+    }
+  }
+
+  /** A completed hack releases every door within {@link HACK_UNLOCK_RADIUS}. */
+  private applyHack(terminal: Terminal): void {
+    const tx = terminal.x / this.tileSize;
+    const ty = terminal.y / this.tileSize;
+    for (const door of this.doors) {
+      const d = Math.hypot(door.tileX + 0.5 - tx, door.tileY + 0.5 - ty);
+      if (d <= HACK_UNLOCK_RADIUS && door.setOpen(true)) this.emitDoorNoise(door);
+    }
+  }
+
+  /** A door operating emits noise: nearby guards turn to look and grow wary. */
+  private emitDoorNoise(door: Door): void {
+    const cx = (door.tileX + 0.5) * this.tileSize;
+    const cy = (door.tileY + 0.5) * this.tileSize;
+    const radiusPx = door.stats.operationNoise * this.tileSize;
+    if (radiusPx <= 0) return;
+    for (const e of this.enforcers) {
+      const d = Math.hypot(e.position.x - cx, e.position.y - cy);
+      if (d < radiusPx) e.hearNoise(1 - d / radiusPx, cx, cy);
     }
   }
 
