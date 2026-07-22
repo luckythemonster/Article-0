@@ -1,19 +1,28 @@
 /**
- * Frame manifest for the enforcer sprite (generated via PixelLab.ai, "Enforcer"
- * — a tracked security drone with a swiveling floodlight/sensor arm, high
- * top-down, 68x68). The "apprehend" cycle shows the sensor arm sweeping
- * left-right like a scanner, so it doubles as the patrol animation.
+ * Frame manifest for the enforcer sprite (generated via PixelLab.ai — a
+ * compact tracked security drone with a swiveling floodlight/sensor arm, high
+ * top-down, 34x34). The "patrol-scan" cycle (custom v3 animation) shows the
+ * sensor arm sweeping left-right like a scanner while the drone inches
+ * forward, so it doubles as the patrol animation.
  *
- * Only 4 cardinal directions were exported (matching the player convention):
- * facing snaps to the nearest cardinal while the underlying patrol/pursue
- * motion stays free-angled.
+ * All 8 directions were exported, so facing matches the guard's continuous
+ * patrol/pursuit angle exactly (no cardinal snapping).
  *
  * Frames live in public/assets/enforcer/patrol/<direction>/<frame>.png.
  */
-export const ENFORCER_ANIM_DIRS = ["south", "east", "west", "north"] as const;
+export const ENFORCER_ANIM_DIRS = [
+  "south",
+  "south-east",
+  "east",
+  "north-east",
+  "north",
+  "north-west",
+  "west",
+  "south-west",
+] as const;
 export type EnforcerAnimDir = (typeof ENFORCER_ANIM_DIRS)[number];
 
-export const ENFORCER_PATROL_FRAME_COUNT = 9;
+export const ENFORCER_PATROL_FRAME_COUNT = 8;
 
 export function enforcerFrameKey(dir: EnforcerAnimDir, frame: number): string {
   return `enforcer-patrol-${dir}-${frame}`;
@@ -27,10 +36,22 @@ export function enforcerAnimKey(dir: EnforcerAnimDir): string {
   return `enforcer-patrol-${dir}`;
 }
 
-/** Snaps a facing angle (radians) to the nearest of the 4 exported directions. */
-export function nearestCardinalFromAngle(angle: number): EnforcerAnimDir {
-  const dx = Math.cos(angle);
-  const dy = Math.sin(angle);
-  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? "east" : "west";
-  return dy >= 0 ? "south" : "north";
+/** The 8 directions in angular order, starting at east (0°) going clockwise. */
+const DIRECTION_ORDER: EnforcerAnimDir[] = [
+  "east",
+  "south-east",
+  "south",
+  "south-west",
+  "west",
+  "north-west",
+  "north",
+  "north-east",
+];
+
+/** Snaps a facing angle (radians) to the nearest of the 8 exported directions. */
+export function nearestDirectionFromAngle(angle: number): EnforcerAnimDir {
+  const angleDeg = (angle * 180) / Math.PI;
+  const normalized = ((angleDeg % 360) + 360) % 360;
+  const index = Math.round(normalized / 45) % 8;
+  return DIRECTION_ORDER[index];
 }
