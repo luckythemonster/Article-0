@@ -36,11 +36,14 @@ export const ENFORCER_DEFAULTS: EnforcerStats = {
 export interface LightStats {
   radius: number;
   detectionMultiplier: number;
+  /** "static" | "flicker" | … (edplay LightType values). */
+  type: string;
 }
 
 export const LIGHT_DEFAULTS: LightStats = {
   radius: 3.5,
   detectionMultiplier: 1.6,
+  type: "static",
 };
 
 /** Reads a numeric field from a component, falling back to a default. */
@@ -80,6 +83,7 @@ export function lightStatsFor(components: ComponentData[]): LightStats {
       "DetectionMultiplier",
       LIGHT_DEFAULTS.detectionMultiplier,
     ),
+    type: str(components, "light_source", "type", LIGHT_DEFAULTS.type).toLowerCase(),
   };
 }
 

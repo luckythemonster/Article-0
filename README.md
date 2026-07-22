@@ -123,6 +123,11 @@ engine will use that value instead.
   the alarm instantly on contact. Kind and orientation are inferred from the
   `ref` and the footprint from `ColSpan`/`RowSpan`, since the tiles carry no
   components.
+- Lighting: the level is darkened with soft, bright pools punched out at each
+  `light_source` (`src/ui/Lighting.ts`), so you can see where the shadows are.
+  It reads the *same* light data `DetectionSystem` uses, so a lit spot is both
+  visibly brighter and mechanically easier to be spotted in; `flicker`-type
+  lights pulse.
 
 ## Roadmap
 
@@ -147,7 +152,7 @@ src/scenes/         GameScene, UIScene
 src/entities/       Player, Enforcer, Door, Terminal, Laser, PlayerAnimations, EnforcerAnimations
 src/systems/        CollisionGrid, DetectionSystem, AlertState,
                     TransitionGraph, Radar, EntityStats
-src/ui/             Hud, Radar
+src/ui/             Hud, Radar, Lighting
 ```
 
 ## Character & enemy art
