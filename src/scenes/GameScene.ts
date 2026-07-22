@@ -12,6 +12,7 @@ import { Enforcer } from "../entities/Enforcer";
 import { Door } from "../entities/Door";
 import { Terminal } from "../entities/Terminal";
 import { Laser } from "../entities/Laser";
+import { Lighting } from "../ui/Lighting";
 
 /** Data passed to {@link GameScene} when (re)starting for a level swap. */
 interface GameSceneData {
@@ -57,6 +58,7 @@ export class GameScene extends Phaser.Scene {
   private doors: Door[] = [];
   private terminals: Terminal[] = [];
   private lasers: Laser[] = [];
+  private lighting!: Lighting;
   private grid!: CollisionGrid;
   private detection!: DetectionSystem;
   private alert = new AlertState();
@@ -142,6 +144,10 @@ export class GameScene extends Phaser.Scene {
 
     this.physics.add.collider(this.player.sprite, wallBodies);
     this.physics.add.collider(this.player.sprite, doorBodies);
+
+    // Darken the level and light it from the `light_sources` — shares the same
+    // data DetectionSystem uses, so lit spots are visibly and mechanically hot.
+    this.lighting = new Lighting(this, this.level, this.tileSize);
 
     this.cameras.main.startFollow(this.player.sprite, true, 0.15, 0.15);
     this.cameras.main.setZoom(2);
@@ -305,6 +311,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.player.update(this.readInput(), dt);
+    this.lighting.update(dt);
     this.updateInteractions(dt);
 
     let maxDetection = 0;
