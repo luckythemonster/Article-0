@@ -53,23 +53,43 @@ export class EdplayLoader {
 
     const uniqueFrames = new Map<string, SpriteFrame>();
 
-    const resolveFrame = (td: EdTileDef): SpriteFrame | undefined => {
-      const kf = td.Animation?.KeyFrames?.[0];
-      if (!kf) return undefined;
-      const info = spriteInfoById.get(kf.SpriteId);
-      if (!info) return undefined;
-      const cached = uniqueFrames.get(kf.SpriteId);
+    // Resolves (and caches) one sprite by its SpriteId (Ref or numeric Handle).
+    const frameForSpriteId = (spriteId: string): SpriteFrame | undefined => {
+      const cached = uniqueFrames.get(spriteId);
       if (cached) return cached;
+      const info = spriteInfoById.get(spriteId);
+      if (!info) return undefined;
       const frame: SpriteFrame = {
         textureKey: sheetTextureKeys[info.sheetIndex],
-        frameKey: kf.SpriteId,
+        frameKey: spriteId,
         x: info.rect.X ?? 0,
         y: info.rect.Y ?? 0,
         width: info.rect.Width,
         height: info.rect.Height,
       };
-      uniqueFrames.set(kf.SpriteId, frame);
+      uniqueFrames.set(spriteId, frame);
       return frame;
+    };
+
+    const resolveFrame = (td: EdTileDef): SpriteFrame | undefined => {
+      const kf = td.Animation?.KeyFrames?.[0];
+      return kf ? frameForSpriteId(kf.SpriteId) : undefined;
+    };
+
+    // Frames keyed by keyframe Script ("closed"/"open"), falling back to
+    // index-based labels when the source has none. Only built for multi-frame
+    // tiles (doors), where the state maps to a distinct sprite.
+    const resolveStateFrames = (td: EdTileDef): Record<string, SpriteFrame> | undefined => {
+      const kfs = td.Animation?.KeyFrames ?? [];
+      if (kfs.length < 2) return undefined;
+      const out: Record<string, SpriteFrame> = {};
+      kfs.forEach((kf, i) => {
+        const frame = frameForSpriteId(kf.SpriteId);
+        if (!frame) return;
+        const label = kf.Script?.toLowerCase() ?? (i === 0 ? "closed" : i === 1 ? "open" : String(i));
+        out[label] = frame;
+      });
+      return Object.keys(out).length > 0 ? out : undefined;
     };
 
     const resolveComponents = (td: EdTileDef): ComponentData[] => {
@@ -98,6 +118,11 @@ export class EdplayLoader {
             handle: t.Handle,
             ref: td?.Ref ?? String(t.Handle),
             frame: td ? resolveFrame(td) : undefined,
+            stateFrames: td ? resolveStateFrames(td) : undefined,
+            colSpan: td?.ColSpan ?? 1,
+            rowSpan: td?.RowSpan ?? 1,
+            offsetX: td?.OffsetX ?? 0,
+            offsetY: td?.OffsetY ?? 0,
             entityType: components.length > 0 ? components[0].type : undefined,
             components,
           };

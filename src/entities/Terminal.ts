@@ -29,12 +29,14 @@ export class Terminal {
     this.tileY = tile.y;
     this.tileSize = tileSize;
     this.stats = terminalStatsFor(tile.components);
-    this.x = (tile.x + 0.5) * tileSize;
-    this.y = (tile.y + 0.5) * tileSize;
+    // Cell centre plus the tile's authored placement offset.
+    this.x = (tile.x + 0.5) * tileSize + tile.offsetX;
+    this.y = (tile.y + 0.5) * tileSize + tile.offsetY;
 
     if (tile.frame) {
       this.image = scene.add
         .image(this.x, this.y, tile.frame.textureKey, tile.frame.frameKey)
+        .setDisplaySize(tile.colSpan * tileSize, tile.rowSpan * tileSize)
         .setDepth(120);
     }
     this.bar = scene.add.graphics().setDepth(1000).setVisible(false);

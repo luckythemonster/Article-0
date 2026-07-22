@@ -28,6 +28,8 @@ export interface EdKeyFrame {
   SpriteId: string;
   Duration: number;
   DurationMax: number;
+  /** State label for multi-frame tiles, e.g. "closed" / "open" on doors. */
+  Script?: string;
 }
 
 export interface EdAnimation {
@@ -48,8 +50,16 @@ export interface EdDataComponent {
 export interface EdTileDef {
   Char: string;
   Animation: EdAnimation;
+  /** Footprint height in tiles (e.g. 1.5 for a single door, 2.5 for a double). */
   RowSpan: number;
+  /** Footprint width in tiles. */
   ColSpan: number;
+  /** Pixel placement offset from the cell centre. */
+  OffsetX?: number;
+  OffsetY?: number;
+  /** Sprite anchor (4 = centre in the editor's 0–8 grid). */
+  Anchor?: number;
+  CellAnchor?: number;
   TintColor?: number;
   BackgroundColor?: number;
   DataComponents: EdDataComponent[];
@@ -148,7 +158,20 @@ export interface GameTile {
   y: number;
   handle: number;
   ref: string;
+  /** The default (first-keyframe) sprite frame. */
   frame?: SpriteFrame;
+  /**
+   * Frames keyed by their animation Script label ("closed"/"open" on doors).
+   * When the source keyframes carry no label, falls back to index-based keys
+   * "closed" (frame 0), "open" (frame 1). Absent for single-frame tiles.
+   */
+  stateFrames?: Record<string, SpriteFrame>;
+  /** Footprint size in tiles (default 1×1). Doors are 1.5 / 2.5 in one axis. */
+  colSpan: number;
+  rowSpan: number;
+  /** Pixel placement offset from the cell centre (default 0). */
+  offsetX: number;
+  offsetY: number;
   /** Present only for tiles whose TileDef carries a DataComponent. */
   entityType?: string;
   components: ComponentData[];
