@@ -54,8 +54,9 @@ The whole pipeline lives in `src/`:
 - **`src/scenes/`** — `GameScene` renders the layers in board z-order, builds
   wall collision, spawns entities, and drives the systems each frame.
   `UIScene` is a parallel, unzoomed overlay for the HUD.
-- **`src/entities/`** — `Player` (arcade-body 8-dir movement, stance/noise) and
-  `Enforcer` (patrol + wall-clipped vision cone + per-guard detection meter).
+- **`src/entities/`** — `Player` (arcade-body 8-dir movement, stance/noise,
+  animated character sprite) and `Enforcer` (patrol + wall-clipped vision cone
+  + per-guard detection meter).
 - **`src/systems/`** — `CollisionGrid` (wall grid + line-of-sight raycast),
   `DetectionSystem` (light/cover modifiers), `AlertState` (the
   INFILTRATION → ALERT → EVASION FSM), and `EntityStats` (engine-side default
@@ -69,7 +70,8 @@ engine will use that value instead.
 
 - Parse `edplay.json` into a normalized model and register sprite frames.
 - Render `main1` from the real spritesheets, in correct layer order.
-- Player: free 8-directional movement, wall collision, sneak/run stances.
+- Player: free 8-directional movement, wall collision, sneak/run stances,
+  animated character sprite (idle/walk/run/crouch, 4-direction).
 - Guards: patrol, wall-clipped vision cones, per-guard detection.
 - Stealth: light/cover detection modifiers, global alert FSM, HUD.
 
@@ -87,11 +89,22 @@ engine will use that value instead.
 ## Project layout
 
 ```
-public/assets/      edplay.json + spritesheet_{0,1,2}.png (extracted from the zip)
+public/assets/       edplay.json + spritesheet_{0,1,2}.png (extracted from the zip)
+public/assets/player/  player character frames (see below)
 src/main.ts         boot: load assets, parse map, start scenes
 src/map/            format types, loader, sprite atlas
 src/scenes/         GameScene, UIScene
-src/entities/       Player, Enforcer
+src/entities/       Player, Enforcer, PlayerAnimations
 src/systems/        CollisionGrid, DetectionSystem, AlertState, EntityStats
 src/ui/             Hud
 ```
+
+## Player character art
+
+The protagonist ("Rowan Ibarra") was generated with [PixelLab.ai](https://www.pixellab.ai/)
+— a 64x64, high top-down character template — and exported via its API as
+idle/walk/run/crouch cycles in 4 cardinal directions (`public/assets/player/`,
+manifest at `public/assets/player/manifest.json`). `PlayerAnimations.ts` maps
+that frame layout to Phaser animation keys; diagonal movement stays free
+8-directional, but the sprite's *visual* facing snaps to the nearest cardinal,
+a standard convention for 4-direction character sheets.

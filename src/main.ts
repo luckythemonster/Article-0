@@ -3,6 +3,13 @@ import { EdplayLoader } from "./map/EdplayLoader";
 import type { EdPlayFile } from "./map/types";
 import { GameScene } from "./scenes/GameScene";
 import { UIScene } from "./scenes/UIScene";
+import {
+  PLAYER_ANIM_DIRS,
+  PLAYER_ANIM_FRAME_COUNTS,
+  playerFrameKey,
+  playerFramePath,
+  type PlayerAnimName,
+} from "./entities/PlayerAnimations";
 
 /**
  * Boot scene: loads the edplay map JSON and the three spritesheets, parses the
@@ -21,6 +28,15 @@ class BootScene extends Phaser.Scene {
     this.load.image("spritesheet_0.png", "assets/spritesheet_0.png");
     this.load.image("spritesheet_1.png", "assets/spritesheet_1.png");
     this.load.image("spritesheet_2.png", "assets/spritesheet_2.png");
+
+    for (const anim of Object.keys(PLAYER_ANIM_FRAME_COUNTS) as PlayerAnimName[]) {
+      for (const dir of PLAYER_ANIM_DIRS) {
+        const count = PLAYER_ANIM_FRAME_COUNTS[anim];
+        for (let i = 0; i < count; i++) {
+          this.load.image(playerFrameKey(anim, dir, i), playerFramePath(anim, dir, i));
+        }
+      }
+    }
   }
 
   create(): void {

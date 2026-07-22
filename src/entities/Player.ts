@@ -1,38 +1,53 @@
 import Phaser from "phaser";
+import {
+  PLAYER_ANIM_DIRS,
+  PLAYER_ANIM_FRAME_COUNTS,
+  PLAYER_ANIM_FRAME_RATES,
+  nearestCardinal,
+  playerAnimKey,
+  playerFrameKey,
+  type PlayerAnimDir,
+  type PlayerAnimName,
+} from "./PlayerAnimations";
 
 /**
- * The player-controlled infiltrator.
+ * The player-controlled infiltrator, rendered with the PixelLab-generated
+ * "Rowan Ibarra" character sheet (idle/walk/run/crouch cycles, 4 cardinal
+ * directions).
  *
- * Free 8-directional movement via an arcade-physics body, with a run/sneak
- * modifier. Sneaking (Shift) halves speed and noise; running is faster but
- * noisier — noise feeds the detection system in later phases. Facing direction
- * is tracked for interactions and for the noise/vision model.
- *
- * The map has no dedicated protagonist sprite, so we draw a generated marker
- * (a body disc plus a facing wedge) that reads clearly against the tile art.
+ * Movement stays free 8-directional via an arcade-physics body; the sprite's
+ * visual facing snaps to the nearest of the 4 exported cardinal directions,
+ * and the animation played reflects stance (idle / walk / run / crouch-sneak).
+ * Sneaking halves speed and noise; running is faster but noisier — noise feeds
+ * the detection system.
  */
 export class Player {
   readonly sprite: Phaser.Physics.Arcade.Sprite;
   /** Facing angle in radians; updated as the player moves. */
   facing = -Math.PI / 2; // start facing "up"
   private readonly walkSpeed: number;
-  private readonly facingGfx: Phaser.GameObjects.Triangle;
+  private dir: PlayerAnimDir = "south";
+  private currentAnim: PlayerAnimName = "idle";
 
   constructor(scene: Phaser.Scene, x: number, y: number, tileSize: number) {
     this.walkSpeed = tileSize * 3.2; // px/sec baseline
 
-    const key = Player.ensureTexture(scene, tileSize);
-    this.sprite = scene.physics.add.sprite(x, y, key);
+    Player.ensureAnimations(scene);
+
+    this.sprite = scene.physics.add.sprite(x, y, playerFrameKey("idle", "south", 0));
     this.sprite.setDepth(500);
-    // A body a bit smaller than a tile so the agent slips through 1-wide gaps.
-    const bodySize = Math.floor(tileSize * 0.6);
-    (this.sprite.body as Phaser.Physics.Arcade.Body).setSize(bodySize, bodySize);
+
+    // Scale the 64x64 art to read well against 32px tiles, then size the
+    // collision body in the sprite's *unscaled* local space (Arcade Body
+    // convention) so it roughly covers the torso rather than the padded frame.
+    const displaySize = tileSize * 1.3;
+    const scale = displaySize / 64;
+    this.sprite.setScale(scale);
+    const body = this.sprite.body as Phaser.Physics.Arcade.Body;
+    body.setSize(26, 30);
     this.sprite.setCollideWorldBounds(true);
 
-    // A small wedge showing facing, drawn over the body.
-    this.facingGfx = scene.add
-      .triangle(x, y, 0, -tileSize * 0.5, -tileSize * 0.18, -tileSize * 0.2, tileSize * 0.18, -tileSize * 0.2, 0xffffff)
-      .setDepth(501);
+    this.sprite.play(playerAnimKey("idle", "south"));
   }
 
   /** How loud the player currently is (0..1), from movement + stance. */
@@ -47,7 +62,9 @@ export class Player {
     if (cursors.down) vy += 1;
 
     const moving = vx !== 0 || vy !== 0;
-    const stanceMul = cursors.sneak ? 0.45 : cursors.run ? 1.6 : 1;
+    const sneaking = cursors.sneak && moving;
+    const running = cursors.run && moving && !cursors.sneak;
+    const stanceMul = sneaking ? 0.45 : running ? 1.6 : 1;
     const speed = this.walkSpeed * stanceMul;
 
     if (moving) {
@@ -55,16 +72,24 @@ export class Player {
       vx = (vx / len) * speed;
       vy = (vy / len) * speed;
       this.facing = Math.atan2(vy, vx);
+      this.dir = nearestCardinal(vx, vy);
     }
     this.sprite.setVelocity(vx, vy);
 
     // Noise: still = silent, sneak = low, walk = medium, run = high.
-    const target = !moving ? 0 : cursors.sneak ? 0.15 : cursors.run ? 1 : 0.5;
+    const target = !moving ? 0 : sneaking ? 0.15 : running ? 1 : 0.5;
     this.noise = Phaser.Math.Linear(this.noise, target, Math.min(1, dt * 6));
 
-    // Keep the facing wedge glued to the body and pointed along `facing`.
-    this.facingGfx.setPosition(this.sprite.x, this.sprite.y);
-    this.facingGfx.setRotation(this.facing + Math.PI / 2);
+    const anim: PlayerAnimName = !moving ? "idle" : sneaking ? "crouch" : running ? "run" : "walk";
+    this.setAnimation(anim, this.dir);
+  }
+
+  private setAnimation(anim: PlayerAnimName, dir: PlayerAnimDir): void {
+    if (anim === this.currentAnim && this.sprite.anims.currentAnim?.key === playerAnimKey(anim, dir)) {
+      return;
+    }
+    this.currentAnim = anim;
+    this.sprite.play(playerAnimKey(anim, dir), true);
   }
 
   get x(): number {
@@ -74,22 +99,24 @@ export class Player {
     return this.sprite.y;
   }
 
-  /** Builds (once) the generated player body texture. */
-  private static ensureTexture(scene: Phaser.Scene, tileSize: number): string {
-    const key = "player-marker";
-    if (scene.textures.exists(key)) return key;
-    const g = scene.make.graphics({ x: 0, y: 0 });
-    const r = Math.floor(tileSize * 0.34);
-    const c = tileSize / 2;
-    g.fillStyle(0x0a0a0a, 1);
-    g.fillCircle(c, c, r + 2);
-    g.fillStyle(0x39d3ff, 1); // cyan infiltrator
-    g.fillCircle(c, c, r);
-    g.fillStyle(0xffffff, 1);
-    g.fillCircle(c, c, Math.max(2, r - 5));
-    g.generateTexture(key, tileSize, tileSize);
-    g.destroy();
-    return key;
+  /** Registers every player animation once per scene. */
+  private static ensureAnimations(scene: Phaser.Scene): void {
+    for (const anim of Object.keys(PLAYER_ANIM_FRAME_COUNTS) as PlayerAnimName[]) {
+      const frameCount = PLAYER_ANIM_FRAME_COUNTS[anim];
+      const frameRate = PLAYER_ANIM_FRAME_RATES[anim];
+      for (const dir of PLAYER_ANIM_DIRS) {
+        const key = playerAnimKey(anim, dir);
+        if (scene.anims.exists(key)) continue;
+        scene.anims.create({
+          key,
+          frames: Array.from({ length: frameCount }, (_, i) => ({
+            key: playerFrameKey(anim, dir, i),
+          })),
+          frameRate,
+          repeat: -1,
+        });
+      }
+    }
   }
 }
 
