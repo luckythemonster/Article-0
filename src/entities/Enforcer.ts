@@ -230,6 +230,17 @@ export class Enforcer {
     return { x: this.x, y: this.y };
   }
 
+  /**
+   * Reacts to a nearby noise (e.g. a door operating): the guard turns to look
+   * toward the source and grows suspicious, but detection is capped below full
+   * so sound alone never trips a hard ALERT — it still takes line of sight to
+   * confirm. `intensity` is 0..1 (louder/closer = higher); `sx,sy` are pixels.
+   */
+  hearNoise(intensity: number, sx: number, sy: number): void {
+    this.detection = Math.min(0.9, this.detection + intensity * 0.4);
+    this.facing = Math.atan2(sy - this.y, sx - this.x);
+  }
+
   /** Registers the patrol-scan animation for each direction once per scene. */
   private static ensureAnimations(scene: Phaser.Scene): void {
     for (const dir of ENFORCER_ANIM_DIRS) {

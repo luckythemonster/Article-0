@@ -27,14 +27,19 @@ export class EdplayLoader {
     const tileDefByHandle = new Map<number, EdTileDef>();
     for (const td of raw.TileDefs) tileDefByHandle.set(td.Handle, td);
 
-    // spriteRef -> { sheetIndex, rect }. Also builds each SpriteFrame lazily.
-    const spriteInfoByRef = new Map<
+    // spriteId -> { sheetIndex, rect }. A TileDef's KeyFrame SpriteId is usually
+    // a sprite Ref string, but some tiles (e.g. doors) reference the sprite by
+    // its numeric Handle instead — so index by both, keyed as strings.
+    const spriteInfoById = new Map<
       string,
       { sheetIndex: number; rect: EdSpriteRect }
     >();
     raw.SpriteSheets.forEach((sheet, sheetIndex) => {
       for (const sprite of sheet.Sprites) {
-        if (sprite.Ref) spriteInfoByRef.set(sprite.Ref, { sheetIndex, rect: sprite });
+        if (sprite.Ref) spriteInfoById.set(sprite.Ref, { sheetIndex, rect: sprite });
+        if (sprite.Handle !== undefined) {
+          spriteInfoById.set(String(sprite.Handle), { sheetIndex, rect: sprite });
+        }
       }
     });
 
@@ -51,7 +56,7 @@ export class EdplayLoader {
     const resolveFrame = (td: EdTileDef): SpriteFrame | undefined => {
       const kf = td.Animation?.KeyFrames?.[0];
       if (!kf) return undefined;
-      const info = spriteInfoByRef.get(kf.SpriteId);
+      const info = spriteInfoById.get(kf.SpriteId);
       if (!info) return undefined;
       const cached = uniqueFrames.get(kf.SpriteId);
       if (cached) return cached;

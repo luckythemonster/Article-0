@@ -82,3 +82,57 @@ export function lightStatsFor(components: ComponentData[]): LightStats {
     ),
   };
 }
+
+/** Reads a string/enum field from a component, falling back to a default. */
+export function str(
+  components: ComponentData[],
+  type: string,
+  field: string,
+  fallback: string,
+): string {
+  const c = components.find((x) => x.type === type);
+  const raw = c?.values[field];
+  return raw !== undefined && raw !== "" ? raw : fallback;
+}
+
+export interface DoorStats {
+  /** Keycard id; 0 means no card required (hand-openable). */
+  key: number;
+  /** "closed" | "open" | "locked" | "off" (edplay DoorState values). */
+  state: string;
+  /** Radius (tiles) of the noise ping emitted when the door operates. */
+  operationNoise: number;
+}
+
+export const DOOR_DEFAULTS = {
+  operationNoise: 4,
+} as const;
+
+export function doorStatsFor(components: ComponentData[]): DoorStats {
+  return {
+    key: num(components, "door", "key", 0),
+    state: str(components, "door", "state", "closed").toLowerCase(),
+    operationNoise: num(components, "door", "OperationNoise", DOOR_DEFAULTS.operationNoise),
+  };
+}
+
+export interface TerminalStats {
+  /** Seconds of held interaction to finish a hack. */
+  hackTime: number;
+  /** "door" | "air" | "cameras" | "cache" (edplay TerminalType values). */
+  type: string;
+  /** If true, a hack that's abandoned mid-way trips the alert. */
+  alertOnFail: boolean;
+}
+
+export const TERMINAL_DEFAULTS = {
+  hackTime: 2.2,
+} as const;
+
+export function terminalStatsFor(components: ComponentData[]): TerminalStats {
+  return {
+    hackTime: num(components, "terminal", "HackTime", TERMINAL_DEFAULTS.hackTime),
+    type: str(components, "terminal", "type", "door").toLowerCase(),
+    alertOnFail: str(components, "terminal", "AlertOnFail", "false") === "true",
+  };
+}
