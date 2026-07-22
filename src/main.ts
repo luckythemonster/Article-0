@@ -10,12 +10,10 @@ import {
   playerFramePath,
   type PlayerAnimName,
 } from "./entities/PlayerAnimations";
-import {
-  ENFORCER_ANIM_DIRS,
-  ENFORCER_PATROL_FRAME_COUNT,
-  enforcerFrameKey,
-  enforcerFramePath,
-} from "./entities/EnforcerAnimations";
+import { ENFORCER_SKIN } from "./entities/EnforcerAnimations";
+import { DRONE_SKIN } from "./entities/DroneAnimations";
+import { preloadGuardSkin } from "./entities/GuardSkin";
+import { preloadOrderly } from "./entities/OrderlyAnimations";
 
 /**
  * Boot scene: loads the edplay map JSON and the three spritesheets, parses the
@@ -44,11 +42,9 @@ class BootScene extends Phaser.Scene {
       }
     }
 
-    for (const dir of ENFORCER_ANIM_DIRS) {
-      for (let i = 0; i < ENFORCER_PATROL_FRAME_COUNT; i++) {
-        this.load.image(enforcerFrameKey(dir, i), enforcerFramePath(dir, i));
-      }
-    }
+    preloadGuardSkin(this, ENFORCER_SKIN);
+    preloadGuardSkin(this, DRONE_SKIN);
+    preloadOrderly(this);
   }
 
   create(): void {

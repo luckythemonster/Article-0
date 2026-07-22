@@ -79,9 +79,12 @@ The whole pipeline lives in `src/`:
   `UIScene` is a parallel, unzoomed overlay for the HUD.
 - **`src/entities/`** — `Player` (arcade-body 8-dir movement, stance/noise,
   animated character sprite), `Enforcer` (patrol + wall-clipped vision cone
-  + per-guard detection meter, animated scanner-drone sprite), `Door`
-  (blocks movement + LOS when closed, opens on interact) and `Terminal`
-  (hold-to-hack, releases nearby doors).
+  + per-guard detection meter, animated scanner-drone sprite; `GuardSkin.ts`
+  factors out the animation/sizing config so `Drone` is a one-line subclass
+  with its own sprite), `Orderly` (a lighter, non-combat bystander that
+  wanders near its spawn and raises a one-shot alert if it spots the player),
+  `Door` (blocks movement + LOS when closed, opens on interact) and
+  `Terminal` (hold-to-hack, releases nearby doors).
 - **`src/systems/`** — `CollisionGrid` (wall/door grid + line-of-sight raycast
   + runtime `setBlocked` for doors, plus a radius query for nearby walls),
   `DetectionSystem` (light/cover modifiers), `AlertState` (the
@@ -102,7 +105,18 @@ engine will use that value instead.
   animated character sprite (idle/walk/run/crouch, full 8-direction).
 - Guards: patrol, wall-clipped vision cones, per-guard detection, animated
   scanner-drone sprite (patrol-scan cycle, full 8-direction), roughly
-  player-sized.
+  player-sized. `enforcer` map tiles spawn regular guards; `drones` tiles
+  (found in the crawlspace levels) spawn the same AI wearing a small
+  spider-legged sentry skin — the map gives both the identical `enforcer`
+  stats component, so they share one implementation (`Enforcer`/`Drone` +
+  `GuardSkin`).
+- Orderlies: `orderlies` tiles spawn unarmed bystanders that wander loosely
+  near their spawn point and idle/walk in place otherwise. They carry no
+  gameplay component, so they're not a persistent threat — instead, an
+  unobstructed sightline to the player (no cone-angle limit, gated by the
+  same concealment check as guards) trips a one-shot "!" witness alert that
+  raises the suspicion of any guard within earshot, the same way an opened
+  door does, then the orderly freezes (`src/entities/Orderly.ts`).
 - Stealth: light/cover detection modifiers, global alert FSM, HUD.
 - Transitions: walk-over `stairs` and `E`-to-use `maintenance_access`
   hatches/ladders move between all four levels (`main1`, `duct1`, `duct2`,
@@ -142,19 +156,24 @@ engine will use that value instead.
    `door`s, and `laser` tripwires/scanners. (The map places no `power`,
    `chest`, or `audio_hazard` tiles, so those roadmap ideas would need new
    authoring.)
-4. **More threats & the RPG layer** — `orderly`/`drone`/`security` enemy types,
-   `sensor` cameras, thermal detection, inventory, and alert-network stats.
+4. **More threats & the RPG layer** — done: `orderly` and `drone` enemy
+   types. Left: `security` enemy type, `sensor` cameras, thermal detection,
+   inventory, and alert-network stats.
 
 ## Project layout
 
 ```
 public/assets/          edplay.json + spritesheet_{0,1,2}.png (extracted from the zip)
 public/assets/player/   player character frames (see below)
-public/assets/enforcer/ enforcer drone frames (see below)
+public/assets/enforcer/ enforcer sentry frames (see below)
+public/assets/drone/    patrol drone frames (see below)
+public/assets/orderly/  orderly bystander frames (see below)
 src/main.ts         boot: load assets, parse map, start scenes
 src/map/            format types, loader, sprite atlas
 src/scenes/         GameScene, UIScene
-src/entities/       Player, Enforcer, Door, Terminal, Laser, PlayerAnimations, EnforcerAnimations
+src/entities/       Player, Enforcer, Drone, Orderly, Door, Terminal, Laser,
+                    GuardSkin, PlayerAnimations, EnforcerAnimations,
+                    DroneAnimations, OrderlyAnimations
 src/systems/        CollisionGrid, DetectionSystem, AlertState,
                     TransitionGraph, Radar, EntityStats
 src/ui/             Hud, Radar, Lighting
@@ -162,14 +181,15 @@ src/ui/             Hud, Radar, Lighting
 
 ## Character & enemy art
 
-Both were generated with [PixelLab.ai](https://www.pixellab.ai/) (high
-top-down templates) and pulled in via its API:
+All four were generated with [PixelLab.ai](https://www.pixellab.ai/) (high
+top-down templates) and pulled in via its API, every sprite scaled to ~1.5
+tiles tall:
 
 - **Player** ("Rowan Ibarra", 88x88) — idle/walk/run/crouch cycles in all 8
   directions (`public/assets/player/`, manifest at
   `public/assets/player/manifest.json`). `PlayerAnimations.ts` maps that frame
   layout to Phaser animation keys; facing matches the free 8-directional
-  movement exactly, no direction snapping. Scaled to ~1.5 tiles tall.
+  movement exactly, no direction snapping.
 - **Enforcer** (48x48) — a blocky robotic sentry gliding on magnetic tracks
   with a rotating crown of camera-arms. It shipped with no animations, so its
   "patrol-scan" cycle (the camera-arms sweeping back and forth while it
@@ -177,4 +197,14 @@ top-down templates) and pulled in via its API:
   across all 8 directions in one call (`public/assets/enforcer/`, manifest at
   `public/assets/enforcer/manifest.json`). `EnforcerAnimations.ts` maps the
   frames to Phaser animation keys; facing matches the guard's continuous
-  patrol/pursuit angle exactly. Scaled to ~1.5 tiles tall, matching the player.
+  patrol/pursuit angle exactly.
+- **Drone** (85x85) — a small spider-legged sentry with a sensor-cluster
+  "eye", generated the same way as the Enforcer (v3 mode, one call, all 8
+  directions; `public/assets/drone/`, manifest at
+  `public/assets/drone/manifest.json`, mapped by `DroneAnimations.ts`). It's
+  the Enforcer's AI wearing a different `GuardSkin` — see `Drone.ts`.
+- **Orderly** (84x84) — a human orderly in a utility jumpsuit carrying a
+  diagnostic tablet. Only `idle` and `walk` were generated (character
+  template mode, all 8 directions each in one call — a bystander has no
+  run/crouch; `public/assets/orderly/`, manifest at
+  `public/assets/orderly/manifest.json`, mapped by `OrderlyAnimations.ts`).

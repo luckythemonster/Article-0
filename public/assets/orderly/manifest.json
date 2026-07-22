@@ -1,0 +1,450 @@
+[
+ {
+  "anim": "idle",
+  "direction": "east",
+  "frame": 0,
+  "key": "orderly-idle-east-0",
+  "path": "assets/orderly/idle/east/0.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "east",
+  "frame": 1,
+  "key": "orderly-idle-east-1",
+  "path": "assets/orderly/idle/east/1.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "east",
+  "frame": 2,
+  "key": "orderly-idle-east-2",
+  "path": "assets/orderly/idle/east/2.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "east",
+  "frame": 3,
+  "key": "orderly-idle-east-3",
+  "path": "assets/orderly/idle/east/3.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "west",
+  "frame": 0,
+  "key": "orderly-idle-west-0",
+  "path": "assets/orderly/idle/west/0.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "west",
+  "frame": 1,
+  "key": "orderly-idle-west-1",
+  "path": "assets/orderly/idle/west/1.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "west",
+  "frame": 2,
+  "key": "orderly-idle-west-2",
+  "path": "assets/orderly/idle/west/2.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "west",
+  "frame": 3,
+  "key": "orderly-idle-west-3",
+  "path": "assets/orderly/idle/west/3.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "south",
+  "frame": 0,
+  "key": "orderly-idle-south-0",
+  "path": "assets/orderly/idle/south/0.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "south",
+  "frame": 1,
+  "key": "orderly-idle-south-1",
+  "path": "assets/orderly/idle/south/1.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "south",
+  "frame": 2,
+  "key": "orderly-idle-south-2",
+  "path": "assets/orderly/idle/south/2.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "south",
+  "frame": 3,
+  "key": "orderly-idle-south-3",
+  "path": "assets/orderly/idle/south/3.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "north-east",
+  "frame": 0,
+  "key": "orderly-idle-north-east-0",
+  "path": "assets/orderly/idle/north-east/0.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "north-east",
+  "frame": 1,
+  "key": "orderly-idle-north-east-1",
+  "path": "assets/orderly/idle/north-east/1.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "north-east",
+  "frame": 2,
+  "key": "orderly-idle-north-east-2",
+  "path": "assets/orderly/idle/north-east/2.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "north-east",
+  "frame": 3,
+  "key": "orderly-idle-north-east-3",
+  "path": "assets/orderly/idle/north-east/3.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "south-west",
+  "frame": 0,
+  "key": "orderly-idle-south-west-0",
+  "path": "assets/orderly/idle/south-west/0.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "south-west",
+  "frame": 1,
+  "key": "orderly-idle-south-west-1",
+  "path": "assets/orderly/idle/south-west/1.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "south-west",
+  "frame": 2,
+  "key": "orderly-idle-south-west-2",
+  "path": "assets/orderly/idle/south-west/2.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "south-west",
+  "frame": 3,
+  "key": "orderly-idle-south-west-3",
+  "path": "assets/orderly/idle/south-west/3.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "north",
+  "frame": 0,
+  "key": "orderly-idle-north-0",
+  "path": "assets/orderly/idle/north/0.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "north",
+  "frame": 1,
+  "key": "orderly-idle-north-1",
+  "path": "assets/orderly/idle/north/1.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "north",
+  "frame": 2,
+  "key": "orderly-idle-north-2",
+  "path": "assets/orderly/idle/north/2.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "north",
+  "frame": 3,
+  "key": "orderly-idle-north-3",
+  "path": "assets/orderly/idle/north/3.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "south-east",
+  "frame": 0,
+  "key": "orderly-idle-south-east-0",
+  "path": "assets/orderly/idle/south-east/0.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "south-east",
+  "frame": 1,
+  "key": "orderly-idle-south-east-1",
+  "path": "assets/orderly/idle/south-east/1.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "south-east",
+  "frame": 2,
+  "key": "orderly-idle-south-east-2",
+  "path": "assets/orderly/idle/south-east/2.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "south-east",
+  "frame": 3,
+  "key": "orderly-idle-south-east-3",
+  "path": "assets/orderly/idle/south-east/3.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "north-west",
+  "frame": 0,
+  "key": "orderly-idle-north-west-0",
+  "path": "assets/orderly/idle/north-west/0.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "north-west",
+  "frame": 1,
+  "key": "orderly-idle-north-west-1",
+  "path": "assets/orderly/idle/north-west/1.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "north-west",
+  "frame": 2,
+  "key": "orderly-idle-north-west-2",
+  "path": "assets/orderly/idle/north-west/2.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "north-west",
+  "frame": 3,
+  "key": "orderly-idle-north-west-3",
+  "path": "assets/orderly/idle/north-west/3.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south-east",
+  "frame": 0,
+  "key": "orderly-walk-south-east-0",
+  "path": "assets/orderly/walk/south-east/0.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south-east",
+  "frame": 1,
+  "key": "orderly-walk-south-east-1",
+  "path": "assets/orderly/walk/south-east/1.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south-east",
+  "frame": 2,
+  "key": "orderly-walk-south-east-2",
+  "path": "assets/orderly/walk/south-east/2.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south-east",
+  "frame": 3,
+  "key": "orderly-walk-south-east-3",
+  "path": "assets/orderly/walk/south-east/3.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south",
+  "frame": 0,
+  "key": "orderly-walk-south-0",
+  "path": "assets/orderly/walk/south/0.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south",
+  "frame": 1,
+  "key": "orderly-walk-south-1",
+  "path": "assets/orderly/walk/south/1.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south",
+  "frame": 2,
+  "key": "orderly-walk-south-2",
+  "path": "assets/orderly/walk/south/2.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south",
+  "frame": 3,
+  "key": "orderly-walk-south-3",
+  "path": "assets/orderly/walk/south/3.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "west",
+  "frame": 0,
+  "key": "orderly-walk-west-0",
+  "path": "assets/orderly/walk/west/0.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "west",
+  "frame": 1,
+  "key": "orderly-walk-west-1",
+  "path": "assets/orderly/walk/west/1.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "west",
+  "frame": 2,
+  "key": "orderly-walk-west-2",
+  "path": "assets/orderly/walk/west/2.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "west",
+  "frame": 3,
+  "key": "orderly-walk-west-3",
+  "path": "assets/orderly/walk/west/3.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "north-west",
+  "frame": 0,
+  "key": "orderly-walk-north-west-0",
+  "path": "assets/orderly/walk/north-west/0.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "north-west",
+  "frame": 1,
+  "key": "orderly-walk-north-west-1",
+  "path": "assets/orderly/walk/north-west/1.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "north-west",
+  "frame": 2,
+  "key": "orderly-walk-north-west-2",
+  "path": "assets/orderly/walk/north-west/2.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "north-west",
+  "frame": 3,
+  "key": "orderly-walk-north-west-3",
+  "path": "assets/orderly/walk/north-west/3.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "north",
+  "frame": 0,
+  "key": "orderly-walk-north-0",
+  "path": "assets/orderly/walk/north/0.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "north",
+  "frame": 1,
+  "key": "orderly-walk-north-1",
+  "path": "assets/orderly/walk/north/1.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "north",
+  "frame": 2,
+  "key": "orderly-walk-north-2",
+  "path": "assets/orderly/walk/north/2.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "north",
+  "frame": 3,
+  "key": "orderly-walk-north-3",
+  "path": "assets/orderly/walk/north/3.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "east",
+  "frame": 0,
+  "key": "orderly-walk-east-0",
+  "path": "assets/orderly/walk/east/0.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "east",
+  "frame": 1,
+  "key": "orderly-walk-east-1",
+  "path": "assets/orderly/walk/east/1.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "east",
+  "frame": 2,
+  "key": "orderly-walk-east-2",
+  "path": "assets/orderly/walk/east/2.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "east",
+  "frame": 3,
+  "key": "orderly-walk-east-3",
+  "path": "assets/orderly/walk/east/3.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south-west",
+  "frame": 0,
+  "key": "orderly-walk-south-west-0",
+  "path": "assets/orderly/walk/south-west/0.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south-west",
+  "frame": 1,
+  "key": "orderly-walk-south-west-1",
+  "path": "assets/orderly/walk/south-west/1.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south-west",
+  "frame": 2,
+  "key": "orderly-walk-south-west-2",
+  "path": "assets/orderly/walk/south-west/2.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south-west",
+  "frame": 3,
+  "key": "orderly-walk-south-west-3",
+  "path": "assets/orderly/walk/south-west/3.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "north-east",
+  "frame": 0,
+  "key": "orderly-walk-north-east-0",
+  "path": "assets/orderly/walk/north-east/0.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "north-east",
+  "frame": 1,
+  "key": "orderly-walk-north-east-1",
+  "path": "assets/orderly/walk/north-east/1.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "north-east",
+  "frame": 2,
+  "key": "orderly-walk-north-east-2",
+  "path": "assets/orderly/walk/north-east/2.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "north-east",
+  "frame": 3,
+  "key": "orderly-walk-north-east-3",
+  "path": "assets/orderly/walk/north-east/3.png"
+ }
+]

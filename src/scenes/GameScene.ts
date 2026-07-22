@@ -9,6 +9,8 @@ import { TransitionGraph } from "../systems/TransitionGraph";
 import { buildRadarSnapshot } from "../systems/Radar";
 import { Player, type InputState } from "../entities/Player";
 import { Enforcer } from "../entities/Enforcer";
+import { Drone } from "../entities/Drone";
+import { Orderly } from "../entities/Orderly";
 import { Door } from "../entities/Door";
 import { Terminal } from "../entities/Terminal";
 import { Laser } from "../entities/Laser";
@@ -43,6 +45,9 @@ const INTERACT_RANGE = 1.4;
 /** Radius (tiles) around a hacked terminal whose doors it releases. */
 const HACK_UNLOCK_RADIUS = 6;
 
+/** Radius (tiles) a spotted orderly's alarm carries to nearby guards. */
+const ORDERLY_ALERT_RADIUS_TILES = 6;
+
 /**
  * The playable scene. Renders one level's tile art in board z-order, builds the
  * wall collision, spawns the player and guards, and drives the stealth systems
@@ -55,6 +60,8 @@ export class GameScene extends Phaser.Scene {
 
   private player!: Player;
   private enforcers: Enforcer[] = [];
+  private drones: Drone[] = [];
+  private orderlies: Orderly[] = [];
   private doors: Door[] = [];
   private terminals: Terminal[] = [];
   private lasers: Laser[] = [];
@@ -110,6 +117,8 @@ export class GameScene extends Phaser.Scene {
 
     // Reset per-run state: class-field initializers don't re-run on restart.
     this.enforcers = [];
+    this.drones = [];
+    this.orderlies = [];
     this.doors = [];
     this.terminals = [];
     this.lasers = [];
@@ -235,6 +244,20 @@ export class GameScene extends Phaser.Scene {
         this.enforcers.push(new Enforcer(this, t.x, t.y, this.tileSize, t.components));
       }
     }
+
+    const droneLayer = this.level.layers.find((l) => l.name === "drones");
+    if (droneLayer) {
+      for (const t of droneLayer.tiles) {
+        this.drones.push(new Drone(this, t.x, t.y, this.tileSize, t.components));
+      }
+    }
+
+    const orderlyLayer = this.level.layers.find((l) => l.name === "orderlies");
+    if (orderlyLayer) {
+      for (const t of orderlyLayer.tiles) {
+        this.orderlies.push(new Orderly(this, t.x, t.y, this.tileSize));
+      }
+    }
   }
 
   /**
@@ -345,9 +368,17 @@ export class GameScene extends Phaser.Scene {
       playerConcealed: concealed,
       alert: this.alert,
     };
-    for (const e of this.enforcers) {
+    for (const e of this.guards()) {
       e.update(dt, ctx);
       maxDetection = Math.max(maxDetection, e.detection);
+    }
+
+    // Orderlies: bystanders, not guards — a clear sighting is a one-shot
+    // "witness" event that raises nearby guards' suspicion, same as a noisy door.
+    for (const orderly of this.orderlies) {
+      if (orderly.update(dt, { grid: this.grid, tileSize: this.tileSize, player: ctx.player, playerConcealed: concealed })) {
+        this.emitOrderlyAlert(orderly);
+      }
     }
 
     // Lasers: crossing an active beam/scan zone instantly trips the alarm.
@@ -374,7 +405,7 @@ export class GameScene extends Phaser.Scene {
         this.grid,
         this.tileSize,
         { x: this.player.x, y: this.player.y, facing: this.player.facing },
-        this.enforcers.map((e) => ({
+        this.guards().map((e) => ({
           position: e.position,
           facing: e.facing,
           detection: e.detection,
@@ -504,13 +535,24 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Every guard-type unit — enforcers and drones share identical AI/hearNoise. */
+  private guards(): Enforcer[] {
+    return [...this.enforcers, ...this.drones];
+  }
+
   /** A door operating emits noise: nearby guards turn to look and grow wary. */
   private emitDoorNoise(door: Door): void {
-    const cx = (door.tileX + 0.5) * this.tileSize;
-    const cy = (door.tileY + 0.5) * this.tileSize;
-    const radiusPx = door.stats.operationNoise * this.tileSize;
+    this.emitNoiseAt((door.tileX + 0.5) * this.tileSize, (door.tileY + 0.5) * this.tileSize, door.stats.operationNoise * this.tileSize);
+  }
+
+  /** A spotted orderly raises the alarm: nearby guards turn to look and grow wary. */
+  private emitOrderlyAlert(orderly: Orderly): void {
+    this.emitNoiseAt(orderly.position.x, orderly.position.y, ORDERLY_ALERT_RADIUS_TILES * this.tileSize);
+  }
+
+  private emitNoiseAt(cx: number, cy: number, radiusPx: number): void {
     if (radiusPx <= 0) return;
-    for (const e of this.enforcers) {
+    for (const e of this.guards()) {
       const d = Math.hypot(e.position.x - cx, e.position.y - cy);
       if (d < radiusPx) e.hearNoise(1 - d / radiusPx, cx, cy);
     }
