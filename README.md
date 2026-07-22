@@ -56,7 +56,7 @@ The whole pipeline lives in `src/`:
   `UIScene` is a parallel, unzoomed overlay for the HUD.
 - **`src/entities/`** — `Player` (arcade-body 8-dir movement, stance/noise,
   animated character sprite) and `Enforcer` (patrol + wall-clipped vision cone
-  + per-guard detection meter).
+  + per-guard detection meter, animated scanner-drone sprite).
 - **`src/systems/`** — `CollisionGrid` (wall grid + line-of-sight raycast),
   `DetectionSystem` (light/cover modifiers), `AlertState` (the
   INFILTRATION → ALERT → EVASION FSM), and `EntityStats` (engine-side default
@@ -72,7 +72,8 @@ engine will use that value instead.
 - Render `main1` from the real spritesheets, in correct layer order.
 - Player: free 8-directional movement, wall collision, sneak/run stances,
   animated character sprite (idle/walk/run/crouch, 4-direction).
-- Guards: patrol, wall-clipped vision cones, per-guard detection.
+- Guards: patrol, wall-clipped vision cones, per-guard detection, animated
+  scanner-drone sprite (idle/patrol scan cycle, 4-direction).
 - Stealth: light/cover detection modifiers, global alert FSM, HUD.
 
 ## Roadmap
@@ -89,22 +90,33 @@ engine will use that value instead.
 ## Project layout
 
 ```
-public/assets/       edplay.json + spritesheet_{0,1,2}.png (extracted from the zip)
-public/assets/player/  player character frames (see below)
+public/assets/          edplay.json + spritesheet_{0,1,2}.png (extracted from the zip)
+public/assets/player/   player character frames (see below)
+public/assets/enforcer/ enforcer drone frames (see below)
 src/main.ts         boot: load assets, parse map, start scenes
 src/map/            format types, loader, sprite atlas
 src/scenes/         GameScene, UIScene
-src/entities/       Player, Enforcer, PlayerAnimations
+src/entities/       Player, Enforcer, PlayerAnimations, EnforcerAnimations
 src/systems/        CollisionGrid, DetectionSystem, AlertState, EntityStats
 src/ui/             Hud
 ```
 
-## Player character art
+## Character & enemy art
 
-The protagonist ("Rowan Ibarra") was generated with [PixelLab.ai](https://www.pixellab.ai/)
-— a 64x64, high top-down character template — and exported via its API as
-idle/walk/run/crouch cycles in 4 cardinal directions (`public/assets/player/`,
-manifest at `public/assets/player/manifest.json`). `PlayerAnimations.ts` maps
-that frame layout to Phaser animation keys; diagonal movement stays free
-8-directional, but the sprite's *visual* facing snaps to the nearest cardinal,
-a standard convention for 4-direction character sheets.
+Both were generated with [PixelLab.ai](https://www.pixellab.ai/) (high
+top-down templates) and pulled in via its API:
+
+- **Player** ("Rowan Ibarra", 64x64) — idle/walk/run/crouch cycles in 4
+  cardinal directions (`public/assets/player/`, manifest at
+  `public/assets/player/manifest.json`). `PlayerAnimations.ts` maps that frame
+  layout to Phaser animation keys.
+- **Enforcer** ("Enforcer", 68x68) — a tracked security drone with a
+  swiveling floodlight/sensor arm; its "apprehend" cycle (the arm sweeping
+  left-right) doubles as the patrol-scan animation, sped up while pursuing
+  (`public/assets/enforcer/`, manifest at
+  `public/assets/enforcer/manifest.json`). `EnforcerAnimations.ts` maps the
+  frames to Phaser animation keys.
+
+Both only exported 4 cardinal directions, so diagonal movement stays free
+8-directional while each sprite's *visual* facing snaps to the nearest
+cardinal — a standard convention for 4-direction character sheets.

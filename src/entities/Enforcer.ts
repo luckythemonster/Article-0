@@ -3,6 +3,14 @@ import type { ComponentData } from "../map/types";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { AlertState } from "../systems/AlertState";
 import { enforcerStatsFor, type EnforcerStats } from "../systems/EntityStats";
+import {
+  ENFORCER_ANIM_DIRS,
+  ENFORCER_PATROL_FRAME_COUNT,
+  enforcerAnimKey,
+  enforcerFrameKey,
+  nearestCardinalFromAngle,
+  type EnforcerAnimDir,
+} from "./EnforcerAnimations";
 
 export interface EnforcerContext {
   grid: CollisionGrid;
@@ -37,8 +45,9 @@ export class Enforcer {
   private turnDir = 1;
 
   private readonly cone: Phaser.GameObjects.Graphics;
-  private readonly body: Phaser.GameObjects.Arc;
+  private readonly body: Phaser.GameObjects.Sprite;
   private readonly bang: Phaser.GameObjects.Text;
+  private dir: EnforcerAnimDir = "south";
 
   constructor(
     scene: Phaser.Scene,
@@ -52,9 +61,13 @@ export class Enforcer {
     this.y = (tileY + 0.5) * tileSize;
     this.facing = Phaser.Math.FloatBetween(0, Math.PI * 2);
 
+    Enforcer.ensureAnimations(scene);
+
     this.cone = scene.add.graphics().setDepth(400);
-    this.body = scene.add.circle(this.x, this.y, tileSize * 0.32, 0xff4d4d).setDepth(450);
-    this.body.setStrokeStyle(2, 0x1a0000);
+    this.body = scene.add.sprite(this.x, this.y, enforcerFrameKey("south", 0)).setDepth(450);
+    // The 68x68 source art scaled to read as a bulky tracked unit against 32px tiles.
+    this.body.setScale((tileSize * 1.5) / 68);
+    this.body.play(enforcerAnimKey("south"));
     this.bang = scene.add
       .text(this.x, this.y - tileSize, "!", {
         fontFamily: "monospace",
@@ -79,6 +92,14 @@ export class Enforcer {
     this.updateDetection(dt, ctx);
     this.drawCone(grid, tileSize);
 
+    const dir = nearestCardinalFromAngle(this.facing);
+    if (dir !== this.dir) {
+      this.dir = dir;
+      this.body.play(enforcerAnimKey(dir), true);
+    }
+    // Sweep the scanner faster while actively pursuing.
+    this.body.anims.timeScale = ctx.alert.isCombatAware ? 1.8 : 1;
+    this.body.setTint(ctx.alert.phase === "ALERT" ? 0xff9a9a : 0xffffff);
     this.body.setPosition(this.x, this.y);
     this.bang.setPosition(this.x, this.y - tileSize);
     this.bang.setVisible(this.detection > 0.66 || ctx.alert.phase === "ALERT");
@@ -206,6 +227,22 @@ export class Enforcer {
 
   get position(): { x: number; y: number } {
     return { x: this.x, y: this.y };
+  }
+
+  /** Registers the patrol-scan animation for each direction once per scene. */
+  private static ensureAnimations(scene: Phaser.Scene): void {
+    for (const dir of ENFORCER_ANIM_DIRS) {
+      const key = enforcerAnimKey(dir);
+      if (scene.anims.exists(key)) continue;
+      scene.anims.create({
+        key,
+        frames: Array.from({ length: ENFORCER_PATROL_FRAME_COUNT }, (_, i) => ({
+          key: enforcerFrameKey(dir, i),
+        })),
+        frameRate: 8,
+        repeat: -1,
+      });
+    }
   }
 }
 

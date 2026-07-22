@@ -10,6 +10,12 @@ import {
   playerFramePath,
   type PlayerAnimName,
 } from "./entities/PlayerAnimations";
+import {
+  ENFORCER_ANIM_DIRS,
+  ENFORCER_PATROL_FRAME_COUNT,
+  enforcerFrameKey,
+  enforcerFramePath,
+} from "./entities/EnforcerAnimations";
 
 /**
  * Boot scene: loads the edplay map JSON and the three spritesheets, parses the
@@ -35,6 +41,12 @@ class BootScene extends Phaser.Scene {
         for (let i = 0; i < count; i++) {
           this.load.image(playerFrameKey(anim, dir, i), playerFramePath(anim, dir, i));
         }
+      }
+    }
+
+    for (const dir of ENFORCER_ANIM_DIRS) {
+      for (let i = 0; i < ENFORCER_PATROL_FRAME_COUNT; i++) {
+        this.load.image(enforcerFrameKey(dir, i), enforcerFramePath(dir, i));
       }
     }
   }
