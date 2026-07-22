@@ -119,5 +119,5 @@ top-down templates) and pulled in via its API:
   (`public/assets/enforcer/`, manifest at
   `public/assets/enforcer/manifest.json`). `EnforcerAnimations.ts` maps the
   frames to Phaser animation keys; facing matches the guard's continuous
-  patrol/pursuit angle exactly. Scaled to read as roughly human/Rowan-sized
-  (slightly larger), not towering machinery.
+  patrol/pursuit angle exactly. Scaled small (~half a tile) so it reads as a
+  compact sentry unit rather than a human-sized threat.

@@ -65,9 +65,9 @@ export class Enforcer {
 
     this.cone = scene.add.graphics().setDepth(400);
     this.body = scene.add.sprite(this.x, this.y, enforcerFrameKey("south", 0)).setDepth(450);
-    // Scaled to roughly human/Rowan-sized (slightly larger) rather than towering
-    // over the player, despite the source art's bulky industrial proportions.
-    this.body.setScale((tileSize * 1.35) / 34);
+    // Scaled down to about half a tile — small and unobtrusive rather than
+    // human-sized, despite the source art's bulky industrial proportions.
+    this.body.setScale((tileSize * 0.675) / 34);
     this.body.play(enforcerAnimKey("south"));
     this.bang = scene.add
       .text(this.x, this.y - tileSize, "!", {
