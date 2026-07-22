@@ -1,0 +1,19 @@
+{
+  "name": "article-0",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Article Zero — an SNES-style top-down stealth RPG engine that parses and runs the edplay map format. Metal Gear / Metal Gear 2 inspired.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "phaser": "^3.80.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2"
+  }
+}
