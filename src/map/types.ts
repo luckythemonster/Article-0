@@ -175,3 +175,18 @@ export interface GameMap {
   /** Texture keys registered for the three spritesheets, in file order. */
   sheetTextureKeys: string[];
 }
+
+/**
+ * Which board a transition tile lives on, which also decides how it triggers:
+ * `stairs` are walked over, `maintenance_access` (hatches/ladders) is entered
+ * with the interact key.
+ */
+export type TransitionKind = "stairs" | "maintenance_access";
+
+/** Where a transition tile leads: the destination level and arrival tile. */
+export interface Transition {
+  toLevel: string;
+  toX: number;
+  toY: number;
+  kind: TransitionKind;
+}
