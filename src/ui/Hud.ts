@@ -51,7 +51,7 @@ export class Hud {
       .setDepth(1001);
 
     this.hint = scene.add
-      .text(pad, scene.scale.height - pad, "WASD/Arrows move   Shift sneak   Space run", {
+      .text(pad, scene.scale.height - pad, "WASD/Arrows move   Shift sneak   Space run   E use access", {
         fontFamily: "monospace",
         fontSize: "12px",
         color: "#6b7f92",

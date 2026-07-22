@@ -32,6 +32,13 @@ npm run build    # tsc --noEmit + vite build
 | WASD / Arrows | Move (free 8-directional) |
 | Shift | Sneak — slower, quieter, harder to spot |
 | Space | Run — faster but louder |
+| E | Use a maintenance hatch / ladder to change level |
+
+Walk onto a **staircase** and you descend/ascend automatically; **hatches and
+ladders** show a `[E] Use access` prompt and change level when you press **E**.
+Either way the screen fades and you arrive at the connected level's matching
+access point — `main1` links to `main2` (stairs) and to `duct1`/`duct2`
+(maintenance hatches).
 
 Walk into a guard's yellow vision cone with a clear line of sight and the
 detection meter fills; fill it completely and the base goes to **ALERT** (the
@@ -59,8 +66,9 @@ The whole pipeline lives in `src/`:
   + per-guard detection meter, animated scanner-drone sprite).
 - **`src/systems/`** — `CollisionGrid` (wall grid + line-of-sight raycast),
   `DetectionSystem` (light/cover modifiers), `AlertState` (the
-  INFILTRATION → ALERT → EVASION FSM), and `EntityStats` (engine-side default
-  tuning per entity type).
+  INFILTRATION → ALERT → EVASION FSM), `TransitionGraph` (auto-derived
+  level-to-level connections for stairs/hatches/ladders), and `EntityStats`
+  (engine-side default tuning per entity type).
 
 The gameplay numbers live in `EntityStats.ts` because the map author left the
 per-entity fields at their defaults — override any of them in the map and the
@@ -76,12 +84,16 @@ engine will use that value instead.
   scanner-drone sprite (patrol-scan cycle, full 8-direction), roughly
   player-sized.
 - Stealth: light/cover detection modifiers, global alert FSM, HUD.
+- Transitions: walk-over `stairs` and `E`-to-use `maintenance_access`
+  hatches/ladders move between all four levels (`main1`, `duct1`, `duct2`,
+  `main2`), with a screen fade. Connections are derived automatically from the
+  map by matching each access point's tile coordinate across levels
+  (`src/systems/TransitionGraph.ts`).
 
 ## Roadmap
 
-2. **The rest of the complex** — render/play `duct1`, `duct2`, `main2`, with
-   transitions through `stairs` and `maintenance_access` hatches; a
-   Soliton-style radar minimap.
+2. **The rest of the complex** — a Soliton-style radar minimap. _(Level
+   transitions through `stairs` and `maintenance_access` hatches — done.)_
 3. **Interactables** — hackable `terminal`s, keyed/stateful `door`s, `power`
    breakers that cut lights and sensors, `chest`/item pickups, `audio_hazard`
    noise traps (loose grates, steam).
@@ -119,5 +131,5 @@ top-down templates) and pulled in via its API:
   (`public/assets/enforcer/`, manifest at
   `public/assets/enforcer/manifest.json`). `EnforcerAnimations.ts` maps the
   frames to Phaser animation keys; facing matches the guard's continuous
-  patrol/pursuit angle exactly. Scaled to read as roughly human/Rowan-sized
-  (slightly larger), not towering machinery.
+  patrol/pursuit angle exactly. Scaled small (~half a tile) so it reads as a
+  compact sentry unit rather than a human-sized threat.
