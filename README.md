@@ -73,7 +73,7 @@ engine will use that value instead.
 - Player: free 8-directional movement, wall collision, sneak/run stances,
   animated character sprite (idle/walk/run/crouch, full 8-direction).
 - Guards: patrol, wall-clipped vision cones, per-guard detection, animated
-  scanner-drone sprite (idle/patrol scan cycle, 4-direction), roughly
+  scanner-drone sprite (patrol-scan cycle, full 8-direction), roughly
   player-sized.
 - Stealth: light/cover detection modifiers, global alert FSM, HUD.
 
@@ -112,12 +112,12 @@ top-down templates) and pulled in via its API:
   `public/assets/player/manifest.json`). `PlayerAnimations.ts` maps that frame
   layout to Phaser animation keys; facing matches the free 8-directional
   movement exactly, no direction snapping.
-- **Enforcer** ("Enforcer", 68x68) — a tracked security drone with a
-  swiveling floodlight/sensor arm; its "apprehend" cycle (the arm sweeping
-  left-right) doubles as the patrol-scan animation, sped up while pursuing
+- **Enforcer** (34x34) — a compact tracked security drone with a swiveling
+  floodlight/sensor arm. It shipped with no animations, so its "patrol-scan"
+  cycle (arm sweeping left-right while inching forward) was generated with
+  PixelLab's custom v3 animation mode across all 8 directions in one call
   (`public/assets/enforcer/`, manifest at
   `public/assets/enforcer/manifest.json`). `EnforcerAnimations.ts` maps the
-  frames to Phaser animation keys. Only 4 cardinal directions were exported for
-  this one, so its facing snaps to the nearest cardinal — a standard
-  convention for 4-direction character sheets. Scaled to read as roughly
-  human/Rowan-sized (slightly larger), not towering machinery.
+  frames to Phaser animation keys; facing matches the guard's continuous
+  patrol/pursuit angle exactly. Scaled to read as roughly human/Rowan-sized
+  (slightly larger), not towering machinery.

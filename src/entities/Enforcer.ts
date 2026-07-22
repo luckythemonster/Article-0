@@ -8,7 +8,7 @@ import {
   ENFORCER_PATROL_FRAME_COUNT,
   enforcerAnimKey,
   enforcerFrameKey,
-  nearestCardinalFromAngle,
+  nearestDirectionFromAngle,
   type EnforcerAnimDir,
 } from "./EnforcerAnimations";
 
@@ -67,7 +67,7 @@ export class Enforcer {
     this.body = scene.add.sprite(this.x, this.y, enforcerFrameKey("south", 0)).setDepth(450);
     // Scaled to roughly human/Rowan-sized (slightly larger) rather than towering
     // over the player, despite the source art's bulky industrial proportions.
-    this.body.setScale((tileSize * 1.35) / 68);
+    this.body.setScale((tileSize * 1.35) / 34);
     this.body.play(enforcerAnimKey("south"));
     this.bang = scene.add
       .text(this.x, this.y - tileSize, "!", {
@@ -93,7 +93,7 @@ export class Enforcer {
     this.updateDetection(dt, ctx);
     this.drawCone(grid, tileSize);
 
-    const dir = nearestCardinalFromAngle(this.facing);
+    const dir = nearestDirectionFromAngle(this.facing);
     if (dir !== this.dir) {
       this.dir = dir;
       this.body.play(enforcerAnimKey(dir), true);
