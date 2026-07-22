@@ -65,8 +65,9 @@ export class Enforcer {
 
     this.cone = scene.add.graphics().setDepth(400);
     this.body = scene.add.sprite(this.x, this.y, enforcerFrameKey("south", 0)).setDepth(450);
-    // The 68x68 source art scaled to read as a bulky tracked unit against 32px tiles.
-    this.body.setScale((tileSize * 1.5) / 68);
+    // Scaled to roughly human/Rowan-sized (slightly larger) rather than towering
+    // over the player, despite the source art's bulky industrial proportions.
+    this.body.setScale((tileSize * 1.35) / 68);
     this.body.play(enforcerAnimKey("south"));
     this.bang = scene.add
       .text(this.x, this.y - tileSize, "!", {

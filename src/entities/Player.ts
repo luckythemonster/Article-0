@@ -3,7 +3,7 @@ import {
   PLAYER_ANIM_DIRS,
   PLAYER_ANIM_FRAME_COUNTS,
   PLAYER_ANIM_FRAME_RATES,
-  nearestCardinal,
+  nearestDirection,
   playerAnimKey,
   playerFrameKey,
   type PlayerAnimDir,
@@ -12,14 +12,13 @@ import {
 
 /**
  * The player-controlled infiltrator, rendered with the PixelLab-generated
- * "Rowan Ibarra" character sheet (idle/walk/run/crouch cycles, 4 cardinal
+ * "Rowan Ibarra" character sheet (idle/walk/run/crouch cycles, full 8
  * directions).
  *
- * Movement stays free 8-directional via an arcade-physics body; the sprite's
- * visual facing snaps to the nearest of the 4 exported cardinal directions,
- * and the animation played reflects stance (idle / walk / run / crouch-sneak).
- * Sneaking halves speed and noise; running is faster but noisier — noise feeds
- * the detection system.
+ * Movement is free 8-directional via an arcade-physics body, and the sprite's
+ * facing matches it exactly; the animation played reflects stance (idle /
+ * walk / run / crouch-sneak). Sneaking halves speed and noise; running is
+ * faster but noisier — noise feeds the detection system.
  */
 export class Player {
   readonly sprite: Phaser.Physics.Arcade.Sprite;
@@ -72,7 +71,7 @@ export class Player {
       vx = (vx / len) * speed;
       vy = (vy / len) * speed;
       this.facing = Math.atan2(vy, vx);
-      this.dir = nearestCardinal(vx, vy);
+      this.dir = nearestDirection(vx, vy);
     }
     this.sprite.setVelocity(vx, vy);
 

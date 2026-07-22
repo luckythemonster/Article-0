@@ -1,13 +1,21 @@
 /**
  * Frame manifest for the player character sprite (generated via PixelLab.ai,
- * "Rowan Ibarra" — high top-down, 64x64, 8-direction template). Only 4
- * cardinal directions were exported per animation; diagonal movement snaps its
- * *visual* facing to the nearest cardinal while the underlying motion stays
- * free 8-directional (a standard top-down RPG convention).
+ * "Rowan Ibarra" — high top-down, 64x64, 8-direction template). All 8
+ * directions were exported per animation, so the sprite's facing matches the
+ * free 8-directional movement exactly (no cardinal snapping).
  *
  * Frames live in public/assets/player/<anim>/<direction>/<frame>.png.
  */
-export const PLAYER_ANIM_DIRS = ["south", "east", "west", "north"] as const;
+export const PLAYER_ANIM_DIRS = [
+  "south",
+  "south-east",
+  "east",
+  "north-east",
+  "north",
+  "north-west",
+  "west",
+  "south-west",
+] as const;
 export type PlayerAnimDir = (typeof PLAYER_ANIM_DIRS)[number];
 
 export type PlayerAnimName = "idle" | "walk" | "run" | "crouch";
@@ -41,8 +49,22 @@ export function playerAnimKey(anim: PlayerAnimName, dir: PlayerAnimDir): string 
   return `player-${anim}-${dir}`;
 }
 
-/** Snaps a movement vector to the nearest of the 4 exported cardinal directions. */
-export function nearestCardinal(dx: number, dy: number): PlayerAnimDir {
-  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? "east" : "west";
-  return dy >= 0 ? "south" : "north";
+/** The 8 directions in angular order, starting at east (0°) going clockwise. */
+const DIRECTION_ORDER: PlayerAnimDir[] = [
+  "east",
+  "south-east",
+  "south",
+  "south-west",
+  "west",
+  "north-west",
+  "north",
+  "north-east",
+];
+
+/** Snaps a movement vector to the nearest of the 8 exported directions. */
+export function nearestDirection(dx: number, dy: number): PlayerAnimDir {
+  const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+  const normalized = (angleDeg + 360) % 360;
+  const index = Math.round(normalized / 45) % 8;
+  return DIRECTION_ORDER[index];
 }
