@@ -71,9 +71,10 @@ engine will use that value instead.
 - Parse `edplay.json` into a normalized model and register sprite frames.
 - Render `main1` from the real spritesheets, in correct layer order.
 - Player: free 8-directional movement, wall collision, sneak/run stances,
-  animated character sprite (idle/walk/run/crouch, 4-direction).
+  animated character sprite (idle/walk/run/crouch, full 8-direction).
 - Guards: patrol, wall-clipped vision cones, per-guard detection, animated
-  scanner-drone sprite (idle/patrol scan cycle, 4-direction).
+  scanner-drone sprite (idle/patrol scan cycle, 4-direction), roughly
+  player-sized.
 - Stealth: light/cover detection modifiers, global alert FSM, HUD.
 
 ## Roadmap
@@ -106,17 +107,17 @@ src/ui/             Hud
 Both were generated with [PixelLab.ai](https://www.pixellab.ai/) (high
 top-down templates) and pulled in via its API:
 
-- **Player** ("Rowan Ibarra", 64x64) — idle/walk/run/crouch cycles in 4
-  cardinal directions (`public/assets/player/`, manifest at
+- **Player** ("Rowan Ibarra", 64x64) — idle/walk/run/crouch cycles in all 8
+  directions (`public/assets/player/`, manifest at
   `public/assets/player/manifest.json`). `PlayerAnimations.ts` maps that frame
-  layout to Phaser animation keys.
+  layout to Phaser animation keys; facing matches the free 8-directional
+  movement exactly, no direction snapping.
 - **Enforcer** ("Enforcer", 68x68) — a tracked security drone with a
   swiveling floodlight/sensor arm; its "apprehend" cycle (the arm sweeping
   left-right) doubles as the patrol-scan animation, sped up while pursuing
   (`public/assets/enforcer/`, manifest at
   `public/assets/enforcer/manifest.json`). `EnforcerAnimations.ts` maps the
-  frames to Phaser animation keys.
-
-Both only exported 4 cardinal directions, so diagonal movement stays free
-8-directional while each sprite's *visual* facing snaps to the nearest
-cardinal — a standard convention for 4-direction character sheets.
+  frames to Phaser animation keys. Only 4 cardinal directions were exported for
+  this one, so its facing snaps to the nearest cardinal — a standard
+  convention for 4-direction character sheets. Scaled to read as roughly
+  human/Rowan-sized (slightly larger), not towering machinery.
