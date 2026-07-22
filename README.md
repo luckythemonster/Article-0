@@ -117,14 +117,21 @@ engine will use that value instead.
   `terminal`s hack on a held interact and release the doors in their sector
   (`src/entities/Door.ts`, `src/entities/Terminal.ts`). Terminal→door links are
   derived by proximity, since the map carries none.
+- Lasers: `laser` tiles become live hazards (`src/entities/Laser.ts`) — pink
+  4×4 `scanner` zones with a rotating sweep, and red horizontal/vertical
+  `beam`s — that pulse active/idle (a timing window to slip through) and trip
+  the alarm instantly on contact. Kind and orientation are inferred from the
+  `ref` and the footprint from `ColSpan`/`RowSpan`, since the tiles carry no
+  components.
 
 ## Roadmap
 
 2. **The rest of the complex** — done: level transitions through `stairs` and
    `maintenance_access` hatches, plus a Soliton-style radar minimap.
-3. **Interactables** — done: hackable `terminal`s + blocking/openable `door`s.
-   Still to come: `power` breakers that cut lights and sensors, `chest`/item
-   pickups, `audio_hazard` noise traps (loose grates, steam).
+3. **Interactables & hazards** — done: hackable `terminal`s, blocking/openable
+   `door`s, and `laser` tripwires/scanners. (The map places no `power`,
+   `chest`, or `audio_hazard` tiles, so those roadmap ideas would need new
+   authoring.)
 4. **More threats & the RPG layer** — `orderly`/`drone`/`security` enemy types,
    `sensor` cameras, thermal detection, inventory, and alert-network stats.
 
@@ -137,7 +144,7 @@ public/assets/enforcer/ enforcer drone frames (see below)
 src/main.ts         boot: load assets, parse map, start scenes
 src/map/            format types, loader, sprite atlas
 src/scenes/         GameScene, UIScene
-src/entities/       Player, Enforcer, Door, Terminal, PlayerAnimations, EnforcerAnimations
+src/entities/       Player, Enforcer, Door, Terminal, Laser, PlayerAnimations, EnforcerAnimations
 src/systems/        CollisionGrid, DetectionSystem, AlertState,
                     TransitionGraph, Radar, EntityStats
 src/ui/             Hud, Radar
