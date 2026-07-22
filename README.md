@@ -46,6 +46,13 @@ cone turns red, a `!` appears, guards converge on your last known position).
 Break line of sight and it decays back through **EVASION** to **INFILTRATION**.
 Standing in a light pool fills the meter faster; standing on cover slows it.
 
+The top-right **radar** is a Soliton-style minimap: a world-aligned circular
+plan view showing nearby walls and guards (yellow, red once they're close to
+spotting you) within a fixed radius, with your own facing as a cyan arrow at
+the centre. It's disabled during **ALERT** — the feed reads `JAMMED` and shows
+only static — so you lose the safety net exactly when guards are actively
+hunting and have to fall back on line of sight.
+
 ## How the map is parsed
 
 The whole pipeline lives in `src/`:
@@ -64,11 +71,12 @@ The whole pipeline lives in `src/`:
 - **`src/entities/`** — `Player` (arcade-body 8-dir movement, stance/noise,
   animated character sprite) and `Enforcer` (patrol + wall-clipped vision cone
   + per-guard detection meter, animated scanner-drone sprite).
-- **`src/systems/`** — `CollisionGrid` (wall grid + line-of-sight raycast),
-  `DetectionSystem` (light/cover modifiers), `AlertState` (the
-  INFILTRATION → ALERT → EVASION FSM), `TransitionGraph` (auto-derived
-  level-to-level connections for stairs/hatches/ladders), and `EntityStats`
-  (engine-side default tuning per entity type).
+- **`src/systems/`** — `CollisionGrid` (wall grid + line-of-sight raycast,
+  plus a radius query for nearby walls), `DetectionSystem` (light/cover
+  modifiers), `AlertState` (the INFILTRATION → ALERT → EVASION FSM),
+  `TransitionGraph` (auto-derived level-to-level connections for
+  stairs/hatches/ladders), `Radar` (builds the player-relative radar snapshot
+  each frame), and `EntityStats` (engine-side default tuning per entity type).
 
 The gameplay numbers live in `EntityStats.ts` because the map author left the
 per-entity fields at their defaults — override any of them in the map and the
@@ -89,11 +97,14 @@ engine will use that value instead.
   `main2`), with a screen fade. Connections are derived automatically from the
   map by matching each access point's tile coordinate across levels
   (`src/systems/TransitionGraph.ts`).
+- Radar: a Soliton-style circular minimap (nearby walls + guard blips,
+  player-facing marker), jammed during ALERT (`src/systems/Radar.ts` +
+  `src/ui/Radar.ts`).
 
 ## Roadmap
 
-2. **The rest of the complex** — a Soliton-style radar minimap. _(Level
-   transitions through `stairs` and `maintenance_access` hatches — done.)_
+2. **The rest of the complex** — done: level transitions through `stairs` and
+   `maintenance_access` hatches, plus a Soliton-style radar minimap.
 3. **Interactables** — hackable `terminal`s, keyed/stateful `door`s, `power`
    breakers that cut lights and sensors, `chest`/item pickups, `audio_hazard`
    noise traps (loose grates, steam).
@@ -110,8 +121,9 @@ src/main.ts         boot: load assets, parse map, start scenes
 src/map/            format types, loader, sprite atlas
 src/scenes/         GameScene, UIScene
 src/entities/       Player, Enforcer, PlayerAnimations, EnforcerAnimations
-src/systems/        CollisionGrid, DetectionSystem, AlertState, EntityStats
-src/ui/             Hud
+src/systems/        CollisionGrid, DetectionSystem, AlertState,
+                    TransitionGraph, Radar, EntityStats
+src/ui/             Hud, Radar
 ```
 
 ## Character & enemy art
