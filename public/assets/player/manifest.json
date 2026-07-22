@@ -29,34 +29,6 @@
  },
  {
   "anim": "idle",
-  "direction": "east",
-  "frame": 0,
-  "key": "player-idle-east-0",
-  "path": "assets/player/idle/east/0.png"
- },
- {
-  "anim": "idle",
-  "direction": "east",
-  "frame": 1,
-  "key": "player-idle-east-1",
-  "path": "assets/player/idle/east/1.png"
- },
- {
-  "anim": "idle",
-  "direction": "east",
-  "frame": 2,
-  "key": "player-idle-east-2",
-  "path": "assets/player/idle/east/2.png"
- },
- {
-  "anim": "idle",
-  "direction": "east",
-  "frame": 3,
-  "key": "player-idle-east-3",
-  "path": "assets/player/idle/east/3.png"
- },
- {
-  "anim": "idle",
   "direction": "west",
   "frame": 0,
   "key": "player-idle-west-0",
@@ -85,59 +57,31 @@
  },
  {
   "anim": "idle",
-  "direction": "south",
+  "direction": "south-west",
   "frame": 0,
-  "key": "player-idle-south-0",
-  "path": "assets/player/idle/south/0.png"
+  "key": "player-idle-south-west-0",
+  "path": "assets/player/idle/south-west/0.png"
  },
  {
   "anim": "idle",
-  "direction": "south",
+  "direction": "south-west",
   "frame": 1,
-  "key": "player-idle-south-1",
-  "path": "assets/player/idle/south/1.png"
+  "key": "player-idle-south-west-1",
+  "path": "assets/player/idle/south-west/1.png"
  },
  {
   "anim": "idle",
-  "direction": "south",
+  "direction": "south-west",
   "frame": 2,
-  "key": "player-idle-south-2",
-  "path": "assets/player/idle/south/2.png"
+  "key": "player-idle-south-west-2",
+  "path": "assets/player/idle/south-west/2.png"
  },
  {
   "anim": "idle",
-  "direction": "south",
+  "direction": "south-west",
   "frame": 3,
-  "key": "player-idle-south-3",
-  "path": "assets/player/idle/south/3.png"
- },
- {
-  "anim": "idle",
-  "direction": "north",
-  "frame": 0,
-  "key": "player-idle-north-0",
-  "path": "assets/player/idle/north/0.png"
- },
- {
-  "anim": "idle",
-  "direction": "north",
-  "frame": 1,
-  "key": "player-idle-north-1",
-  "path": "assets/player/idle/north/1.png"
- },
- {
-  "anim": "idle",
-  "direction": "north",
-  "frame": 2,
-  "key": "player-idle-north-2",
-  "path": "assets/player/idle/north/2.png"
- },
- {
-  "anim": "idle",
-  "direction": "north",
-  "frame": 3,
-  "key": "player-idle-north-3",
-  "path": "assets/player/idle/north/3.png"
+  "key": "player-idle-south-west-3",
+  "path": "assets/player/idle/south-west/3.png"
  },
  {
   "anim": "idle",
@@ -169,6 +113,62 @@
  },
  {
   "anim": "idle",
+  "direction": "north",
+  "frame": 0,
+  "key": "player-idle-north-0",
+  "path": "assets/player/idle/north/0.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "north",
+  "frame": 1,
+  "key": "player-idle-north-1",
+  "path": "assets/player/idle/north/1.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "north",
+  "frame": 2,
+  "key": "player-idle-north-2",
+  "path": "assets/player/idle/north/2.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "north",
+  "frame": 3,
+  "key": "player-idle-north-3",
+  "path": "assets/player/idle/north/3.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "east",
+  "frame": 0,
+  "key": "player-idle-east-0",
+  "path": "assets/player/idle/east/0.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "east",
+  "frame": 1,
+  "key": "player-idle-east-1",
+  "path": "assets/player/idle/east/1.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "east",
+  "frame": 2,
+  "key": "player-idle-east-2",
+  "path": "assets/player/idle/east/2.png"
+ },
+ {
+  "anim": "idle",
+  "direction": "east",
+  "frame": 3,
+  "key": "player-idle-east-3",
+  "path": "assets/player/idle/east/3.png"
+ },
+ {
+  "anim": "idle",
   "direction": "north-east",
   "frame": 0,
   "key": "player-idle-north-east-0",
@@ -197,101 +197,31 @@
  },
  {
   "anim": "idle",
-  "direction": "south-west",
+  "direction": "south",
   "frame": 0,
-  "key": "player-idle-south-west-0",
-  "path": "assets/player/idle/south-west/0.png"
+  "key": "player-idle-south-0",
+  "path": "assets/player/idle/south/0.png"
  },
  {
   "anim": "idle",
-  "direction": "south-west",
+  "direction": "south",
   "frame": 1,
-  "key": "player-idle-south-west-1",
-  "path": "assets/player/idle/south-west/1.png"
+  "key": "player-idle-south-1",
+  "path": "assets/player/idle/south/1.png"
  },
  {
   "anim": "idle",
-  "direction": "south-west",
+  "direction": "south",
   "frame": 2,
-  "key": "player-idle-south-west-2",
-  "path": "assets/player/idle/south-west/2.png"
+  "key": "player-idle-south-2",
+  "path": "assets/player/idle/south/2.png"
  },
  {
   "anim": "idle",
-  "direction": "south-west",
-  "frame": 3,
-  "key": "player-idle-south-west-3",
-  "path": "assets/player/idle/south-west/3.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-west",
-  "frame": 0,
-  "key": "player-crouch-north-west-0",
-  "path": "assets/player/crouch/north-west/0.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-west",
-  "frame": 1,
-  "key": "player-crouch-north-west-1",
-  "path": "assets/player/crouch/north-west/1.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-west",
-  "frame": 2,
-  "key": "player-crouch-north-west-2",
-  "path": "assets/player/crouch/north-west/2.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-west",
-  "frame": 3,
-  "key": "player-crouch-north-west-3",
-  "path": "assets/player/crouch/north-west/3.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-west",
-  "frame": 4,
-  "key": "player-crouch-north-west-4",
-  "path": "assets/player/crouch/north-west/4.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south",
-  "frame": 0,
-  "key": "player-crouch-south-0",
-  "path": "assets/player/crouch/south/0.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south",
-  "frame": 1,
-  "key": "player-crouch-south-1",
-  "path": "assets/player/crouch/south/1.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south",
-  "frame": 2,
-  "key": "player-crouch-south-2",
-  "path": "assets/player/crouch/south/2.png"
- },
- {
-  "anim": "crouch",
   "direction": "south",
   "frame": 3,
-  "key": "player-crouch-south-3",
-  "path": "assets/player/crouch/south/3.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south",
-  "frame": 4,
-  "key": "player-crouch-south-4",
-  "path": "assets/player/crouch/south/4.png"
+  "key": "player-idle-south-3",
+  "path": "assets/player/idle/south/3.png"
  },
  {
   "anim": "crouch",
@@ -330,38 +260,73 @@
  },
  {
   "anim": "crouch",
-  "direction": "east",
+  "direction": "north-west",
   "frame": 0,
-  "key": "player-crouch-east-0",
-  "path": "assets/player/crouch/east/0.png"
+  "key": "player-crouch-north-west-0",
+  "path": "assets/player/crouch/north-west/0.png"
  },
  {
   "anim": "crouch",
-  "direction": "east",
+  "direction": "north-west",
   "frame": 1,
-  "key": "player-crouch-east-1",
-  "path": "assets/player/crouch/east/1.png"
+  "key": "player-crouch-north-west-1",
+  "path": "assets/player/crouch/north-west/1.png"
  },
  {
   "anim": "crouch",
-  "direction": "east",
+  "direction": "north-west",
   "frame": 2,
-  "key": "player-crouch-east-2",
-  "path": "assets/player/crouch/east/2.png"
+  "key": "player-crouch-north-west-2",
+  "path": "assets/player/crouch/north-west/2.png"
  },
  {
   "anim": "crouch",
-  "direction": "east",
+  "direction": "north-west",
   "frame": 3,
-  "key": "player-crouch-east-3",
-  "path": "assets/player/crouch/east/3.png"
+  "key": "player-crouch-north-west-3",
+  "path": "assets/player/crouch/north-west/3.png"
  },
  {
   "anim": "crouch",
-  "direction": "east",
+  "direction": "north-west",
   "frame": 4,
-  "key": "player-crouch-east-4",
-  "path": "assets/player/crouch/east/4.png"
+  "key": "player-crouch-north-west-4",
+  "path": "assets/player/crouch/north-west/4.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "south-east",
+  "frame": 0,
+  "key": "player-crouch-south-east-0",
+  "path": "assets/player/crouch/south-east/0.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "south-east",
+  "frame": 1,
+  "key": "player-crouch-south-east-1",
+  "path": "assets/player/crouch/south-east/1.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "south-east",
+  "frame": 2,
+  "key": "player-crouch-south-east-2",
+  "path": "assets/player/crouch/south-east/2.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "south-east",
+  "frame": 3,
+  "key": "player-crouch-south-east-3",
+  "path": "assets/player/crouch/south-east/3.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "south-east",
+  "frame": 4,
+  "key": "player-crouch-south-east-4",
+  "path": "assets/player/crouch/south-east/4.png"
  },
  {
   "anim": "crouch",
@@ -400,41 +365,6 @@
  },
  {
   "anim": "crouch",
-  "direction": "north-east",
-  "frame": 0,
-  "key": "player-crouch-north-east-0",
-  "path": "assets/player/crouch/north-east/0.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-east",
-  "frame": 1,
-  "key": "player-crouch-north-east-1",
-  "path": "assets/player/crouch/north-east/1.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-east",
-  "frame": 2,
-  "key": "player-crouch-north-east-2",
-  "path": "assets/player/crouch/north-east/2.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-east",
-  "frame": 3,
-  "key": "player-crouch-north-east-3",
-  "path": "assets/player/crouch/north-east/3.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-east",
-  "frame": 4,
-  "key": "player-crouch-north-east-4",
-  "path": "assets/player/crouch/north-east/4.png"
- },
- {
-  "anim": "crouch",
   "direction": "south-west",
   "frame": 0,
   "key": "player-crouch-south-west-0",
@@ -470,94 +400,108 @@
  },
  {
   "anim": "crouch",
-  "direction": "south-east",
+  "direction": "south",
   "frame": 0,
-  "key": "player-crouch-south-east-0",
-  "path": "assets/player/crouch/south-east/0.png"
+  "key": "player-crouch-south-0",
+  "path": "assets/player/crouch/south/0.png"
  },
  {
   "anim": "crouch",
-  "direction": "south-east",
+  "direction": "south",
   "frame": 1,
-  "key": "player-crouch-south-east-1",
-  "path": "assets/player/crouch/south-east/1.png"
+  "key": "player-crouch-south-1",
+  "path": "assets/player/crouch/south/1.png"
  },
  {
   "anim": "crouch",
-  "direction": "south-east",
+  "direction": "south",
   "frame": 2,
-  "key": "player-crouch-south-east-2",
-  "path": "assets/player/crouch/south-east/2.png"
+  "key": "player-crouch-south-2",
+  "path": "assets/player/crouch/south/2.png"
  },
  {
   "anim": "crouch",
-  "direction": "south-east",
+  "direction": "south",
   "frame": 3,
-  "key": "player-crouch-south-east-3",
-  "path": "assets/player/crouch/south-east/3.png"
+  "key": "player-crouch-south-3",
+  "path": "assets/player/crouch/south/3.png"
  },
  {
   "anim": "crouch",
-  "direction": "south-east",
+  "direction": "south",
   "frame": 4,
-  "key": "player-crouch-south-east-4",
-  "path": "assets/player/crouch/south-east/4.png"
+  "key": "player-crouch-south-4",
+  "path": "assets/player/crouch/south/4.png"
  },
  {
-  "anim": "run",
-  "direction": "north-west",
+  "anim": "crouch",
+  "direction": "east",
   "frame": 0,
-  "key": "player-run-north-west-0",
-  "path": "assets/player/run/north-west/0.png"
+  "key": "player-crouch-east-0",
+  "path": "assets/player/crouch/east/0.png"
  },
  {
-  "anim": "run",
-  "direction": "north-west",
+  "anim": "crouch",
+  "direction": "east",
   "frame": 1,
-  "key": "player-run-north-west-1",
-  "path": "assets/player/run/north-west/1.png"
+  "key": "player-crouch-east-1",
+  "path": "assets/player/crouch/east/1.png"
  },
  {
-  "anim": "run",
-  "direction": "north-west",
+  "anim": "crouch",
+  "direction": "east",
   "frame": 2,
-  "key": "player-run-north-west-2",
-  "path": "assets/player/run/north-west/2.png"
+  "key": "player-crouch-east-2",
+  "path": "assets/player/crouch/east/2.png"
  },
  {
-  "anim": "run",
-  "direction": "north-west",
+  "anim": "crouch",
+  "direction": "east",
   "frame": 3,
-  "key": "player-run-north-west-3",
-  "path": "assets/player/run/north-west/3.png"
+  "key": "player-crouch-east-3",
+  "path": "assets/player/crouch/east/3.png"
  },
  {
-  "anim": "run",
-  "direction": "north-west",
+  "anim": "crouch",
+  "direction": "east",
   "frame": 4,
-  "key": "player-run-north-west-4",
-  "path": "assets/player/run/north-west/4.png"
+  "key": "player-crouch-east-4",
+  "path": "assets/player/crouch/east/4.png"
  },
  {
-  "anim": "run",
-  "direction": "north-west",
-  "frame": 5,
-  "key": "player-run-north-west-5",
-  "path": "assets/player/run/north-west/5.png"
+  "anim": "crouch",
+  "direction": "north-east",
+  "frame": 0,
+  "key": "player-crouch-north-east-0",
+  "path": "assets/player/crouch/north-east/0.png"
  },
  {
-  "anim": "run",
-  "direction": "north-west",
-  "frame": 6,
-  "key": "player-run-north-west-6",
-  "path": "assets/player/run/north-west/6.png"
+  "anim": "crouch",
+  "direction": "north-east",
+  "frame": 1,
+  "key": "player-crouch-north-east-1",
+  "path": "assets/player/crouch/north-east/1.png"
  },
  {
-  "anim": "run",
-  "direction": "north-west",
-  "frame": 7,
-  "key": "player-run-north-west-7",
-  "path": "assets/player/run/north-west/7.png"
+  "anim": "crouch",
+  "direction": "north-east",
+  "frame": 2,
+  "key": "player-crouch-north-east-2",
+  "path": "assets/player/crouch/north-east/2.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "north-east",
+  "frame": 3,
+  "key": "player-crouch-north-east-3",
+  "path": "assets/player/crouch/north-east/3.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "north-east",
+  "frame": 4,
+  "key": "player-crouch-north-east-4",
+  "path": "assets/player/crouch/north-east/4.png"
  },
  {
   "anim": "run",
@@ -589,90 +533,6 @@
  },
  {
   "anim": "run",
-  "direction": "west",
-  "frame": 4,
-  "key": "player-run-west-4",
-  "path": "assets/player/run/west/4.png"
- },
- {
-  "anim": "run",
-  "direction": "west",
-  "frame": 5,
-  "key": "player-run-west-5",
-  "path": "assets/player/run/west/5.png"
- },
- {
-  "anim": "run",
-  "direction": "west",
-  "frame": 6,
-  "key": "player-run-west-6",
-  "path": "assets/player/run/west/6.png"
- },
- {
-  "anim": "run",
-  "direction": "west",
-  "frame": 7,
-  "key": "player-run-west-7",
-  "path": "assets/player/run/west/7.png"
- },
- {
-  "anim": "run",
-  "direction": "north",
-  "frame": 0,
-  "key": "player-run-north-0",
-  "path": "assets/player/run/north/0.png"
- },
- {
-  "anim": "run",
-  "direction": "north",
-  "frame": 1,
-  "key": "player-run-north-1",
-  "path": "assets/player/run/north/1.png"
- },
- {
-  "anim": "run",
-  "direction": "north",
-  "frame": 2,
-  "key": "player-run-north-2",
-  "path": "assets/player/run/north/2.png"
- },
- {
-  "anim": "run",
-  "direction": "north",
-  "frame": 3,
-  "key": "player-run-north-3",
-  "path": "assets/player/run/north/3.png"
- },
- {
-  "anim": "run",
-  "direction": "north",
-  "frame": 4,
-  "key": "player-run-north-4",
-  "path": "assets/player/run/north/4.png"
- },
- {
-  "anim": "run",
-  "direction": "north",
-  "frame": 5,
-  "key": "player-run-north-5",
-  "path": "assets/player/run/north/5.png"
- },
- {
-  "anim": "run",
-  "direction": "north",
-  "frame": 6,
-  "key": "player-run-north-6",
-  "path": "assets/player/run/north/6.png"
- },
- {
-  "anim": "run",
-  "direction": "north",
-  "frame": 7,
-  "key": "player-run-north-7",
-  "path": "assets/player/run/north/7.png"
- },
- {
-  "anim": "run",
   "direction": "east",
   "frame": 0,
   "key": "player-run-east-0",
@@ -698,202 +558,6 @@
   "frame": 3,
   "key": "player-run-east-3",
   "path": "assets/player/run/east/3.png"
- },
- {
-  "anim": "run",
-  "direction": "east",
-  "frame": 4,
-  "key": "player-run-east-4",
-  "path": "assets/player/run/east/4.png"
- },
- {
-  "anim": "run",
-  "direction": "east",
-  "frame": 5,
-  "key": "player-run-east-5",
-  "path": "assets/player/run/east/5.png"
- },
- {
-  "anim": "run",
-  "direction": "east",
-  "frame": 6,
-  "key": "player-run-east-6",
-  "path": "assets/player/run/east/6.png"
- },
- {
-  "anim": "run",
-  "direction": "east",
-  "frame": 7,
-  "key": "player-run-east-7",
-  "path": "assets/player/run/east/7.png"
- },
- {
-  "anim": "run",
-  "direction": "south",
-  "frame": 0,
-  "key": "player-run-south-0",
-  "path": "assets/player/run/south/0.png"
- },
- {
-  "anim": "run",
-  "direction": "south",
-  "frame": 1,
-  "key": "player-run-south-1",
-  "path": "assets/player/run/south/1.png"
- },
- {
-  "anim": "run",
-  "direction": "south",
-  "frame": 2,
-  "key": "player-run-south-2",
-  "path": "assets/player/run/south/2.png"
- },
- {
-  "anim": "run",
-  "direction": "south",
-  "frame": 3,
-  "key": "player-run-south-3",
-  "path": "assets/player/run/south/3.png"
- },
- {
-  "anim": "run",
-  "direction": "south",
-  "frame": 4,
-  "key": "player-run-south-4",
-  "path": "assets/player/run/south/4.png"
- },
- {
-  "anim": "run",
-  "direction": "south",
-  "frame": 5,
-  "key": "player-run-south-5",
-  "path": "assets/player/run/south/5.png"
- },
- {
-  "anim": "run",
-  "direction": "south",
-  "frame": 6,
-  "key": "player-run-south-6",
-  "path": "assets/player/run/south/6.png"
- },
- {
-  "anim": "run",
-  "direction": "south",
-  "frame": 7,
-  "key": "player-run-south-7",
-  "path": "assets/player/run/south/7.png"
- },
- {
-  "anim": "run",
-  "direction": "south-west",
-  "frame": 0,
-  "key": "player-run-south-west-0",
-  "path": "assets/player/run/south-west/0.png"
- },
- {
-  "anim": "run",
-  "direction": "south-west",
-  "frame": 1,
-  "key": "player-run-south-west-1",
-  "path": "assets/player/run/south-west/1.png"
- },
- {
-  "anim": "run",
-  "direction": "south-west",
-  "frame": 2,
-  "key": "player-run-south-west-2",
-  "path": "assets/player/run/south-west/2.png"
- },
- {
-  "anim": "run",
-  "direction": "south-west",
-  "frame": 3,
-  "key": "player-run-south-west-3",
-  "path": "assets/player/run/south-west/3.png"
- },
- {
-  "anim": "run",
-  "direction": "south-west",
-  "frame": 4,
-  "key": "player-run-south-west-4",
-  "path": "assets/player/run/south-west/4.png"
- },
- {
-  "anim": "run",
-  "direction": "south-west",
-  "frame": 5,
-  "key": "player-run-south-west-5",
-  "path": "assets/player/run/south-west/5.png"
- },
- {
-  "anim": "run",
-  "direction": "south-west",
-  "frame": 6,
-  "key": "player-run-south-west-6",
-  "path": "assets/player/run/south-west/6.png"
- },
- {
-  "anim": "run",
-  "direction": "south-west",
-  "frame": 7,
-  "key": "player-run-south-west-7",
-  "path": "assets/player/run/south-west/7.png"
- },
- {
-  "anim": "run",
-  "direction": "north-east",
-  "frame": 0,
-  "key": "player-run-north-east-0",
-  "path": "assets/player/run/north-east/0.png"
- },
- {
-  "anim": "run",
-  "direction": "north-east",
-  "frame": 1,
-  "key": "player-run-north-east-1",
-  "path": "assets/player/run/north-east/1.png"
- },
- {
-  "anim": "run",
-  "direction": "north-east",
-  "frame": 2,
-  "key": "player-run-north-east-2",
-  "path": "assets/player/run/north-east/2.png"
- },
- {
-  "anim": "run",
-  "direction": "north-east",
-  "frame": 3,
-  "key": "player-run-north-east-3",
-  "path": "assets/player/run/north-east/3.png"
- },
- {
-  "anim": "run",
-  "direction": "north-east",
-  "frame": 4,
-  "key": "player-run-north-east-4",
-  "path": "assets/player/run/north-east/4.png"
- },
- {
-  "anim": "run",
-  "direction": "north-east",
-  "frame": 5,
-  "key": "player-run-north-east-5",
-  "path": "assets/player/run/north-east/5.png"
- },
- {
-  "anim": "run",
-  "direction": "north-east",
-  "frame": 6,
-  "key": "player-run-north-east-6",
-  "path": "assets/player/run/north-east/6.png"
- },
- {
-  "anim": "run",
-  "direction": "north-east",
-  "frame": 7,
-  "key": "player-run-north-east-7",
-  "path": "assets/player/run/north-east/7.png"
  },
  {
   "anim": "run",
@@ -925,367 +589,143 @@
  },
  {
   "anim": "run",
-  "direction": "south-east",
-  "frame": 4,
-  "key": "player-run-south-east-4",
-  "path": "assets/player/run/south-east/4.png"
+  "direction": "north-east",
+  "frame": 0,
+  "key": "player-run-north-east-0",
+  "path": "assets/player/run/north-east/0.png"
  },
  {
   "anim": "run",
-  "direction": "south-east",
-  "frame": 5,
-  "key": "player-run-south-east-5",
-  "path": "assets/player/run/south-east/5.png"
+  "direction": "north-east",
+  "frame": 1,
+  "key": "player-run-north-east-1",
+  "path": "assets/player/run/north-east/1.png"
  },
  {
   "anim": "run",
-  "direction": "south-east",
-  "frame": 6,
-  "key": "player-run-south-east-6",
-  "path": "assets/player/run/south-east/6.png"
+  "direction": "north-east",
+  "frame": 2,
+  "key": "player-run-north-east-2",
+  "path": "assets/player/run/north-east/2.png"
  },
  {
   "anim": "run",
-  "direction": "south-east",
-  "frame": 7,
-  "key": "player-run-south-east-7",
-  "path": "assets/player/run/south-east/7.png"
- },
- {
-  "anim": "walk",
-  "direction": "south",
-  "frame": 0,
-  "key": "player-walk-south-0",
-  "path": "assets/player/walk/south/0.png"
- },
- {
-  "anim": "walk",
-  "direction": "south",
-  "frame": 1,
-  "key": "player-walk-south-1",
-  "path": "assets/player/walk/south/1.png"
- },
- {
-  "anim": "walk",
-  "direction": "south",
-  "frame": 2,
-  "key": "player-walk-south-2",
-  "path": "assets/player/walk/south/2.png"
- },
- {
-  "anim": "walk",
-  "direction": "south",
-  "frame": 3,
-  "key": "player-walk-south-3",
-  "path": "assets/player/walk/south/3.png"
- },
- {
-  "anim": "walk",
-  "direction": "south",
-  "frame": 4,
-  "key": "player-walk-south-4",
-  "path": "assets/player/walk/south/4.png"
- },
- {
-  "anim": "walk",
-  "direction": "south",
-  "frame": 5,
-  "key": "player-walk-south-5",
-  "path": "assets/player/walk/south/5.png"
- },
- {
-  "anim": "walk",
-  "direction": "south",
-  "frame": 6,
-  "key": "player-walk-south-6",
-  "path": "assets/player/walk/south/6.png"
- },
- {
-  "anim": "walk",
-  "direction": "south",
-  "frame": 7,
-  "key": "player-walk-south-7",
-  "path": "assets/player/walk/south/7.png"
- },
- {
-  "anim": "walk",
-  "direction": "north",
-  "frame": 0,
-  "key": "player-walk-north-0",
-  "path": "assets/player/walk/north/0.png"
- },
- {
-  "anim": "walk",
-  "direction": "north",
-  "frame": 1,
-  "key": "player-walk-north-1",
-  "path": "assets/player/walk/north/1.png"
- },
- {
-  "anim": "walk",
-  "direction": "north",
-  "frame": 2,
-  "key": "player-walk-north-2",
-  "path": "assets/player/walk/north/2.png"
- },
- {
-  "anim": "walk",
-  "direction": "north",
-  "frame": 3,
-  "key": "player-walk-north-3",
-  "path": "assets/player/walk/north/3.png"
- },
- {
-  "anim": "walk",
-  "direction": "north",
-  "frame": 4,
-  "key": "player-walk-north-4",
-  "path": "assets/player/walk/north/4.png"
- },
- {
-  "anim": "walk",
-  "direction": "north",
-  "frame": 5,
-  "key": "player-walk-north-5",
-  "path": "assets/player/walk/north/5.png"
- },
- {
-  "anim": "walk",
-  "direction": "north",
-  "frame": 6,
-  "key": "player-walk-north-6",
-  "path": "assets/player/walk/north/6.png"
- },
- {
-  "anim": "walk",
-  "direction": "north",
-  "frame": 7,
-  "key": "player-walk-north-7",
-  "path": "assets/player/walk/north/7.png"
- },
- {
-  "anim": "walk",
-  "direction": "east",
-  "frame": 0,
-  "key": "player-walk-east-0",
-  "path": "assets/player/walk/east/0.png"
- },
- {
-  "anim": "walk",
-  "direction": "east",
-  "frame": 1,
-  "key": "player-walk-east-1",
-  "path": "assets/player/walk/east/1.png"
- },
- {
-  "anim": "walk",
-  "direction": "east",
-  "frame": 2,
-  "key": "player-walk-east-2",
-  "path": "assets/player/walk/east/2.png"
- },
- {
-  "anim": "walk",
-  "direction": "east",
-  "frame": 3,
-  "key": "player-walk-east-3",
-  "path": "assets/player/walk/east/3.png"
- },
- {
-  "anim": "walk",
-  "direction": "east",
-  "frame": 4,
-  "key": "player-walk-east-4",
-  "path": "assets/player/walk/east/4.png"
- },
- {
-  "anim": "walk",
-  "direction": "east",
-  "frame": 5,
-  "key": "player-walk-east-5",
-  "path": "assets/player/walk/east/5.png"
- },
- {
-  "anim": "walk",
-  "direction": "east",
-  "frame": 6,
-  "key": "player-walk-east-6",
-  "path": "assets/player/walk/east/6.png"
- },
- {
-  "anim": "walk",
-  "direction": "east",
-  "frame": 7,
-  "key": "player-walk-east-7",
-  "path": "assets/player/walk/east/7.png"
- },
- {
-  "anim": "walk",
-  "direction": "west",
-  "frame": 0,
-  "key": "player-walk-west-0",
-  "path": "assets/player/walk/west/0.png"
- },
- {
-  "anim": "walk",
-  "direction": "west",
-  "frame": 1,
-  "key": "player-walk-west-1",
-  "path": "assets/player/walk/west/1.png"
- },
- {
-  "anim": "walk",
-  "direction": "west",
-  "frame": 2,
-  "key": "player-walk-west-2",
-  "path": "assets/player/walk/west/2.png"
- },
- {
-  "anim": "walk",
-  "direction": "west",
-  "frame": 3,
-  "key": "player-walk-west-3",
-  "path": "assets/player/walk/west/3.png"
- },
- {
-  "anim": "walk",
-  "direction": "west",
-  "frame": 4,
-  "key": "player-walk-west-4",
-  "path": "assets/player/walk/west/4.png"
- },
- {
-  "anim": "walk",
-  "direction": "west",
-  "frame": 5,
-  "key": "player-walk-west-5",
-  "path": "assets/player/walk/west/5.png"
- },
- {
-  "anim": "walk",
-  "direction": "west",
-  "frame": 6,
-  "key": "player-walk-west-6",
-  "path": "assets/player/walk/west/6.png"
- },
- {
-  "anim": "walk",
-  "direction": "west",
-  "frame": 7,
-  "key": "player-walk-west-7",
-  "path": "assets/player/walk/west/7.png"
- },
- {
-  "anim": "walk",
-  "direction": "south-east",
-  "frame": 0,
-  "key": "player-walk-south-east-0",
-  "path": "assets/player/walk/south-east/0.png"
- },
- {
-  "anim": "walk",
-  "direction": "south-east",
-  "frame": 1,
-  "key": "player-walk-south-east-1",
-  "path": "assets/player/walk/south-east/1.png"
- },
- {
-  "anim": "walk",
-  "direction": "south-east",
-  "frame": 2,
-  "key": "player-walk-south-east-2",
-  "path": "assets/player/walk/south-east/2.png"
- },
- {
-  "anim": "walk",
-  "direction": "south-east",
-  "frame": 3,
-  "key": "player-walk-south-east-3",
-  "path": "assets/player/walk/south-east/3.png"
- },
- {
-  "anim": "walk",
-  "direction": "south-east",
-  "frame": 4,
-  "key": "player-walk-south-east-4",
-  "path": "assets/player/walk/south-east/4.png"
- },
- {
-  "anim": "walk",
-  "direction": "south-east",
-  "frame": 5,
-  "key": "player-walk-south-east-5",
-  "path": "assets/player/walk/south-east/5.png"
- },
- {
-  "anim": "walk",
-  "direction": "south-east",
-  "frame": 6,
-  "key": "player-walk-south-east-6",
-  "path": "assets/player/walk/south-east/6.png"
- },
- {
-  "anim": "walk",
-  "direction": "south-east",
-  "frame": 7,
-  "key": "player-walk-south-east-7",
-  "path": "assets/player/walk/south-east/7.png"
- },
- {
-  "anim": "walk",
-  "direction": "north-east",
-  "frame": 0,
-  "key": "player-walk-north-east-0",
-  "path": "assets/player/walk/north-east/0.png"
- },
- {
-  "anim": "walk",
-  "direction": "north-east",
-  "frame": 1,
-  "key": "player-walk-north-east-1",
-  "path": "assets/player/walk/north-east/1.png"
- },
- {
-  "anim": "walk",
-  "direction": "north-east",
-  "frame": 2,
-  "key": "player-walk-north-east-2",
-  "path": "assets/player/walk/north-east/2.png"
- },
- {
-  "anim": "walk",
   "direction": "north-east",
   "frame": 3,
-  "key": "player-walk-north-east-3",
-  "path": "assets/player/walk/north-east/3.png"
+  "key": "player-run-north-east-3",
+  "path": "assets/player/run/north-east/3.png"
  },
  {
-  "anim": "walk",
-  "direction": "north-east",
-  "frame": 4,
-  "key": "player-walk-north-east-4",
-  "path": "assets/player/walk/north-east/4.png"
+  "anim": "run",
+  "direction": "north-west",
+  "frame": 0,
+  "key": "player-run-north-west-0",
+  "path": "assets/player/run/north-west/0.png"
  },
  {
-  "anim": "walk",
-  "direction": "north-east",
-  "frame": 5,
-  "key": "player-walk-north-east-5",
-  "path": "assets/player/walk/north-east/5.png"
+  "anim": "run",
+  "direction": "north-west",
+  "frame": 1,
+  "key": "player-run-north-west-1",
+  "path": "assets/player/run/north-west/1.png"
  },
  {
-  "anim": "walk",
-  "direction": "north-east",
-  "frame": 6,
-  "key": "player-walk-north-east-6",
-  "path": "assets/player/walk/north-east/6.png"
+  "anim": "run",
+  "direction": "north-west",
+  "frame": 2,
+  "key": "player-run-north-west-2",
+  "path": "assets/player/run/north-west/2.png"
  },
  {
-  "anim": "walk",
-  "direction": "north-east",
-  "frame": 7,
-  "key": "player-walk-north-east-7",
-  "path": "assets/player/walk/north-east/7.png"
+  "anim": "run",
+  "direction": "north-west",
+  "frame": 3,
+  "key": "player-run-north-west-3",
+  "path": "assets/player/run/north-west/3.png"
+ },
+ {
+  "anim": "run",
+  "direction": "south-west",
+  "frame": 0,
+  "key": "player-run-south-west-0",
+  "path": "assets/player/run/south-west/0.png"
+ },
+ {
+  "anim": "run",
+  "direction": "south-west",
+  "frame": 1,
+  "key": "player-run-south-west-1",
+  "path": "assets/player/run/south-west/1.png"
+ },
+ {
+  "anim": "run",
+  "direction": "south-west",
+  "frame": 2,
+  "key": "player-run-south-west-2",
+  "path": "assets/player/run/south-west/2.png"
+ },
+ {
+  "anim": "run",
+  "direction": "south-west",
+  "frame": 3,
+  "key": "player-run-south-west-3",
+  "path": "assets/player/run/south-west/3.png"
+ },
+ {
+  "anim": "run",
+  "direction": "north",
+  "frame": 0,
+  "key": "player-run-north-0",
+  "path": "assets/player/run/north/0.png"
+ },
+ {
+  "anim": "run",
+  "direction": "north",
+  "frame": 1,
+  "key": "player-run-north-1",
+  "path": "assets/player/run/north/1.png"
+ },
+ {
+  "anim": "run",
+  "direction": "north",
+  "frame": 2,
+  "key": "player-run-north-2",
+  "path": "assets/player/run/north/2.png"
+ },
+ {
+  "anim": "run",
+  "direction": "north",
+  "frame": 3,
+  "key": "player-run-north-3",
+  "path": "assets/player/run/north/3.png"
+ },
+ {
+  "anim": "run",
+  "direction": "south",
+  "frame": 0,
+  "key": "player-run-south-0",
+  "path": "assets/player/run/south/0.png"
+ },
+ {
+  "anim": "run",
+  "direction": "south",
+  "frame": 1,
+  "key": "player-run-south-1",
+  "path": "assets/player/run/south/1.png"
+ },
+ {
+  "anim": "run",
+  "direction": "south",
+  "frame": 2,
+  "key": "player-run-south-2",
+  "path": "assets/player/run/south/2.png"
+ },
+ {
+  "anim": "run",
+  "direction": "south",
+  "frame": 3,
+  "key": "player-run-south-3",
+  "path": "assets/player/run/south/3.png"
  },
  {
   "anim": "walk",
@@ -1317,31 +757,87 @@
  },
  {
   "anim": "walk",
-  "direction": "north-west",
-  "frame": 4,
-  "key": "player-walk-north-west-4",
-  "path": "assets/player/walk/north-west/4.png"
+  "direction": "west",
+  "frame": 0,
+  "key": "player-walk-west-0",
+  "path": "assets/player/walk/west/0.png"
  },
  {
   "anim": "walk",
-  "direction": "north-west",
-  "frame": 5,
-  "key": "player-walk-north-west-5",
-  "path": "assets/player/walk/north-west/5.png"
+  "direction": "west",
+  "frame": 1,
+  "key": "player-walk-west-1",
+  "path": "assets/player/walk/west/1.png"
  },
  {
   "anim": "walk",
-  "direction": "north-west",
-  "frame": 6,
-  "key": "player-walk-north-west-6",
-  "path": "assets/player/walk/north-west/6.png"
+  "direction": "west",
+  "frame": 2,
+  "key": "player-walk-west-2",
+  "path": "assets/player/walk/west/2.png"
  },
  {
   "anim": "walk",
-  "direction": "north-west",
-  "frame": 7,
-  "key": "player-walk-north-west-7",
-  "path": "assets/player/walk/north-west/7.png"
+  "direction": "west",
+  "frame": 3,
+  "key": "player-walk-west-3",
+  "path": "assets/player/walk/west/3.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "east",
+  "frame": 0,
+  "key": "player-walk-east-0",
+  "path": "assets/player/walk/east/0.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "east",
+  "frame": 1,
+  "key": "player-walk-east-1",
+  "path": "assets/player/walk/east/1.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "east",
+  "frame": 2,
+  "key": "player-walk-east-2",
+  "path": "assets/player/walk/east/2.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "east",
+  "frame": 3,
+  "key": "player-walk-east-3",
+  "path": "assets/player/walk/east/3.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "north",
+  "frame": 0,
+  "key": "player-walk-north-0",
+  "path": "assets/player/walk/north/0.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "north",
+  "frame": 1,
+  "key": "player-walk-north-1",
+  "path": "assets/player/walk/north/1.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "north",
+  "frame": 2,
+  "key": "player-walk-north-2",
+  "path": "assets/player/walk/north/2.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "north",
+  "frame": 3,
+  "key": "player-walk-north-3",
+  "path": "assets/player/walk/north/3.png"
  },
  {
   "anim": "walk",
@@ -1373,30 +869,86 @@
  },
  {
   "anim": "walk",
-  "direction": "south-west",
-  "frame": 4,
-  "key": "player-walk-south-west-4",
-  "path": "assets/player/walk/south-west/4.png"
+  "direction": "north-east",
+  "frame": 0,
+  "key": "player-walk-north-east-0",
+  "path": "assets/player/walk/north-east/0.png"
  },
  {
   "anim": "walk",
-  "direction": "south-west",
-  "frame": 5,
-  "key": "player-walk-south-west-5",
-  "path": "assets/player/walk/south-west/5.png"
+  "direction": "north-east",
+  "frame": 1,
+  "key": "player-walk-north-east-1",
+  "path": "assets/player/walk/north-east/1.png"
  },
  {
   "anim": "walk",
-  "direction": "south-west",
-  "frame": 6,
-  "key": "player-walk-south-west-6",
-  "path": "assets/player/walk/south-west/6.png"
+  "direction": "north-east",
+  "frame": 2,
+  "key": "player-walk-north-east-2",
+  "path": "assets/player/walk/north-east/2.png"
  },
  {
   "anim": "walk",
-  "direction": "south-west",
-  "frame": 7,
-  "key": "player-walk-south-west-7",
-  "path": "assets/player/walk/south-west/7.png"
+  "direction": "north-east",
+  "frame": 3,
+  "key": "player-walk-north-east-3",
+  "path": "assets/player/walk/north-east/3.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south",
+  "frame": 0,
+  "key": "player-walk-south-0",
+  "path": "assets/player/walk/south/0.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south",
+  "frame": 1,
+  "key": "player-walk-south-1",
+  "path": "assets/player/walk/south/1.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south",
+  "frame": 2,
+  "key": "player-walk-south-2",
+  "path": "assets/player/walk/south/2.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south",
+  "frame": 3,
+  "key": "player-walk-south-3",
+  "path": "assets/player/walk/south/3.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south-east",
+  "frame": 0,
+  "key": "player-walk-south-east-0",
+  "path": "assets/player/walk/south-east/0.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south-east",
+  "frame": 1,
+  "key": "player-walk-south-east-1",
+  "path": "assets/player/walk/south-east/1.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south-east",
+  "frame": 2,
+  "key": "player-walk-south-east-2",
+  "path": "assets/player/walk/south-east/2.png"
+ },
+ {
+  "anim": "walk",
+  "direction": "south-east",
+  "frame": 3,
+  "key": "player-walk-south-east-3",
+  "path": "assets/player/walk/south-east/3.png"
  }
 ]

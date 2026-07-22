@@ -1,6 +1,6 @@
 /**
  * Frame manifest for the player character sprite (generated via PixelLab.ai,
- * "Rowan Ibarra" — high top-down, 64x64, 8-direction template). All 8
+ * "Rowan Ibarra" — high top-down, 88x88, 8-direction template). All 8
  * directions were exported per animation, so the sprite's facing matches the
  * free 8-directional movement exactly (no cardinal snapping).
  *
@@ -20,19 +20,19 @@ export type PlayerAnimDir = (typeof PLAYER_ANIM_DIRS)[number];
 
 export type PlayerAnimName = "idle" | "walk" | "run" | "crouch";
 
-/** Frame count per animation (same across all 4 directions). */
+/** Frame count per animation (same across all 8 directions). */
 export const PLAYER_ANIM_FRAME_COUNTS: Record<PlayerAnimName, number> = {
   idle: 4,
-  walk: 8,
-  run: 8,
+  walk: 4,
+  run: 4,
   crouch: 5,
 };
 
 /** Playback rate (fps) per animation. */
 export const PLAYER_ANIM_FRAME_RATES: Record<PlayerAnimName, number> = {
   idle: 4,
-  walk: 10,
-  run: 16,
+  walk: 6,
+  run: 9,
   crouch: 8,
 };
 

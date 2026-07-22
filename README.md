@@ -165,17 +165,16 @@ src/ui/             Hud, Radar, Lighting
 Both were generated with [PixelLab.ai](https://www.pixellab.ai/) (high
 top-down templates) and pulled in via its API:
 
-- **Player** ("Rowan Ibarra", 64x64) — idle/walk/run/crouch cycles in all 8
+- **Player** ("Rowan Ibarra", 88x88) — idle/walk/run/crouch cycles in all 8
   directions (`public/assets/player/`, manifest at
   `public/assets/player/manifest.json`). `PlayerAnimations.ts` maps that frame
   layout to Phaser animation keys; facing matches the free 8-directional
-  movement exactly, no direction snapping.
-- **Enforcer** (34x34) — a compact tracked security drone with a swiveling
-  floodlight/sensor arm. It shipped with no animations, so its "patrol-scan"
-  cycle (arm sweeping left-right while inching forward) was generated with
-  PixelLab's custom v3 animation mode across all 8 directions in one call
-  (`public/assets/enforcer/`, manifest at
+  movement exactly, no direction snapping. Scaled to ~1.5 tiles tall.
+- **Enforcer** (48x48) — a blocky robotic sentry gliding on magnetic tracks
+  with a rotating crown of camera-arms. It shipped with no animations, so its
+  "patrol-scan" cycle (the camera-arms sweeping back and forth while it
+  glides forward) was generated with PixelLab's custom v3 animation mode
+  across all 8 directions in one call (`public/assets/enforcer/`, manifest at
   `public/assets/enforcer/manifest.json`). `EnforcerAnimations.ts` maps the
   frames to Phaser animation keys; facing matches the guard's continuous
-  patrol/pursuit angle exactly. Scaled small (~half a tile) so it reads as a
-  compact sentry unit rather than a human-sized threat.
+  patrol/pursuit angle exactly. Scaled to ~1.5 tiles tall, matching the player.

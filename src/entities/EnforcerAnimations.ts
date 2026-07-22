@@ -1,9 +1,9 @@
 /**
  * Frame manifest for the enforcer sprite (generated via PixelLab.ai — a
- * compact tracked security drone with a swiveling floodlight/sensor arm, high
- * top-down, 34x34). The "patrol-scan" cycle (custom v3 animation) shows the
- * sensor arm sweeping left-right like a scanner while the drone inches
- * forward, so it doubles as the patrol animation.
+ * blocky robotic sentry gliding on magnetic tracks with a rotating crown of
+ * camera-arms, high top-down, 48x48). The "patrol-scan" cycle (custom v3
+ * animation) shows the camera-arms sweeping back and forth like a scanner
+ * while the sentry glides forward, so it doubles as the patrol animation.
  *
  * All 8 directions were exported, so facing matches the guard's continuous
  * patrol/pursuit angle exactly (no cardinal snapping).
