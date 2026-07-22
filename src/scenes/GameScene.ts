@@ -11,6 +11,7 @@ import { Player, type InputState } from "../entities/Player";
 import { Enforcer } from "../entities/Enforcer";
 import { Door } from "../entities/Door";
 import { Terminal } from "../entities/Terminal";
+import { Laser } from "../entities/Laser";
 
 /** Data passed to {@link GameScene} when (re)starting for a level swap. */
 interface GameSceneData {
@@ -32,6 +33,7 @@ const ENTITY_LAYERS = new Set([
   "items",
   "doors",
   "terminals",
+  "lasers",
 ]);
 
 /** How close (in tiles) the player must be to interact with a door/terminal. */
@@ -54,6 +56,7 @@ export class GameScene extends Phaser.Scene {
   private enforcers: Enforcer[] = [];
   private doors: Door[] = [];
   private terminals: Terminal[] = [];
+  private lasers: Laser[] = [];
   private grid!: CollisionGrid;
   private detection!: DetectionSystem;
   private alert = new AlertState();
@@ -106,6 +109,7 @@ export class GameScene extends Phaser.Scene {
     this.enforcers = [];
     this.doors = [];
     this.terminals = [];
+    this.lasers = [];
     this.alert = new AlertState();
     this.transitioning = false;
     // Arm only after stepping off the arrival tile (see update()).
@@ -225,9 +229,10 @@ export class GameScene extends Phaser.Scene {
     if (doorLayer) {
       for (const t of doorLayer.tiles) {
         // Only tiles carrying a `door` component are real doors; the board can
-        // also hold stray art (e.g. a laser strip) that should stay decorative.
+        // also hold stray art. Laser tiles are handled below as Laser hazards;
+        // anything else non-door stays decorative.
         if (!t.components.some((c) => c.type === "door")) {
-          if (t.frame) {
+          if (t.frame && !t.ref.toLowerCase().includes("laser")) {
             this.add
               .image(t.x * this.tileSize + this.tileSize / 2, t.y * this.tileSize + this.tileSize / 2, t.frame.textureKey, t.frame.frameKey)
               .setDepth(120);
@@ -245,6 +250,17 @@ export class GameScene extends Phaser.Scene {
       for (const t of terminalLayer.tiles) {
         if (!t.components.some((c) => c.type === "terminal")) continue;
         this.terminals.push(new Terminal(this, t, this.tileSize));
+      }
+    }
+
+    // Lasers can sit on several boards (a dedicated `lasers` board in main1,
+    // the `security`/`doors` boards in main2), so gather them by ref across all
+    // layers rather than a single board.
+    for (const layer of this.level.layers) {
+      for (const t of layer.tiles) {
+        if (t.ref.toLowerCase().includes("laser")) {
+          this.lasers.push(new Laser(this, t, this.tileSize));
+        }
       }
     }
 
@@ -303,6 +319,20 @@ export class GameScene extends Phaser.Scene {
     for (const e of this.enforcers) {
       e.update(dt, ctx);
       maxDetection = Math.max(maxDetection, e.detection);
+    }
+
+    // Lasers: crossing an active beam/scan zone instantly trips the alarm.
+    let laserTripped = false;
+    for (const laser of this.lasers) {
+      laser.update(dt);
+      if (laser.checkTrip(this.player.x, this.player.y)) laserTripped = true;
+    }
+    if (laserTripped) {
+      this.alert.reportSighting(
+        Math.floor(this.player.x / this.tileSize),
+        Math.floor(this.player.y / this.tileSize),
+      );
+      this.cameras.main.flash(220, 150, 20, 20);
     }
 
     this.alert.update(dt);
