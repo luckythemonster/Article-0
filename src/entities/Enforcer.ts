@@ -20,6 +20,8 @@ export interface EnforcerContext {
   lightMultiplierAt: (px: number, py: number) => number;
   /** 0 = silent, 1 = loud; running lets guards hear the player behind cover. */
   playerNoise: number;
+  /** True when the player is hidden (crouched in cover) — cones can't see them. */
+  playerConcealed: boolean;
   alert: AlertState;
 }
 
@@ -173,6 +175,9 @@ export class Enforcer {
 
   /** True when the player is inside the cone, within range, with clear LOS. */
   private canSee(ctx: EnforcerContext): boolean {
+    // Crouched behind cover: hidden from vision entirely.
+    if (ctx.playerConcealed) return false;
+
     const { player, tileSize, grid } = ctx;
     const dx = player.x - this.x;
     const dy = player.y - this.y;

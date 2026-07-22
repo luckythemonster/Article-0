@@ -52,6 +52,9 @@ export class Player {
   /** How loud the player currently is (0..1), from movement + stance. */
   noise = 0;
 
+  /** True while the crouch (Shift/sneak) input is held — moving or still. */
+  crouched = false;
+
   update(cursors: InputState, dt: number): void {
     let vx = 0;
     let vy = 0;
@@ -63,6 +66,7 @@ export class Player {
     const moving = vx !== 0 || vy !== 0;
     const sneaking = cursors.sneak && moving;
     const running = cursors.run && moving && !cursors.sneak;
+    this.crouched = cursors.sneak;
     const stanceMul = sneaking ? 0.45 : running ? 1.6 : 1;
     const speed = this.walkSpeed * stanceMul;
 
@@ -79,7 +83,16 @@ export class Player {
     const target = !moving ? 0 : sneaking ? 0.15 : running ? 1 : 0.5;
     this.noise = Phaser.Math.Linear(this.noise, target, Math.min(1, dt * 6));
 
-    const anim: PlayerAnimName = !moving ? "idle" : sneaking ? "crouch" : running ? "run" : "walk";
+    // Crouch pose whenever sneaking — including standing still behind cover.
+    const anim: PlayerAnimName = !moving
+      ? this.crouched
+        ? "crouch"
+        : "idle"
+      : sneaking
+        ? "crouch"
+        : running
+          ? "run"
+          : "walk";
     this.setAnimation(anim, this.dir);
   }
 

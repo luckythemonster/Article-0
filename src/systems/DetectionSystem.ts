@@ -1,5 +1,5 @@
 import type { GameLevel } from "../map/types";
-import { lightStatsFor } from "./EntityStats";
+import { lightStatsFor, str } from "./EntityStats";
 
 interface LightSource {
   x: number; // pixel centre
@@ -17,7 +17,8 @@ interface LightSource {
  */
 export class DetectionSystem {
   private readonly lights: LightSource[] = [];
-  private readonly cover = new Set<number>();
+  /** tile key -> cover type ("low" | "high"). */
+  private readonly cover = new Map<number, string>();
   private readonly tileSize: number;
   private readonly width: number;
 
@@ -40,7 +41,10 @@ export class DetectionSystem {
 
     const coverLayer = level.layers.find((l) => l.name === "cover");
     if (coverLayer) {
-      for (const t of coverLayer.tiles) this.cover.add(this.key(t.x, t.y));
+      for (const t of coverLayer.tiles) {
+        const type = str(t.components, "cover", "type", "low").toLowerCase();
+        this.cover.set(this.key(t.x, t.y), type);
+      }
     }
   }
 
@@ -62,6 +66,13 @@ export class DetectionSystem {
       }
     }
     return mult;
+  }
+
+  /** Cover type at a pixel position, or undefined if the tile has no cover. */
+  coverTypeAt(px: number, py: number): string | undefined {
+    const tx = Math.floor(px / this.tileSize);
+    const ty = Math.floor(py / this.tileSize);
+    return this.cover.get(this.key(tx, ty));
   }
 
   private key(x: number, y: number): number {
