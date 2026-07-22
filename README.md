@@ -30,7 +30,7 @@ npm run build    # tsc --noEmit + vite build
 | Key | Action |
 | --- | --- |
 | WASD / Arrows | Move (free 8-directional) |
-| Shift | Sneak — slower, quieter, harder to spot |
+| Shift | Sneak / crouch — slower, quieter; crouch on cover to hide |
 | Space | Run — faster but louder |
 | E | Contextual: open/close a door, hack a terminal (hold), or use a hatch/ladder |
 
@@ -128,6 +128,11 @@ engine will use that value instead.
   It reads the *same* light data `DetectionSystem` uses, so a lit spot is both
   visibly brighter and mechanically easier to be spotted in; `flicker`-type
   lights pulse.
+- Cover: crouch (**Shift**) on a `cover` tile to break the guards' line of sight
+  entirely — a "HIDDEN" marker confirms it. Standing on cover still softens
+  detection (0.4×). Concealment is gated in the one vision choke point
+  (`Enforcer.canSee`); all map cover is `LOW` (crouch). Thermal/destructible
+  cover fields are left for later.
 
 ## Roadmap
 

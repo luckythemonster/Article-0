@@ -75,6 +75,7 @@ export class GameScene extends Phaser.Scene {
    */
   private transitionArmed = false;
   private prompt!: Phaser.GameObjects.Text;
+  private hidden!: Phaser.GameObjects.Text;
 
   private keys!: {
     up: Phaser.Input.Keyboard.Key;
@@ -165,6 +166,20 @@ export class GameScene extends Phaser.Scene {
         color: "#cfe8ff",
         backgroundColor: "#0a0f16cc",
         padding: { x: 4, y: 2 },
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(1000)
+      .setVisible(false);
+
+    // "HIDDEN" marker shown over the player while concealed in cover.
+    this.hidden = this.add
+      .text(0, 0, "HIDDEN", {
+        fontFamily: "monospace",
+        fontSize: "10px",
+        color: "#8effc0",
+        fontStyle: "bold",
+        backgroundColor: "#0a0f16cc",
+        padding: { x: 3, y: 1 },
       })
       .setOrigin(0.5, 1)
       .setDepth(1000)
@@ -314,6 +329,12 @@ export class GameScene extends Phaser.Scene {
     this.lighting.update(dt);
     this.updateInteractions(dt);
 
+    // Cover concealment: crouched on LOW cover (or on any HIGH cover) hides the
+    // player from vision cones entirely.
+    const cover = this.detection.coverTypeAt(this.player.x, this.player.y);
+    const concealed = cover === "high" || (cover === "low" && this.player.crouched);
+    this.updateHiddenMarker(concealed);
+
     let maxDetection = 0;
     const ctx = {
       grid: this.grid,
@@ -321,6 +342,7 @@ export class GameScene extends Phaser.Scene {
       player: { x: this.player.x, y: this.player.y },
       lightMultiplierAt: (x: number, y: number) => this.detection.multiplierAt(x, y),
       playerNoise: this.player.noise,
+      playerConcealed: concealed,
       alert: this.alert,
     };
     for (const e of this.enforcers) {
@@ -432,6 +454,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Shows a single `[E] …` hint over the player for the nearest interactable. */
+  /** Floats the "HIDDEN" marker over the player while concealed in cover. */
+  private updateHiddenMarker(concealed: boolean): void {
+    if (concealed) {
+      this.hidden.setPosition(this.player.x, this.player.y - this.tileSize * 0.9);
+      this.hidden.setVisible(true);
+    } else {
+      this.hidden.setVisible(false);
+    }
+  }
+
   private showPrompt(
     terminal: Terminal | undefined,
     terminalDist: number,
