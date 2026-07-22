@@ -34,6 +34,29 @@ export class CollisionGrid {
   }
 
   /**
+   * Blocked-tile offsets within a circular radius (in tiles) of a centre point,
+   * as (dx, dy) relative to that centre. Used by the radar to sample nearby
+   * terrain without scanning the whole level each frame.
+   */
+  wallsNear(cx: number, cy: number, radius: number): { dx: number; dy: number }[] {
+    const out: { dx: number; dy: number }[] = [];
+    const r2 = radius * radius;
+    const minX = Math.max(0, Math.floor(cx - radius));
+    const maxX = Math.min(this.width - 1, Math.ceil(cx + radius));
+    const minY = Math.max(0, Math.floor(cy - radius));
+    const maxY = Math.min(this.height - 1, Math.ceil(cy + radius));
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const dx = x - cx;
+        const dy = y - cy;
+        if (dx * dx + dy * dy > r2) continue;
+        if (this.blocked[y * this.width + x] === 1) out.push({ dx, dy });
+      }
+    }
+    return out;
+  }
+
+  /**
    * Line-of-sight test between two tile coordinates using a supercover DDA walk.
    * Returns true if no blocked tile lies strictly between the endpoints.
    */

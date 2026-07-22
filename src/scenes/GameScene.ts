@@ -6,6 +6,7 @@ import { CollisionGrid } from "../systems/CollisionGrid";
 import { DetectionSystem } from "../systems/DetectionSystem";
 import { AlertState } from "../systems/AlertState";
 import { TransitionGraph } from "../systems/TransitionGraph";
+import { buildRadarSnapshot } from "../systems/Radar";
 import { Player, type InputState } from "../entities/Player";
 import { Enforcer } from "../entities/Enforcer";
 
@@ -252,6 +253,21 @@ export class GameScene extends Phaser.Scene {
     this.alert.update(dt);
     this.registry.set("alertPhase", this.alert.phase);
     this.registry.set("detection", this.alert.phase === "ALERT" ? 1 : maxDetection);
+
+    this.registry.set(
+      "radar",
+      buildRadarSnapshot(
+        this.grid,
+        this.tileSize,
+        { x: this.player.x, y: this.player.y, facing: this.player.facing },
+        this.enforcers.map((e) => ({
+          position: e.position,
+          facing: e.facing,
+          detection: e.detection,
+        })),
+        this.alert.phase === "ALERT",
+      ),
+    );
   }
 
   /**
