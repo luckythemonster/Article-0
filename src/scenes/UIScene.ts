@@ -6,6 +6,8 @@ import { AlertNetworkHud } from "../ui/AlertNetworkHud";
 import { ObjectiveHud } from "../ui/ObjectiveHud";
 import { SharedFieldHud, type SharedFieldView } from "../ui/SharedFieldHud";
 import { Vent4Hud } from "../ui/Vent4Hud";
+import { DebugHud, type DebugSnapshot } from "../ui/DebugHud";
+import { DEBUG_ALLOWED } from "../systems/DebugFlag";
 import type { AlertPhase } from "../systems/AlertState";
 import type { RadarSnapshot } from "../systems/Radar";
 import type { AlertNetworkSnapshot } from "../systems/AlertNetwork";
@@ -29,6 +31,8 @@ export class UIScene extends Phaser.Scene {
   private objectives!: ObjectiveHud;
   private sharedField!: SharedFieldHud;
   private vent4!: Vent4Hud;
+  // The debug inspector is only built when DEBUG_ALLOWED (see create()).
+  private debug?: DebugHud;
   // A tiny stand-in that mirrors the phase the HUD needs to colour itself.
   private readonly alertView = { phase: "INFILTRATION" as AlertPhase };
 
@@ -44,6 +48,7 @@ export class UIScene extends Phaser.Scene {
     this.objectives = new ObjectiveHud(this);
     this.sharedField = new SharedFieldHud(this);
     this.vent4 = new Vent4Hud(this);
+    if (DEBUG_ALLOWED) this.debug = new DebugHud(this);
   }
 
   update(): void {
@@ -69,5 +74,7 @@ export class UIScene extends Phaser.Scene {
     if (field) this.sharedField.update(field);
 
     this.vent4.update((this.registry.get("vent4") as Vent4View | null | undefined) ?? null);
+
+    this.debug?.update(this.registry.get("debug") as DebugSnapshot | undefined);
   }
 }

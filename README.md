@@ -37,6 +37,28 @@ npm run build    # tsc --noEmit + vite build
 | C | Open the EIRA-7 codec |
 | Esc | Pause (from the pause screen, Q aborts to the title) |
 
+#### Debug mode
+
+A developer debug mode is always available when running `npm run dev`. On any
+deployed build (including a Vercel preview) it's off by default — a random
+player visiting the site won't have cheats — but you can opt in yourself by
+visiting the page once with `?debug` in the URL (e.g.
+`https://your-preview.vercel.app/?debug`). That's remembered in
+`localStorage`, so it stays on for that browser across refreshes and level
+warps; visit with `?debug=0` to turn it back off.
+
+| Key | Action |
+| --- | --- |
+| `` ` `` (backtick) | Toggle debug mode. Turning it off clears every cheat and hides the panel. |
+| G | God mode — blocks both death paths (bio-integrity loss and capture) |
+| N | No-clip — walk through walls and doors |
+| V | World overlay — draw guard line-of-sight rays, blocked tiles, and detection hot spots |
+| 1–5 | Warp to `main1` / `main2` / `duct1` / `duct2` / `vent_core` (resets the alert; keeps your HP) |
+
+While enabled, a top-right panel shows FPS, player position, facing, HP, capture
+progress, the current level, alert phase, and per-unit detection. The G/N/V and
+warp keys only respond while debug mode is on.
+
 Walk onto a **staircase** and you descend/ascend automatically; **hatches and
 ladders** show a `[E] Use access` prompt and change level when you press **E**.
 Either way the screen fades and you arrive at the connected level's matching
