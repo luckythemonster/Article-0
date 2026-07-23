@@ -1,6 +1,7 @@
 import Phaser from "phaser";
-import { Menu } from "../ui/Menu";
-import { setMode, startFreshRun } from "../systems/GameState";
+import { Menu, type MenuItem } from "../ui/Menu";
+import { resetRun, setMode, startFreshRun } from "../systems/GameState";
+import { hasSave, loadGame } from "../systems/SaveGame";
 
 /**
  * The title screen. Boots first after the map has parsed and offers the entry
@@ -34,7 +35,9 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setScrollFactor(0);
 
-    const menu = new Menu(this, [{ label: "New infiltration", onSelect: () => startFreshRun(this) }]);
+    const items: MenuItem[] = [{ label: "New infiltration", onSelect: () => startFreshRun(this) }];
+    if (hasSave()) items.push({ label: "Continue", onSelect: () => this.continueRun() });
+    const menu = new Menu(this, items);
 
     const footer = this.add
       .text(0, 0, "↑/↓ select    Enter confirm", { fontFamily: "monospace", fontSize: "12px", color: "#45566a" })
@@ -53,5 +56,20 @@ export class TitleScene extends Phaser.Scene {
     const onResize = (size: Phaser.Structs.Size): void => layout(size.width, size.height);
     this.scale.on("resize", onResize);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", onResize));
+  }
+
+  /** Resumes the saved checkpoint: restore run state to the registry, then start. */
+  private continueRun(): void {
+    const save = loadGame();
+    if (!save) {
+      startFreshRun(this);
+      return;
+    }
+    resetRun(this.registry);
+    this.registry.set("inventory", save.inventory);
+    this.registry.set("objectives", save.objectives);
+    this.registry.set("playerHp", save.hp);
+    setMode(this.registry, "PLAYING");
+    this.scene.start("GameScene", { level: save.level, arriveX: save.tileX, arriveY: save.tileY });
   }
 }

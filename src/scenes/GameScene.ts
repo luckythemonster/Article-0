@@ -22,6 +22,7 @@ import { setMode, type GameMode } from "../systems/GameState";
 import { PLAYER_DEFAULTS } from "../systems/EntityStats";
 import { initialObjectives, isRunWon, noteTerminalHacked, type ObjectiveState } from "../systems/Objectives";
 import { getAudio } from "../systems/AudioDirector";
+import { saveGame, clearSave } from "../systems/SaveGame";
 
 /** Data passed to {@link GameScene} when (re)starting for a level swap. */
 interface GameSceneData {
@@ -226,6 +227,10 @@ export class GameScene extends Phaser.Scene {
     // scale it. We publish state to the registry for it to read.
     this.registry.set("alertPhase", this.alert.phase);
     this.registry.set("detection", 0);
+    // Bio-integrity carries across level transitions / a loaded save via the
+    // registry; a fresh run (resetRun cleared it) starts at full.
+    const carriedHp = this.registry.get("playerHp") as number | undefined;
+    if (carriedHp !== undefined) this.player.hp = carriedHp;
     this.registry.set("playerHp", this.player.hp);
     this.registry.set("playerMaxHp", this.player.maxHp);
     setMode(this.registry, "PLAYING");
@@ -236,6 +241,8 @@ export class GameScene extends Phaser.Scene {
     // Inventory persists across level transitions (registry survives restarts).
     if (!this.registry.has("inventory")) this.registry.set("inventory", []);
     if (!this.scene.isActive("UIScene")) this.scene.launch("UIScene");
+
+    this.saveCheckpoint();
   }
 
   /** Draws tile-art layers in z-order and returns physics bodies for walls. */
@@ -426,7 +433,10 @@ export class GameScene extends Phaser.Scene {
     setMode(this.registry, mode);
     getAudio().setMood("none");
     if (mode === "ALIGNED") getAudio().capture();
-    else if (mode === "LATTICE") getAudio().victory();
+    else if (mode === "LATTICE") {
+      getAudio().victory();
+      clearSave();
+    }
     this.player.sprite.setVelocity(0, 0);
     this.physics.pause();
     this.scene.stop("UIScene");
@@ -444,6 +454,18 @@ export class GameScene extends Phaser.Scene {
       this.player.x / this.tileSize,
       this.player.y / this.tileSize,
     );
+  }
+
+  /** Writes a resume checkpoint on entry to this level. */
+  private saveCheckpoint(): void {
+    saveGame({
+      level: this.level.name,
+      tileX: Math.floor(this.player.x / this.tileSize),
+      tileY: Math.floor(this.player.y / this.tileSize),
+      hp: this.player.hp,
+      inventory: (this.registry.get("inventory") as string[] | undefined) ?? [],
+      objectives: this.objectives,
+    });
   }
 
   private readInput(): InputState {
