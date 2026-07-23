@@ -16,6 +16,12 @@ export interface EnforcerContext {
   playerNoise: number;
   /** True when the player is hidden (crouched in cover) — cones can't see them. */
   playerConcealed: boolean;
+  /**
+   * True when the player is hidden from *thermal* sensing too. Normally equal to
+   * {@link playerConcealed}, but heat-leaking cover (ThermalBleed) still exposes
+   * them to the short-range heat sense while breaking the visible cone.
+   */
+  playerThermalConcealed: boolean;
   alert: AlertState;
 }
 
@@ -171,28 +177,38 @@ export class Enforcer {
     }
   }
 
-  /** True when the player is inside the cone, within range, with clear LOS. */
+  /**
+   * True when the guard senses the player this frame, by either of two paths:
+   *  - **thermal** — a short 360° heat sense within {@link EnforcerStats.thermalRadius},
+   *    ignoring the cone angle, as long as the player isn't hidden in heat-blocking
+   *    cover and there's clear line of sight;
+   *  - **cone** — inside the vision cone, within {@link EnforcerStats.sightRange},
+   *    with clear LOS, and not crouched behind cover.
+   */
   private canSee(ctx: EnforcerContext): boolean {
-    // Crouched behind cover: hidden from vision entirely.
-    if (ctx.playerConcealed) return false;
-
     const { player, tileSize, grid } = ctx;
     const dx = player.x - this.x;
     const dy = player.y - this.y;
     const dist = Math.hypot(dx, dy);
-    const rangePx = this.stats.sightRange * tileSize;
-    if (dist > rangePx) return false;
+    const hasLos = (): boolean =>
+      grid.hasLineOfSight(
+        this.x / tileSize,
+        this.y / tileSize,
+        player.x / tileSize,
+        player.y / tileSize,
+      );
 
+    // Thermal: close-range body heat betrays the player even outside the cone.
+    const thermalPx = this.stats.thermalRadius * tileSize;
+    if (!ctx.playerThermalConcealed && dist <= thermalPx && hasLos()) return true;
+
+    // Cone: crouched behind cover hides the player from the visible cone.
+    if (ctx.playerConcealed) return false;
+    if (dist > this.stats.sightRange * tileSize) return false;
     const angTo = Math.atan2(dy, dx);
     const half = Phaser.Math.DegToRad(this.stats.sightAngle) / 2;
     if (Math.abs(angleDiff(this.facing, angTo)) > half) return false;
-
-    return grid.hasLineOfSight(
-      this.x / tileSize,
-      this.y / tileSize,
-      player.x / tileSize,
-      player.y / tileSize,
-    );
+    return hasLos();
   }
 
   /** Draws the wall-clipped vision cone as a fan of rays. */

@@ -32,7 +32,7 @@ npm run build    # tsc --noEmit + vite build
 | WASD / Arrows | Move (free 8-directional) |
 | Shift | Sneak / crouch — slower, quieter; crouch on cover to hide |
 | Space | Run — faster but louder |
-| E | Contextual: open/close a door, hack a terminal (hold), or use a hatch/ladder |
+| E | Contextual: open/close a door, hack a terminal (hold), search a chest (hold), or use a hatch/ladder |
 
 Walk onto a **staircase** and you descend/ascend automatically; **hatches and
 ladders** show a `[E] Use access` prompt and change level when you press **E**.
@@ -62,6 +62,24 @@ the centre. It's disabled during **ALERT** — the feed reads `JAMMED` and shows
 only static — so you lose the safety net exactly when guards are actively
 hunting and have to fall back on line of sight.
 
+Fixed **security cameras** (the `security` board) watch key rooms: they don't
+move, but each sweeps a wall-clipped vision cone back and forth, and stepping
+into one with a clear sightline fills its meter and trips the alarm just like a
+guard. On top of their cones, guards *and* cameras have a short-range **thermal**
+sense — get within a couple of tiles and your body heat gives you away even
+outside their cone, though crouching in cover still hides you (the map's cover
+blocks heat). A confirmed sighting ripples through the **alert network**: the
+unit that spots you rallies every guard within its network radius, so one camera
+lighting up can pull a whole patrol toward you. The top-left **NETWORK** readout
+tracks that — status (NOMINAL / ALERT / SEARCHING), how many units are online,
+spotting, or merely suspicious, how many are converging and on which tile, and
+the countdown until the base stands down.
+
+**Chests** (the `items` board) are searchable supply containers: hold **E** next
+to one to fill a search bar, and its contents drop into your **inventory**
+(shown bottom-right). The inventory persists across level transitions, so what
+you grab in a crawlspace is still with you in the next room.
+
 ## How the map is parsed
 
 The whole pipeline lives in `src/`:
@@ -83,15 +101,19 @@ The whole pipeline lives in `src/`:
   factors out the animation/sizing config so `Drone` is a one-line subclass
   with its own sprite), `Orderly` (a lighter, non-combat bystander that
   wanders near its spawn and raises a one-shot alert if it spots the player),
-  `Door` (blocks movement + LOS when closed, opens on interact) and
-  `Terminal` (hold-to-hack, releases nearby doors).
+  `Sensor` (a fixed security camera — a stationary, sweeping vision cone with
+  the guard detection meter and the same thermal sense), `Door` (blocks movement
+  + LOS when closed, opens on interact), `Terminal` (hold-to-hack, releases
+  nearby doors) and `Chest` (hold-to-search supply container that yields items).
 - **`src/systems/`** — `CollisionGrid` (wall/door grid + line-of-sight raycast
   + runtime `setBlocked` for doors, plus a radius query for nearby walls),
-  `DetectionSystem` (light/cover modifiers), `AlertState` (the
-  INFILTRATION → ALERT → EVASION FSM),
+  `DetectionSystem` (light/cover modifiers, plus per-tile thermal-bleed lookup),
+  `AlertState` (the INFILTRATION → ALERT → EVASION FSM),
   `TransitionGraph` (auto-derived level-to-level connections for
   stairs/hatches/ladders), `Radar` (builds the player-relative radar snapshot
-  each frame), and `EntityStats` (engine-side default tuning per entity type).
+  each frame), `AlertNetwork` (aggregates every detector + the alert FSM into the
+  NETWORK readout snapshot), and `EntityStats` (engine-side default tuning per
+  entity type — guards, cameras, chests, …).
 
 The gameplay numbers live in `EntityStats.ts` because the map author left the
 per-entity fields at their defaults — override any of them in the map and the
@@ -145,20 +167,43 @@ engine will use that value instead.
 - Cover: crouch (**Shift**) on a `cover` tile to break the guards' line of sight
   entirely — a "HIDDEN" marker confirms it. Standing on cover still softens
   detection (0.4×). Concealment is gated in the one vision choke point
-  (`Enforcer.canSee`); all map cover is `LOW` (crouch). Thermal/destructible
-  cover fields are left for later.
+  (`Enforcer.canSee`); all map cover is `LOW` (crouch). Thermal detection reads
+  each cover tile's `ThermalBleed` flag (all map cover blocks heat, so cover hides
+  you from thermal too); the `Destructible` cover field is left for later.
+- Sensor cameras: the `security` board becomes fixed optical cameras
+  (`src/entities/Sensor.ts`) — a stationary, wall-clipped vision cone that pans
+  back and forth around a facing inferred from the surrounding walls, fills the
+  guard-style detection meter, and trips the alarm on a clear sighting. (The
+  tiles carry no `sensor` component, so tuning comes from `EntityStats` defaults,
+  same convention as lasers.)
+- Thermal detection: guards and cameras gain a short 360° heat sense
+  (`ThermalDetectionRadius`, default 2 tiles) that catches the player just
+  outside the cone at close range, line-of-sight-gated and defeated by
+  heat-blocking cover — wiring a field the map already carried but nothing used
+  (`Enforcer.canSee`, `DetectionSystem.thermalBleedAt`).
+- Inventory: `items`-board `chest`s are hold-to-search containers
+  (`src/entities/Chest.ts`) that surrender their items (engine default loot, since
+  the map leaves the slots blank) into a HUD inventory (`src/ui/InventoryHud.ts`)
+  that persists across level transitions via the registry.
+- Alert-network stats: a confirmed sighting propagates to networked guards within
+  the spotter's `AlertNetworkRadius` (default 7 tiles), and a top-left **NETWORK**
+  panel (`src/systems/AlertNetwork.ts` + `src/ui/AlertNetworkHud.ts`) reports the
+  network status, unit/alerted/suspicious counts, converging count + last-known
+  tile, and the stand-down countdown.
 
 ## Roadmap
 
 2. **The rest of the complex** — done: level transitions through `stairs` and
    `maintenance_access` hatches, plus a Soliton-style radar minimap.
 3. **Interactables & hazards** — done: hackable `terminal`s, blocking/openable
-   `door`s, and `laser` tripwires/scanners. (The map places no `power`,
-   `chest`, or `audio_hazard` tiles, so those roadmap ideas would need new
+   `door`s, `laser` tripwires/scanners, and searchable `chest`s. (The map places
+   no `power` or `audio_hazard` tiles, so those roadmap ideas would need new
    authoring.)
-4. **More threats & the RPG layer** — done: `orderly` and `drone` enemy
-   types. Left: `security` enemy type, `sensor` cameras, thermal detection,
-   inventory, and alert-network stats.
+4. **More threats & the RPG layer** — done: `orderly` and `drone` enemy types;
+   `sensor` cameras (the `security` board, reinterpreted as fixed optical
+   cameras rather than a separate mobile enemy type); thermal detection;
+   `chest` inventory; and alert-network stats. Left: item *effects* (the
+   inventory is collect-and-display for now) and the `Destructible` cover field.
 
 ## Project layout
 
@@ -171,12 +216,12 @@ public/assets/orderly/  orderly bystander frames (see below)
 src/main.ts         boot: load assets, parse map, start scenes
 src/map/            format types, loader, sprite atlas
 src/scenes/         GameScene, UIScene
-src/entities/       Player, Enforcer, Drone, Orderly, Door, Terminal, Laser,
-                    GuardSkin, PlayerAnimations, EnforcerAnimations,
-                    DroneAnimations, OrderlyAnimations
+src/entities/       Player, Enforcer, Drone, Orderly, Sensor, Door, Terminal,
+                    Laser, Chest, GuardSkin, PlayerAnimations,
+                    EnforcerAnimations, DroneAnimations, OrderlyAnimations
 src/systems/        CollisionGrid, DetectionSystem, AlertState,
-                    TransitionGraph, Radar, EntityStats
-src/ui/             Hud, Radar, Lighting
+                    TransitionGraph, Radar, AlertNetwork, EntityStats
+src/ui/             Hud, Radar, InventoryHud, AlertNetworkHud, Lighting
 ```
 
 ## Character & enemy art
