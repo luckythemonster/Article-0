@@ -23,7 +23,14 @@ export const PLAYER_ANIM_DIRS = [
 ] as const;
 export type PlayerAnimDir = (typeof PLAYER_ANIM_DIRS)[number];
 
-export type PlayerAnimName = "idle" | "walk" | "run" | "crouch" | "crouch-walk";
+export type PlayerAnimName =
+  | "idle"
+  | "walk"
+  | "run"
+  | "crouch"
+  | "crouch-walk"
+  | "crouch-down"
+  | "crouch-up";
 
 /** Frame count per animation (same across all 8 directions). */
 export const PLAYER_ANIM_FRAME_COUNTS: Record<PlayerAnimName, number> = {
@@ -32,6 +39,9 @@ export const PLAYER_ANIM_FRAME_COUNTS: Record<PlayerAnimName, number> = {
   run: 4,
   crouch: 4,
   "crouch-walk": 6,
+  // One-shot lower/rise transitions between standing and crouched.
+  "crouch-down": 9,
+  "crouch-up": 9,
 };
 
 /** Playback rate (fps) per animation. */
@@ -41,6 +51,9 @@ export const PLAYER_ANIM_FRAME_RATES: Record<PlayerAnimName, number> = {
   run: 9,
   crouch: 4,
   "crouch-walk": 7,
+  // ~0.6s each — quick enough to feel responsive, slow enough to read.
+  "crouch-down": 15,
+  "crouch-up": 15,
 };
 
 export function playerFrameKey(anim: PlayerAnimName, dir: PlayerAnimDir, frame: number): string {

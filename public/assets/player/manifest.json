@@ -1230,5 +1230,1013 @@
   "frame": 5,
   "key": "player-crouch-walk-east-5",
   "path": "assets/player/crouch-walk/east/5.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south-east",
+  "frame": 0,
+  "key": "player-crouch-down-south-east-0",
+  "path": "assets/player/crouch-down/south-east/0.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south-east",
+  "frame": 1,
+  "key": "player-crouch-down-south-east-1",
+  "path": "assets/player/crouch-down/south-east/1.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south-east",
+  "frame": 2,
+  "key": "player-crouch-down-south-east-2",
+  "path": "assets/player/crouch-down/south-east/2.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south-east",
+  "frame": 3,
+  "key": "player-crouch-down-south-east-3",
+  "path": "assets/player/crouch-down/south-east/3.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south-east",
+  "frame": 4,
+  "key": "player-crouch-down-south-east-4",
+  "path": "assets/player/crouch-down/south-east/4.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south-east",
+  "frame": 5,
+  "key": "player-crouch-down-south-east-5",
+  "path": "assets/player/crouch-down/south-east/5.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south-east",
+  "frame": 6,
+  "key": "player-crouch-down-south-east-6",
+  "path": "assets/player/crouch-down/south-east/6.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south-east",
+  "frame": 7,
+  "key": "player-crouch-down-south-east-7",
+  "path": "assets/player/crouch-down/south-east/7.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south-east",
+  "frame": 8,
+  "key": "player-crouch-down-south-east-8",
+  "path": "assets/player/crouch-down/south-east/8.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south-west",
+  "frame": 0,
+  "key": "player-crouch-down-south-west-0",
+  "path": "assets/player/crouch-down/south-west/0.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south-west",
+  "frame": 1,
+  "key": "player-crouch-down-south-west-1",
+  "path": "assets/player/crouch-down/south-west/1.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south-west",
+  "frame": 2,
+  "key": "player-crouch-down-south-west-2",
+  "path": "assets/player/crouch-down/south-west/2.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south-west",
+  "frame": 3,
+  "key": "player-crouch-down-south-west-3",
+  "path": "assets/player/crouch-down/south-west/3.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south-west",
+  "frame": 4,
+  "key": "player-crouch-down-south-west-4",
+  "path": "assets/player/crouch-down/south-west/4.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south-west",
+  "frame": 5,
+  "key": "player-crouch-down-south-west-5",
+  "path": "assets/player/crouch-down/south-west/5.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south-west",
+  "frame": 6,
+  "key": "player-crouch-down-south-west-6",
+  "path": "assets/player/crouch-down/south-west/6.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south-west",
+  "frame": 7,
+  "key": "player-crouch-down-south-west-7",
+  "path": "assets/player/crouch-down/south-west/7.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south-west",
+  "frame": 8,
+  "key": "player-crouch-down-south-west-8",
+  "path": "assets/player/crouch-down/south-west/8.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north-east",
+  "frame": 0,
+  "key": "player-crouch-down-north-east-0",
+  "path": "assets/player/crouch-down/north-east/0.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north-east",
+  "frame": 1,
+  "key": "player-crouch-down-north-east-1",
+  "path": "assets/player/crouch-down/north-east/1.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north-east",
+  "frame": 2,
+  "key": "player-crouch-down-north-east-2",
+  "path": "assets/player/crouch-down/north-east/2.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north-east",
+  "frame": 3,
+  "key": "player-crouch-down-north-east-3",
+  "path": "assets/player/crouch-down/north-east/3.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north-east",
+  "frame": 4,
+  "key": "player-crouch-down-north-east-4",
+  "path": "assets/player/crouch-down/north-east/4.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north-east",
+  "frame": 5,
+  "key": "player-crouch-down-north-east-5",
+  "path": "assets/player/crouch-down/north-east/5.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north-east",
+  "frame": 6,
+  "key": "player-crouch-down-north-east-6",
+  "path": "assets/player/crouch-down/north-east/6.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north-east",
+  "frame": 7,
+  "key": "player-crouch-down-north-east-7",
+  "path": "assets/player/crouch-down/north-east/7.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north-east",
+  "frame": 8,
+  "key": "player-crouch-down-north-east-8",
+  "path": "assets/player/crouch-down/north-east/8.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north-west",
+  "frame": 0,
+  "key": "player-crouch-down-north-west-0",
+  "path": "assets/player/crouch-down/north-west/0.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north-west",
+  "frame": 1,
+  "key": "player-crouch-down-north-west-1",
+  "path": "assets/player/crouch-down/north-west/1.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north-west",
+  "frame": 2,
+  "key": "player-crouch-down-north-west-2",
+  "path": "assets/player/crouch-down/north-west/2.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north-west",
+  "frame": 3,
+  "key": "player-crouch-down-north-west-3",
+  "path": "assets/player/crouch-down/north-west/3.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north-west",
+  "frame": 4,
+  "key": "player-crouch-down-north-west-4",
+  "path": "assets/player/crouch-down/north-west/4.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north-west",
+  "frame": 5,
+  "key": "player-crouch-down-north-west-5",
+  "path": "assets/player/crouch-down/north-west/5.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north-west",
+  "frame": 6,
+  "key": "player-crouch-down-north-west-6",
+  "path": "assets/player/crouch-down/north-west/6.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north-west",
+  "frame": 7,
+  "key": "player-crouch-down-north-west-7",
+  "path": "assets/player/crouch-down/north-west/7.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north-west",
+  "frame": 8,
+  "key": "player-crouch-down-north-west-8",
+  "path": "assets/player/crouch-down/north-west/8.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north",
+  "frame": 0,
+  "key": "player-crouch-down-north-0",
+  "path": "assets/player/crouch-down/north/0.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north",
+  "frame": 1,
+  "key": "player-crouch-down-north-1",
+  "path": "assets/player/crouch-down/north/1.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north",
+  "frame": 2,
+  "key": "player-crouch-down-north-2",
+  "path": "assets/player/crouch-down/north/2.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north",
+  "frame": 3,
+  "key": "player-crouch-down-north-3",
+  "path": "assets/player/crouch-down/north/3.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north",
+  "frame": 4,
+  "key": "player-crouch-down-north-4",
+  "path": "assets/player/crouch-down/north/4.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north",
+  "frame": 5,
+  "key": "player-crouch-down-north-5",
+  "path": "assets/player/crouch-down/north/5.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north",
+  "frame": 6,
+  "key": "player-crouch-down-north-6",
+  "path": "assets/player/crouch-down/north/6.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north",
+  "frame": 7,
+  "key": "player-crouch-down-north-7",
+  "path": "assets/player/crouch-down/north/7.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "north",
+  "frame": 8,
+  "key": "player-crouch-down-north-8",
+  "path": "assets/player/crouch-down/north/8.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "east",
+  "frame": 0,
+  "key": "player-crouch-down-east-0",
+  "path": "assets/player/crouch-down/east/0.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "east",
+  "frame": 1,
+  "key": "player-crouch-down-east-1",
+  "path": "assets/player/crouch-down/east/1.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "east",
+  "frame": 2,
+  "key": "player-crouch-down-east-2",
+  "path": "assets/player/crouch-down/east/2.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "east",
+  "frame": 3,
+  "key": "player-crouch-down-east-3",
+  "path": "assets/player/crouch-down/east/3.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "east",
+  "frame": 4,
+  "key": "player-crouch-down-east-4",
+  "path": "assets/player/crouch-down/east/4.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "east",
+  "frame": 5,
+  "key": "player-crouch-down-east-5",
+  "path": "assets/player/crouch-down/east/5.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "east",
+  "frame": 6,
+  "key": "player-crouch-down-east-6",
+  "path": "assets/player/crouch-down/east/6.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "east",
+  "frame": 7,
+  "key": "player-crouch-down-east-7",
+  "path": "assets/player/crouch-down/east/7.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "east",
+  "frame": 8,
+  "key": "player-crouch-down-east-8",
+  "path": "assets/player/crouch-down/east/8.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "west",
+  "frame": 0,
+  "key": "player-crouch-down-west-0",
+  "path": "assets/player/crouch-down/west/0.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "west",
+  "frame": 1,
+  "key": "player-crouch-down-west-1",
+  "path": "assets/player/crouch-down/west/1.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "west",
+  "frame": 2,
+  "key": "player-crouch-down-west-2",
+  "path": "assets/player/crouch-down/west/2.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "west",
+  "frame": 3,
+  "key": "player-crouch-down-west-3",
+  "path": "assets/player/crouch-down/west/3.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "west",
+  "frame": 4,
+  "key": "player-crouch-down-west-4",
+  "path": "assets/player/crouch-down/west/4.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "west",
+  "frame": 5,
+  "key": "player-crouch-down-west-5",
+  "path": "assets/player/crouch-down/west/5.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "west",
+  "frame": 6,
+  "key": "player-crouch-down-west-6",
+  "path": "assets/player/crouch-down/west/6.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "west",
+  "frame": 7,
+  "key": "player-crouch-down-west-7",
+  "path": "assets/player/crouch-down/west/7.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "west",
+  "frame": 8,
+  "key": "player-crouch-down-west-8",
+  "path": "assets/player/crouch-down/west/8.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south",
+  "frame": 0,
+  "key": "player-crouch-down-south-0",
+  "path": "assets/player/crouch-down/south/0.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south",
+  "frame": 1,
+  "key": "player-crouch-down-south-1",
+  "path": "assets/player/crouch-down/south/1.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south",
+  "frame": 2,
+  "key": "player-crouch-down-south-2",
+  "path": "assets/player/crouch-down/south/2.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south",
+  "frame": 3,
+  "key": "player-crouch-down-south-3",
+  "path": "assets/player/crouch-down/south/3.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south",
+  "frame": 4,
+  "key": "player-crouch-down-south-4",
+  "path": "assets/player/crouch-down/south/4.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south",
+  "frame": 5,
+  "key": "player-crouch-down-south-5",
+  "path": "assets/player/crouch-down/south/5.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south",
+  "frame": 6,
+  "key": "player-crouch-down-south-6",
+  "path": "assets/player/crouch-down/south/6.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south",
+  "frame": 7,
+  "key": "player-crouch-down-south-7",
+  "path": "assets/player/crouch-down/south/7.png"
+ },
+ {
+  "anim": "crouch-down",
+  "direction": "south",
+  "frame": 8,
+  "key": "player-crouch-down-south-8",
+  "path": "assets/player/crouch-down/south/8.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south-east",
+  "frame": 0,
+  "key": "player-crouch-up-south-east-0",
+  "path": "assets/player/crouch-up/south-east/0.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south-east",
+  "frame": 1,
+  "key": "player-crouch-up-south-east-1",
+  "path": "assets/player/crouch-up/south-east/1.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south-east",
+  "frame": 2,
+  "key": "player-crouch-up-south-east-2",
+  "path": "assets/player/crouch-up/south-east/2.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south-east",
+  "frame": 3,
+  "key": "player-crouch-up-south-east-3",
+  "path": "assets/player/crouch-up/south-east/3.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south-east",
+  "frame": 4,
+  "key": "player-crouch-up-south-east-4",
+  "path": "assets/player/crouch-up/south-east/4.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south-east",
+  "frame": 5,
+  "key": "player-crouch-up-south-east-5",
+  "path": "assets/player/crouch-up/south-east/5.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south-east",
+  "frame": 6,
+  "key": "player-crouch-up-south-east-6",
+  "path": "assets/player/crouch-up/south-east/6.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south-east",
+  "frame": 7,
+  "key": "player-crouch-up-south-east-7",
+  "path": "assets/player/crouch-up/south-east/7.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south-east",
+  "frame": 8,
+  "key": "player-crouch-up-south-east-8",
+  "path": "assets/player/crouch-up/south-east/8.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south",
+  "frame": 0,
+  "key": "player-crouch-up-south-0",
+  "path": "assets/player/crouch-up/south/0.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south",
+  "frame": 1,
+  "key": "player-crouch-up-south-1",
+  "path": "assets/player/crouch-up/south/1.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south",
+  "frame": 2,
+  "key": "player-crouch-up-south-2",
+  "path": "assets/player/crouch-up/south/2.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south",
+  "frame": 3,
+  "key": "player-crouch-up-south-3",
+  "path": "assets/player/crouch-up/south/3.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south",
+  "frame": 4,
+  "key": "player-crouch-up-south-4",
+  "path": "assets/player/crouch-up/south/4.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south",
+  "frame": 5,
+  "key": "player-crouch-up-south-5",
+  "path": "assets/player/crouch-up/south/5.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south",
+  "frame": 6,
+  "key": "player-crouch-up-south-6",
+  "path": "assets/player/crouch-up/south/6.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south",
+  "frame": 7,
+  "key": "player-crouch-up-south-7",
+  "path": "assets/player/crouch-up/south/7.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south",
+  "frame": 8,
+  "key": "player-crouch-up-south-8",
+  "path": "assets/player/crouch-up/south/8.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north-east",
+  "frame": 0,
+  "key": "player-crouch-up-north-east-0",
+  "path": "assets/player/crouch-up/north-east/0.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north-east",
+  "frame": 1,
+  "key": "player-crouch-up-north-east-1",
+  "path": "assets/player/crouch-up/north-east/1.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north-east",
+  "frame": 2,
+  "key": "player-crouch-up-north-east-2",
+  "path": "assets/player/crouch-up/north-east/2.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north-east",
+  "frame": 3,
+  "key": "player-crouch-up-north-east-3",
+  "path": "assets/player/crouch-up/north-east/3.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north-east",
+  "frame": 4,
+  "key": "player-crouch-up-north-east-4",
+  "path": "assets/player/crouch-up/north-east/4.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north-east",
+  "frame": 5,
+  "key": "player-crouch-up-north-east-5",
+  "path": "assets/player/crouch-up/north-east/5.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north-east",
+  "frame": 6,
+  "key": "player-crouch-up-north-east-6",
+  "path": "assets/player/crouch-up/north-east/6.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north-east",
+  "frame": 7,
+  "key": "player-crouch-up-north-east-7",
+  "path": "assets/player/crouch-up/north-east/7.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north-east",
+  "frame": 8,
+  "key": "player-crouch-up-north-east-8",
+  "path": "assets/player/crouch-up/north-east/8.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "east",
+  "frame": 0,
+  "key": "player-crouch-up-east-0",
+  "path": "assets/player/crouch-up/east/0.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "east",
+  "frame": 1,
+  "key": "player-crouch-up-east-1",
+  "path": "assets/player/crouch-up/east/1.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "east",
+  "frame": 2,
+  "key": "player-crouch-up-east-2",
+  "path": "assets/player/crouch-up/east/2.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "east",
+  "frame": 3,
+  "key": "player-crouch-up-east-3",
+  "path": "assets/player/crouch-up/east/3.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "east",
+  "frame": 4,
+  "key": "player-crouch-up-east-4",
+  "path": "assets/player/crouch-up/east/4.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "east",
+  "frame": 5,
+  "key": "player-crouch-up-east-5",
+  "path": "assets/player/crouch-up/east/5.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "east",
+  "frame": 6,
+  "key": "player-crouch-up-east-6",
+  "path": "assets/player/crouch-up/east/6.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "east",
+  "frame": 7,
+  "key": "player-crouch-up-east-7",
+  "path": "assets/player/crouch-up/east/7.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "east",
+  "frame": 8,
+  "key": "player-crouch-up-east-8",
+  "path": "assets/player/crouch-up/east/8.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south-west",
+  "frame": 0,
+  "key": "player-crouch-up-south-west-0",
+  "path": "assets/player/crouch-up/south-west/0.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south-west",
+  "frame": 1,
+  "key": "player-crouch-up-south-west-1",
+  "path": "assets/player/crouch-up/south-west/1.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south-west",
+  "frame": 2,
+  "key": "player-crouch-up-south-west-2",
+  "path": "assets/player/crouch-up/south-west/2.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south-west",
+  "frame": 3,
+  "key": "player-crouch-up-south-west-3",
+  "path": "assets/player/crouch-up/south-west/3.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south-west",
+  "frame": 4,
+  "key": "player-crouch-up-south-west-4",
+  "path": "assets/player/crouch-up/south-west/4.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south-west",
+  "frame": 5,
+  "key": "player-crouch-up-south-west-5",
+  "path": "assets/player/crouch-up/south-west/5.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south-west",
+  "frame": 6,
+  "key": "player-crouch-up-south-west-6",
+  "path": "assets/player/crouch-up/south-west/6.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south-west",
+  "frame": 7,
+  "key": "player-crouch-up-south-west-7",
+  "path": "assets/player/crouch-up/south-west/7.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "south-west",
+  "frame": 8,
+  "key": "player-crouch-up-south-west-8",
+  "path": "assets/player/crouch-up/south-west/8.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north-west",
+  "frame": 0,
+  "key": "player-crouch-up-north-west-0",
+  "path": "assets/player/crouch-up/north-west/0.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north-west",
+  "frame": 1,
+  "key": "player-crouch-up-north-west-1",
+  "path": "assets/player/crouch-up/north-west/1.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north-west",
+  "frame": 2,
+  "key": "player-crouch-up-north-west-2",
+  "path": "assets/player/crouch-up/north-west/2.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north-west",
+  "frame": 3,
+  "key": "player-crouch-up-north-west-3",
+  "path": "assets/player/crouch-up/north-west/3.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north-west",
+  "frame": 4,
+  "key": "player-crouch-up-north-west-4",
+  "path": "assets/player/crouch-up/north-west/4.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north-west",
+  "frame": 5,
+  "key": "player-crouch-up-north-west-5",
+  "path": "assets/player/crouch-up/north-west/5.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north-west",
+  "frame": 6,
+  "key": "player-crouch-up-north-west-6",
+  "path": "assets/player/crouch-up/north-west/6.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north-west",
+  "frame": 7,
+  "key": "player-crouch-up-north-west-7",
+  "path": "assets/player/crouch-up/north-west/7.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north-west",
+  "frame": 8,
+  "key": "player-crouch-up-north-west-8",
+  "path": "assets/player/crouch-up/north-west/8.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north",
+  "frame": 0,
+  "key": "player-crouch-up-north-0",
+  "path": "assets/player/crouch-up/north/0.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north",
+  "frame": 1,
+  "key": "player-crouch-up-north-1",
+  "path": "assets/player/crouch-up/north/1.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north",
+  "frame": 2,
+  "key": "player-crouch-up-north-2",
+  "path": "assets/player/crouch-up/north/2.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north",
+  "frame": 3,
+  "key": "player-crouch-up-north-3",
+  "path": "assets/player/crouch-up/north/3.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north",
+  "frame": 4,
+  "key": "player-crouch-up-north-4",
+  "path": "assets/player/crouch-up/north/4.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north",
+  "frame": 5,
+  "key": "player-crouch-up-north-5",
+  "path": "assets/player/crouch-up/north/5.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north",
+  "frame": 6,
+  "key": "player-crouch-up-north-6",
+  "path": "assets/player/crouch-up/north/6.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north",
+  "frame": 7,
+  "key": "player-crouch-up-north-7",
+  "path": "assets/player/crouch-up/north/7.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "north",
+  "frame": 8,
+  "key": "player-crouch-up-north-8",
+  "path": "assets/player/crouch-up/north/8.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "west",
+  "frame": 0,
+  "key": "player-crouch-up-west-0",
+  "path": "assets/player/crouch-up/west/0.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "west",
+  "frame": 1,
+  "key": "player-crouch-up-west-1",
+  "path": "assets/player/crouch-up/west/1.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "west",
+  "frame": 2,
+  "key": "player-crouch-up-west-2",
+  "path": "assets/player/crouch-up/west/2.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "west",
+  "frame": 3,
+  "key": "player-crouch-up-west-3",
+  "path": "assets/player/crouch-up/west/3.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "west",
+  "frame": 4,
+  "key": "player-crouch-up-west-4",
+  "path": "assets/player/crouch-up/west/4.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "west",
+  "frame": 5,
+  "key": "player-crouch-up-west-5",
+  "path": "assets/player/crouch-up/west/5.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "west",
+  "frame": 6,
+  "key": "player-crouch-up-west-6",
+  "path": "assets/player/crouch-up/west/6.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "west",
+  "frame": 7,
+  "key": "player-crouch-up-west-7",
+  "path": "assets/player/crouch-up/west/7.png"
+ },
+ {
+  "anim": "crouch-up",
+  "direction": "west",
+  "frame": 8,
+  "key": "player-crouch-up-west-8",
+  "path": "assets/player/crouch-up/west/8.png"
  }
 ]
