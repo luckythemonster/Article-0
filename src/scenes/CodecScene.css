@@ -1,0 +1,84 @@
+.codec-veil {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 7, 10, 0.5);
+}
+
+.codec-panel {
+  position: relative;
+  z-index: 0;
+  width: min(600px, calc(100vw - 40px));
+  max-height: min(320px, calc(100vh - 40px));
+  padding: 18px 24px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow: hidden;
+  font-family: "Courier New", monospace;
+}
+
+.codec-panel--band {
+  max-height: min(380px, calc(100vh - 40px));
+}
+
+.codec-frame-svg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.codec-header {
+  font-size: 13px;
+  font-weight: bold;
+  color: #39d3ff;
+  text-align: center;
+}
+
+.codec-body {
+  margin: 0;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #bfe3ea;
+  text-align: center;
+  white-space: pre-wrap;
+}
+
+.codec-directive-head {
+  font-size: 11px;
+  color: #8899aa;
+  text-align: center;
+}
+
+.codec-directive {
+  margin: -8px 0 0;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.3;
+  color: #cfe0f0;
+  text-align: center;
+  white-space: pre-wrap;
+}
+
+.codec-band {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.3;
+  color: #ffb03b;
+  text-align: center;
+  white-space: pre-wrap;
+}
+
+.codec-hint {
+  margin-top: auto;
+  font-size: 12px;
+  color: #6b7f92;
+  text-align: center;
+}

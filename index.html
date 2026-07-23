@@ -29,10 +29,21 @@
         image-rendering: pixelated;
         image-rendering: crisp-edges;
       }
+      /* DOM overlay mount point for Arwes-rendered UI (e.g. CodecScene). */
+      #codec-root {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        pointer-events: none;
+      }
+      #codec-root:not(:empty) {
+        pointer-events: auto;
+      }
     </style>
   </head>
   <body>
     <div id="game"></div>
+    <div id="codec-root"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
