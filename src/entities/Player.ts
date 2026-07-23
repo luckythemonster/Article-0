@@ -33,9 +33,13 @@ export class Player {
   /** Facing angle in radians; updated as the player moves. */
   facing = -Math.PI / 2; // start facing "up"
   private readonly walkSpeed: number;
+  private readonly baseScale: number;
   private dir: PlayerAnimDir = "south";
   private currentAnim: PlayerAnimName = "idle";
   private stance: Stance = "standing";
+
+  /** Crouched Rowan renders at this fraction of his standing height. */
+  private static readonly CROUCH_SCALE_FACTOR = 0.8;
 
   constructor(scene: Phaser.Scene, x: number, y: number, tileSize: number) {
     this.walkSpeed = tileSize * 3.2; // px/sec baseline
@@ -49,8 +53,8 @@ export class Player {
     // the sprite's *unscaled* local space (Arcade Body convention) so it
     // roughly covers the torso rather than the padded frame.
     const displaySize = tileSize * 1.5;
-    const scale = displaySize / 88;
-    this.sprite.setScale(scale);
+    this.baseScale = displaySize / 88;
+    this.sprite.setScale(this.baseScale);
     const body = this.sprite.body as Phaser.Physics.Arcade.Body;
     body.setSize(36, 40);
     this.sprite.setCollideWorldBounds(true);
@@ -137,6 +141,34 @@ export class Player {
           : "idle";
       this.setAnimation(anim, this.dir);
     }
+
+    this.updateScale();
+  }
+
+  /**
+   * Crouched Rowan renders shorter than standing. The height change is
+   * synced to the lower/rise clip's own playback progress (not a fixed
+   * timer), so it always finishes exactly when the pose does, however fast
+   * or slow that animation ends up being.
+   */
+  private updateScale(): void {
+    const crouchScale = this.baseScale * Player.CROUCH_SCALE_FACTOR;
+    let scale: number;
+    switch (this.stance) {
+      case "standing":
+        scale = this.baseScale;
+        break;
+      case "crouched":
+        scale = crouchScale;
+        break;
+      case "crouching-down":
+        scale = Phaser.Math.Linear(this.baseScale, crouchScale, this.sprite.anims.getProgress());
+        break;
+      case "standing-up":
+        scale = Phaser.Math.Linear(crouchScale, this.baseScale, this.sprite.anims.getProgress());
+        break;
+    }
+    this.sprite.setScale(scale);
   }
 
   /** Enters a lower/rise transition: plays the one-shot clip locked to the
