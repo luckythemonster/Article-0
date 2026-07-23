@@ -13,6 +13,8 @@ import type { RadarSnapshot } from "../systems/Radar";
 import type { AlertNetworkSnapshot } from "../systems/AlertNetwork";
 import type { ObjectiveState } from "../systems/Objectives";
 import type { Vent4View } from "../systems/Vent4Core";
+import type { ActiveItemsView } from "../systems/ActiveItems";
+import { CHAFF_PACK_ITEM, THERMAL_GEL_ITEM } from "../systems/EntityStats";
 
 /**
  * A parallel overlay scene for the HUD.
@@ -35,6 +37,8 @@ export class UIScene extends Phaser.Scene {
   private debug?: DebugHud;
   // A tiny stand-in that mirrors the phase the HUD needs to colour itself.
   private readonly alertView = { phase: "INFILTRATION" as AlertPhase };
+  /** Hotkeys 1/2: use the Chaff Pack / Thermal Gel from the inventory. */
+  private itemKeys!: { one: Phaser.Input.Keyboard.Key; two: Phaser.Input.Keyboard.Key };
 
   constructor() {
     super("UIScene");
@@ -49,6 +53,11 @@ export class UIScene extends Phaser.Scene {
     this.sharedField = new SharedFieldHud(this);
     this.vent4 = new Vent4Hud(this);
     if (DEBUG_ALLOWED) this.debug = new DebugHud(this);
+
+    this.itemKeys = {
+      one: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ONE),
+      two: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.TWO),
+    };
   }
 
   update(): void {
@@ -61,7 +70,18 @@ export class UIScene extends Phaser.Scene {
     const radarSnapshot = this.registry.get("radar") as RadarSnapshot | undefined;
     if (radarSnapshot) this.radar.update(radarSnapshot);
 
-    this.inventory.update((this.registry.get("inventory") as string[] | undefined) ?? []);
+    const items = (this.registry.get("inventory") as string[] | undefined) ?? [];
+    if (Phaser.Input.Keyboard.JustDown(this.itemKeys.one) && items.includes(CHAFF_PACK_ITEM)) {
+      this.registry.set("itemUseRequest", CHAFF_PACK_ITEM);
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.itemKeys.two) && items.includes(THERMAL_GEL_ITEM)) {
+      this.registry.set("itemUseRequest", THERMAL_GEL_ITEM);
+    }
+    const activeItems = (this.registry.get("activeItems") as ActiveItemsView | undefined) ?? {
+      chaffRemaining: 0,
+      thermalRemaining: 0,
+    };
+    this.inventory.update(items, activeItems);
 
     const network = this.registry.get("alertNetwork") as AlertNetworkSnapshot | undefined;
     if (network) this.network.update(network);

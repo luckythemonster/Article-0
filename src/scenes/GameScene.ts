@@ -19,7 +19,18 @@ import { Chest } from "../entities/Chest";
 import { buildAlertNetworkSnapshot } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
 import { setMode, type GameMode } from "../systems/GameState";
-import { CERT_ITEM, PLAYER_DEFAULTS, VENT4_DEFAULTS } from "../systems/EntityStats";
+import {
+  CERT_ITEM,
+  CHAFF_PACK_ITEM,
+  PLAYER_DEFAULTS,
+  THERMAL_GEL_ITEM,
+  VENT4_DEFAULTS,
+} from "../systems/EntityStats";
+import {
+  ActiveItemState,
+  CHAFF_PACK_RADIUS_TILES,
+  type ActiveItemsView,
+} from "../systems/ActiveItems";
 import { pickQualiaRackIndex, QUALIA_RACK_TERMINAL_TYPE } from "../systems/QualiaLock";
 import {
   initialObjectives,
@@ -126,6 +137,10 @@ export class GameScene extends Phaser.Scene {
   private objectives!: ObjectiveState;
   /** The Shared Field (WX-9) charge / active state. */
   private sharedField = new SharedField();
+  /** Chaff Pack / Thermal Gel consumable timers. */
+  private activeItems = new ActiveItemState();
+  /** Draws the Chaff Pack's EMP zone while it's live. */
+  private empGfx!: Phaser.GameObjects.Graphics;
   /**
    * A walk-over transition can only fire once the player has stepped off every
    * transition tile since arriving — otherwise you'd bounce straight back.
@@ -216,6 +231,7 @@ export class GameScene extends Phaser.Scene {
     this.pendingQualia = undefined;
     this.qualiaRack = undefined;
     this.sharedField = new SharedField();
+    this.activeItems = new ActiveItemState();
     // Arm only after stepping off the arrival tile (see update()).
     this.transitionArmed = false;
     // Debug flags don't survive a restart; the master toggle stays on so a
@@ -282,6 +298,9 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.roundPixels = true;
 
     this.bindInput();
+
+    // Chaff Pack EMP zone: drawn between the guard cones (400) and bodies (450).
+    this.empGfx = this.add.graphics().setDepth(410);
 
     // World-space debug overlay: drawn below the depth-1000 HUD/prompts.
     if (DEBUG_ALLOWED) {
@@ -684,6 +703,50 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * Polls the item-use request UIScene posts on hotkeys 1/2 (the same
+   * request/consume pattern as the compliance/qualia overlays), validates
+   * possession, spends the item, and ticks both item timers.
+   */
+  private updateActiveItems(dt: number): void {
+    const request = this.registry.get("itemUseRequest") as string | undefined;
+    if (request) {
+      this.registry.remove("itemUseRequest");
+      const inv = (this.registry.get("inventory") as string[] | undefined) ?? [];
+      const idx = inv.indexOf(request);
+      if (idx !== -1) {
+        inv.splice(idx, 1);
+        this.registry.set("inventory", inv);
+        if (request === CHAFF_PACK_ITEM) {
+          this.activeItems.activateChaff(this.player.x, this.player.y);
+          this.alert.forceEvasion();
+          this.cameras.main.flash(200, 120, 200, 255);
+        } else if (request === THERMAL_GEL_ITEM) {
+          this.activeItems.activateThermalGel();
+        }
+      }
+    }
+    this.activeItems.update(dt);
+    this.registry.set("activeItems", {
+      chaffRemaining: this.activeItems.chaffRemaining,
+      thermalRemaining: this.activeItems.thermalRemaining,
+    } satisfies ActiveItemsView);
+    this.drawChaffZone();
+  }
+
+  /** Draws the Chaff Pack's EMP zone while it's live. */
+  private drawChaffZone(): void {
+    const g = this.empGfx;
+    g.clear();
+    if (!this.activeItems.chaffActive || !this.activeItems.chaffOrigin) return;
+    const { x, y } = this.activeItems.chaffOrigin;
+    const radiusPx = CHAFF_PACK_RADIUS_TILES * this.tileSize;
+    g.fillStyle(0x7fd8ff, 0.12);
+    g.fillCircle(x, y, radiusPx);
+    g.lineStyle(2, 0xbdf0ff, 0.6);
+    g.strokeCircle(x, y, radiusPx);
+  }
+
   private readInput(): InputState {
     const k = this.keys;
     return {
@@ -736,6 +799,7 @@ export class GameScene extends Phaser.Scene {
     this.lighting.update(dt);
     this.updateInteractions(dt);
     this.updateSharedField(dt);
+    this.updateActiveItems(dt);
     const fieldActive = this.sharedField.isActive;
 
     // Cover concealment: crouched on LOW cover (or on any HIGH cover) hides the
@@ -760,6 +824,12 @@ export class GameScene extends Phaser.Scene {
       playerNoise: this.player.noise,
       playerConcealed: concealed,
       playerThermalConcealed: thermalConcealed,
+      thermalRadiusMultiplier: (base: number) =>
+        this.detection.thermalRadiusFor(base, this.activeItems.thermalMasked),
+      chaffZone:
+        this.activeItems.chaffActive && this.activeItems.chaffOrigin
+          ? { ...this.activeItems.chaffOrigin, radiusPx: CHAFF_PACK_RADIUS_TILES * this.tileSize }
+          : null,
       alert: this.alert,
     };
     // Debug freeze-world (H) short-circuits every AI/hazard update below by

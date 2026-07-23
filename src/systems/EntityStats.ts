@@ -238,6 +238,12 @@ export const STAPLER_ITEM = "Pneumatic Rail-Stapler";
 /** Proof-of-compliance item granted when VENT-4 is silenced. */
 export const CERT_ITEM = "Q0_COMPLIANCE_CERT";
 
+/** Consumable: EMP charge that jams nearby cameras/guards (hotkey 1). */
+export const CHAFF_PACK_ITEM = "Chaff Pack";
+
+/** Consumable: thermal-masking buff (hotkey 2). */
+export const THERMAL_GEL_ITEM = "Thermal Gel";
+
 export interface Vent4Stats {
   /** Compliance Index at the start of the encounter (the boss "health", 100→0). */
   complianceStart: number;

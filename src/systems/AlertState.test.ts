@@ -29,4 +29,30 @@ describe("AlertState", () => {
     a.update(100);
     expect(a.phase).toBe("INFILTRATION");
   });
+
+  it("forceEvasion drops an active ALERT straight to EVASION", () => {
+    const a = new AlertState();
+    a.reportSighting(3, 4);
+    a.forceEvasion(5);
+    expect(a.phase).toBe("EVASION");
+    expect(a.remaining).toBe(5);
+    a.update(4.9);
+    expect(a.phase).toBe("EVASION");
+    a.update(0.2);
+    expect(a.phase).toBe("INFILTRATION");
+  });
+
+  it("forceEvasion is a no-op outside ALERT", () => {
+    const a = new AlertState();
+    a.forceEvasion();
+    expect(a.phase).toBe("INFILTRATION");
+
+    a.reportSighting(1, 1);
+    a.update(9); // ALERT -> EVASION
+    expect(a.phase).toBe("EVASION");
+    const remainingBefore = a.remaining;
+    a.forceEvasion();
+    expect(a.phase).toBe("EVASION");
+    expect(a.remaining).toBe(remainingBefore);
+  });
 });
