@@ -80,14 +80,21 @@ export class Sensor {
   /** True when the player is in the cone (or thermal radius) with clear LOS. */
   private canSee(ctx: EnforcerContext): boolean {
     const { player, tileSize, grid } = ctx;
+
+    // A live Chaff Pack EMP zone blinds any camera caught inside it outright.
+    if (ctx.chaffZone) {
+      const dz = Math.hypot(this.x - ctx.chaffZone.x, this.y - ctx.chaffZone.y);
+      if (dz <= ctx.chaffZone.radiusPx) return false;
+    }
+
     const dx = player.x - this.x;
     const dy = player.y - this.y;
     const dist = Math.hypot(dx, dy);
     const hasLos = (): boolean =>
       grid.hasLineOfSight(this.x / tileSize, this.y / tileSize, player.x / tileSize, player.y / tileSize);
 
-    const thermalPx = this.stats.thermalRadius * tileSize;
-    if (!ctx.playerThermalConcealed && dist <= thermalPx && hasLos()) return true;
+    const thermalPx = ctx.thermalRadiusMultiplier(this.stats.thermalRadius) * tileSize;
+    if (!ctx.playerThermalConcealed && thermalPx > 0 && dist <= thermalPx && hasLos()) return true;
 
     if (ctx.playerConcealed) return false;
     if (dist > this.stats.detectionRange * tileSize) return false;

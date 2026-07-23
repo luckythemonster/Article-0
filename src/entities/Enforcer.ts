@@ -22,6 +22,10 @@ export interface EnforcerContext {
    * them to the short-range heat sense while breaking the visible cone.
    */
   playerThermalConcealed: boolean;
+  /** Non-null while a Chaff Pack's EMP zone is live; guards inside it can't see. */
+  chaffZone: { x: number; y: number; radiusPx: number } | null;
+  /** Scales a guard's thermalRadius stat (in tiles) — 0 while Thermal Gel is active. */
+  thermalRadiusMultiplier: (baseTiles: number) => number;
   alert: AlertState;
 }
 
@@ -187,6 +191,13 @@ export class Enforcer {
    */
   private canSee(ctx: EnforcerContext): boolean {
     const { player, tileSize, grid } = ctx;
+
+    // A live Chaff Pack EMP zone blinds any guard caught inside it outright.
+    if (ctx.chaffZone) {
+      const dz = Math.hypot(this.x - ctx.chaffZone.x, this.y - ctx.chaffZone.y);
+      if (dz <= ctx.chaffZone.radiusPx) return false;
+    }
+
     const dx = player.x - this.x;
     const dy = player.y - this.y;
     const dist = Math.hypot(dx, dy);
@@ -199,8 +210,8 @@ export class Enforcer {
       );
 
     // Thermal: close-range body heat betrays the player even outside the cone.
-    const thermalPx = this.stats.thermalRadius * tileSize;
-    if (!ctx.playerThermalConcealed && dist <= thermalPx && hasLos()) return true;
+    const thermalPx = ctx.thermalRadiusMultiplier(this.stats.thermalRadius) * tileSize;
+    if (!ctx.playerThermalConcealed && thermalPx > 0 && dist <= thermalPx && hasLos()) return true;
 
     // Cone: crouched behind cover hides the player from the visible cone.
     if (ctx.playerConcealed) return false;

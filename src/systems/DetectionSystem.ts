@@ -87,6 +87,11 @@ export class DetectionSystem {
     return this.thermalBleed.has(this.key(tx, ty));
   }
 
+  /** Thermal Gel zeroes every ThermalDetectionRadius check for its duration. */
+  thermalRadiusFor(baseTiles: number, thermalMasked: boolean): number {
+    return thermalMasked ? 0 : baseTiles;
+  }
+
   private key(x: number, y: number): number {
     return y * this.width + x;
   }
