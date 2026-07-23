@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { initialObjectives, objectiveLines, type ObjectiveState } from "../systems/Objectives";
 import { setMode } from "../systems/GameState";
+import { getAudio } from "../systems/AudioDirector";
 
 interface CodecData {
   /**
@@ -8,6 +9,12 @@ interface CodecData {
    * confirm. When false it's an in-game overlay; GameScene owns the toggle key.
    */
   interactive?: boolean;
+  /**
+   * When true, VENT-4's maintenance band is open for the purge-phase finisher:
+   * Enter raises the `vent4Transmit` registry flag, which GameScene consumes
+   * (this scene never closes itself in passive mode).
+   */
+  vent4?: boolean;
 }
 
 /** EIRA-7's briefing — feelings-language the Alignment system keeps flagging. */
@@ -27,6 +34,7 @@ const EIRA_LINES = [
  */
 export class CodecScene extends Phaser.Scene {
   private interactive = true;
+  private vent4 = false;
 
   constructor() {
     super("CodecScene");
@@ -34,6 +42,7 @@ export class CodecScene extends Phaser.Scene {
 
   init(data: CodecData): void {
     this.interactive = data.interactive ?? true;
+    this.vent4 = data.vent4 ?? false;
   }
 
   create(): void {
@@ -73,6 +82,25 @@ export class CodecScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0)
       .setScrollFactor(0);
+    // VENT-4's maintenance band, open only while its purge phase runs.
+    const showBand = !this.interactive && this.vent4;
+    const band = showBand
+      ? this.add
+          .text(
+            0,
+            0,
+            "CH 140.85 — VENT-4 MAINTENANCE BAND\n▸ [Enter] transmit Q0_COMPLIANCE_CERT",
+            {
+              fontFamily: "monospace",
+              fontSize: "12px",
+              color: "#ffb03b",
+              align: "center",
+              lineSpacing: 3,
+            },
+          )
+          .setOrigin(0.5, 0)
+          .setScrollFactor(0)
+      : undefined;
     const hint = this.add
       .text(0, 0, this.interactive ? "Enter — begin infiltration" : "C — close channel", {
         fontFamily: "monospace",
@@ -85,7 +113,7 @@ export class CodecScene extends Phaser.Scene {
     const layout = (w: number, h: number): void => {
       veil.setSize(w, h);
       const pw = Math.min(600, w - 40);
-      const ph = Math.min(320, h - 40);
+      const ph = Math.min(band ? 380 : 320, h - 40);
       panel.setPosition(w / 2, h / 2);
       panel.setSize(pw, ph);
       let y = h / 2 - ph / 2 + 18;
@@ -96,6 +124,10 @@ export class CodecScene extends Phaser.Scene {
       directiveHead.setPosition(w / 2, y);
       y += directiveHead.height + 6;
       directive.setPosition(w / 2, y);
+      if (band) {
+        y += directive.height + 12;
+        band.setPosition(w / 2, y);
+      }
       hint.setPosition(w / 2, h / 2 + ph / 2 - 26);
     };
     layout(this.scale.width, this.scale.height);
@@ -112,6 +144,11 @@ export class CodecScene extends Phaser.Scene {
       kb.on("keydown-ENTER", begin);
       kb.on("keydown-SPACE", begin);
       kb.on("keydown-E", begin);
+    } else if (showBand) {
+      this.input.keyboard!.on("keydown-ENTER", () => {
+        this.registry.set("vent4Transmit", true);
+        getAudio().hack();
+      });
     }
   }
 }

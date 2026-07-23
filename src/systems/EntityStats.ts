@@ -231,3 +231,122 @@ export const PLAYER_DEFAULTS: PlayerStats = {
   hazardDamage: 25,
   hitCooldown: 1.0,
 };
+
+/** Loot granted by the vent-core supply chest; enables capacitor fire while JAMMED. */
+export const STAPLER_ITEM = "Pneumatic Rail-Stapler";
+
+/** Proof-of-compliance item granted when VENT-4 is silenced. */
+export const CERT_ITEM = "Q0_COMPLIANCE_CERT";
+
+export interface Vent4Stats {
+  /** Compliance Index at the start of the encounter (the boss "health", 100→0). */
+  complianceStart: number;
+  /** CI removed per patched pressure sub-station. */
+  patchCompliance: number;
+  /** CI removed per scrap load winched into the intake. */
+  jamCompliance: number;
+  /** CI removed per core capacitor destroyed during the JAMMED window. */
+  capacitorCompliance: number;
+  /** CI restored when a sweep fully spots the player (Phase 1 only). */
+  correctionRegen: number;
+  /** CI below this is the Turbulence band. */
+  turbulenceBelow: number;
+  /** CI below this is Critical Blockage → Phase 3 thermal purge. */
+  purgeBelow: number;
+  substationCount: number;
+  winchCount: number;
+  capacitorCount: number;
+  /** Rail-stapler hits to destroy one capacitor. */
+  capacitorHits: number;
+  sweepCount: number;
+  /** Spotlight reach from the hub, in tiles. */
+  sweepRange: number;
+  /** Full spotlight cone width, in degrees. */
+  sweepAngle: number;
+  /** Sweep rotation, radians/second, by band. */
+  sweepSpeedLaminar: number;
+  sweepSpeedTurbulent: number;
+  /** Seconds inside a sweep before full detection (a correction burst). */
+  sweepDetectTime: number;
+  /** Turbine hub footprint radius, in tiles (sweep origins sit on this ring). */
+  hubRadius: number;
+  /** Radial suction reach in tiles; pull ramps from 0 there to suctionMax at the hub. */
+  suctionRadius: number;
+  /** Peak suction, tiles/second — between walk (3.2) and run (5.12) speed. */
+  suctionMax: number;
+  /** Within this many tiles of the hub the intake itself deals damage. */
+  intakeRadius: number;
+  intakeDamage: number;
+  /** Tiles from a steel-column centre that counts as holding on (an adjacent
+   *  hug is ~1.05 tiles centre-to-centre once the wall body pushes back). */
+  gripRadius: number;
+  /** Seconds of un-anchored suction to exhaust grip / anchored to refill it. */
+  gripDrainTime: number;
+  gripRegenTime: number;
+  /** Pull multiplier once grip is exhausted. */
+  exhaustedPullMultiplier: number;
+  /** Seconds the turbine stays JAMMED (core exposed) after a scrap drop. */
+  jamDuration: number;
+  /** Hold-E seconds: winch a scrap load / patch a sub-station. */
+  winchTime: number;
+  patchTime: number;
+  /** Rail-stapler reach in tiles and seconds between shots. */
+  staplerRange: number;
+  staplerCooldown: number;
+  /** Seconds of purge exposure to overheat (heat 0→1). */
+  heatTime: number;
+  overheatDamage: number;
+  /** Seconds of zeroed thermal signature after standing under a condensate drip. */
+  dripCoolDuration: number;
+  steamDamage: number;
+  /** Player noise above this on a floor grate pings the boss (walk 0.5 > sneak 0.15). */
+  grateNoiseThreshold: number;
+  /** Correction-burst knockback (tiles/second) and damage. */
+  burstImpulse: number;
+  burstDamage: number;
+}
+
+/**
+ * VENT-4 tuning. The arena is engine-generated (no map component), so like the
+ * player these are used directly.
+ */
+export const VENT4_DEFAULTS: Vent4Stats = {
+  complianceStart: 100,
+  patchCompliance: 15,
+  jamCompliance: 8,
+  capacitorCompliance: 12,
+  correctionRegen: 5,
+  turbulenceBelow: 70,
+  purgeBelow: 30,
+  substationCount: 3,
+  winchCount: 3,
+  capacitorCount: 4,
+  capacitorHits: 3,
+  sweepCount: 4,
+  sweepRange: 9,
+  sweepAngle: 26,
+  sweepSpeedLaminar: 0.35,
+  sweepSpeedTurbulent: 0.6,
+  sweepDetectTime: 1.1,
+  hubRadius: 1.6,
+  suctionRadius: 11,
+  suctionMax: 4.2,
+  intakeRadius: 2.3,
+  intakeDamage: 25,
+  gripRadius: 1.35,
+  gripDrainTime: 6,
+  gripRegenTime: 2.5,
+  exhaustedPullMultiplier: 1.35,
+  jamDuration: 10,
+  winchTime: 2.0,
+  patchTime: 2.6,
+  staplerRange: 6,
+  staplerCooldown: 0.35,
+  heatTime: 18,
+  overheatDamage: 10,
+  dripCoolDuration: 6,
+  steamDamage: 15,
+  grateNoiseThreshold: 0.2,
+  burstImpulse: 9,
+  burstDamage: 15,
+};
