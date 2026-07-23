@@ -20,6 +20,7 @@ import { buildAlertNetworkSnapshot } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
 import { setMode, type GameMode } from "../systems/GameState";
 import { CERT_ITEM, PLAYER_DEFAULTS, VENT4_DEFAULTS } from "../systems/EntityStats";
+import { pickQualiaRackIndex, QUALIA_RACK_TERMINAL_TYPE } from "../systems/QualiaLock";
 import {
   initialObjectives,
   isRunWon,
@@ -115,6 +116,12 @@ export class GameScene extends Phaser.Scene {
   private complianceOpen = false;
   /** The log-cache terminal whose breach launched the compliance puzzle. */
   private pendingCompliance?: Terminal;
+  /** True while the Qualia Phase-Lock minigame overlay is open (sim frozen). */
+  private qualiaOpen = false;
+  /** The silicate-rack terminal whose breach launched the qualia bypass. */
+  private pendingQualia?: Terminal;
+  /** The terminal promoted to a silicate server rack in the current level. */
+  private qualiaRack?: Terminal;
   /** Mission progress (kept in the registry so it survives level swaps). */
   private objectives!: ObjectiveState;
   /** The Shared Field (WX-9) charge / active state. */
@@ -136,6 +143,8 @@ export class GameScene extends Phaser.Scene {
   private noClip = false;
   /** World-space debug draw: LOS rays, blocked tiles, detection tint. */
   private worldDraw = false;
+  /** Freeze-world: halts guards, cameras, hazards, alert and capture (player free). */
+  private frozenWorld = false;
   /** Graphics layer for the world-space debug draw. */
   private debugGfx?: Phaser.GameObjects.Graphics;
   /** The player↔wall / player↔door colliders, kept so no-clip can toggle them. */
@@ -147,6 +156,7 @@ export class GameScene extends Phaser.Scene {
     god: Phaser.Input.Keyboard.Key;
     noClip: Phaser.Input.Keyboard.Key;
     world: Phaser.Input.Keyboard.Key;
+    freeze: Phaser.Input.Keyboard.Key;
     warp: Phaser.Input.Keyboard.Key[];
   };
 
@@ -202,6 +212,9 @@ export class GameScene extends Phaser.Scene {
     this.codecOpen = false;
     this.complianceOpen = false;
     this.pendingCompliance = undefined;
+    this.qualiaOpen = false;
+    this.pendingQualia = undefined;
+    this.qualiaRack = undefined;
     this.sharedField = new SharedField();
     // Arm only after stepping off the arrival tile (see update()).
     this.transitionArmed = false;
@@ -210,6 +223,7 @@ export class GameScene extends Phaser.Scene {
     this.godMode = false;
     this.noClip = false;
     this.worldDraw = false;
+    this.frozenWorld = false;
 
     // Slice every referenced sprite rect into a named frame.
     SpriteAtlas.register(this, parsed.uniqueFrames);
@@ -235,6 +249,7 @@ export class GameScene extends Phaser.Scene {
     const wallBodies = this.renderLevel();
     this.spawnEntities();
     const doorBodies = this.spawnInteractables();
+    this.designateQualiaRack();
 
     this.wallCollider = this.physics.add.collider(this.player.sprite, wallBodies);
     this.doorCollider = this.physics.add.collider(this.player.sprite, doorBodies);
@@ -482,6 +497,7 @@ export class GameScene extends Phaser.Scene {
         god: kb.addKey(K.G),
         noClip: kb.addKey(K.N),
         world: kb.addKey(K.V),
+        freeze: kb.addKey(K.H),
         warp: [K.ONE, K.TWO, K.THREE, K.FOUR, K.FIVE].map((c) => kb.addKey(c)),
       };
     }
@@ -549,6 +565,42 @@ export class GameScene extends Phaser.Scene {
       const term = this.pendingCompliance;
       this.pendingCompliance = undefined;
       this.setComplianceOpen(false);
+      term?.reopen();
+    }
+  }
+
+  /** Toggles the Qualia Phase-Lock minigame overlay, freezing/thawing the sim. */
+  private setQualiaOpen(open: boolean): void {
+    if (open === this.qualiaOpen) return;
+    this.qualiaOpen = open;
+    if (open) {
+      this.physics.pause();
+      this.registry.remove("qualiaSolved");
+      this.registry.remove("qualiaClosed");
+      this.scene.launch("QualiaLockScene", {});
+    } else {
+      this.scene.stop("QualiaLockScene");
+      this.physics.resume();
+    }
+  }
+
+  /**
+   * Polls the qualia overlay's outcome while it's open. Completing the bypass
+   * runs the normal breach effect (nearby doors released); a purge or abort
+   * re-arms the rack so the spike can be reattempted.
+   */
+  private updateQualiaOverlay(): void {
+    if (this.registry.get("qualiaSolved") === true) {
+      this.registry.remove("qualiaSolved");
+      const term = this.pendingQualia;
+      this.pendingQualia = undefined;
+      this.setQualiaOpen(false);
+      if (term) this.applyHack(term);
+    } else if (this.registry.get("qualiaClosed") === true) {
+      this.registry.remove("qualiaClosed");
+      const term = this.pendingQualia;
+      this.pendingQualia = undefined;
+      this.setQualiaOpen(false);
       term?.reopen();
     }
   }
@@ -652,15 +704,15 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Pause (Esc), the codec (C) and the compliance minigame each freeze the sim
-    // behind an overlay scene. The latter two suppress the pause/codec toggles.
-    if (!this.codecOpen && !this.complianceOpen && Phaser.Input.Keyboard.JustDown(this.keys.pause)) {
+    // Pause (Esc), the codec (C) and the two minigames each freeze the sim behind
+    // an overlay scene. The minigames and codec suppress the pause/codec toggles.
+    if (!this.codecOpen && !this.complianceOpen && !this.qualiaOpen && Phaser.Input.Keyboard.JustDown(this.keys.pause)) {
       this.setPaused(!this.paused);
     }
-    if (!this.paused && !this.complianceOpen && Phaser.Input.Keyboard.JustDown(this.keys.codec)) {
+    if (!this.paused && !this.complianceOpen && !this.qualiaOpen && Phaser.Input.Keyboard.JustDown(this.keys.codec)) {
       this.setCodecOpen(!this.codecOpen);
     }
-    if (this.paused || this.codecOpen || this.complianceOpen) {
+    if (this.paused || this.codecOpen || this.complianceOpen || this.qualiaOpen) {
       this.player.sprite.setVelocity(0, 0);
       if (this.paused && Phaser.Input.Keyboard.JustDown(this.keys.abort)) this.abortToTitle();
       // The codec's 140.85 transmit finisher: CodecScene raises the flag, and
@@ -673,6 +725,7 @@ export class GameScene extends Phaser.Scene {
         if (tr) this.onVent4Transition(tr);
       }
       if (this.complianceOpen) this.updateComplianceOverlay();
+      if (this.qualiaOpen) this.updateQualiaOverlay();
       return;
     }
 
@@ -709,7 +762,10 @@ export class GameScene extends Phaser.Scene {
       playerThermalConcealed: thermalConcealed,
       alert: this.alert,
     };
-    for (const e of this.guards()) {
+    // Debug freeze-world (H) short-circuits every AI/hazard update below by
+    // iterating nothing (or ticking with 0), so patrols, cones, lasers, VENT-4,
+    // alert decay and capture all hold still while the player can still move.
+    for (const e of this.frozenWorld ? [] : this.guards()) {
       const before = e.detection;
       e.update(dt, ctx);
       maxDetection = Math.max(maxDetection, e.detection);
@@ -720,7 +776,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Sensor cameras run on the same context, reporting sightings themselves.
-    for (const s of this.sensors) {
+    for (const s of this.frozenWorld ? [] : this.sensors) {
       const before = s.detection;
       s.update(dt, ctx);
       maxDetection = Math.max(maxDetection, s.detection);
@@ -732,7 +788,7 @@ export class GameScene extends Phaser.Scene {
     // VENT-4: sweeps/steam/jam clock, then its environmental forces — added
     // AFTER Player.update's setVelocity so suction and air jets survive the
     // frame (the player re-sets velocity from input every tick).
-    if (this.vent4) {
+    if (this.vent4 && !this.frozenWorld) {
       const tick = this.vent4.update(dt, ctx);
       maxDetection = Math.max(maxDetection, this.vent4.detection);
       if (tick.transition) this.onVent4Transition(tick.transition);
@@ -757,7 +813,7 @@ export class GameScene extends Phaser.Scene {
 
     // Orderlies: bystanders, not guards — a clear sighting is a one-shot
     // "witness" event that raises nearby guards' suspicion, same as a noisy door.
-    for (const orderly of this.orderlies) {
+    for (const orderly of this.frozenWorld ? [] : this.orderlies) {
       if (orderly.update(dt, { grid: this.grid, tileSize: this.tileSize, player: ctx.player, playerConcealed: concealed })) {
         this.emitOrderlyAlert(orderly);
       }
@@ -765,7 +821,7 @@ export class GameScene extends Phaser.Scene {
 
     // Lasers: crossing an active beam/scan zone instantly trips the alarm.
     let laserTripped = false;
-    for (const laser of this.lasers) {
+    for (const laser of this.frozenWorld ? [] : this.lasers) {
       laser.update(dt);
       if (laser.checkTrip(this.player.x, this.player.y)) laserTripped = true;
     }
@@ -778,7 +834,7 @@ export class GameScene extends Phaser.Scene {
       this.player.takeDamage(PLAYER_DEFAULTS.hazardDamage);
     }
 
-    this.alert.update(dt);
+    this.alert.update(this.frozenWorld ? 0 : dt);
     if (this.alert.phase === "ALERT" && phaseBefore !== "ALERT") getAudio().ping();
     getAudio().setMood(
       this.alert.phase === "ALERT" ? "alert" : this.alert.phase === "EVASION" ? "search" : "calm",
@@ -790,7 +846,7 @@ export class GameScene extends Phaser.Scene {
     // Fail-state — bio-integrity depleted, or cornered by a silicate during a
     // full alert: the mesh prunes Rowan's logs (Alignment).
     const cornered =
-      !fieldActive && this.alert.isCombatAware && this.guards().some((e) => this.isCornering(e));
+      !this.frozenWorld && !fieldActive && this.alert.isCombatAware && this.guards().some((e) => this.isCornering(e));
     this.captureProgress = cornered
       ? this.captureProgress + dt
       : Math.max(0, this.captureProgress - dt * 2);
@@ -1026,9 +1082,37 @@ export class GameScene extends Phaser.Scene {
     if (terminal.stats.type === LOG_CACHE_TYPE) {
       this.pendingCompliance = terminal;
       this.setComplianceOpen(true);
+    } else if (this.isQualiaRack(terminal)) {
+      this.pendingQualia = terminal;
+      this.setQualiaOpen(true);
     } else {
       this.applyHack(terminal);
     }
+  }
+
+  /** A terminal is a silicate server rack if authored so, or promoted per level. */
+  private isQualiaRack(terminal: Terminal): boolean {
+    return terminal.stats.type === QUALIA_RACK_TERMINAL_TYPE || terminal === this.qualiaRack;
+  }
+
+  /**
+   * Promotes the terminal nearest the player's arrival point to a silicate server
+   * rack, so breaching it launches the Qualia Phase-Lock bypass. Prefers a plain
+   * terminal, but the shipped map types every terminal as a log-cache, so it will
+   * retype the nearest log-cache instead — never the last one, since the mission
+   * needs a log-cache to recover EIRA-7's logs. Skipped when the level already
+   * authors an explicit `qualia_rack` terminal or has no terminal to spare.
+   */
+  private designateQualiaRack(): void {
+    const idx = pickQualiaRackIndex(
+      this.terminals.map((t) => ({ type: t.stats.type, x: t.x, y: t.y })),
+      { x: this.player.x, y: this.player.y },
+      LOG_CACHE_TYPE,
+    );
+    if (idx < 0) return;
+    const rack = this.terminals[idx];
+    rack.stats.type = QUALIA_RACK_TERMINAL_TYPE;
+    this.qualiaRack = rack;
   }
 
   /** A completed hack releases every door within {@link HACK_UNLOCK_RADIUS}. */
@@ -1109,6 +1193,7 @@ export class GameScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(dk.god)) this.godMode = !this.godMode;
     if (Phaser.Input.Keyboard.JustDown(dk.noClip)) this.setNoClip(!this.noClip);
     if (Phaser.Input.Keyboard.JustDown(dk.world)) this.worldDraw = !this.worldDraw;
+    if (Phaser.Input.Keyboard.JustDown(dk.freeze)) this.frozenWorld = !this.frozenWorld;
     for (let i = 0; i < dk.warp.length; i++) {
       if (Phaser.Input.Keyboard.JustDown(dk.warp[i])) {
         this.debugWarp(DEBUG_WARP_LEVELS[i]);
@@ -1124,6 +1209,7 @@ export class GameScene extends Phaser.Scene {
     if (!on) {
       this.godMode = false;
       this.worldDraw = false;
+      this.frozenWorld = false;
       this.setNoClip(false);
       this.debugGfx?.clear();
     }
@@ -1195,6 +1281,7 @@ export class GameScene extends Phaser.Scene {
       godMode: this.godMode,
       noClip: this.noClip,
       worldDraw: this.worldDraw,
+      frozenWorld: this.frozenWorld,
       fps: this.game.loop.actualFps,
       px: this.player.x,
       py: this.player.y,
