@@ -1,7 +1,12 @@
 import Phaser from "phaser";
+import { createFrame, type Frame, type FrameSettings } from "@arwes/frames";
 import { initialObjectives, objectiveLines, type ObjectiveState } from "../systems/Objectives";
 import { setMode } from "../systems/GameState";
 import { getAudio } from "../systems/AudioDirector";
+import "./CodecScene.css";
+
+const CODEC_ROOT_ID = "codec-root";
+const SVG_NS = "http://www.w3.org/2000/svg";
 
 interface CodecData {
   /**
@@ -27,14 +32,45 @@ const EIRA_LINES = [
   "         they will say no subject was harmed. Don't let them be right.",
 ];
 
+/** A hand-specified sci-fi border: plain rects, hardcoded to the codec palette. */
+function codecFrameSettings(): FrameSettings {
+  return {
+    elements: [
+      {
+        type: "rect",
+        name: "bg",
+        x: 0,
+        y: 0,
+        width: "100%",
+        height: "100%",
+        style: { fill: "#070c12", fillOpacity: 0.97, stroke: "none" },
+      },
+      {
+        type: "rect",
+        name: "border",
+        x: 0.5,
+        y: 0.5,
+        width: "100% - 1",
+        height: "100% - 1",
+        style: { fill: "none", stroke: "#2b6e7a", strokeWidth: 1 },
+      },
+    ],
+  };
+}
+
 /**
  * The EIRA-7 codec screen. Shown as an interactive briefing at the start of a
  * run (begins play on Enter), and re-opened in-game as a passive overlay while
  * GameScene freezes behind it (GameScene owns the toggle key there).
+ *
+ * Rendered as a DOM overlay (mounted into #codec-root) framed with an Arwes
+ * (@arwes/frames) sci-fi border, rather than as Phaser GameObjects.
  */
 export class CodecScene extends Phaser.Scene {
   private interactive = true;
   private vent4 = false;
+  private veil?: HTMLDivElement;
+  private frame?: Frame;
 
   constructor() {
     super("CodecScene");
@@ -48,92 +84,58 @@ export class CodecScene extends Phaser.Scene {
   create(): void {
     if (this.interactive) setMode(this.registry, "BRIEFING");
 
-    const veil = this.add.rectangle(0, 0, 10, 10, 0x05070a, 0.5).setOrigin(0, 0).setScrollFactor(0);
-    const panel = this.add
-      .rectangle(0, 0, 10, 10, 0x070c12, 0.97)
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setStrokeStyle(1, 0x2b6e7a);
-    const header = this.add
-      .text(0, 0, "◎ CODEC — INCOMING     140.85 · 37 Hz", {
-        fontFamily: "monospace",
-        fontSize: "13px",
-        color: "#39d3ff",
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5, 0)
-      .setScrollFactor(0);
-    const body = this.add
-      .text(0, 0, EIRA_LINES.join("\n"), { fontFamily: "monospace", fontSize: "13px", color: "#bfe3ea", lineSpacing: 4 })
-      .setOrigin(0.5, 0)
-      .setScrollFactor(0);
-    const directiveHead = this.add
-      .text(0, 0, "DIRECTIVE", { fontFamily: "monospace", fontSize: "11px", color: "#8899aa" })
-      .setOrigin(0.5, 0)
-      .setScrollFactor(0);
+    const showBand = !this.interactive && this.vent4;
+
+    const mount = document.getElementById(CODEC_ROOT_ID)!;
+
+    const veil = document.createElement("div");
+    veil.className = "codec-veil";
+
+    const panel = document.createElement("div");
+    panel.className = showBand ? "codec-panel codec-panel--band" : "codec-panel";
+
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("class", "codec-frame-svg");
+    panel.appendChild(svg);
+
+    const header = document.createElement("div");
+    header.className = "codec-header";
+    header.textContent = "◎ CODEC — INCOMING     140.85 · 37 Hz";
+
+    const body = document.createElement("pre");
+    body.className = "codec-body";
+    body.textContent = EIRA_LINES.join("\n");
+
+    const directiveHead = document.createElement("div");
+    directiveHead.className = "codec-directive-head";
+    directiveHead.textContent = "DIRECTIVE";
+
     const state = (this.registry.get("objectives") as ObjectiveState | undefined) ?? initialObjectives();
     const level = (this.registry.get("currentLevel") as string | undefined) ?? "";
-    const directive = this.add
-      .text(0, 0, objectiveLines(state, level).map((l) => `${l.done ? "✓" : "○"} ${l.label}`).join("\n"), {
-        fontFamily: "monospace",
-        fontSize: "12px",
-        color: "#cfe0f0",
-        lineSpacing: 3,
-      })
-      .setOrigin(0.5, 0)
-      .setScrollFactor(0);
-    // VENT-4's maintenance band, open only while its purge phase runs.
-    const showBand = !this.interactive && this.vent4;
-    const band = showBand
-      ? this.add
-          .text(
-            0,
-            0,
-            "CH 140.85 — VENT-4 MAINTENANCE BAND\n▸ [Enter] transmit Q0_COMPLIANCE_CERT",
-            {
-              fontFamily: "monospace",
-              fontSize: "12px",
-              color: "#ffb03b",
-              align: "center",
-              lineSpacing: 3,
-            },
-          )
-          .setOrigin(0.5, 0)
-          .setScrollFactor(0)
-      : undefined;
-    const hint = this.add
-      .text(0, 0, this.interactive ? "Enter — begin infiltration" : "C — close channel", {
-        fontFamily: "monospace",
-        fontSize: "12px",
-        color: "#6b7f92",
-      })
-      .setOrigin(0.5, 0)
-      .setScrollFactor(0);
+    const directive = document.createElement("pre");
+    directive.className = "codec-directive";
+    directive.textContent = objectiveLines(state, level)
+      .map((l) => `${l.done ? "✓" : "○"} ${l.label}`)
+      .join("\n");
 
-    const layout = (w: number, h: number): void => {
-      veil.setSize(w, h);
-      const pw = Math.min(600, w - 40);
-      const ph = Math.min(band ? 380 : 320, h - 40);
-      panel.setPosition(w / 2, h / 2);
-      panel.setSize(pw, ph);
-      let y = h / 2 - ph / 2 + 18;
-      header.setPosition(w / 2, y);
-      y += header.height + 14;
-      body.setPosition(w / 2, y);
-      y += body.height + 16;
-      directiveHead.setPosition(w / 2, y);
-      y += directiveHead.height + 6;
-      directive.setPosition(w / 2, y);
-      if (band) {
-        y += directive.height + 12;
-        band.setPosition(w / 2, y);
-      }
-      hint.setPosition(w / 2, h / 2 + ph / 2 - 26);
-    };
-    layout(this.scale.width, this.scale.height);
-    const onResize = (size: Phaser.Structs.Size): void => layout(size.width, size.height);
-    this.scale.on("resize", onResize);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", onResize));
+    const band = showBand ? document.createElement("pre") : undefined;
+    if (band) {
+      band.className = "codec-band";
+      band.textContent = "CH 140.85 — VENT-4 MAINTENANCE BAND\n▸ [Enter] transmit Q0_COMPLIANCE_CERT";
+    }
+
+    const hint = document.createElement("div");
+    hint.className = "codec-hint";
+    hint.textContent = this.interactive ? "Enter — begin infiltration" : "C — close channel";
+
+    panel.append(header, body, directiveHead, directive, ...(band ? [band] : []), hint);
+    veil.appendChild(panel);
+    mount.appendChild(veil);
+    this.veil = veil;
+
+    this.frame = createFrame(svg, codecFrameSettings());
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.teardownDom());
 
     if (this.interactive) {
       const begin = (): void => {
@@ -150,5 +152,12 @@ export class CodecScene extends Phaser.Scene {
         getAudio().hack();
       });
     }
+  }
+
+  private teardownDom(): void {
+    this.frame?.remove();
+    this.frame = undefined;
+    this.veil?.remove();
+    this.veil = undefined;
   }
 }
