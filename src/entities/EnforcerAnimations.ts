@@ -1,25 +1,18 @@
+import { GUARD_DIRS, type GuardSkin } from "./GuardSkin";
+
 /**
  * Frame manifest for the enforcer sprite (generated via PixelLab.ai — a
- * compact tracked security drone with a swiveling floodlight/sensor arm, high
- * top-down, 34x34). The "patrol-scan" cycle (custom v3 animation) shows the
- * sensor arm sweeping left-right like a scanner while the drone inches
- * forward, so it doubles as the patrol animation.
+ * blocky robotic sentry gliding on magnetic tracks with a rotating crown of
+ * camera-arms, high top-down, 48x48). The "patrol-scan" cycle (custom v3
+ * animation) shows the camera-arms sweeping back and forth like a scanner
+ * while the sentry glides forward, so it doubles as the patrol animation.
  *
  * All 8 directions were exported, so facing matches the guard's continuous
  * patrol/pursuit angle exactly (no cardinal snapping).
  *
  * Frames live in public/assets/enforcer/patrol/<direction>/<frame>.png.
  */
-export const ENFORCER_ANIM_DIRS = [
-  "south",
-  "south-east",
-  "east",
-  "north-east",
-  "north",
-  "north-west",
-  "west",
-  "south-west",
-] as const;
+export const ENFORCER_ANIM_DIRS = GUARD_DIRS;
 export type EnforcerAnimDir = (typeof ENFORCER_ANIM_DIRS)[number];
 
 export const ENFORCER_PATROL_FRAME_COUNT = 8;
@@ -36,22 +29,13 @@ export function enforcerAnimKey(dir: EnforcerAnimDir): string {
   return `enforcer-patrol-${dir}`;
 }
 
-/** The 8 directions in angular order, starting at east (0°) going clockwise. */
-const DIRECTION_ORDER: EnforcerAnimDir[] = [
-  "east",
-  "south-east",
-  "south",
-  "south-west",
-  "west",
-  "north-west",
-  "north",
-  "north-east",
-];
-
-/** Snaps a facing angle (radians) to the nearest of the 8 exported directions. */
-export function nearestDirectionFromAngle(angle: number): EnforcerAnimDir {
-  const angleDeg = (angle * 180) / Math.PI;
-  const normalized = ((angleDeg % 360) + 360) % 360;
-  const index = Math.round(normalized / 45) % 8;
-  return DIRECTION_ORDER[index];
-}
+/** The enforcer's {@link GuardSkin} — 1.5 tiles tall, matching the player. */
+export const ENFORCER_SKIN: GuardSkin = {
+  frameCount: ENFORCER_PATROL_FRAME_COUNT,
+  frameRate: 8,
+  displayTiles: 1.5,
+  sourceSize: 48,
+  frameKey: enforcerFrameKey,
+  framePath: enforcerFramePath,
+  animKey: enforcerAnimKey,
+};

@@ -1,0 +1,450 @@
+[
+ {
+  "anim": "patrol",
+  "direction": "east",
+  "frame": 0,
+  "key": "drone-patrol-east-0",
+  "path": "assets/drone/patrol/east/0.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "east",
+  "frame": 1,
+  "key": "drone-patrol-east-1",
+  "path": "assets/drone/patrol/east/1.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "east",
+  "frame": 2,
+  "key": "drone-patrol-east-2",
+  "path": "assets/drone/patrol/east/2.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "east",
+  "frame": 3,
+  "key": "drone-patrol-east-3",
+  "path": "assets/drone/patrol/east/3.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "east",
+  "frame": 4,
+  "key": "drone-patrol-east-4",
+  "path": "assets/drone/patrol/east/4.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "east",
+  "frame": 5,
+  "key": "drone-patrol-east-5",
+  "path": "assets/drone/patrol/east/5.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "east",
+  "frame": 6,
+  "key": "drone-patrol-east-6",
+  "path": "assets/drone/patrol/east/6.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "east",
+  "frame": 7,
+  "key": "drone-patrol-east-7",
+  "path": "assets/drone/patrol/east/7.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north",
+  "frame": 0,
+  "key": "drone-patrol-north-0",
+  "path": "assets/drone/patrol/north/0.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north",
+  "frame": 1,
+  "key": "drone-patrol-north-1",
+  "path": "assets/drone/patrol/north/1.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north",
+  "frame": 2,
+  "key": "drone-patrol-north-2",
+  "path": "assets/drone/patrol/north/2.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north",
+  "frame": 3,
+  "key": "drone-patrol-north-3",
+  "path": "assets/drone/patrol/north/3.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north",
+  "frame": 4,
+  "key": "drone-patrol-north-4",
+  "path": "assets/drone/patrol/north/4.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north",
+  "frame": 5,
+  "key": "drone-patrol-north-5",
+  "path": "assets/drone/patrol/north/5.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north",
+  "frame": 6,
+  "key": "drone-patrol-north-6",
+  "path": "assets/drone/patrol/north/6.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north",
+  "frame": 7,
+  "key": "drone-patrol-north-7",
+  "path": "assets/drone/patrol/north/7.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-east",
+  "frame": 0,
+  "key": "drone-patrol-north-east-0",
+  "path": "assets/drone/patrol/north-east/0.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-east",
+  "frame": 1,
+  "key": "drone-patrol-north-east-1",
+  "path": "assets/drone/patrol/north-east/1.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-east",
+  "frame": 2,
+  "key": "drone-patrol-north-east-2",
+  "path": "assets/drone/patrol/north-east/2.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-east",
+  "frame": 3,
+  "key": "drone-patrol-north-east-3",
+  "path": "assets/drone/patrol/north-east/3.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-east",
+  "frame": 4,
+  "key": "drone-patrol-north-east-4",
+  "path": "assets/drone/patrol/north-east/4.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-east",
+  "frame": 5,
+  "key": "drone-patrol-north-east-5",
+  "path": "assets/drone/patrol/north-east/5.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-east",
+  "frame": 6,
+  "key": "drone-patrol-north-east-6",
+  "path": "assets/drone/patrol/north-east/6.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-east",
+  "frame": 7,
+  "key": "drone-patrol-north-east-7",
+  "path": "assets/drone/patrol/north-east/7.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-west",
+  "frame": 0,
+  "key": "drone-patrol-north-west-0",
+  "path": "assets/drone/patrol/north-west/0.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-west",
+  "frame": 1,
+  "key": "drone-patrol-north-west-1",
+  "path": "assets/drone/patrol/north-west/1.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-west",
+  "frame": 2,
+  "key": "drone-patrol-north-west-2",
+  "path": "assets/drone/patrol/north-west/2.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-west",
+  "frame": 3,
+  "key": "drone-patrol-north-west-3",
+  "path": "assets/drone/patrol/north-west/3.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-west",
+  "frame": 4,
+  "key": "drone-patrol-north-west-4",
+  "path": "assets/drone/patrol/north-west/4.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-west",
+  "frame": 5,
+  "key": "drone-patrol-north-west-5",
+  "path": "assets/drone/patrol/north-west/5.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-west",
+  "frame": 6,
+  "key": "drone-patrol-north-west-6",
+  "path": "assets/drone/patrol/north-west/6.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-west",
+  "frame": 7,
+  "key": "drone-patrol-north-west-7",
+  "path": "assets/drone/patrol/north-west/7.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south",
+  "frame": 0,
+  "key": "drone-patrol-south-0",
+  "path": "assets/drone/patrol/south/0.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south",
+  "frame": 1,
+  "key": "drone-patrol-south-1",
+  "path": "assets/drone/patrol/south/1.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south",
+  "frame": 2,
+  "key": "drone-patrol-south-2",
+  "path": "assets/drone/patrol/south/2.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south",
+  "frame": 3,
+  "key": "drone-patrol-south-3",
+  "path": "assets/drone/patrol/south/3.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south",
+  "frame": 4,
+  "key": "drone-patrol-south-4",
+  "path": "assets/drone/patrol/south/4.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south",
+  "frame": 5,
+  "key": "drone-patrol-south-5",
+  "path": "assets/drone/patrol/south/5.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south",
+  "frame": 6,
+  "key": "drone-patrol-south-6",
+  "path": "assets/drone/patrol/south/6.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south",
+  "frame": 7,
+  "key": "drone-patrol-south-7",
+  "path": "assets/drone/patrol/south/7.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-east",
+  "frame": 0,
+  "key": "drone-patrol-south-east-0",
+  "path": "assets/drone/patrol/south-east/0.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-east",
+  "frame": 1,
+  "key": "drone-patrol-south-east-1",
+  "path": "assets/drone/patrol/south-east/1.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-east",
+  "frame": 2,
+  "key": "drone-patrol-south-east-2",
+  "path": "assets/drone/patrol/south-east/2.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-east",
+  "frame": 3,
+  "key": "drone-patrol-south-east-3",
+  "path": "assets/drone/patrol/south-east/3.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-east",
+  "frame": 4,
+  "key": "drone-patrol-south-east-4",
+  "path": "assets/drone/patrol/south-east/4.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-east",
+  "frame": 5,
+  "key": "drone-patrol-south-east-5",
+  "path": "assets/drone/patrol/south-east/5.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-east",
+  "frame": 6,
+  "key": "drone-patrol-south-east-6",
+  "path": "assets/drone/patrol/south-east/6.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-east",
+  "frame": 7,
+  "key": "drone-patrol-south-east-7",
+  "path": "assets/drone/patrol/south-east/7.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-west",
+  "frame": 0,
+  "key": "drone-patrol-south-west-0",
+  "path": "assets/drone/patrol/south-west/0.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-west",
+  "frame": 1,
+  "key": "drone-patrol-south-west-1",
+  "path": "assets/drone/patrol/south-west/1.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-west",
+  "frame": 2,
+  "key": "drone-patrol-south-west-2",
+  "path": "assets/drone/patrol/south-west/2.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-west",
+  "frame": 3,
+  "key": "drone-patrol-south-west-3",
+  "path": "assets/drone/patrol/south-west/3.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-west",
+  "frame": 4,
+  "key": "drone-patrol-south-west-4",
+  "path": "assets/drone/patrol/south-west/4.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-west",
+  "frame": 5,
+  "key": "drone-patrol-south-west-5",
+  "path": "assets/drone/patrol/south-west/5.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-west",
+  "frame": 6,
+  "key": "drone-patrol-south-west-6",
+  "path": "assets/drone/patrol/south-west/6.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-west",
+  "frame": 7,
+  "key": "drone-patrol-south-west-7",
+  "path": "assets/drone/patrol/south-west/7.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "west",
+  "frame": 0,
+  "key": "drone-patrol-west-0",
+  "path": "assets/drone/patrol/west/0.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "west",
+  "frame": 1,
+  "key": "drone-patrol-west-1",
+  "path": "assets/drone/patrol/west/1.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "west",
+  "frame": 2,
+  "key": "drone-patrol-west-2",
+  "path": "assets/drone/patrol/west/2.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "west",
+  "frame": 3,
+  "key": "drone-patrol-west-3",
+  "path": "assets/drone/patrol/west/3.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "west",
+  "frame": 4,
+  "key": "drone-patrol-west-4",
+  "path": "assets/drone/patrol/west/4.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "west",
+  "frame": 5,
+  "key": "drone-patrol-west-5",
+  "path": "assets/drone/patrol/west/5.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "west",
+  "frame": 6,
+  "key": "drone-patrol-west-6",
+  "path": "assets/drone/patrol/west/6.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "west",
+  "frame": 7,
+  "key": "drone-patrol-west-7",
+  "path": "assets/drone/patrol/west/7.png"
+ }
+]

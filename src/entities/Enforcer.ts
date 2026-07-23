@@ -3,14 +3,8 @@ import type { ComponentData } from "../map/types";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { AlertState } from "../systems/AlertState";
 import { enforcerStatsFor, type EnforcerStats } from "../systems/EntityStats";
-import {
-  ENFORCER_ANIM_DIRS,
-  ENFORCER_PATROL_FRAME_COUNT,
-  enforcerAnimKey,
-  enforcerFrameKey,
-  nearestDirectionFromAngle,
-  type EnforcerAnimDir,
-} from "./EnforcerAnimations";
+import { GUARD_DIRS, nearestGuardDirection, type GuardDir, type GuardSkin } from "./GuardSkin";
+import { ENFORCER_SKIN } from "./EnforcerAnimations";
 
 export interface EnforcerContext {
   grid: CollisionGrid;
@@ -28,8 +22,11 @@ export interface EnforcerContext {
 const RAY_COUNT = 24;
 
 /**
- * A patrolling guard ("enforcer") with a wall-clipped vision cone and a
- * per-guard detection meter.
+ * A patrolling guard with a wall-clipped vision cone and a per-guard
+ * detection meter. Behaviour is shared by every guard type (the map's
+ * `enforcers` and `drones` boards both carry the same `enforcer` component
+ * schema) — only the sprite ({@link GuardSkin}) differs, so reskins like
+ * {@link Drone} subclass this and pass their own skin.
  *
  * Patrol: paces forward, turning when it hits a wall and periodically doing a
  * scan turn. On global ALERT it converges on the last known player tile at
@@ -45,11 +42,12 @@ export class Enforcer {
   private y: number;
   private scanTimer = 0;
   private turnDir = 1;
+  private readonly skin: GuardSkin;
 
   private readonly cone: Phaser.GameObjects.Graphics;
   private readonly body: Phaser.GameObjects.Sprite;
   private readonly bang: Phaser.GameObjects.Text;
-  private dir: EnforcerAnimDir = "south";
+  private dir: GuardDir = "south";
 
   constructor(
     scene: Phaser.Scene,
@@ -57,20 +55,20 @@ export class Enforcer {
     tileY: number,
     tileSize: number,
     components: ComponentData[],
+    skin: GuardSkin = ENFORCER_SKIN,
   ) {
+    this.skin = skin;
     this.stats = enforcerStatsFor(components);
     this.x = (tileX + 0.5) * tileSize;
     this.y = (tileY + 0.5) * tileSize;
     this.facing = Phaser.Math.FloatBetween(0, Math.PI * 2);
 
-    Enforcer.ensureAnimations(scene);
+    Enforcer.ensureAnimations(scene, skin);
 
     this.cone = scene.add.graphics().setDepth(400);
-    this.body = scene.add.sprite(this.x, this.y, enforcerFrameKey("south", 0)).setDepth(450);
-    // Scaled down to about half a tile — small and unobtrusive rather than
-    // human-sized, despite the source art's bulky industrial proportions.
-    this.body.setScale((tileSize * 0.675) / 34);
-    this.body.play(enforcerAnimKey("south"));
+    this.body = scene.add.sprite(this.x, this.y, skin.frameKey("south", 0)).setDepth(450);
+    this.body.setScale((tileSize * skin.displayTiles) / skin.sourceSize);
+    this.body.play(skin.animKey("south"));
     this.bang = scene.add
       .text(this.x, this.y - tileSize, "!", {
         fontFamily: "monospace",
@@ -95,10 +93,10 @@ export class Enforcer {
     this.updateDetection(dt, ctx);
     this.drawCone(grid, tileSize);
 
-    const dir = nearestDirectionFromAngle(this.facing);
+    const dir = nearestGuardDirection(this.facing);
     if (dir !== this.dir) {
       this.dir = dir;
-      this.body.play(enforcerAnimKey(dir), true);
+      this.body.play(this.skin.animKey(dir), true);
     }
     // Sweep the scanner faster while actively pursuing.
     this.body.anims.timeScale = ctx.alert.isCombatAware ? 1.8 : 1;
@@ -246,17 +244,17 @@ export class Enforcer {
     this.facing = Math.atan2(sy - this.y, sx - this.x);
   }
 
-  /** Registers the patrol-scan animation for each direction once per scene. */
-  private static ensureAnimations(scene: Phaser.Scene): void {
-    for (const dir of ENFORCER_ANIM_DIRS) {
-      const key = enforcerAnimKey(dir);
+  /** Registers a skin's patrol-scan animation for each direction once per scene. */
+  private static ensureAnimations(scene: Phaser.Scene, skin: GuardSkin): void {
+    for (const dir of GUARD_DIRS) {
+      const key = skin.animKey(dir);
       if (scene.anims.exists(key)) continue;
       scene.anims.create({
         key,
-        frames: Array.from({ length: ENFORCER_PATROL_FRAME_COUNT }, (_, i) => ({
-          key: enforcerFrameKey(dir, i),
+        frames: Array.from({ length: skin.frameCount }, (_, i) => ({
+          key: skin.frameKey(dir, i),
         })),
-        frameRate: 8,
+        frameRate: skin.frameRate,
         repeat: -1,
       });
     }

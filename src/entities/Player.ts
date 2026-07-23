@@ -36,14 +36,14 @@ export class Player {
     this.sprite = scene.physics.add.sprite(x, y, playerFrameKey("idle", "south", 0));
     this.sprite.setDepth(500);
 
-    // Scale the 64x64 art to read well against 32px tiles, then size the
-    // collision body in the sprite's *unscaled* local space (Arcade Body
-    // convention) so it roughly covers the torso rather than the padded frame.
-    const displaySize = tileSize * 1.3;
-    const scale = displaySize / 64;
+    // Scale the 88x88 art to ~1.5 tiles tall, then size the collision body in
+    // the sprite's *unscaled* local space (Arcade Body convention) so it
+    // roughly covers the torso rather than the padded frame.
+    const displaySize = tileSize * 1.5;
+    const scale = displaySize / 88;
     this.sprite.setScale(scale);
     const body = this.sprite.body as Phaser.Physics.Arcade.Body;
-    body.setSize(26, 30);
+    body.setSize(36, 40);
     this.sprite.setCollideWorldBounds(true);
 
     this.sprite.play(playerAnimKey("idle", "south"));
