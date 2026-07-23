@@ -55,18 +55,26 @@ describe("alignment scoring", () => {
 
   it("reads an anti-phase wave as near-zero alignment", () => {
     const antiPhase: PlayerParams = { ...matched, phase: DEFAULT_TARGET.phase + Math.PI };
-    expect(computeAlignment(DEFAULT_TARGET, antiPhase, cfg)).toBeLessThan(0.1);
+    expect(computeAlignment(DEFAULT_TARGET, antiPhase, cfg)).toBeLessThan(0.2);
   });
 
   it("penalises a damping mismatch against the flat baseline", () => {
     const damped: PlayerParams = { ...matched, damping: 0.8 };
     expect(computeAlignment(DEFAULT_TARGET, damped, cfg)).toBeLessThan(
-      computeAlignment(DEFAULT_TARGET, matched, cfg) - 0.3,
+      computeAlignment(DEFAULT_TARGET, matched, cfg) - 0.2,
     );
   });
 
   it("exposes SIGNAL_DRIFT as the alignment complement", () => {
     expect(signalDrift(0.95)).toBeCloseTo(0.05);
+  });
+
+  it("keeps the lock reachable — a small frequency error still clears the bar", () => {
+    // Finishability guard: honest-but-imperfect tuning (frequency off by 0.1,
+    // else matched) must read at or above the lock threshold, not demand a
+    // razor-thin match.
+    const nearMatch: PlayerParams = { ...matched, frequency: DEFAULT_TARGET.frequency + 0.1 };
+    expect(computeAlignment(DEFAULT_TARGET, nearMatch, cfg)).toBeGreaterThanOrEqual(cfg.lockThreshold);
   });
 });
 

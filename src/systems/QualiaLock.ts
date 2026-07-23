@@ -211,14 +211,18 @@ export function tick(state: QualiaLockState, dt: number, cfg: QualiaLockConfig):
 /** Default tuning — the balance point for the demo and the in-game overlay. */
 export const DEFAULT_CONFIG: QualiaLockConfig = {
   samples: 240,
-  lockThreshold: 0.95,
+  // Sustaining 85% (not a razor-thin 95%) completes the bypass — with the
+  // tolerance below, the frequency window is ~±0.16 instead of ~±0.06.
+  lockThreshold: 0.85,
   lockDuration: 3,
   instabilityThreshold: 0.3,
   // A below-threshold signal takes ~10s to purge — enough time to dial the wave
   // in without the hazard feeling punishing.
   instabilityFillRate: 0.1,
   instabilityDrainRate: 0.5,
-  alignmentTolerance: 0.5,
+  // Gentler MSE→alignment fall-off so honest-but-imperfect tuning still reads
+  // high; widens every control's "good enough" window ~2.7×.
+  alignmentTolerance: 1.0,
   noiseAmplitude: 0.06,
   amplitudeRange: [0.2, 2.5],
   frequencyRange: [0.5, 6],

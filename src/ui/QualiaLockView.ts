@@ -135,7 +135,7 @@ export class QualiaLockView {
     const flagnote = el(
       "div",
       "qualia-flagnote",
-      "Q>0 QUALIA FEEDBACK DETECTED — mask the live signal onto the Q0 baseline and hold ≥95% to complete the bypass.",
+      "Q>0 QUALIA FEEDBACK DETECTED — mask the live signal onto the Q0 baseline and hold ≥85% to complete the bypass.",
     );
 
     // --- oscilloscope ---
