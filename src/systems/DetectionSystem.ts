@@ -19,6 +19,8 @@ export class DetectionSystem {
   private readonly lights: LightSource[] = [];
   /** tile key -> cover type ("low" | "high"). */
   private readonly cover = new Map<number, string>();
+  /** Cover tiles that leak body heat, so thermal sensing sees through them. */
+  private readonly thermalBleed = new Set<number>();
   private readonly tileSize: number;
   private readonly width: number;
 
@@ -44,6 +46,9 @@ export class DetectionSystem {
       for (const t of coverLayer.tiles) {
         const type = str(t.components, "cover", "type", "low").toLowerCase();
         this.cover.set(this.key(t.x, t.y), type);
+        if (str(t.components, "cover", "ThermalBleed", "false") === "true") {
+          this.thermalBleed.add(this.key(t.x, t.y));
+        }
       }
     }
   }
@@ -73,6 +78,13 @@ export class DetectionSystem {
     const tx = Math.floor(px / this.tileSize);
     const ty = Math.floor(py / this.tileSize);
     return this.cover.get(this.key(tx, ty));
+  }
+
+  /** True when the cover here leaks body heat — thermal sensing sees through it. */
+  thermalBleedAt(px: number, py: number): boolean {
+    const tx = Math.floor(px / this.tileSize);
+    const ty = Math.floor(py / this.tileSize);
+    return this.thermalBleed.has(this.key(tx, ty));
   }
 
   private key(x: number, y: number): number {

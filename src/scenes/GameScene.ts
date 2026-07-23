@@ -14,6 +14,9 @@ import { Orderly } from "../entities/Orderly";
 import { Door } from "../entities/Door";
 import { Terminal } from "../entities/Terminal";
 import { Laser } from "../entities/Laser";
+import { Sensor } from "../entities/Sensor";
+import { Chest } from "../entities/Chest";
+import { buildAlertNetworkSnapshot } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
 
 /** Data passed to {@link GameScene} when (re)starting for a level swap. */
@@ -65,6 +68,8 @@ export class GameScene extends Phaser.Scene {
   private doors: Door[] = [];
   private terminals: Terminal[] = [];
   private lasers: Laser[] = [];
+  private sensors: Sensor[] = [];
+  private chests: Chest[] = [];
   private lighting!: Lighting;
   private grid!: CollisionGrid;
   private detection!: DetectionSystem;
@@ -122,6 +127,8 @@ export class GameScene extends Phaser.Scene {
     this.doors = [];
     this.terminals = [];
     this.lasers = [];
+    this.sensors = [];
+    this.chests = [];
     this.alert = new AlertState();
     this.transitioning = false;
     // Arm only after stepping off the arrival tile (see update()).
@@ -201,6 +208,8 @@ export class GameScene extends Phaser.Scene {
     // scale it. We publish state to the registry for it to read.
     this.registry.set("alertPhase", this.alert.phase);
     this.registry.set("detection", 0);
+    // Inventory persists across level transitions (registry survives restarts).
+    if (!this.registry.has("inventory")) this.registry.set("inventory", []);
     if (!this.scene.isActive("UIScene")) this.scene.launch("UIScene");
   }
 
@@ -297,10 +306,30 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Lasers can sit on several boards (a dedicated `lasers` board in main1,
-    // the `security`/`doors` boards in main2), so gather them by ref across all
-    // layers rather than a single board.
+    // Sensor cameras: the `security` board holds fixed optical cameras (its
+    // tiles use a laser-ref sprite but are reinterpreted as cameras here).
+    const securityLayer = this.level.layers.find((l) => l.name === "security");
+    if (securityLayer) {
+      for (const t of securityLayer.tiles) {
+        this.sensors.push(new Sensor(this, t, this.tileSize, this.grid));
+      }
+    }
+
+    // Chests: the `items` board holds searchable supply containers.
+    const itemLayer = this.level.layers.find((l) => l.name === "items");
+    if (itemLayer) {
+      for (const t of itemLayer.tiles) {
+        if (!t.components.some((c) => c.type === "chest")) continue;
+        this.chests.push(new Chest(this, t, this.tileSize));
+      }
+    }
+
+    // Lasers can sit on several boards (a dedicated `lasers` board in main1, a
+    // stray tile on the `doors` board in main2), so gather them by ref across
+    // all layers rather than a single board. The `security` board is skipped —
+    // its laser-ref tiles are cameras, spawned above.
     for (const layer of this.level.layers) {
+      if (layer.name === "security") continue;
       for (const t of layer.tiles) {
         if (t.ref.toLowerCase().includes("laser")) {
           this.lasers.push(new Laser(this, t, this.tileSize));
@@ -356,6 +385,10 @@ export class GameScene extends Phaser.Scene {
     // player from vision cones entirely.
     const cover = this.detection.coverTypeAt(this.player.x, this.player.y);
     const concealed = cover === "high" || (cover === "low" && this.player.crouched);
+    // Thermal sees through cover that leaks heat (ThermalBleed); the map's cover
+    // all blocks heat, so concealment normally hides from thermal too.
+    const thermalConcealed =
+      concealed && !this.detection.thermalBleedAt(this.player.x, this.player.y);
     this.updateHiddenMarker(concealed);
 
     let maxDetection = 0;
@@ -366,11 +399,27 @@ export class GameScene extends Phaser.Scene {
       lightMultiplierAt: (x: number, y: number) => this.detection.multiplierAt(x, y),
       playerNoise: this.player.noise,
       playerConcealed: concealed,
+      playerThermalConcealed: thermalConcealed,
       alert: this.alert,
     };
     for (const e of this.guards()) {
+      const before = e.detection;
       e.update(dt, ctx);
       maxDetection = Math.max(maxDetection, e.detection);
+      // A fresh full sighting alerts networked guards within reach.
+      if (before < 1 && e.detection >= 1) {
+        this.emitNetworkAlert(e.position, e.stats.alertNetworkRadius);
+      }
+    }
+
+    // Sensor cameras run on the same context, reporting sightings themselves.
+    for (const s of this.sensors) {
+      const before = s.detection;
+      s.update(dt, ctx);
+      maxDetection = Math.max(maxDetection, s.detection);
+      if (before < 1 && s.detection >= 1) {
+        this.emitNetworkAlert(s.position, s.stats.alertNetworkRadius);
+      }
     }
 
     // Orderlies: bystanders, not guards — a clear sighting is a one-shot
@@ -400,16 +449,34 @@ export class GameScene extends Phaser.Scene {
     this.registry.set("detection", this.alert.phase === "ALERT" ? 1 : maxDetection);
 
     this.registry.set(
+      "alertNetwork",
+      buildAlertNetworkSnapshot(
+        [
+          ...this.guards().map((e) => ({ detection: e.detection, mobile: true })),
+          ...this.sensors.map((s) => ({ detection: s.detection, mobile: false })),
+        ],
+        this.alert,
+      ),
+    );
+
+    this.registry.set(
       "radar",
       buildRadarSnapshot(
         this.grid,
         this.tileSize,
         { x: this.player.x, y: this.player.y, facing: this.player.facing },
-        this.guards().map((e) => ({
-          position: e.position,
-          facing: e.facing,
-          detection: e.detection,
-        })),
+        [
+          ...this.guards().map((e) => ({
+            position: e.position,
+            facing: e.facing,
+            detection: e.detection,
+          })),
+          ...this.sensors.map((s) => ({
+            position: s.position,
+            facing: s.facing,
+            detection: s.detection,
+          })),
+        ],
         this.alert.phase === "ALERT",
       ),
     );
@@ -457,6 +524,23 @@ export class GameScene extends Phaser.Scene {
       if (term !== nearestTerminal || !interactDown) term.idle(dt);
     }
 
+    // --- Chests (hold E to search) ---
+    let nearestChest: Chest | undefined;
+    let nearestChestDist = Infinity;
+    for (const chest of this.chests) {
+      if (chest.isOpen) continue;
+      const d = Math.hypot(chest.tileX + 0.5 - ptx, chest.tileY + 0.5 - pty);
+      if (d <= INTERACT_RANGE && d < nearestChestDist) {
+        nearestChestDist = d;
+        nearestChest = chest;
+      }
+    }
+    const searching = !!nearestChest && interactDown && !hacking;
+    if (searching && nearestChest!.open(dt)) this.collectChest(nearestChest!);
+    for (const chest of this.chests) {
+      if (chest !== nearestChest || !interactDown || hacking) chest.idle(dt);
+    }
+
     // --- Doors (tap E) ---
     let nearestDoor: Door | undefined;
     let nearestDoorDist = Infinity;
@@ -481,7 +565,15 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    this.showPrompt(nearestTerminal, nearestTerminalDist, nearestDoor, nearestDoorDist, hatch !== undefined);
+    this.showPrompt(
+      nearestTerminal,
+      nearestTerminalDist,
+      nearestDoor,
+      nearestDoorDist,
+      hatch !== undefined,
+      nearestChest,
+      nearestChestDist,
+    );
   }
 
   /** Shows a single `[E] …` hint over the player for the nearest interactable. */
@@ -501,12 +593,18 @@ export class GameScene extends Phaser.Scene {
     door: Door | undefined,
     doorDist: number,
     hatch: boolean,
+    chest: Chest | undefined,
+    chestDist: number,
   ): void {
     let label: string | undefined;
     let best = Infinity;
     if (terminal && terminalDist < best) {
       best = terminalDist;
       label = "[E] Hack";
+    }
+    if (chest && chestDist < best) {
+      best = chestDist;
+      label = "[E] Search";
     }
     if (door && doorDist < best) {
       best = doorDist;
@@ -556,6 +654,32 @@ export class GameScene extends Phaser.Scene {
       const d = Math.hypot(e.position.x - cx, e.position.y - cy);
       if (d < radiusPx) e.hearNoise(1 - d / radiusPx, cx, cy);
     }
+  }
+
+  /**
+   * A confirmed sighting propagates through the alert network: every guard
+   * within the spotter's {@link EnforcerStats.alertNetworkRadius} snaps to look
+   * toward the player and grows wary, so a camera or a distant guard tripping
+   * the alarm immediately rallies the ones nearby.
+   */
+  private emitNetworkAlert(origin: { x: number; y: number }, radiusTiles: number): void {
+    const radiusPx = radiusTiles * this.tileSize;
+    if (radiusPx <= 0) return;
+    for (const e of this.guards()) {
+      const ep = e.position;
+      if (ep.x === origin.x && ep.y === origin.y) continue; // skip the spotter itself
+      if (Math.hypot(ep.x - origin.x, ep.y - origin.y) < radiusPx) {
+        e.hearNoise(1, this.player.x, this.player.y);
+      }
+    }
+  }
+
+  /** Empties a searched chest into the persistent inventory and pings guards. */
+  private collectChest(chest: Chest): void {
+    const inv = (this.registry.get("inventory") as string[] | undefined) ?? [];
+    inv.push(...chest.take());
+    this.registry.set("inventory", inv);
+    this.emitNoiseAt(chest.x, chest.y, chest.stats.noiseOnOpen * this.tileSize);
   }
 
   /** Fades to black, then restarts this scene on the destination level/tile. */

@@ -140,3 +140,69 @@ export function terminalStatsFor(components: ComponentData[]): TerminalStats {
     alertOnFail: str(components, "terminal", "AlertOnFail", "false") === "true",
   };
 }
+
+export interface SensorStats {
+  /** Detection cone reach, in tiles. */
+  detectionRange: number;
+  /** Full cone width, in degrees. Not in the map schema — engine default. */
+  sightAngle: number;
+  /** Seconds inside the cone before full detection. */
+  detectionDelay: number;
+  /** Short 360° heat-sense radius, in tiles (shared with guards). */
+  thermalRadius: number;
+  /** Radius (tiles) this camera alerts networked guards on a sighting. */
+  alertNetworkRadius: number;
+  /** "optical" | "pressure" | "trip" | … (edplay SensorType values). */
+  type: string;
+  /** "active" | "disabled" | "looped" | … (edplay SensorState values). */
+  state: string;
+}
+
+export const SENSOR_DEFAULTS: SensorStats = {
+  detectionRange: 6,
+  sightAngle: 60,
+  detectionDelay: 0.8,
+  thermalRadius: ENFORCER_DEFAULTS.thermalRadius,
+  alertNetworkRadius: ENFORCER_DEFAULTS.alertNetworkRadius,
+  type: "optical",
+  state: "active",
+};
+
+export function sensorStatsFor(components: ComponentData[]): SensorStats {
+  return {
+    detectionRange: num(components, "sensor", "DetectionRange", SENSOR_DEFAULTS.detectionRange),
+    sightAngle: SENSOR_DEFAULTS.sightAngle,
+    detectionDelay: num(components, "sensor", "DetectionDelay", SENSOR_DEFAULTS.detectionDelay),
+    thermalRadius: SENSOR_DEFAULTS.thermalRadius,
+    alertNetworkRadius: SENSOR_DEFAULTS.alertNetworkRadius,
+    type: str(components, "sensor", "type", SENSOR_DEFAULTS.type).toLowerCase(),
+    state: str(components, "sensor", "state", SENSOR_DEFAULTS.state).toLowerCase(),
+  };
+}
+
+export interface ChestStats {
+  /** Seconds of held interaction to search/open. */
+  interactionTime: number;
+  /** Radius (tiles) of the noise ping emitted when opened. */
+  noiseOnOpen: number;
+  /** Item names the chest yields (blank map slots fall back to default loot). */
+  items: string[];
+}
+
+export const CHEST_DEFAULTS = {
+  interactionTime: 1.4,
+  noiseOnOpen: 3,
+  /** Loot used when the map leaves a chest's item slots blank (they all are). */
+  items: ["Ration Pack", "Stun Rounds", "Access Chit"],
+} as const;
+
+export function chestStatsFor(components: ComponentData[]): ChestStats {
+  const items = ["item1", "item2", "item3"]
+    .map((field, i) => str(components, "chest", field, CHEST_DEFAULTS.items[i] ?? ""))
+    .filter((name) => name !== "");
+  return {
+    interactionTime: num(components, "chest", "InteractionTime", CHEST_DEFAULTS.interactionTime),
+    noiseOnOpen: num(components, "chest", "NoiseOnOpen", CHEST_DEFAULTS.noiseOnOpen),
+    items,
+  };
+}
