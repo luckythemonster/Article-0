@@ -74,6 +74,10 @@ class AudioDirector {
     const notes = [523.25, 659.25, 783.99, 1046.5];
     notes.forEach((f, i) => this.tone(f, f, 0.2, "triangle", 0.4, i * 0.12));
   }
+  merge(): void {
+    this.tone(300, 900, 0.5, "sine", 0.35);
+    this.tone(450, 1350, 0.5, "triangle", 0.22, 0.03);
+  }
 
   // --- internals ---
 

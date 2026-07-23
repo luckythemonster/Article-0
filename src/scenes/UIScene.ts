@@ -4,6 +4,7 @@ import { Radar } from "../ui/Radar";
 import { InventoryHud } from "../ui/InventoryHud";
 import { AlertNetworkHud } from "../ui/AlertNetworkHud";
 import { ObjectiveHud } from "../ui/ObjectiveHud";
+import { SharedFieldHud, type SharedFieldView } from "../ui/SharedFieldHud";
 import type { AlertPhase } from "../systems/AlertState";
 import type { RadarSnapshot } from "../systems/Radar";
 import type { AlertNetworkSnapshot } from "../systems/AlertNetwork";
@@ -24,6 +25,7 @@ export class UIScene extends Phaser.Scene {
   private inventory!: InventoryHud;
   private network!: AlertNetworkHud;
   private objectives!: ObjectiveHud;
+  private sharedField!: SharedFieldHud;
   // A tiny stand-in that mirrors the phase the HUD needs to colour itself.
   private readonly alertView = { phase: "INFILTRATION" as AlertPhase };
 
@@ -37,6 +39,7 @@ export class UIScene extends Phaser.Scene {
     this.inventory = new InventoryHud(this);
     this.network = new AlertNetworkHud(this);
     this.objectives = new ObjectiveHud(this);
+    this.sharedField = new SharedFieldHud(this);
   }
 
   update(): void {
@@ -57,5 +60,8 @@ export class UIScene extends Phaser.Scene {
     const objState = this.registry.get("objectives") as ObjectiveState | undefined;
     const level = (this.registry.get("currentLevel") as string | undefined) ?? "";
     if (objState) this.objectives.update(objState, level);
+
+    const field = this.registry.get("sharedField") as SharedFieldView | undefined;
+    if (field) this.sharedField.update(field);
   }
 }

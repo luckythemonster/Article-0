@@ -70,7 +70,7 @@ export class Hud {
       .setDepth(1001);
 
     this.hint = scene.add
-      .text(pad, scene.scale.height - pad, "WASD move   Shift sneak   Space run   E interact   Esc pause", {
+      .text(pad, scene.scale.height - pad, "WASD move  Shift sneak  Space run  E interact  F shared-field  C codec  Esc pause", {
         fontFamily: "monospace",
         fontSize: "12px",
         color: "#6b7f92",

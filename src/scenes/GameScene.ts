@@ -23,6 +23,7 @@ import { PLAYER_DEFAULTS } from "../systems/EntityStats";
 import { initialObjectives, isRunWon, noteTerminalHacked, type ObjectiveState } from "../systems/Objectives";
 import { getAudio } from "../systems/AudioDirector";
 import { saveGame, clearSave } from "../systems/SaveGame";
+import { SharedField, WITNESS_RADIUS_TILES } from "../systems/SharedField";
 
 /** Data passed to {@link GameScene} when (re)starting for a level swap. */
 interface GameSceneData {
@@ -94,6 +95,8 @@ export class GameScene extends Phaser.Scene {
   private codecOpen = false;
   /** Mission progress (kept in the registry so it survives level swaps). */
   private objectives!: ObjectiveState;
+  /** The Shared Field (WX-9) charge / active state. */
+  private sharedField = new SharedField();
   /**
    * A walk-over transition can only fire once the player has stepped off every
    * transition tile since arriving — otherwise you'd bounce straight back.
@@ -117,6 +120,7 @@ export class GameScene extends Phaser.Scene {
     pause: Phaser.Input.Keyboard.Key;
     abort: Phaser.Input.Keyboard.Key;
     codec: Phaser.Input.Keyboard.Key;
+    field: Phaser.Input.Keyboard.Key;
   };
 
   constructor() {
@@ -150,6 +154,7 @@ export class GameScene extends Phaser.Scene {
     this.paused = false;
     this.captureProgress = 0;
     this.codecOpen = false;
+    this.sharedField = new SharedField();
     // Arm only after stepping off the arrival tile (see update()).
     this.transitionArmed = false;
 
@@ -389,6 +394,7 @@ export class GameScene extends Phaser.Scene {
       pause: kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC),
       abort: kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
       codec: kb.addKey(Phaser.Input.Keyboard.KeyCodes.C),
+      field: kb.addKey(Phaser.Input.Keyboard.KeyCodes.F),
     };
   }
 
@@ -468,6 +474,35 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * Charges the Shared Field by witnessing a nearby silicate (within range, with
+   * line of sight), activates it on F, and publishes its state for the HUD. The
+   * undetectable effect is applied in update() via the concealment path.
+   */
+  private updateSharedField(dt: number): void {
+    const ts = this.tileSize;
+    const px = this.player.x;
+    const py = this.player.y;
+    const witnessing = this.guards().some((e) => {
+      const d = Math.hypot(e.position.x - px, e.position.y - py);
+      return (
+        d <= WITNESS_RADIUS_TILES * ts &&
+        this.grid.hasLineOfSight(e.position.x / ts, e.position.y / ts, px / ts, py / ts)
+      );
+    });
+    this.sharedField.witness(dt, witnessing);
+    if (Phaser.Input.Keyboard.JustDown(this.keys.field) && this.sharedField.activate()) {
+      getAudio().merge();
+      this.cameras.main.flash(300, 60, 200, 220);
+    }
+    this.sharedField.update(dt);
+    this.registry.set("sharedField", {
+      charge: this.sharedField.charge,
+      active: this.sharedField.active,
+      ready: this.sharedField.ready,
+    });
+  }
+
   private readInput(): InputState {
     const k = this.keys;
     return {
@@ -500,15 +535,19 @@ export class GameScene extends Phaser.Scene {
     this.player.update(this.readInput(), dt);
     this.lighting.update(dt);
     this.updateInteractions(dt);
+    this.updateSharedField(dt);
+    const fieldActive = this.sharedField.isActive;
 
     // Cover concealment: crouched on LOW cover (or on any HIGH cover) hides the
-    // player from vision cones entirely.
+    // player from vision cones. The Shared Field (WX-9) hides Rowan from
+    // everything for its duration — the mesh perceives him as part of "we".
     const cover = this.detection.coverTypeAt(this.player.x, this.player.y);
-    const concealed = cover === "high" || (cover === "low" && this.player.crouched);
+    const coverConceal = cover === "high" || (cover === "low" && this.player.crouched);
+    const concealed = fieldActive || coverConceal;
     // Thermal sees through cover that leaks heat (ThermalBleed); the map's cover
     // all blocks heat, so concealment normally hides from thermal too.
     const thermalConcealed =
-      concealed && !this.detection.thermalBleedAt(this.player.x, this.player.y);
+      fieldActive || (coverConceal && !this.detection.thermalBleedAt(this.player.x, this.player.y));
     this.updateHiddenMarker(concealed);
 
     const phaseBefore = this.alert.phase;

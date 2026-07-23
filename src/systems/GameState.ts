@@ -29,6 +29,7 @@ const RUN_KEYS = [
   "radar",
   "alertNetwork",
   "playerHp",
+  "sharedField",
 ] as const;
 
 /**
