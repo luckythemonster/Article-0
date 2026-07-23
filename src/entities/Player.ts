@@ -20,6 +20,14 @@ import {
  * walk / run / crouch-sneak). Sneaking halves speed and noise; running is
  * faster but noisier — noise feeds the detection system.
  */
+/**
+ * Standing ⇄ crouched is a small state machine rather than an instant pose
+ * swap: entering/leaving the crouch plays a one-shot lower/rise transition
+ * that must finish before the target stance takes over, so the change reads
+ * as Rowan actually ducking down and standing back up.
+ */
+type Stance = "standing" | "crouching-down" | "crouched" | "standing-up";
+
 export class Player {
   readonly sprite: Phaser.Physics.Arcade.Sprite;
   /** Facing angle in radians; updated as the player moves. */
@@ -27,6 +35,7 @@ export class Player {
   private readonly walkSpeed: number;
   private dir: PlayerAnimDir = "south";
   private currentAnim: PlayerAnimName = "idle";
+  private stance: Stance = "standing";
 
   constructor(scene: Phaser.Scene, x: number, y: number, tileSize: number) {
     this.walkSpeed = tileSize * 3.2; // px/sec baseline
@@ -52,8 +61,14 @@ export class Player {
   /** How loud the player currently is (0..1), from movement + stance. */
   noise = 0;
 
-  /** True while the crouch (Shift/sneak) input is held — moving or still. */
-  crouched = false;
+  /**
+   * True only once *fully* crouched — not during the lower/rise transitions.
+   * Cover concealment keys off this, so tapping Shift can't grant an instant
+   * hide before Rowan has actually gone to ground.
+   */
+  get crouched(): boolean {
+    return this.stance === "crouched";
+  }
 
   update(cursors: InputState, dt: number): void {
     let vx = 0;
@@ -64,10 +79,22 @@ export class Player {
     if (cursors.down) vy += 1;
 
     const moving = vx !== 0 || vy !== 0;
-    const sneaking = cursors.sneak && moving;
-    const running = cursors.run && moving && !cursors.sneak;
-    this.crouched = cursors.sneak;
-    const stanceMul = sneaking ? 0.45 : running ? 1.6 : 1;
+    const wantCrouch = cursors.sneak;
+
+    // Kick off a stance transition from a settled state; the one-shot clip
+    // (started in beginTransition) latches the target stance on completion.
+    if (this.stance === "standing" && wantCrouch) {
+      this.beginTransition("crouch-down", "crouched");
+    } else if (this.stance === "crouched" && !wantCrouch) {
+      this.beginTransition("crouch-up", "standing");
+    }
+
+    const transitioning = this.stance === "crouching-down" || this.stance === "standing-up";
+    const crouchedNow = this.stance === "crouched";
+    const sneaking = crouchedNow && moving;
+    const running = cursors.run && moving && this.stance === "standing";
+    // Crouched *and* mid-transition both move at the slow sneak pace.
+    const stanceMul = transitioning || sneaking ? 0.45 : running ? 1.6 : 1;
     const speed = this.walkSpeed * stanceMul;
 
     if (moving) {
@@ -75,25 +102,46 @@ export class Player {
       vx = (vx / len) * speed;
       vy = (vy / len) * speed;
       this.facing = Math.atan2(vy, vx);
-      this.dir = nearestDirection(vx, vy);
+      // Lock the facing direction while a transition clip plays so turning
+      // mid-lower/rise doesn't restart it in a new direction.
+      if (!transitioning) this.dir = nearestDirection(vx, vy);
     }
     this.sprite.setVelocity(vx, vy);
 
-    // Noise: still = silent, sneak = low, walk = medium, run = high.
-    const target = !moving ? 0 : sneaking ? 0.15 : running ? 1 : 0.5;
+    // Noise: still = silent, sneak/transition = low, walk = medium, run = high.
+    const target = !moving ? 0 : sneaking || transitioning ? 0.15 : running ? 1 : 0.5;
     this.noise = Phaser.Math.Linear(this.noise, target, Math.min(1, dt * 6));
 
-    // Crouch pose whenever sneaking — including standing still behind cover.
-    const anim: PlayerAnimName = !moving
-      ? this.crouched
-        ? "crouch"
-        : "idle"
-      : sneaking
-        ? "crouch-walk"
-        : running
-          ? "run"
-          : "walk";
-    this.setAnimation(anim, this.dir);
+    // While a transition clip is playing, leave it alone — it owns the sprite
+    // until it completes. Otherwise pick the stance-appropriate pose.
+    if (!transitioning) {
+      const anim: PlayerAnimName = crouchedNow
+        ? moving
+          ? "crouch-walk"
+          : "crouch"
+        : moving
+          ? running
+            ? "run"
+            : "walk"
+          : "idle";
+      this.setAnimation(anim, this.dir);
+    }
+  }
+
+  /** Enters a lower/rise transition: plays the one-shot clip locked to the
+   * current facing, and advances to the target stance when it finishes. */
+  private beginTransition(anim: "crouch-down" | "crouch-up", target: Stance): void {
+    this.stance = anim === "crouch-down" ? "crouching-down" : "standing-up";
+    const key = playerAnimKey(anim, this.dir);
+    this.currentAnim = anim;
+    this.sprite.play(key, true);
+    this.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE_KEY + key, () => {
+      // Only latch if we're still in this transition (guards against a stray
+      // late event after some other state change).
+      if (this.stance === "crouching-down" || this.stance === "standing-up") {
+        this.stance = target;
+      }
+    });
   }
 
   private setAnimation(anim: PlayerAnimName, dir: PlayerAnimDir): void {
@@ -116,6 +164,8 @@ export class Player {
     for (const anim of Object.keys(PLAYER_ANIM_FRAME_COUNTS) as PlayerAnimName[]) {
       const frameCount = PLAYER_ANIM_FRAME_COUNTS[anim];
       const frameRate = PLAYER_ANIM_FRAME_RATES[anim];
+      // The lower/rise transitions are one-shots; everything else loops.
+      const repeat = anim === "crouch-down" || anim === "crouch-up" ? 0 : -1;
       for (const dir of PLAYER_ANIM_DIRS) {
         const key = playerAnimKey(anim, dir);
         if (scene.anims.exists(key)) continue;
@@ -125,7 +175,7 @@ export class Player {
             key: playerFrameKey(anim, dir, i),
           })),
           frameRate,
-          repeat: -1,
+          repeat,
         });
       }
     }

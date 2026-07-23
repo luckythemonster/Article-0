@@ -193,6 +193,12 @@ tiles tall:
   second, dedicated "Rowan Ibarra crouched" character sheet (same rig/outfit,
   posed low) rather than a reskinned standing pose — a settled kneel for
   standing still in cover, and a distinct low stride for sneaking on the move.
+  Standing ⇄ crouched is a small state machine (`Player.ts`): pressing/releasing
+  **Shift** plays a one-shot **crouch-down** / **crouch-up** transition (both
+  generated across all 8 directions from the two sheets) that must finish
+  before the target stance takes over, so Rowan visibly lowers and rises
+  instead of popping between poses. Cover concealment only counts him hidden
+  once he's *fully* down.
 - **Enforcer** (48x48) — a blocky robotic sentry gliding on magnetic tracks
   with a rotating crown of camera-arms. It shipped with no animations, so its
   "patrol-scan" cycle (the camera-arms sweeping back and forth while it
