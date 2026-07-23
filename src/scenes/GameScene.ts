@@ -616,7 +616,8 @@ export class GameScene extends Phaser.Scene {
 
     // Fail-state — bio-integrity depleted, or cornered by a silicate during a
     // full alert: the mesh prunes Rowan's logs (Alignment).
-    const cornered = this.alert.isCombatAware && this.guards().some((e) => this.isCornering(e));
+    const cornered =
+      !fieldActive && this.alert.isCombatAware && this.guards().some((e) => this.isCornering(e));
     this.captureProgress = cornered
       ? this.captureProgress + dt
       : Math.max(0, this.captureProgress - dt * 2);
