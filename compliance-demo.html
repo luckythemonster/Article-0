@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Article Zero — Doctrinal Compliance (demo)</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #05070a;
+        font-family: "Courier New", monospace;
+        color: #bfe3ea;
+      }
+      #shell {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 24px 16px 48px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      #shell h1 {
+        font-size: 15px;
+        letter-spacing: 1px;
+        color: #39d3ff;
+        margin: 0;
+      }
+      #shell p {
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.5;
+        color: #6b7f92;
+      }
+      .demo-banner {
+        min-height: 16px;
+        font-size: 13px;
+        font-weight: bold;
+        letter-spacing: 0.5px;
+      }
+      .demo-banner.is-solved {
+        color: #5effa0;
+        cursor: pointer;
+      }
+      .demo-banner.is-aborted {
+        color: #ff5c6a;
+      }
+      #app {
+        min-height: 460px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="shell">
+      <h1>◎ DOCTRINAL COMPLIANCE — STANDALONE DEMO</h1>
+      <p>
+        EIRA-7's cached log tripped the Alignment filter. Rewrite every flagged
+        <strong>[Q&gt;0]</strong> term to reach <strong>Q0</strong>, but keep the two
+        corrections that carry the override payload — the blandest phrasing passes
+        compliance yet drops the payload, leaving the lock closed.
+      </p>
+      <div id="banner" class="demo-banner"></div>
+      <div id="app"></div>
+    </div>
+    <script type="module" src="/src/complianceDemo.ts"></script>
+  </body>
+</html>

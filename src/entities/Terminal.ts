@@ -63,6 +63,18 @@ export class Terminal {
     return false;
   }
 
+  /**
+   * Reverts a completed breach so the terminal can be hacked again. Used when a
+   * log-cache breach launches the compliance puzzle and the player aborts it —
+   * the mission-critical log must stay recoverable, so the terminal is re-armed.
+   */
+  reopen(): void {
+    this.hacked = false;
+    this.progress = 0;
+    this.image?.clearTint();
+    this.bar.setVisible(false);
+  }
+
   /** Called when the player isn't hacking this frame — decays partial progress. */
   idle(dt: number): void {
     if (this.hacked) return;

@@ -9,6 +9,7 @@ import { PauseScene } from "./scenes/PauseScene";
 import { GameOverScene } from "./scenes/GameOverScene";
 import { VictoryScene } from "./scenes/VictoryScene";
 import { CodecScene } from "./scenes/CodecScene";
+import { ComplianceScene } from "./scenes/ComplianceScene";
 import {
   PLAYER_ANIM_DIRS,
   PLAYER_ANIM_FRAME_COUNTS,
@@ -81,5 +82,15 @@ new Phaser.Game({
     default: "arcade",
     arcade: { debug: false },
   },
-  scene: [BootScene, TitleScene, GameScene, UIScene, CodecScene, PauseScene, GameOverScene, VictoryScene],
+  scene: [
+    BootScene,
+    TitleScene,
+    GameScene,
+    UIScene,
+    CodecScene,
+    ComplianceScene,
+    PauseScene,
+    GameOverScene,
+    VictoryScene,
+  ],
 });

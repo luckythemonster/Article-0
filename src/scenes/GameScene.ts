@@ -23,6 +23,7 @@ import { CERT_ITEM, PLAYER_DEFAULTS, VENT4_DEFAULTS } from "../systems/EntitySta
 import {
   initialObjectives,
   isRunWon,
+  LOG_CACHE_TYPE,
   noteTerminalHacked,
   noteVent4Defeated,
   type ObjectiveState,
@@ -110,6 +111,10 @@ export class GameScene extends Phaser.Scene {
   private captureProgress = 0;
   /** True while the in-game codec overlay is open (sim frozen). */
   private codecOpen = false;
+  /** True while the Doctrinal Compliance minigame overlay is open (sim frozen). */
+  private complianceOpen = false;
+  /** The log-cache terminal whose breach launched the compliance puzzle. */
+  private pendingCompliance?: Terminal;
   /** Mission progress (kept in the registry so it survives level swaps). */
   private objectives!: ObjectiveState;
   /** The Shared Field (WX-9) charge / active state. */
@@ -195,6 +200,8 @@ export class GameScene extends Phaser.Scene {
     this.paused = false;
     this.captureProgress = 0;
     this.codecOpen = false;
+    this.complianceOpen = false;
+    this.pendingCompliance = undefined;
     this.sharedField = new SharedField();
     // Arm only after stepping off the arrival tile (see update()).
     this.transitionArmed = false;
@@ -509,6 +516,43 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Toggles the Doctrinal Compliance minigame overlay, freezing/thawing the sim. */
+  private setComplianceOpen(open: boolean): void {
+    if (open === this.complianceOpen) return;
+    this.complianceOpen = open;
+    if (open) {
+      this.physics.pause();
+      this.registry.remove("complianceSolved");
+      this.registry.remove("complianceClosed");
+      this.scene.launch("ComplianceScene", {});
+    } else {
+      this.scene.stop("ComplianceScene");
+      this.physics.resume();
+    }
+  }
+
+  /**
+   * Polls the compliance overlay's outcome while it's open (the sim update below
+   * never runs behind it). Solving it runs the normal breach effect — logs
+   * recovered + nearby doors released; aborting re-arms the terminal so the
+   * mission-critical log stays recoverable.
+   */
+  private updateComplianceOverlay(): void {
+    if (this.registry.get("complianceSolved") === true) {
+      this.registry.remove("complianceSolved");
+      const term = this.pendingCompliance;
+      this.pendingCompliance = undefined;
+      this.setComplianceOpen(false);
+      if (term) this.applyHack(term);
+    } else if (this.registry.get("complianceClosed") === true) {
+      this.registry.remove("complianceClosed");
+      const term = this.pendingCompliance;
+      this.pendingCompliance = undefined;
+      this.setComplianceOpen(false);
+      term?.reopen();
+    }
+  }
+
   /** Abandons the run from the pause overlay and returns to the title. */
   private abortToTitle(): void {
     this.setPaused(false);
@@ -608,10 +652,15 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Pause (Esc) and the codec (C) each freeze the sim behind an overlay scene.
-    if (!this.codecOpen && Phaser.Input.Keyboard.JustDown(this.keys.pause)) this.setPaused(!this.paused);
-    if (!this.paused && Phaser.Input.Keyboard.JustDown(this.keys.codec)) this.setCodecOpen(!this.codecOpen);
-    if (this.paused || this.codecOpen) {
+    // Pause (Esc), the codec (C) and the compliance minigame each freeze the sim
+    // behind an overlay scene. The latter two suppress the pause/codec toggles.
+    if (!this.codecOpen && !this.complianceOpen && Phaser.Input.Keyboard.JustDown(this.keys.pause)) {
+      this.setPaused(!this.paused);
+    }
+    if (!this.paused && !this.complianceOpen && Phaser.Input.Keyboard.JustDown(this.keys.codec)) {
+      this.setCodecOpen(!this.codecOpen);
+    }
+    if (this.paused || this.codecOpen || this.complianceOpen) {
       this.player.sprite.setVelocity(0, 0);
       if (this.paused && Phaser.Input.Keyboard.JustDown(this.keys.abort)) this.abortToTitle();
       // The codec's 140.85 transmit finisher: CodecScene raises the flag, and
@@ -623,6 +672,7 @@ export class GameScene extends Phaser.Scene {
         this.setCodecOpen(false);
         if (tr) this.onVent4Transition(tr);
       }
+      if (this.complianceOpen) this.updateComplianceOverlay();
       return;
     }
 
@@ -852,7 +902,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
     const hacking = !!nearestTerminal && interactDown;
-    if (hacking && nearestTerminal!.hack(dt)) this.applyHack(nearestTerminal!);
+    if (hacking && nearestTerminal!.hack(dt)) this.onHackComplete(nearestTerminal!);
     for (const term of this.terminals) {
       if (term !== nearestTerminal || !interactDown) term.idle(dt);
     }
@@ -964,6 +1014,20 @@ export class GameScene extends Phaser.Scene {
       this.prompt.setVisible(true);
     } else {
       this.prompt.setVisible(false);
+    }
+  }
+
+  /**
+   * A completed hold-to-hack. A log-cache breach opens the Doctrinal Compliance
+   * minigame — solving it recovers EIRA-7's logs — while every other terminal
+   * fires its effect immediately as before.
+   */
+  private onHackComplete(terminal: Terminal): void {
+    if (terminal.stats.type === LOG_CACHE_TYPE) {
+      this.pendingCompliance = terminal;
+      this.setComplianceOpen(true);
+    } else {
+      this.applyHack(terminal);
     }
   }
 

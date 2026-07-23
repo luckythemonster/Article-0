@@ -7,5 +7,13 @@ export default defineConfig({
   build: {
     target: "es2020",
     chunkSizeWarningLimit: 2000,
+    rollupOptions: {
+      // Multi-page: the game itself plus the standalone Doctrinal Compliance
+      // minigame demo (playable in isolation at /compliance-demo.html).
+      input: {
+        main: "index.html",
+        demo: "compliance-demo.html",
+      },
+    },
   },
 });
