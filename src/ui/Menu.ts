@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { getAudio } from "../systems/AudioDirector";
 
 export interface MenuItem {
   label: string;
@@ -66,7 +67,10 @@ export class Menu {
 
   private select(): void {
     const item = this.items[this.index];
-    if (item && item.enabled !== false) item.onSelect();
+    if (item && item.enabled !== false) {
+      getAudio().select();
+      item.onSelect();
+    }
   }
 
   private refresh(): void {

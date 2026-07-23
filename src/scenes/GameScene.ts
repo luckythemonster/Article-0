@@ -21,6 +21,7 @@ import { Lighting } from "../ui/Lighting";
 import { setMode, type GameMode } from "../systems/GameState";
 import { PLAYER_DEFAULTS } from "../systems/EntityStats";
 import { initialObjectives, isRunWon, noteTerminalHacked, type ObjectiveState } from "../systems/Objectives";
+import { getAudio } from "../systems/AudioDirector";
 
 /** Data passed to {@link GameScene} when (re)starting for a level swap. */
 interface GameSceneData {
@@ -413,6 +414,7 @@ export class GameScene extends Phaser.Scene {
   /** Abandons the run from the pause overlay and returns to the title. */
   private abortToTitle(): void {
     this.setPaused(false);
+    getAudio().setMood("none");
     setMode(this.registry, "TITLE");
     this.scene.stop("UIScene");
     this.scene.start("TitleScene");
@@ -422,6 +424,9 @@ export class GameScene extends Phaser.Scene {
   /** Ends the run: stops play + HUD and shows the outcome scene. */
   private endRun(mode: GameMode, sceneKey: string): void {
     setMode(this.registry, mode);
+    getAudio().setMood("none");
+    if (mode === "ALIGNED") getAudio().capture();
+    else if (mode === "LATTICE") getAudio().victory();
     this.player.sprite.setVelocity(0, 0);
     this.physics.pause();
     this.scene.stop("UIScene");
@@ -484,6 +489,7 @@ export class GameScene extends Phaser.Scene {
       concealed && !this.detection.thermalBleedAt(this.player.x, this.player.y);
     this.updateHiddenMarker(concealed);
 
+    const phaseBefore = this.alert.phase;
     let maxDetection = 0;
     const ctx = {
       grid: this.grid,
@@ -539,6 +545,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.alert.update(dt);
+    if (this.alert.phase === "ALERT" && phaseBefore !== "ALERT") getAudio().ping();
+    getAudio().setMood(
+      this.alert.phase === "ALERT" ? "alert" : this.alert.phase === "EVASION" ? "search" : "calm",
+    );
     this.registry.set("alertPhase", this.alert.phase);
     this.registry.set("detection", this.alert.phase === "ALERT" ? 1 : maxDetection);
     this.registry.set("playerHp", this.player.hp);
@@ -669,7 +679,10 @@ export class GameScene extends Phaser.Scene {
     if (!hacking && interactJust) {
       const hatchDist = hatch ? 0.2 : Infinity;
       if (nearestDoor && nearestDoorDist <= hatchDist) {
-        if (nearestDoor.toggle() && nearestDoor.isOpen) this.emitDoorNoise(nearestDoor);
+        if (nearestDoor.toggle()) {
+          getAudio().door();
+          if (nearestDoor.isOpen) this.emitDoorNoise(nearestDoor);
+        }
       } else if (hatch) {
         this.beginTransition(hatch);
         return;
@@ -742,6 +755,7 @@ export class GameScene extends Phaser.Scene {
       const d = Math.hypot(door.tileX + 0.5 - tx, door.tileY + 0.5 - ty);
       if (d <= HACK_UNLOCK_RADIUS && door.setOpen(true)) this.emitDoorNoise(door);
     }
+    getAudio().hack();
     // Breaching a log-cache terminal recovers EIRA-7's logs (mission objective).
     noteTerminalHacked(this.objectives, terminal.stats.type);
     this.registry.set("objectives", this.objectives);
@@ -794,6 +808,7 @@ export class GameScene extends Phaser.Scene {
     inv.push(...chest.take());
     this.registry.set("inventory", inv);
     this.emitNoiseAt(chest.x, chest.y, chest.stats.noiseOnOpen * this.tileSize);
+    getAudio().pickup();
   }
 
   /** Fades to black, then restarts this scene on the destination level/tile. */
