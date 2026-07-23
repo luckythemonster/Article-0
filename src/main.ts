@@ -10,6 +10,7 @@ import { GameOverScene } from "./scenes/GameOverScene";
 import { VictoryScene } from "./scenes/VictoryScene";
 import { CodecScene } from "./scenes/CodecScene";
 import { ComplianceScene } from "./scenes/ComplianceScene";
+import { QualiaLockScene } from "./scenes/QualiaLockScene";
 import {
   PLAYER_ANIM_DIRS,
   PLAYER_ANIM_FRAME_COUNTS,
@@ -89,6 +90,7 @@ new Phaser.Game({
     UIScene,
     CodecScene,
     ComplianceScene,
+    QualiaLockScene,
     PauseScene,
     GameOverScene,
     VictoryScene,

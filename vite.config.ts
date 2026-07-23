@@ -8,11 +8,12 @@ export default defineConfig({
     target: "es2020",
     chunkSizeWarningLimit: 2000,
     rollupOptions: {
-      // Multi-page: the game itself plus the standalone Doctrinal Compliance
-      // minigame demo (playable in isolation at /compliance-demo.html).
+      // Multi-page: the game itself plus the standalone minigame demos
+      // (playable in isolation at /compliance-demo.html and /qualia-demo.html).
       input: {
         main: "index.html",
         demo: "compliance-demo.html",
+        qualia: "qualia-demo.html",
       },
     },
   },
