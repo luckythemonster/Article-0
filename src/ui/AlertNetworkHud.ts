@@ -23,7 +23,7 @@ export class AlertNetworkHud {
 
   constructor(scene: Phaser.Scene) {
     const pad = 12;
-    const top = pad + 66; // just below the detection meter
+    const top = pad + 118; // below the SRP meter + bio-integrity bar
 
     scene.add
       .text(pad, top, "NETWORK", {

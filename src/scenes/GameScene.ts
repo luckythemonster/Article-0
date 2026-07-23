@@ -20,6 +20,7 @@ import { buildAlertNetworkSnapshot } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
 import { setMode, type GameMode } from "../systems/GameState";
 import { PLAYER_DEFAULTS } from "../systems/EntityStats";
+import { initialObjectives, isRunWon, noteTerminalHacked, type ObjectiveState } from "../systems/Objectives";
 
 /** Data passed to {@link GameScene} when (re)starting for a level swap. */
 interface GameSceneData {
@@ -87,6 +88,10 @@ export class GameScene extends Phaser.Scene {
   private paused = false;
   /** Seconds the player has been cornered by a silicate during a full alert. */
   private captureProgress = 0;
+  /** True while the in-game codec overlay is open (sim frozen). */
+  private codecOpen = false;
+  /** Mission progress (kept in the registry so it survives level swaps). */
+  private objectives!: ObjectiveState;
   /**
    * A walk-over transition can only fire once the player has stepped off every
    * transition tile since arriving — otherwise you'd bounce straight back.
@@ -109,6 +114,7 @@ export class GameScene extends Phaser.Scene {
     interact: Phaser.Input.Keyboard.Key;
     pause: Phaser.Input.Keyboard.Key;
     abort: Phaser.Input.Keyboard.Key;
+    codec: Phaser.Input.Keyboard.Key;
   };
 
   constructor() {
@@ -141,6 +147,7 @@ export class GameScene extends Phaser.Scene {
     this.transitioning = false;
     this.paused = false;
     this.captureProgress = 0;
+    this.codecOpen = false;
     // Arm only after stepping off the arrival tile (see update()).
     this.transitionArmed = false;
 
@@ -220,6 +227,11 @@ export class GameScene extends Phaser.Scene {
     this.registry.set("detection", 0);
     this.registry.set("playerHp", this.player.hp);
     this.registry.set("playerMaxHp", this.player.maxHp);
+    setMode(this.registry, "PLAYING");
+    this.objectives =
+      (this.registry.get("objectives") as ObjectiveState | undefined) ?? initialObjectives();
+    this.registry.set("objectives", this.objectives);
+    this.registry.set("currentLevel", this.level.name);
     // Inventory persists across level transitions (registry survives restarts).
     if (!this.registry.has("inventory")) this.registry.set("inventory", []);
     if (!this.scene.isActive("UIScene")) this.scene.launch("UIScene");
@@ -368,6 +380,7 @@ export class GameScene extends Phaser.Scene {
       interact: kb.addKey(Phaser.Input.Keyboard.KeyCodes.E),
       pause: kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC),
       abort: kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
+      codec: kb.addKey(Phaser.Input.Keyboard.KeyCodes.C),
     };
   }
 
@@ -380,6 +393,19 @@ export class GameScene extends Phaser.Scene {
       this.scene.launch("PauseScene");
     } else {
       this.scene.stop("PauseScene");
+      this.physics.resume();
+    }
+  }
+
+  /** Toggles the in-game codec overlay, freezing/thawing the sim behind it. */
+  private setCodecOpen(open: boolean): void {
+    if (open === this.codecOpen) return;
+    this.codecOpen = open;
+    if (open) {
+      this.physics.pause();
+      this.scene.launch("CodecScene", { interactive: false });
+    } else {
+      this.scene.stop("CodecScene");
       this.physics.resume();
     }
   }
@@ -435,11 +461,12 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Pause (Esc) freezes the sim behind the PauseScene overlay; Q aborts to title.
-    if (Phaser.Input.Keyboard.JustDown(this.keys.pause)) this.setPaused(!this.paused);
-    if (this.paused) {
+    // Pause (Esc) and the codec (C) each freeze the sim behind an overlay scene.
+    if (!this.codecOpen && Phaser.Input.Keyboard.JustDown(this.keys.pause)) this.setPaused(!this.paused);
+    if (!this.paused && Phaser.Input.Keyboard.JustDown(this.keys.codec)) this.setCodecOpen(!this.codecOpen);
+    if (this.paused || this.codecOpen) {
       this.player.sprite.setVelocity(0, 0);
-      if (Phaser.Input.Keyboard.JustDown(this.keys.abort)) this.abortToTitle();
+      if (this.paused && Phaser.Input.Keyboard.JustDown(this.keys.abort)) this.abortToTitle();
       return;
     }
 
@@ -524,6 +551,11 @@ export class GameScene extends Phaser.Scene {
       : Math.max(0, this.captureProgress - dt * 2);
     if (!this.player.alive || this.captureProgress >= PLAYER_DEFAULTS.captureTime) {
       this.endRun("ALIGNED", "GameOverScene");
+      return;
+    }
+    // Win — logs recovered and Rowan has reached the Lattice uplink deck.
+    if (isRunWon(this.objectives, this.level.name)) {
+      this.endRun("LATTICE", "VictoryScene");
       return;
     }
 
@@ -710,6 +742,9 @@ export class GameScene extends Phaser.Scene {
       const d = Math.hypot(door.tileX + 0.5 - tx, door.tileY + 0.5 - ty);
       if (d <= HACK_UNLOCK_RADIUS && door.setOpen(true)) this.emitDoorNoise(door);
     }
+    // Breaching a log-cache terminal recovers EIRA-7's logs (mission objective).
+    noteTerminalHacked(this.objectives, terminal.stats.type);
+    this.registry.set("objectives", this.objectives);
   }
 
   /** Every guard-type unit — enforcers and drones share identical AI/hearNoise. */

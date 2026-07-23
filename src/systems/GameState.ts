@@ -32,10 +32,10 @@ const RUN_KEYS = [
 ] as const;
 
 /**
- * The scene that begins a fresh run. Phase C inserts the EIRA-7 codec briefing
- * ahead of play; until then a new run drops straight into `GameScene`.
+ * The scene that begins a fresh run: the EIRA-7 codec briefing, which starts
+ * play on confirm.
  */
-export const NEW_RUN_SCENE = "GameScene";
+export const NEW_RUN_SCENE = "CodecScene";
 
 export function setMode(registry: Phaser.Data.DataManager, mode: GameMode): void {
   registry.set(MODE_KEY, mode);
