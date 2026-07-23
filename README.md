@@ -37,6 +37,24 @@ npm run build    # tsc --noEmit + vite build
 | C | Open the EIRA-7 codec |
 | Esc | Pause (from the pause screen, Q aborts to the title) |
 
+#### Debug mode (dev builds only)
+
+When running `npm run dev`, a developer debug mode is available. It is gated
+behind Vite's `import.meta.env.DEV`, so it is never bound or activated in a
+production `npm run build` — the hotkeys do nothing there.
+
+| Key | Action |
+| --- | --- |
+| `` ` `` (backtick) | Toggle debug mode. Turning it off clears every cheat and hides the panel. |
+| G | God mode — blocks both death paths (bio-integrity loss and capture) |
+| N | No-clip — walk through walls and doors |
+| V | World overlay — draw guard line-of-sight rays, blocked tiles, and detection hot spots |
+| 1–5 | Warp to `main1` / `main2` / `duct1` / `duct2` / `vent_core` (resets the alert; keeps your HP) |
+
+While enabled, a top-right panel shows FPS, player position, facing, HP, capture
+progress, the current level, alert phase, and per-unit detection. The G/N/V and
+warp keys only respond while debug mode is on.
+
 Walk onto a **staircase** and you descend/ascend automatically; **hatches and
 ladders** show a `[E] Use access` prompt and change level when you press **E**.
 Either way the screen fades and you arrive at the connected level's matching

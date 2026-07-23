@@ -33,6 +33,7 @@ import { VENT_CORE_LEVEL } from "../map/VentCoreLevel";
 import { getAudio } from "../systems/AudioDirector";
 import { saveGame, clearSave } from "../systems/SaveGame";
 import { SharedField, WITNESS_RADIUS_TILES } from "../systems/SharedField";
+import type { DebugSnapshot } from "../ui/DebugHud";
 
 /** Data passed to {@link GameScene} when (re)starting for a level swap. */
 interface GameSceneData {
@@ -66,6 +67,9 @@ const HACK_UNLOCK_RADIUS = 6;
 
 /** Radius (tiles) a spotted orderly's alarm carries to nearby guards. */
 const ORDERLY_ALERT_RADIUS_TILES = 6;
+
+/** Debug warp targets, indexed by the number keys 1..5 (dev-only). */
+const DEBUG_WARP_LEVELS = ["main1", "main2", "duct1", "duct2", VENT_CORE_LEVEL];
 
 /**
  * The playable scene. Renders one level's tile art in board z-order, builds the
@@ -116,6 +120,29 @@ export class GameScene extends Phaser.Scene {
   private transitionArmed = false;
   private prompt!: Phaser.GameObjects.Text;
   private hidden!: Phaser.GameObjects.Text;
+
+  // --- Debug mode (dev builds only; see import.meta.env.DEV guards) ---
+  /** Master switch: the debug panel is shown and the debug hotkeys respond. */
+  private debugEnabled = false;
+  /** Invincibility — blocks both death paths (HP depletion and capture). */
+  private godMode = false;
+  /** No-clip — the player's wall/door colliders are disabled. */
+  private noClip = false;
+  /** World-space debug draw: LOS rays, blocked tiles, detection tint. */
+  private worldDraw = false;
+  /** Graphics layer for the world-space debug draw. */
+  private debugGfx?: Phaser.GameObjects.Graphics;
+  /** The player↔wall / player↔door colliders, kept so no-clip can toggle them. */
+  private wallCollider?: Phaser.Physics.Arcade.Collider;
+  private doorCollider?: Phaser.Physics.Arcade.Collider;
+  /** Debug hotkeys, bound only in dev builds. */
+  private debugKeys?: {
+    toggle: Phaser.Input.Keyboard.Key;
+    god: Phaser.Input.Keyboard.Key;
+    noClip: Phaser.Input.Keyboard.Key;
+    world: Phaser.Input.Keyboard.Key;
+    warp: Phaser.Input.Keyboard.Key[];
+  };
 
   private keys!: {
     up: Phaser.Input.Keyboard.Key;
@@ -170,6 +197,11 @@ export class GameScene extends Phaser.Scene {
     this.sharedField = new SharedField();
     // Arm only after stepping off the arrival tile (see update()).
     this.transitionArmed = false;
+    // Debug flags don't survive a restart; the master toggle stays on so a
+    // debug-mode warp keeps the panel up, but the cheats reset to a clean state.
+    this.godMode = false;
+    this.noClip = false;
+    this.worldDraw = false;
 
     // Slice every referenced sprite rect into a named frame.
     SpriteAtlas.register(this, parsed.uniqueFrames);
@@ -196,8 +228,8 @@ export class GameScene extends Phaser.Scene {
     this.spawnEntities();
     const doorBodies = this.spawnInteractables();
 
-    this.physics.add.collider(this.player.sprite, wallBodies);
-    this.physics.add.collider(this.player.sprite, doorBodies);
+    this.wallCollider = this.physics.add.collider(this.player.sprite, wallBodies);
+    this.doorCollider = this.physics.add.collider(this.player.sprite, doorBodies);
 
     // Darken the level and light it from the `light_sources` — shares the same
     // data DetectionSystem uses, so lit spots are visibly and mechanically hot.
@@ -227,6 +259,11 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.roundPixels = true;
 
     this.bindInput();
+
+    // World-space debug overlay (dev only): drawn below the depth-1000 HUD/prompts.
+    if (import.meta.env.DEV) {
+      this.debugGfx = this.add.graphics().setDepth(900);
+    }
 
     // Interact prompt for hatches/ladders: a small world-space hint floated
     // above the player (same approach as the Enforcer's "!" marker), so the
@@ -428,6 +465,18 @@ export class GameScene extends Phaser.Scene {
       codec: kb.addKey(Phaser.Input.Keyboard.KeyCodes.C),
       field: kb.addKey(Phaser.Input.Keyboard.KeyCodes.F),
     };
+
+    // Debug hotkeys exist only in dev builds (stripped from production).
+    if (import.meta.env.DEV) {
+      const K = Phaser.Input.Keyboard.KeyCodes;
+      this.debugKeys = {
+        toggle: kb.addKey(K.BACKTICK),
+        god: kb.addKey(K.G),
+        noClip: kb.addKey(K.N),
+        world: kb.addKey(K.V),
+        warp: [K.ONE, K.TWO, K.THREE, K.FOUR, K.FIVE].map((c) => kb.addKey(c)),
+      };
+    }
   }
 
   /** Toggles the pause overlay and freezes/thaws the arcade sim. */
@@ -576,6 +625,9 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    // Debug hotkeys (dev only). A warp restarts the scene, so bail this frame.
+    if (import.meta.env.DEV && this.handleDebugInput()) return;
+
     this.player.update(this.readInput(), dt);
     this.lighting.update(dt);
     this.updateInteractions(dt);
@@ -691,6 +743,12 @@ export class GameScene extends Phaser.Scene {
     this.captureProgress = cornered
       ? this.captureProgress + dt
       : Math.max(0, this.captureProgress - dt * 2);
+    // God mode (debug): neutralize both death paths after they've been computed
+    // for the frame — restore bio-integrity and clear any capture progress.
+    if (this.godMode) {
+      this.player.hp = this.player.maxHp;
+      this.captureProgress = 0;
+    }
     if (!this.player.alive || this.captureProgress >= PLAYER_DEFAULTS.captureTime) {
       this.endRun("ALIGNED", "GameOverScene");
       return;
@@ -733,6 +791,12 @@ export class GameScene extends Phaser.Scene {
         this.alert.phase === "ALERT",
       ),
     );
+
+    // Debug mode (dev only): world-space overlay + a state snapshot for the HUD.
+    if (import.meta.env.DEV) {
+      this.drawDebugWorld();
+      this.registry.set("debug", this.buildDebugSnapshot());
+    }
   }
 
   /**
@@ -962,6 +1026,127 @@ export class GameScene extends Phaser.Scene {
   /** Every guard-type unit — enforcers and drones share identical AI/hearNoise. */
   private guards(): Enforcer[] {
     return [...this.enforcers, ...this.drones];
+  }
+
+  // ------------------------------------------------------------------ debug --
+  // Everything below is dev-only: the callers are all gated behind
+  // `import.meta.env.DEV`, so Vite strips this out of production builds.
+
+  /**
+   * Reads the debug hotkeys for the frame and applies them. Returns `true` if a
+   * warp was triggered (the scene is restarting, so the caller should bail).
+   */
+  private handleDebugInput(): boolean {
+    const dk = this.debugKeys;
+    if (!dk) return false;
+    if (Phaser.Input.Keyboard.JustDown(dk.toggle)) this.setDebugEnabled(!this.debugEnabled);
+    if (!this.debugEnabled) return false;
+    if (Phaser.Input.Keyboard.JustDown(dk.god)) this.godMode = !this.godMode;
+    if (Phaser.Input.Keyboard.JustDown(dk.noClip)) this.setNoClip(!this.noClip);
+    if (Phaser.Input.Keyboard.JustDown(dk.world)) this.worldDraw = !this.worldDraw;
+    for (let i = 0; i < dk.warp.length; i++) {
+      if (Phaser.Input.Keyboard.JustDown(dk.warp[i])) {
+        this.debugWarp(DEBUG_WARP_LEVELS[i]);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Master switch. Disabling clears every cheat for a clean return to play. */
+  private setDebugEnabled(on: boolean): void {
+    this.debugEnabled = on;
+    if (!on) {
+      this.godMode = false;
+      this.worldDraw = false;
+      this.setNoClip(false);
+      this.debugGfx?.clear();
+    }
+  }
+
+  /** Toggles no-clip by enabling/disabling the player's wall+door colliders. */
+  private setNoClip(on: boolean): void {
+    this.noClip = on;
+    if (this.wallCollider) this.wallCollider.active = !on;
+    if (this.doorCollider) this.doorCollider.active = !on;
+    const body = this.player.sprite.body as Phaser.Physics.Arcade.Body;
+    body.checkCollision.none = on;
+    this.player.sprite.setCollideWorldBounds(!on);
+  }
+
+  /** Warps to a level by restarting the scene at its own spawn tile. */
+  private debugWarp(levelName: string): void {
+    if (this.transitioning) return;
+    this.transitioning = true;
+    this.scene.restart({ level: levelName });
+  }
+
+  /** Draws the world-space debug overlay: blocked tiles, detection tint, LOS. */
+  private drawDebugWorld(): void {
+    const g = this.debugGfx;
+    if (!g) return;
+    g.clear();
+    if (!this.debugEnabled || !this.worldDraw) return;
+
+    const ts = this.tileSize;
+    const view = this.cameras.main.worldView;
+    const minTx = Math.max(0, Math.floor(view.x / ts));
+    const maxTx = Math.min(this.grid.width - 1, Math.ceil(view.right / ts));
+    const minTy = Math.max(0, Math.floor(view.y / ts));
+    const maxTy = Math.min(this.grid.height - 1, Math.ceil(view.bottom / ts));
+
+    // Blocked tiles (red) and detection-multiplier hot spots (amber) in view.
+    for (let ty = minTy; ty <= maxTy; ty++) {
+      for (let tx = minTx; tx <= maxTx; tx++) {
+        if (this.grid.isBlocked(tx, ty)) {
+          g.fillStyle(0xff3b3b, 0.12);
+          g.fillRect(tx * ts, ty * ts, ts, ts);
+          continue;
+        }
+        const m = this.detection.multiplierAt((tx + 0.5) * ts, (ty + 0.5) * ts);
+        if (m > 1.05) {
+          g.fillStyle(0xffb03b, Math.min(0.25, (m - 1) * 0.3));
+          g.fillRect(tx * ts, ty * ts, ts, ts);
+        }
+      }
+    }
+
+    // Line of sight from the player to each guard (green = clear, red = blocked).
+    const ptx = this.player.x / ts;
+    const pty = this.player.y / ts;
+    for (const e of this.guards()) {
+      const pos = e.position;
+      const clear = this.grid.hasLineOfSight(ptx, pty, pos.x / ts, pos.y / ts);
+      g.lineStyle(1, clear ? 0x59d98e : 0xff3b3b, 0.6);
+      g.lineBetween(this.player.x, this.player.y, pos.x, pos.y);
+    }
+  }
+
+  /** Snapshot of live state for the DebugHud (published to the registry). */
+  private buildDebugSnapshot(): DebugSnapshot {
+    const ts = this.tileSize;
+    return {
+      enabled: this.debugEnabled,
+      godMode: this.godMode,
+      noClip: this.noClip,
+      worldDraw: this.worldDraw,
+      fps: this.game.loop.actualFps,
+      px: this.player.x,
+      py: this.player.y,
+      tileX: Math.floor(this.player.x / ts),
+      tileY: Math.floor(this.player.y / ts),
+      facing: this.player.facing,
+      hp: this.player.hp,
+      maxHp: this.player.maxHp,
+      capture: this.captureProgress,
+      captureTime: PLAYER_DEFAULTS.captureTime,
+      level: this.level.name,
+      alertPhase: this.alert.phase,
+      units: [
+        ...this.guards().map((e, i) => ({ label: `G${i}`, detection: e.detection })),
+        ...this.sensors.map((s, i) => ({ label: `S${i}`, detection: s.detection })),
+      ],
+    };
   }
 
   /** A door operating emits noise: nearby guards turn to look and grow wary. */
