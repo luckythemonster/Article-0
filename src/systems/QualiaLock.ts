@@ -214,7 +214,9 @@ export const DEFAULT_CONFIG: QualiaLockConfig = {
   lockThreshold: 0.95,
   lockDuration: 3,
   instabilityThreshold: 0.3,
-  instabilityFillRate: 0.2,
+  // A below-threshold signal takes ~10s to purge — enough time to dial the wave
+  // in without the hazard feeling punishing.
+  instabilityFillRate: 0.1,
   instabilityDrainRate: 0.5,
   alignmentTolerance: 0.5,
   noiseAmplitude: 0.06,

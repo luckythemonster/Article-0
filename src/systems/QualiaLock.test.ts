@@ -127,6 +127,22 @@ describe("bypass state machine", () => {
     expect(s.status).toBe("BYPASSED");
     expect(s.elapsed).toBe(bankedElapsed); // no further advance
   });
+
+  it("freezes the timers on a dt=0 tick but keeps alignment live (debug pause)", () => {
+    const s = createState(DEFAULT_TARGET, cfg, matched);
+    tick(s, 1, cfg); // bank ~1s of lock progress and elapsed
+    const lock = s.lockProgress;
+    const inst = s.instability;
+    const elapsed = s.elapsed;
+    // Move the wave far off, then step with dt=0: alignment must refresh while
+    // the lock / instability / elapsed timers hold — the debug-pause guarantee.
+    setPlayer(s, { frequency: 6 }, cfg);
+    tick(s, 0, cfg);
+    expect(s.alignment).toBeLessThan(0.5);
+    expect(s.lockProgress).toBe(lock);
+    expect(s.instability).toBe(inst);
+    expect(s.elapsed).toBe(elapsed);
+  });
 });
 
 describe("pickQualiaRackIndex", () => {

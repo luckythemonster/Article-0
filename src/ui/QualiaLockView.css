@@ -188,6 +188,18 @@
   background: #ffb03b;
 }
 
+/* --- debug badge (debug builds only) --- */
+.qualia-debug {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: #45566a;
+  padding: 2px 0;
+}
+.qualia-debug.is-paused {
+  color: #ffe14d;
+  font-weight: bold;
+}
+
 /* --- controls --- */
 .qualia-controls {
   display: grid;

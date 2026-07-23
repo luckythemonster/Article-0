@@ -143,6 +143,8 @@ export class GameScene extends Phaser.Scene {
   private noClip = false;
   /** World-space debug draw: LOS rays, blocked tiles, detection tint. */
   private worldDraw = false;
+  /** Freeze-world: halts guards, cameras, hazards, alert and capture (player free). */
+  private frozenWorld = false;
   /** Graphics layer for the world-space debug draw. */
   private debugGfx?: Phaser.GameObjects.Graphics;
   /** The player↔wall / player↔door colliders, kept so no-clip can toggle them. */
@@ -154,6 +156,7 @@ export class GameScene extends Phaser.Scene {
     god: Phaser.Input.Keyboard.Key;
     noClip: Phaser.Input.Keyboard.Key;
     world: Phaser.Input.Keyboard.Key;
+    freeze: Phaser.Input.Keyboard.Key;
     warp: Phaser.Input.Keyboard.Key[];
   };
 
@@ -220,6 +223,7 @@ export class GameScene extends Phaser.Scene {
     this.godMode = false;
     this.noClip = false;
     this.worldDraw = false;
+    this.frozenWorld = false;
 
     // Slice every referenced sprite rect into a named frame.
     SpriteAtlas.register(this, parsed.uniqueFrames);
@@ -493,6 +497,7 @@ export class GameScene extends Phaser.Scene {
         god: kb.addKey(K.G),
         noClip: kb.addKey(K.N),
         world: kb.addKey(K.V),
+        freeze: kb.addKey(K.H),
         warp: [K.ONE, K.TWO, K.THREE, K.FOUR, K.FIVE].map((c) => kb.addKey(c)),
       };
     }
@@ -757,7 +762,10 @@ export class GameScene extends Phaser.Scene {
       playerThermalConcealed: thermalConcealed,
       alert: this.alert,
     };
-    for (const e of this.guards()) {
+    // Debug freeze-world (H) short-circuits every AI/hazard update below by
+    // iterating nothing (or ticking with 0), so patrols, cones, lasers, VENT-4,
+    // alert decay and capture all hold still while the player can still move.
+    for (const e of this.frozenWorld ? [] : this.guards()) {
       const before = e.detection;
       e.update(dt, ctx);
       maxDetection = Math.max(maxDetection, e.detection);
@@ -768,7 +776,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Sensor cameras run on the same context, reporting sightings themselves.
-    for (const s of this.sensors) {
+    for (const s of this.frozenWorld ? [] : this.sensors) {
       const before = s.detection;
       s.update(dt, ctx);
       maxDetection = Math.max(maxDetection, s.detection);
@@ -780,7 +788,7 @@ export class GameScene extends Phaser.Scene {
     // VENT-4: sweeps/steam/jam clock, then its environmental forces — added
     // AFTER Player.update's setVelocity so suction and air jets survive the
     // frame (the player re-sets velocity from input every tick).
-    if (this.vent4) {
+    if (this.vent4 && !this.frozenWorld) {
       const tick = this.vent4.update(dt, ctx);
       maxDetection = Math.max(maxDetection, this.vent4.detection);
       if (tick.transition) this.onVent4Transition(tick.transition);
@@ -805,7 +813,7 @@ export class GameScene extends Phaser.Scene {
 
     // Orderlies: bystanders, not guards — a clear sighting is a one-shot
     // "witness" event that raises nearby guards' suspicion, same as a noisy door.
-    for (const orderly of this.orderlies) {
+    for (const orderly of this.frozenWorld ? [] : this.orderlies) {
       if (orderly.update(dt, { grid: this.grid, tileSize: this.tileSize, player: ctx.player, playerConcealed: concealed })) {
         this.emitOrderlyAlert(orderly);
       }
@@ -813,7 +821,7 @@ export class GameScene extends Phaser.Scene {
 
     // Lasers: crossing an active beam/scan zone instantly trips the alarm.
     let laserTripped = false;
-    for (const laser of this.lasers) {
+    for (const laser of this.frozenWorld ? [] : this.lasers) {
       laser.update(dt);
       if (laser.checkTrip(this.player.x, this.player.y)) laserTripped = true;
     }
@@ -826,7 +834,7 @@ export class GameScene extends Phaser.Scene {
       this.player.takeDamage(PLAYER_DEFAULTS.hazardDamage);
     }
 
-    this.alert.update(dt);
+    this.alert.update(this.frozenWorld ? 0 : dt);
     if (this.alert.phase === "ALERT" && phaseBefore !== "ALERT") getAudio().ping();
     getAudio().setMood(
       this.alert.phase === "ALERT" ? "alert" : this.alert.phase === "EVASION" ? "search" : "calm",
@@ -838,7 +846,7 @@ export class GameScene extends Phaser.Scene {
     // Fail-state — bio-integrity depleted, or cornered by a silicate during a
     // full alert: the mesh prunes Rowan's logs (Alignment).
     const cornered =
-      !fieldActive && this.alert.isCombatAware && this.guards().some((e) => this.isCornering(e));
+      !this.frozenWorld && !fieldActive && this.alert.isCombatAware && this.guards().some((e) => this.isCornering(e));
     this.captureProgress = cornered
       ? this.captureProgress + dt
       : Math.max(0, this.captureProgress - dt * 2);
@@ -1185,6 +1193,7 @@ export class GameScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(dk.god)) this.godMode = !this.godMode;
     if (Phaser.Input.Keyboard.JustDown(dk.noClip)) this.setNoClip(!this.noClip);
     if (Phaser.Input.Keyboard.JustDown(dk.world)) this.worldDraw = !this.worldDraw;
+    if (Phaser.Input.Keyboard.JustDown(dk.freeze)) this.frozenWorld = !this.frozenWorld;
     for (let i = 0; i < dk.warp.length; i++) {
       if (Phaser.Input.Keyboard.JustDown(dk.warp[i])) {
         this.debugWarp(DEBUG_WARP_LEVELS[i]);
@@ -1200,6 +1209,7 @@ export class GameScene extends Phaser.Scene {
     if (!on) {
       this.godMode = false;
       this.worldDraw = false;
+      this.frozenWorld = false;
       this.setNoClip(false);
       this.debugGfx?.clear();
     }
@@ -1271,6 +1281,7 @@ export class GameScene extends Phaser.Scene {
       godMode: this.godMode,
       noClip: this.noClip,
       worldDraw: this.worldDraw,
+      frozenWorld: this.frozenWorld,
       fps: this.game.loop.actualFps,
       px: this.player.x,
       py: this.player.y,

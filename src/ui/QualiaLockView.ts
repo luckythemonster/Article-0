@@ -25,6 +25,7 @@ import {
   type QualiaLockState,
   type QualiaRound,
 } from "../systems/QualiaLock";
+import { DEBUG_ALLOWED } from "../systems/DebugFlag";
 import "./QualiaLockView.css";
 
 export interface QualiaLockViewCallbacks {
@@ -94,6 +95,7 @@ export class QualiaLockView {
   private readonly lockTimeEl: HTMLSpanElement;
   private readonly instFillEl: HTMLDivElement;
   private readonly bannerEl: HTMLDivElement;
+  private readonly debugEl: HTMLDivElement;
 
   private raf = 0;
   private lastTime = 0;
@@ -101,11 +103,17 @@ export class QualiaLockView {
   private cssW = 0;
   private cssH = 0;
   private ended = false;
+  /** Debug-only: freezes the lock / instability timers (wave stays live). */
+  private debugPaused = false;
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     if (e.key === "Escape") {
       e.preventDefault();
       this.callbacks.onClose?.();
+    } else if (DEBUG_ALLOWED && (e.key === "p" || e.key === "P")) {
+      e.preventDefault();
+      this.debugPaused = !this.debugPaused;
+      this.updateDebugBadge();
     }
   };
 
@@ -192,7 +200,12 @@ export class QualiaLockView {
     abort.addEventListener("click", () => this.callbacks.onClose?.());
     actions.append(this.bannerEl, abort);
 
-    panel.append(header, flagnote, scope, readouts, this.statusEl, meters, controls, actions);
+    // Debug-only affordance: a faint hint that becomes a "TIMERS PAUSED" badge.
+    this.debugEl = el("div", "qualia-debug");
+    if (!DEBUG_ALLOWED) this.debugEl.style.display = "none";
+    this.updateDebugBadge();
+
+    panel.append(header, flagnote, scope, readouts, this.statusEl, meters, this.debugEl, controls, actions);
     this.root.appendChild(panel);
     mount.appendChild(this.root);
 
@@ -206,6 +219,15 @@ export class QualiaLockView {
     cancelAnimationFrame(this.raf);
     document.removeEventListener("keydown", this.onKeyDown);
     this.root.remove();
+  }
+
+  /** Reflects the debug-pause state in the badge (debug builds only). */
+  private updateDebugBadge(): void {
+    if (!DEBUG_ALLOWED) return;
+    this.debugEl.textContent = this.debugPaused
+      ? "⏸ DEBUG · TIMERS PAUSED · [P] resume"
+      : "DEBUG · [P] pause timers";
+    this.debugEl.classList.toggle("is-paused", this.debugPaused);
   }
 
   // --- construction helpers ------------------------------------------------
@@ -273,7 +295,9 @@ export class QualiaLockView {
     this.lastTime = now;
 
     if (!this.ended) {
-      tick(this.state, dt, this.cfg);
+      // Debug pause: a dt=0 tick refreshes alignment/status but holds the lock
+      // and instability timers, so the wave stays live while nothing counts down.
+      tick(this.state, this.debugPaused ? 0 : dt, this.cfg);
       if (this.state.status === "BYPASSED") this.finish("solved");
       else if (this.state.status === "PURGED") this.finish("purged");
     }
