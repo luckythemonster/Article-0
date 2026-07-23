@@ -19,8 +19,17 @@ import { Chest } from "../entities/Chest";
 import { buildAlertNetworkSnapshot } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
 import { setMode, type GameMode } from "../systems/GameState";
-import { PLAYER_DEFAULTS } from "../systems/EntityStats";
-import { initialObjectives, isRunWon, noteTerminalHacked, type ObjectiveState } from "../systems/Objectives";
+import { CERT_ITEM, PLAYER_DEFAULTS, VENT4_DEFAULTS } from "../systems/EntityStats";
+import {
+  initialObjectives,
+  isRunWon,
+  noteTerminalHacked,
+  noteVent4Defeated,
+  type ObjectiveState,
+} from "../systems/Objectives";
+import { Vent4Boss, type Vent4InteractResult } from "../entities/Vent4Boss";
+import { Vent4State, type Vent4Snapshot, type Vent4Transition } from "../systems/Vent4Core";
+import { VENT_CORE_LEVEL } from "../map/VentCoreLevel";
 import { getAudio } from "../systems/AudioDirector";
 import { saveGame, clearSave } from "../systems/SaveGame";
 import { SharedField, WITNESS_RADIUS_TILES } from "../systems/SharedField";
@@ -46,6 +55,7 @@ const ENTITY_LAYERS = new Set([
   "doors",
   "terminals",
   "lasers",
+  "substations",
 ]);
 
 /** How close (in tiles) the player must be to interact with a door/terminal. */
@@ -76,6 +86,8 @@ export class GameScene extends Phaser.Scene {
   private lasers: Laser[] = [];
   private sensors: Sensor[] = [];
   private chests: Chest[] = [];
+  /** VENT-4, present only on the vent_core level. */
+  private vent4?: Vent4Boss;
   private lighting!: Lighting;
   private grid!: CollisionGrid;
   private detection!: DetectionSystem;
@@ -149,6 +161,7 @@ export class GameScene extends Phaser.Scene {
     this.lasers = [];
     this.sensors = [];
     this.chests = [];
+    this.vent4 = undefined;
     this.alert = new AlertState();
     this.transitioning = false;
     this.paused = false;
@@ -189,6 +202,25 @@ export class GameScene extends Phaser.Scene {
     // Darken the level and light it from the `light_sources` — shares the same
     // data DetectionSystem uses, so lit spots are visibly and mechanically hot.
     this.lighting = new Lighting(this, this.level, this.tileSize);
+
+    // VENT-4 lives only in the vent core. Its continuous audio layers are
+    // scene-independent, so silence them on every entry and re-arm to match a
+    // restored mid-fight state (the snapshot survives level swaps via the
+    // registry; resetRun clears it).
+    getAudio().setSuction(false);
+    getAudio().setPurge(false);
+    if (this.level.name === VENT_CORE_LEVEL) {
+      this.vent4 = new Vent4Boss(
+        this,
+        this.level,
+        this.tileSize,
+        this.grid,
+        this.registry.get("vent4State") as Vent4Snapshot | undefined,
+      );
+      if (this.vent4.state === Vent4State.PHASE_2_VACUUM) getAudio().setSuction(true);
+      else if (this.vent4.state === Vent4State.PHASE_3_PURGE) getAudio().setPurge(true);
+    }
+    this.registry.set("vent4", this.vent4 ? this.vent4.hudView() : null);
 
     this.cameras.main.startFollow(this.player.sprite, true, 0.15, 0.15);
     this.cameras.main.setZoom(2);
@@ -417,7 +449,10 @@ export class GameScene extends Phaser.Scene {
     this.codecOpen = open;
     if (open) {
       this.physics.pause();
-      this.scene.launch("CodecScene", { interactive: false });
+      this.scene.launch("CodecScene", {
+        interactive: false,
+        vent4: this.vent4?.canTransmit ?? false,
+      });
     } else {
       this.scene.stop("CodecScene");
       this.physics.resume();
@@ -529,6 +564,15 @@ export class GameScene extends Phaser.Scene {
     if (this.paused || this.codecOpen) {
       this.player.sprite.setVelocity(0, 0);
       if (this.paused && Phaser.Input.Keyboard.JustDown(this.keys.abort)) this.abortToTitle();
+      // The codec's 140.85 transmit finisher: CodecScene raises the flag, and
+      // it must be consumed here — the sim update below never runs while the
+      // overlay is open.
+      if (this.codecOpen && this.registry.get("vent4Transmit") === true) {
+        this.registry.remove("vent4Transmit");
+        const tr = this.vent4?.transmitFinisher() ?? null;
+        this.setCodecOpen(false);
+        if (tr) this.onVent4Transition(tr);
+      }
       return;
     }
 
@@ -580,6 +624,32 @@ export class GameScene extends Phaser.Scene {
       if (before < 1 && s.detection >= 1) {
         this.emitNetworkAlert(s.position, s.stats.alertNetworkRadius);
       }
+    }
+
+    // VENT-4: sweeps/steam/jam clock, then its environmental forces — added
+    // AFTER Player.update's setVelocity so suction and air jets survive the
+    // frame (the player re-sets velocity from input every tick).
+    if (this.vent4) {
+      const tick = this.vent4.update(dt, ctx);
+      maxDetection = Math.max(maxDetection, this.vent4.detection);
+      if (tick.transition) this.onVent4Transition(tick.transition);
+      if (tick.burst) {
+        this.cameras.main.flash(220, 150, 40, 10);
+        this.player.takeDamage(VENT4_DEFAULTS.burstDamage);
+      }
+      if (tick.steamHit && this.player.takeDamage(VENT4_DEFAULTS.steamDamage)) {
+        this.cameras.main.shake(120, 0.004);
+      }
+      if (tick.overheating && this.player.takeDamage(VENT4_DEFAULTS.overheatDamage)) {
+        this.cameras.main.flash(160, 120, 30, 10);
+      }
+      const forces = this.vent4.computeForces(dt, this.player.x, this.player.y);
+      const body = this.player.sprite.body as Phaser.Physics.Arcade.Body;
+      body.velocity.x += forces.vx;
+      body.velocity.y += forces.vy;
+      if (forces.inIntake) this.player.takeDamage(VENT4_DEFAULTS.intakeDamage);
+      this.registry.set("vent4", this.vent4.hudView());
+      this.registry.set("vent4State", this.vent4.snapshot());
     }
 
     // Orderlies: bystanders, not guards — a clear sighting is a one-shot
@@ -690,6 +760,21 @@ export class GameScene extends Phaser.Scene {
     const interactDown = this.keys.interact.isDown;
     const interactJust = Phaser.Input.Keyboard.JustDown(this.keys.interact);
 
+    // --- VENT-4 verbs (sub-stations / winches / pitons / stapler) ---
+    let vent: Vent4InteractResult | undefined;
+    if (this.vent4) {
+      vent = this.vent4.handleInteract(
+        dt,
+        ptx,
+        pty,
+        interactDown,
+        interactJust,
+        (this.registry.get("inventory") as string[] | undefined) ?? [],
+      );
+      if (vent.transition) this.onVent4Transition(vent.transition);
+    }
+    const ventHold = vent?.consumedHold ?? false;
+
     // --- Terminals (hold E) ---
     let nearestTerminal: Terminal | undefined;
     let nearestTerminalDist = Infinity;
@@ -718,10 +803,10 @@ export class GameScene extends Phaser.Scene {
         nearestChest = chest;
       }
     }
-    const searching = !!nearestChest && interactDown && !hacking;
+    const searching = !!nearestChest && interactDown && !hacking && !ventHold;
     if (searching && nearestChest!.open(dt)) this.collectChest(nearestChest!);
     for (const chest of this.chests) {
-      if (chest !== nearestChest || !interactDown || hacking) chest.idle(dt);
+      if (chest !== nearestChest || !interactDown || hacking || ventHold) chest.idle(dt);
     }
 
     // --- Doors (tap E) ---
@@ -738,7 +823,7 @@ export class GameScene extends Phaser.Scene {
 
     // A tap not consumed by a hack opens/closes a door, or uses a hatch —
     // whichever is nearer (a hatch you're standing on always wins).
-    if (!hacking && interactJust) {
+    if (!hacking && !ventHold && interactJust) {
       const hatchDist = hatch ? 0.2 : Infinity;
       if (nearestDoor && nearestDoorDist <= hatchDist) {
         if (nearestDoor.toggle()) {
@@ -759,6 +844,8 @@ export class GameScene extends Phaser.Scene {
       hatch !== undefined,
       nearestChest,
       nearestChestDist,
+      vent?.label,
+      vent?.dist ?? Infinity,
     );
   }
 
@@ -781,12 +868,18 @@ export class GameScene extends Phaser.Scene {
     hatch: boolean,
     chest: Chest | undefined,
     chestDist: number,
+    ventLabel?: string,
+    ventDist = Infinity,
   ): void {
     let label: string | undefined;
     let best = Infinity;
     if (terminal && terminalDist < best) {
       best = terminalDist;
       label = "[E] Hack";
+    }
+    if (ventLabel && ventDist < best) {
+      best = ventDist;
+      label = ventLabel;
     }
     if (chest && chestDist < best) {
       best = chestDist;
@@ -821,6 +914,49 @@ export class GameScene extends Phaser.Scene {
     // Breaching a log-cache terminal recovers EIRA-7's logs (mission objective).
     noteTerminalHacked(this.objectives, terminal.stats.type);
     this.registry.set("objectives", this.objectives);
+  }
+
+  /**
+   * Dresses a VENT-4 state change: continuous audio layers, stingers, and (on
+   * defeat) the compliance cert + optional objective. Banners ride the `vent4`
+   * registry snapshot, and the mood keys off the alert phase as usual — the
+   * boss raises it through reportSighting like every other detector.
+   */
+  private onVent4Transition(tr: Vent4Transition): void {
+    const audio = getAudio();
+    switch (tr.to) {
+      case Vent4State.PHASE_1_SWEEP:
+        audio.setSuction(false);
+        audio.setPurge(false);
+        break;
+      case Vent4State.PHASE_2_VACUUM:
+        audio.setSuction(true);
+        audio.setPurge(false);
+        break;
+      case Vent4State.JAMMED:
+        audio.setSuction(false);
+        audio.jamClunk();
+        break;
+      case Vent4State.PHASE_3_PURGE:
+        audio.setSuction(false);
+        audio.setPurge(true);
+        audio.ping();
+        break;
+      case Vent4State.DEFEATED: {
+        audio.setSuction(false);
+        audio.setPurge(false);
+        audio.vent4Shutdown();
+        const inv = (this.registry.get("inventory") as string[] | undefined) ?? [];
+        if (!inv.includes(CERT_ITEM)) {
+          inv.push(CERT_ITEM);
+          this.registry.set("inventory", inv);
+        }
+        noteVent4Defeated(this.objectives);
+        this.registry.set("objectives", this.objectives);
+        this.cameras.main.flash(400, 60, 200, 220);
+        break;
+      }
+    }
   }
 
   /** Every guard-type unit — enforcers and drones share identical AI/hearNoise. */

@@ -11,6 +11,8 @@
 export interface ObjectiveState {
   /** EIRA-7's logs recovered by breaching a log-cache terminal. */
   logsRecovered: boolean;
+  /** VENT-4 shut down in the vent core. Optional so pre-boss saves still load. */
+  vent4Silenced?: boolean;
 }
 
 /** The level that serves as the Lattice-uplink extraction point. */
@@ -20,12 +22,17 @@ export const EXTRACTION_LEVEL = "main2";
 export const LOG_CACHE_TYPE = "log_cache";
 
 export function initialObjectives(): ObjectiveState {
-  return { logsRecovered: false };
+  return { logsRecovered: false, vent4Silenced: false };
 }
 
 /** Marks the logs recovered if the just-hacked terminal is a log cache. */
 export function noteTerminalHacked(state: ObjectiveState, terminalType: string): void {
   if (terminalType === LOG_CACHE_TYPE) state.logsRecovered = true;
+}
+
+/** Marks VENT-4 shut down (optional objective — doesn't gate the win). */
+export function noteVent4Defeated(state: ObjectiveState): void {
+  state.vent4Silenced = true;
 }
 
 /** The run is won once the logs are recovered and Rowan reaches the uplink level. */
@@ -46,5 +53,6 @@ export function objectiveLines(state: ObjectiveState, currentLevel: string): Obj
       label: "Reach the Lattice uplink (main deck 2)",
       done: state.logsRecovered && currentLevel === EXTRACTION_LEVEL,
     },
+    { label: "(Optional) Silence VENT-4 (vent core)", done: !!state.vent4Silenced },
   ];
 }

@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { EdplayLoader } from "./map/EdplayLoader";
+import { appendVentCore } from "./map/VentCoreLevel";
 import type { EdPlayFile } from "./map/types";
 import { GameScene } from "./scenes/GameScene";
 import { UIScene } from "./scenes/UIScene";
@@ -56,6 +57,9 @@ class BootScene extends Phaser.Scene {
     const raw = this.cache.json.get("edplay") as EdPlayFile;
     const sheetKeys = raw.SpriteSheets.map((s) => s.RelativePath);
     const parsed = EdplayLoader.parse(raw, sheetKeys);
+    // The VENT-4 arena is engine-generated; it must join the map before the
+    // first GameScene builds (and registry-caches) the TransitionGraph.
+    appendVentCore(parsed.map);
     this.registry.set("parsedMap", parsed);
     this.scene.start("TitleScene");
   }

@@ -5,10 +5,12 @@ import { InventoryHud } from "../ui/InventoryHud";
 import { AlertNetworkHud } from "../ui/AlertNetworkHud";
 import { ObjectiveHud } from "../ui/ObjectiveHud";
 import { SharedFieldHud, type SharedFieldView } from "../ui/SharedFieldHud";
+import { Vent4Hud } from "../ui/Vent4Hud";
 import type { AlertPhase } from "../systems/AlertState";
 import type { RadarSnapshot } from "../systems/Radar";
 import type { AlertNetworkSnapshot } from "../systems/AlertNetwork";
 import type { ObjectiveState } from "../systems/Objectives";
+import type { Vent4View } from "../systems/Vent4Core";
 
 /**
  * A parallel overlay scene for the HUD.
@@ -26,6 +28,7 @@ export class UIScene extends Phaser.Scene {
   private network!: AlertNetworkHud;
   private objectives!: ObjectiveHud;
   private sharedField!: SharedFieldHud;
+  private vent4!: Vent4Hud;
   // A tiny stand-in that mirrors the phase the HUD needs to colour itself.
   private readonly alertView = { phase: "INFILTRATION" as AlertPhase };
 
@@ -40,6 +43,7 @@ export class UIScene extends Phaser.Scene {
     this.network = new AlertNetworkHud(this);
     this.objectives = new ObjectiveHud(this);
     this.sharedField = new SharedFieldHud(this);
+    this.vent4 = new Vent4Hud(this);
   }
 
   update(): void {
@@ -63,5 +67,7 @@ export class UIScene extends Phaser.Scene {
 
     const field = this.registry.get("sharedField") as SharedFieldView | undefined;
     if (field) this.sharedField.update(field);
+
+    this.vent4.update((this.registry.get("vent4") as Vent4View | null | undefined) ?? null);
   }
 }

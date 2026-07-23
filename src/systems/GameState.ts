@@ -30,6 +30,9 @@ const RUN_KEYS = [
   "alertNetwork",
   "playerHp",
   "sharedField",
+  "vent4",
+  "vent4State",
+  "vent4Transmit",
 ] as const;
 
 /**
