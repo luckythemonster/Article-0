@@ -18,6 +18,7 @@ import { Sensor } from "../entities/Sensor";
 import { Chest } from "../entities/Chest";
 import { buildAlertNetworkSnapshot } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
+import { setMode } from "../systems/GameState";
 
 /** Data passed to {@link GameScene} when (re)starting for a level swap. */
 interface GameSceneData {
@@ -81,6 +82,8 @@ export class GameScene extends Phaser.Scene {
   private arriveTile?: { x: number; y: number };
   /** A fade + level swap is in flight; input and further triggers are ignored. */
   private transitioning = false;
+  /** True while paused: the PauseScene overlay is shown and the sim is frozen. */
+  private paused = false;
   /**
    * A walk-over transition can only fire once the player has stepped off every
    * transition tile since arriving — otherwise you'd bounce straight back.
@@ -101,6 +104,8 @@ export class GameScene extends Phaser.Scene {
     sneak: Phaser.Input.Keyboard.Key;
     run: Phaser.Input.Keyboard.Key;
     interact: Phaser.Input.Keyboard.Key;
+    pause: Phaser.Input.Keyboard.Key;
+    abort: Phaser.Input.Keyboard.Key;
   };
 
   constructor() {
@@ -131,6 +136,7 @@ export class GameScene extends Phaser.Scene {
     this.chests = [];
     this.alert = new AlertState();
     this.transitioning = false;
+    this.paused = false;
     // Arm only after stepping off the arrival tile (see update()).
     this.transitionArmed = false;
 
@@ -354,7 +360,31 @@ export class GameScene extends Phaser.Scene {
       sneak: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT),
       run: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
       interact: kb.addKey(Phaser.Input.Keyboard.KeyCodes.E),
+      pause: kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC),
+      abort: kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
     };
+  }
+
+  /** Toggles the pause overlay and freezes/thaws the arcade sim. */
+  private setPaused(p: boolean): void {
+    if (p === this.paused) return;
+    this.paused = p;
+    if (p) {
+      this.physics.pause();
+      this.scene.launch("PauseScene");
+    } else {
+      this.scene.stop("PauseScene");
+      this.physics.resume();
+    }
+  }
+
+  /** Abandons the run from the pause overlay and returns to the title. */
+  private abortToTitle(): void {
+    this.setPaused(false);
+    setMode(this.registry, "TITLE");
+    this.scene.stop("UIScene");
+    this.scene.start("TitleScene");
+    this.scene.stop();
   }
 
   private readInput(): InputState {
@@ -374,6 +404,14 @@ export class GameScene extends Phaser.Scene {
     // Freeze the player and skip everything while a fade/level-swap is running.
     if (this.transitioning) {
       this.player.sprite.setVelocity(0, 0);
+      return;
+    }
+
+    // Pause (Esc) freezes the sim behind the PauseScene overlay; Q aborts to title.
+    if (Phaser.Input.Keyboard.JustDown(this.keys.pause)) this.setPaused(!this.paused);
+    if (this.paused) {
+      this.player.sprite.setVelocity(0, 0);
+      if (Phaser.Input.Keyboard.JustDown(this.keys.abort)) this.abortToTitle();
       return;
     }
 
