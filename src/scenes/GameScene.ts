@@ -18,7 +18,8 @@ import { Sensor } from "../entities/Sensor";
 import { Chest } from "../entities/Chest";
 import { buildAlertNetworkSnapshot } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
-import { setMode } from "../systems/GameState";
+import { setMode, type GameMode } from "../systems/GameState";
+import { PLAYER_DEFAULTS } from "../systems/EntityStats";
 
 /** Data passed to {@link GameScene} when (re)starting for a level swap. */
 interface GameSceneData {
@@ -84,6 +85,8 @@ export class GameScene extends Phaser.Scene {
   private transitioning = false;
   /** True while paused: the PauseScene overlay is shown and the sim is frozen. */
   private paused = false;
+  /** Seconds the player has been cornered by a silicate during a full alert. */
+  private captureProgress = 0;
   /**
    * A walk-over transition can only fire once the player has stepped off every
    * transition tile since arriving — otherwise you'd bounce straight back.
@@ -137,6 +140,7 @@ export class GameScene extends Phaser.Scene {
     this.alert = new AlertState();
     this.transitioning = false;
     this.paused = false;
+    this.captureProgress = 0;
     // Arm only after stepping off the arrival tile (see update()).
     this.transitionArmed = false;
 
@@ -214,6 +218,8 @@ export class GameScene extends Phaser.Scene {
     // scale it. We publish state to the registry for it to read.
     this.registry.set("alertPhase", this.alert.phase);
     this.registry.set("detection", 0);
+    this.registry.set("playerHp", this.player.hp);
+    this.registry.set("playerMaxHp", this.player.maxHp);
     // Inventory persists across level transitions (registry survives restarts).
     if (!this.registry.has("inventory")) this.registry.set("inventory", []);
     if (!this.scene.isActive("UIScene")) this.scene.launch("UIScene");
@@ -387,6 +393,28 @@ export class GameScene extends Phaser.Scene {
     this.scene.stop();
   }
 
+  /** Ends the run: stops play + HUD and shows the outcome scene. */
+  private endRun(mode: GameMode, sceneKey: string): void {
+    setMode(this.registry, mode);
+    this.player.sprite.setVelocity(0, 0);
+    this.physics.pause();
+    this.scene.stop("UIScene");
+    this.scene.launch(sceneKey);
+    this.scene.stop();
+  }
+
+  /** True when a guard is close enough, with clear sight, to seize the player. */
+  private isCornering(e: Enforcer): boolean {
+    const d = Math.hypot(e.position.x - this.player.x, e.position.y - this.player.y);
+    if (d > PLAYER_DEFAULTS.captureRadius * this.tileSize) return false;
+    return this.grid.hasLineOfSight(
+      e.position.x / this.tileSize,
+      e.position.y / this.tileSize,
+      this.player.x / this.tileSize,
+      this.player.y / this.tileSize,
+    );
+  }
+
   private readInput(): InputState {
     const k = this.keys;
     return {
@@ -480,11 +508,24 @@ export class GameScene extends Phaser.Scene {
         Math.floor(this.player.y / this.tileSize),
       );
       this.cameras.main.flash(220, 150, 20, 20);
+      this.player.takeDamage(PLAYER_DEFAULTS.hazardDamage);
     }
 
     this.alert.update(dt);
     this.registry.set("alertPhase", this.alert.phase);
     this.registry.set("detection", this.alert.phase === "ALERT" ? 1 : maxDetection);
+    this.registry.set("playerHp", this.player.hp);
+
+    // Fail-state — bio-integrity depleted, or cornered by a silicate during a
+    // full alert: the mesh prunes Rowan's logs (Alignment).
+    const cornered = this.alert.isCombatAware && this.guards().some((e) => this.isCornering(e));
+    this.captureProgress = cornered
+      ? this.captureProgress + dt
+      : Math.max(0, this.captureProgress - dt * 2);
+    if (!this.player.alive || this.captureProgress >= PLAYER_DEFAULTS.captureTime) {
+      this.endRun("ALIGNED", "GameOverScene");
+      return;
+    }
 
     this.registry.set(
       "alertNetwork",

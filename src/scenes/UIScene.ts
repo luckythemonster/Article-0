@@ -38,7 +38,9 @@ export class UIScene extends Phaser.Scene {
   update(): void {
     this.alertView.phase = (this.registry.get("alertPhase") as AlertPhase) ?? "INFILTRATION";
     const detection = (this.registry.get("detection") as number) ?? 0;
-    this.hud.update(this.alertView, detection);
+    const hp = (this.registry.get("playerHp") as number | undefined) ?? 0;
+    const maxHp = (this.registry.get("playerMaxHp") as number | undefined) ?? 1;
+    this.hud.update(this.alertView, detection, hp, maxHp);
 
     const radarSnapshot = this.registry.get("radar") as RadarSnapshot | undefined;
     if (radarSnapshot) this.radar.update(radarSnapshot);

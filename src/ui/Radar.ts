@@ -60,7 +60,9 @@ export class Radar {
       .setVisible(false);
 
     this.reposition();
-    scene.scale.on("resize", () => this.reposition());
+    const onResize = (): void => this.reposition();
+    scene.scale.on("resize", onResize);
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.scale.off("resize", onResize));
   }
 
   private reposition(): void {
