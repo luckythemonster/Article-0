@@ -34,7 +34,7 @@ export interface DebugSnapshot {
 /**
  * A developer inspector panel: FPS, player position, cheat flags, alert phase,
  * and per-unit detection. Pinned to the top-right of the (unzoomed) UIScene and
- * only ever built in dev builds — see the `import.meta.env.DEV` guard in
+ * only ever built when debug mode is allowed — see the `DEBUG_ALLOWED` guard in
  * {@link UIScene}. Follows the same monospace / scroll-factor-0 conventions as
  * {@link Hud}.
  */

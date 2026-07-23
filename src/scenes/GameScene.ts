@@ -33,6 +33,7 @@ import { VENT_CORE_LEVEL } from "../map/VentCoreLevel";
 import { getAudio } from "../systems/AudioDirector";
 import { saveGame, clearSave } from "../systems/SaveGame";
 import { SharedField, WITNESS_RADIUS_TILES } from "../systems/SharedField";
+import { DEBUG_ALLOWED } from "../systems/DebugFlag";
 import type { DebugSnapshot } from "../ui/DebugHud";
 
 /** Data passed to {@link GameScene} when (re)starting for a level swap. */
@@ -121,7 +122,7 @@ export class GameScene extends Phaser.Scene {
   private prompt!: Phaser.GameObjects.Text;
   private hidden!: Phaser.GameObjects.Text;
 
-  // --- Debug mode (dev builds only; see import.meta.env.DEV guards) ---
+  // --- Debug mode (see DEBUG_ALLOWED — dev builds, or an explicit ?debug opt-in) ---
   /** Master switch: the debug panel is shown and the debug hotkeys respond. */
   private debugEnabled = false;
   /** Invincibility — blocks both death paths (HP depletion and capture). */
@@ -260,8 +261,8 @@ export class GameScene extends Phaser.Scene {
 
     this.bindInput();
 
-    // World-space debug overlay (dev only): drawn below the depth-1000 HUD/prompts.
-    if (import.meta.env.DEV) {
+    // World-space debug overlay: drawn below the depth-1000 HUD/prompts.
+    if (DEBUG_ALLOWED) {
       this.debugGfx = this.add.graphics().setDepth(900);
     }
 
@@ -466,8 +467,8 @@ export class GameScene extends Phaser.Scene {
       field: kb.addKey(Phaser.Input.Keyboard.KeyCodes.F),
     };
 
-    // Debug hotkeys exist only in dev builds (stripped from production).
-    if (import.meta.env.DEV) {
+    // Debug hotkeys: dev builds always, deployed builds via the ?debug opt-in.
+    if (DEBUG_ALLOWED) {
       const K = Phaser.Input.Keyboard.KeyCodes;
       this.debugKeys = {
         toggle: kb.addKey(K.BACKTICK),
@@ -625,8 +626,8 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Debug hotkeys (dev only). A warp restarts the scene, so bail this frame.
-    if (import.meta.env.DEV && this.handleDebugInput()) return;
+    // Debug hotkeys. A warp restarts the scene, so bail this frame.
+    if (DEBUG_ALLOWED && this.handleDebugInput()) return;
 
     this.player.update(this.readInput(), dt);
     this.lighting.update(dt);
@@ -792,8 +793,8 @@ export class GameScene extends Phaser.Scene {
       ),
     );
 
-    // Debug mode (dev only): world-space overlay + a state snapshot for the HUD.
-    if (import.meta.env.DEV) {
+    // Debug mode: world-space overlay + a state snapshot for the HUD.
+    if (DEBUG_ALLOWED) {
       this.drawDebugWorld();
       this.registry.set("debug", this.buildDebugSnapshot());
     }
@@ -1029,8 +1030,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ------------------------------------------------------------------ debug --
-  // Everything below is dev-only: the callers are all gated behind
-  // `import.meta.env.DEV`, so Vite strips this out of production builds.
+  // Everything below is only reachable when DEBUG_ALLOWED is true — dev builds,
+  // or a deployed build with the ?debug opt-in (see src/systems/DebugFlag.ts).
 
   /**
    * Reads the debug hotkeys for the frame and applies them. Returns `true` if a

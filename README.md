@@ -37,11 +37,15 @@ npm run build    # tsc --noEmit + vite build
 | C | Open the EIRA-7 codec |
 | Esc | Pause (from the pause screen, Q aborts to the title) |
 
-#### Debug mode (dev builds only)
+#### Debug mode
 
-When running `npm run dev`, a developer debug mode is available. It is gated
-behind Vite's `import.meta.env.DEV`, so it is never bound or activated in a
-production `npm run build` — the hotkeys do nothing there.
+A developer debug mode is always available when running `npm run dev`. On any
+deployed build (including a Vercel preview) it's off by default — a random
+player visiting the site won't have cheats — but you can opt in yourself by
+visiting the page once with `?debug` in the URL (e.g.
+`https://your-preview.vercel.app/?debug`). That's remembered in
+`localStorage`, so it stays on for that browser across refreshes and level
+warps; visit with `?debug=0` to turn it back off.
 
 | Key | Action |
 | --- | --- |
