@@ -206,3 +206,28 @@ export function chestStatsFor(components: ComponentData[]): ChestStats {
     items,
   };
 }
+
+export interface PlayerStats {
+  /** Full bio-integrity (health). */
+  maxHp: number;
+  /** Tiles: a silicate this close, with line of sight, during a full alert seizes you. */
+  captureRadius: number;
+  /** Seconds cornered before the capture (Alignment) completes. */
+  captureTime: number;
+  /** Bio-integrity lost per hazard hit (e.g. a laser). */
+  hazardDamage: number;
+  /** Seconds of invulnerability after taking a hit. */
+  hitCooldown: number;
+}
+
+/**
+ * Player tuning. The map carries no player component, so these are used directly
+ * (unlike the guard/sensor stats, which the map could override).
+ */
+export const PLAYER_DEFAULTS: PlayerStats = {
+  maxHp: 100,
+  captureRadius: 1.3,
+  captureTime: 0.7,
+  hazardDamage: 25,
+  hitCooldown: 1.0,
+};

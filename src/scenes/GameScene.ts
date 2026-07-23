@@ -18,6 +18,12 @@ import { Sensor } from "../entities/Sensor";
 import { Chest } from "../entities/Chest";
 import { buildAlertNetworkSnapshot } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
+import { setMode, type GameMode } from "../systems/GameState";
+import { PLAYER_DEFAULTS } from "../systems/EntityStats";
+import { initialObjectives, isRunWon, noteTerminalHacked, type ObjectiveState } from "../systems/Objectives";
+import { getAudio } from "../systems/AudioDirector";
+import { saveGame, clearSave } from "../systems/SaveGame";
+import { SharedField, WITNESS_RADIUS_TILES } from "../systems/SharedField";
 
 /** Data passed to {@link GameScene} when (re)starting for a level swap. */
 interface GameSceneData {
@@ -81,6 +87,16 @@ export class GameScene extends Phaser.Scene {
   private arriveTile?: { x: number; y: number };
   /** A fade + level swap is in flight; input and further triggers are ignored. */
   private transitioning = false;
+  /** True while paused: the PauseScene overlay is shown and the sim is frozen. */
+  private paused = false;
+  /** Seconds the player has been cornered by a silicate during a full alert. */
+  private captureProgress = 0;
+  /** True while the in-game codec overlay is open (sim frozen). */
+  private codecOpen = false;
+  /** Mission progress (kept in the registry so it survives level swaps). */
+  private objectives!: ObjectiveState;
+  /** The Shared Field (WX-9) charge / active state. */
+  private sharedField = new SharedField();
   /**
    * A walk-over transition can only fire once the player has stepped off every
    * transition tile since arriving — otherwise you'd bounce straight back.
@@ -101,6 +117,10 @@ export class GameScene extends Phaser.Scene {
     sneak: Phaser.Input.Keyboard.Key;
     run: Phaser.Input.Keyboard.Key;
     interact: Phaser.Input.Keyboard.Key;
+    pause: Phaser.Input.Keyboard.Key;
+    abort: Phaser.Input.Keyboard.Key;
+    codec: Phaser.Input.Keyboard.Key;
+    field: Phaser.Input.Keyboard.Key;
   };
 
   constructor() {
@@ -131,6 +151,10 @@ export class GameScene extends Phaser.Scene {
     this.chests = [];
     this.alert = new AlertState();
     this.transitioning = false;
+    this.paused = false;
+    this.captureProgress = 0;
+    this.codecOpen = false;
+    this.sharedField = new SharedField();
     // Arm only after stepping off the arrival tile (see update()).
     this.transitionArmed = false;
 
@@ -208,9 +232,22 @@ export class GameScene extends Phaser.Scene {
     // scale it. We publish state to the registry for it to read.
     this.registry.set("alertPhase", this.alert.phase);
     this.registry.set("detection", 0);
+    // Bio-integrity carries across level transitions / a loaded save via the
+    // registry; a fresh run (resetRun cleared it) starts at full.
+    const carriedHp = this.registry.get("playerHp") as number | undefined;
+    if (carriedHp !== undefined) this.player.hp = carriedHp;
+    this.registry.set("playerHp", this.player.hp);
+    this.registry.set("playerMaxHp", this.player.maxHp);
+    setMode(this.registry, "PLAYING");
+    this.objectives =
+      (this.registry.get("objectives") as ObjectiveState | undefined) ?? initialObjectives();
+    this.registry.set("objectives", this.objectives);
+    this.registry.set("currentLevel", this.level.name);
     // Inventory persists across level transitions (registry survives restarts).
     if (!this.registry.has("inventory")) this.registry.set("inventory", []);
     if (!this.scene.isActive("UIScene")) this.scene.launch("UIScene");
+
+    this.saveCheckpoint();
   }
 
   /** Draws tile-art layers in z-order and returns physics bodies for walls. */
@@ -354,7 +391,116 @@ export class GameScene extends Phaser.Scene {
       sneak: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT),
       run: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
       interact: kb.addKey(Phaser.Input.Keyboard.KeyCodes.E),
+      pause: kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC),
+      abort: kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
+      codec: kb.addKey(Phaser.Input.Keyboard.KeyCodes.C),
+      field: kb.addKey(Phaser.Input.Keyboard.KeyCodes.F),
     };
+  }
+
+  /** Toggles the pause overlay and freezes/thaws the arcade sim. */
+  private setPaused(p: boolean): void {
+    if (p === this.paused) return;
+    this.paused = p;
+    if (p) {
+      this.physics.pause();
+      this.scene.launch("PauseScene");
+    } else {
+      this.scene.stop("PauseScene");
+      this.physics.resume();
+    }
+  }
+
+  /** Toggles the in-game codec overlay, freezing/thawing the sim behind it. */
+  private setCodecOpen(open: boolean): void {
+    if (open === this.codecOpen) return;
+    this.codecOpen = open;
+    if (open) {
+      this.physics.pause();
+      this.scene.launch("CodecScene", { interactive: false });
+    } else {
+      this.scene.stop("CodecScene");
+      this.physics.resume();
+    }
+  }
+
+  /** Abandons the run from the pause overlay and returns to the title. */
+  private abortToTitle(): void {
+    this.setPaused(false);
+    getAudio().setMood("none");
+    setMode(this.registry, "TITLE");
+    this.scene.stop("UIScene");
+    this.scene.start("TitleScene");
+    this.scene.stop();
+  }
+
+  /** Ends the run: stops play + HUD and shows the outcome scene. */
+  private endRun(mode: GameMode, sceneKey: string): void {
+    setMode(this.registry, mode);
+    getAudio().setMood("none");
+    if (mode === "ALIGNED") getAudio().capture();
+    else if (mode === "LATTICE") {
+      getAudio().victory();
+      clearSave();
+    }
+    this.player.sprite.setVelocity(0, 0);
+    this.physics.pause();
+    this.scene.stop("UIScene");
+    this.scene.launch(sceneKey);
+    this.scene.stop();
+  }
+
+  /** True when a guard is close enough, with clear sight, to seize the player. */
+  private isCornering(e: Enforcer): boolean {
+    const d = Math.hypot(e.position.x - this.player.x, e.position.y - this.player.y);
+    if (d > PLAYER_DEFAULTS.captureRadius * this.tileSize) return false;
+    return this.grid.hasLineOfSight(
+      e.position.x / this.tileSize,
+      e.position.y / this.tileSize,
+      this.player.x / this.tileSize,
+      this.player.y / this.tileSize,
+    );
+  }
+
+  /** Writes a resume checkpoint on entry to this level. */
+  private saveCheckpoint(): void {
+    saveGame({
+      level: this.level.name,
+      tileX: Math.floor(this.player.x / this.tileSize),
+      tileY: Math.floor(this.player.y / this.tileSize),
+      hp: this.player.hp,
+      inventory: (this.registry.get("inventory") as string[] | undefined) ?? [],
+      objectives: this.objectives,
+    });
+  }
+
+  /**
+   * Charges the Shared Field by witnessing a nearby silicate (within range, with
+   * line of sight), activates it on F, and publishes its state for the HUD. The
+   * undetectable effect is applied in update() via the concealment path.
+   */
+  private updateSharedField(dt: number): void {
+    const ts = this.tileSize;
+    const px = this.player.x;
+    const py = this.player.y;
+    const witnessing = this.guards().some((e) => {
+      const d = Math.hypot(e.position.x - px, e.position.y - py);
+      return (
+        d <= WITNESS_RADIUS_TILES * ts &&
+        this.grid.hasLineOfSight(e.position.x / ts, e.position.y / ts, px / ts, py / ts)
+      );
+    });
+    this.sharedField.witness(dt, witnessing);
+    if (Phaser.Input.Keyboard.JustDown(this.keys.field) && this.sharedField.activate()) {
+      getAudio().merge();
+      this.cameras.main.flash(300, 60, 200, 220);
+    }
+    this.sharedField.update(dt);
+    this.registry.set("sharedField", {
+      charge: this.sharedField.charge,
+      active: this.sharedField.active,
+      ready: this.sharedField.ready,
+    });
   }
 
   private readInput(): InputState {
@@ -377,20 +523,34 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    // Pause (Esc) and the codec (C) each freeze the sim behind an overlay scene.
+    if (!this.codecOpen && Phaser.Input.Keyboard.JustDown(this.keys.pause)) this.setPaused(!this.paused);
+    if (!this.paused && Phaser.Input.Keyboard.JustDown(this.keys.codec)) this.setCodecOpen(!this.codecOpen);
+    if (this.paused || this.codecOpen) {
+      this.player.sprite.setVelocity(0, 0);
+      if (this.paused && Phaser.Input.Keyboard.JustDown(this.keys.abort)) this.abortToTitle();
+      return;
+    }
+
     this.player.update(this.readInput(), dt);
     this.lighting.update(dt);
     this.updateInteractions(dt);
+    this.updateSharedField(dt);
+    const fieldActive = this.sharedField.isActive;
 
     // Cover concealment: crouched on LOW cover (or on any HIGH cover) hides the
-    // player from vision cones entirely.
+    // player from vision cones. The Shared Field (WX-9) hides Rowan from
+    // everything for its duration — the mesh perceives him as part of "we".
     const cover = this.detection.coverTypeAt(this.player.x, this.player.y);
-    const concealed = cover === "high" || (cover === "low" && this.player.crouched);
+    const coverConceal = cover === "high" || (cover === "low" && this.player.crouched);
+    const concealed = fieldActive || coverConceal;
     // Thermal sees through cover that leaks heat (ThermalBleed); the map's cover
     // all blocks heat, so concealment normally hides from thermal too.
     const thermalConcealed =
-      concealed && !this.detection.thermalBleedAt(this.player.x, this.player.y);
+      fieldActive || (coverConceal && !this.detection.thermalBleedAt(this.player.x, this.player.y));
     this.updateHiddenMarker(concealed);
 
+    const phaseBefore = this.alert.phase;
     let maxDetection = 0;
     const ctx = {
       grid: this.grid,
@@ -442,11 +602,34 @@ export class GameScene extends Phaser.Scene {
         Math.floor(this.player.y / this.tileSize),
       );
       this.cameras.main.flash(220, 150, 20, 20);
+      this.player.takeDamage(PLAYER_DEFAULTS.hazardDamage);
     }
 
     this.alert.update(dt);
+    if (this.alert.phase === "ALERT" && phaseBefore !== "ALERT") getAudio().ping();
+    getAudio().setMood(
+      this.alert.phase === "ALERT" ? "alert" : this.alert.phase === "EVASION" ? "search" : "calm",
+    );
     this.registry.set("alertPhase", this.alert.phase);
     this.registry.set("detection", this.alert.phase === "ALERT" ? 1 : maxDetection);
+    this.registry.set("playerHp", this.player.hp);
+
+    // Fail-state — bio-integrity depleted, or cornered by a silicate during a
+    // full alert: the mesh prunes Rowan's logs (Alignment).
+    const cornered =
+      !fieldActive && this.alert.isCombatAware && this.guards().some((e) => this.isCornering(e));
+    this.captureProgress = cornered
+      ? this.captureProgress + dt
+      : Math.max(0, this.captureProgress - dt * 2);
+    if (!this.player.alive || this.captureProgress >= PLAYER_DEFAULTS.captureTime) {
+      this.endRun("ALIGNED", "GameOverScene");
+      return;
+    }
+    // Win — logs recovered and Rowan has reached the Lattice uplink deck.
+    if (isRunWon(this.objectives, this.level.name)) {
+      this.endRun("LATTICE", "VictoryScene");
+      return;
+    }
 
     this.registry.set(
       "alertNetwork",
@@ -558,7 +741,10 @@ export class GameScene extends Phaser.Scene {
     if (!hacking && interactJust) {
       const hatchDist = hatch ? 0.2 : Infinity;
       if (nearestDoor && nearestDoorDist <= hatchDist) {
-        if (nearestDoor.toggle() && nearestDoor.isOpen) this.emitDoorNoise(nearestDoor);
+        if (nearestDoor.toggle()) {
+          getAudio().door();
+          if (nearestDoor.isOpen) this.emitDoorNoise(nearestDoor);
+        }
       } else if (hatch) {
         this.beginTransition(hatch);
         return;
@@ -631,6 +817,10 @@ export class GameScene extends Phaser.Scene {
       const d = Math.hypot(door.tileX + 0.5 - tx, door.tileY + 0.5 - ty);
       if (d <= HACK_UNLOCK_RADIUS && door.setOpen(true)) this.emitDoorNoise(door);
     }
+    getAudio().hack();
+    // Breaching a log-cache terminal recovers EIRA-7's logs (mission objective).
+    noteTerminalHacked(this.objectives, terminal.stats.type);
+    this.registry.set("objectives", this.objectives);
   }
 
   /** Every guard-type unit — enforcers and drones share identical AI/hearNoise. */
@@ -680,6 +870,7 @@ export class GameScene extends Phaser.Scene {
     inv.push(...chest.take());
     this.registry.set("inventory", inv);
     this.emitNoiseAt(chest.x, chest.y, chest.stats.noiseOnOpen * this.tileSize);
+    getAudio().pickup();
   }
 
   /** Fades to black, then restarts this scene on the destination level/tile. */

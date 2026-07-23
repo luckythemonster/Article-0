@@ -3,6 +3,11 @@ import { EdplayLoader } from "./map/EdplayLoader";
 import type { EdPlayFile } from "./map/types";
 import { GameScene } from "./scenes/GameScene";
 import { UIScene } from "./scenes/UIScene";
+import { TitleScene } from "./scenes/TitleScene";
+import { PauseScene } from "./scenes/PauseScene";
+import { GameOverScene } from "./scenes/GameOverScene";
+import { VictoryScene } from "./scenes/VictoryScene";
+import { CodecScene } from "./scenes/CodecScene";
 import {
   PLAYER_ANIM_DIRS,
   PLAYER_ANIM_FRAME_COUNTS,
@@ -52,7 +57,7 @@ class BootScene extends Phaser.Scene {
     const sheetKeys = raw.SpriteSheets.map((s) => s.RelativePath);
     const parsed = EdplayLoader.parse(raw, sheetKeys);
     this.registry.set("parsedMap", parsed);
-    this.scene.start("GameScene");
+    this.scene.start("TitleScene");
   }
 }
 
@@ -72,5 +77,5 @@ new Phaser.Game({
     default: "arcade",
     arcade: { debug: false },
   },
-  scene: [BootScene, GameScene, UIScene],
+  scene: [BootScene, TitleScene, GameScene, UIScene, CodecScene, PauseScene, GameOverScene, VictoryScene],
 });

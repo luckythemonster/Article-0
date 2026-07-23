@@ -9,6 +9,7 @@ import {
   type PlayerAnimDir,
   type PlayerAnimName,
 } from "./PlayerAnimations";
+import { PLAYER_DEFAULTS } from "../systems/EntityStats";
 
 /**
  * The player-controlled infiltrator, rendered with the PixelLab-generated
@@ -65,6 +66,12 @@ export class Player {
   /** How loud the player currently is (0..1), from movement + stance. */
   noise = 0;
 
+  /** Full and current bio-integrity (health). */
+  readonly maxHp = PLAYER_DEFAULTS.maxHp;
+  hp = PLAYER_DEFAULTS.maxHp;
+  /** Seconds of invulnerability remaining after the last hit. */
+  private hitCooldownLeft = 0;
+
   /**
    * True only once *fully* crouched — not during the lower/rise transitions.
    * Cover concealment keys off this, so tapping Shift can't grant an instant
@@ -72,6 +79,21 @@ export class Player {
    */
   get crouched(): boolean {
     return this.stance === "crouched";
+  }
+
+  get alive(): boolean {
+    return this.hp > 0;
+  }
+
+  /**
+   * Applies damage unless still within the post-hit invulnerability window.
+   * Returns true if the hit landed (so callers can trigger feedback/SFX).
+   */
+  takeDamage(amount: number): boolean {
+    if (this.hitCooldownLeft > 0 || this.hp <= 0) return false;
+    this.hp = Math.max(0, this.hp - amount);
+    this.hitCooldownLeft = PLAYER_DEFAULTS.hitCooldown;
+    return true;
   }
 
   update(cursors: InputState, dt: number): void {
@@ -143,6 +165,15 @@ export class Player {
     }
 
     this.updateScale();
+    this.updateInvuln(dt);
+  }
+
+  /** Ticks the post-hit invulnerability window, flashing the sprite while active. */
+  private updateInvuln(dt: number): void {
+    if (this.hitCooldownLeft <= 0) return;
+    this.hitCooldownLeft = Math.max(0, this.hitCooldownLeft - dt);
+    if (this.hitCooldownLeft === 0) this.sprite.clearTint();
+    else this.sprite.setTint(Math.floor(this.hitCooldownLeft * 12) % 2 === 0 ? 0xffffff : 0xff6b6b);
   }
 
   /**

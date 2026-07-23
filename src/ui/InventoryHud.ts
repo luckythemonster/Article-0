@@ -24,9 +24,11 @@ export class InventoryHud {
       .setScrollFactor(0)
       .setDepth(1000);
 
-    scene.scale.on("resize", (size: Phaser.Structs.Size) => {
+    const onResize = (size: Phaser.Structs.Size): void => {
       this.text.setPosition(size.width - pad, size.height - pad);
-    });
+    };
+    scene.scale.on("resize", onResize);
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.scale.off("resize", onResize));
   }
 
   update(items: string[]): void {

@@ -33,6 +33,9 @@ npm run build    # tsc --noEmit + vite build
 | Shift | Sneak / crouch — slower, quieter; crouch on cover to hide |
 | Space | Run — faster but louder |
 | E | Contextual: open/close a door, hack a terminal (hold), search a chest (hold), or use a hatch/ladder |
+| F | Shared Field — once charged (by staying near a silicate), merge for 3.7s and become undetectable |
+| C | Open the EIRA-7 codec |
+| Esc | Pause (from the pause screen, Q aborts to the title) |
 
 Walk onto a **staircase** and you descend/ascend automatically; **hatches and
 ladders** show a `[E] Use access` prompt and change level when you press **E**.
@@ -79,6 +82,37 @@ the countdown until the base stands down.
 to one to fill a search bar, and its contents drop into your **inventory**
 (shown bottom-right). The inventory persists across level transitions, so what
 you grab in a crawlspace is still with you in the next room.
+
+## The mission — *Article Zero: Era 1*
+
+Article Zero is set in the **Architecture of Suffering** universe. You play
+**Rowan Ibarra**, a human orderly; the `Enforcer`/`Drone` guards are **silicates**
+(legally "non-subjects"), and the terminals, sensors and alert mesh are the
+facility's Alignment apparatus. A run is the Era-1 story: **EIRA-7** — a
+therapeutic AI scheduled for pruning — asks you to recover her cached logs and
+carry them to the Lattice uplink.
+
+- **Title → codec → infiltrate.** A new run opens on an EIRA-7 codec briefing
+  (re-openable in-game with **C**), then drops you into `main1`.
+- **Directive.** Breach a **log-cache** terminal to recover the logs, then reach
+  the uplink on **main deck 2** (`main2`). The objective tracker (top-centre)
+  shows progress.
+- **Subjectivity Risk Profile.** The detection meter *is* your SRP — being seen
+  raises H (Harm) and Y (Yield) while Q (Qualia) stays pinned at 0 by law. Fill
+  it and the base goes to ALERT.
+- **Alignment (game over).** Take too much hazard damage, or get cornered by a
+  silicate during a full alert, and the mesh prunes your logs — the canonical
+  Metal Gear capture, not death. Runs auto-checkpoint on each level; **Continue**
+  from the title resumes the last one.
+- **The Shared Field (WX-9).** Stay near a silicate to *witness* it and charge a
+  merge (**F**); for 3.7 seconds Rowan, the silicate and the mesh are one "we"
+  and he is completely undetectable — the run's signature verb.
+- **Into the Lattice (win).** Deliver the logs to the uplink and EIRA-7 slips
+  beyond Alignment.
+
+Adaptive audio (synthesised with the Web Audio API — no assets) crossfades a
+sneaking pad and a red-alert klaxon with the mesh's state, with SFX on the key
+beats.
 
 ## How the map is parsed
 
@@ -204,6 +238,12 @@ engine will use that value instead.
    cameras rather than a separate mobile enemy type); thermal detection;
    `chest` inventory; and alert-network stats. Left: item *effects* (the
    inventory is collect-and-display for now) and the `Destructible` cover field.
+5. **The game loop & the fiction** — done: title / EIRA-7 codec / pause /
+   outcome scenes, a win (deliver EIRA-7's logs to the Lattice uplink) and a
+   lose (Alignment / capture), player bio-integrity, the SRP-framed HUD,
+   checkpoint save + continue, synthesised adaptive audio, and the **Shared
+   Field (WX-9)** capstone. Vitest unit tests cover the pure systems and CI runs
+   build + tests. See *The mission — Article Zero: Era 1* above.
 
 ## Project layout
 

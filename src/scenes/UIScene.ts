@@ -3,9 +3,12 @@ import { Hud } from "../ui/Hud";
 import { Radar } from "../ui/Radar";
 import { InventoryHud } from "../ui/InventoryHud";
 import { AlertNetworkHud } from "../ui/AlertNetworkHud";
+import { ObjectiveHud } from "../ui/ObjectiveHud";
+import { SharedFieldHud, type SharedFieldView } from "../ui/SharedFieldHud";
 import type { AlertPhase } from "../systems/AlertState";
 import type { RadarSnapshot } from "../systems/Radar";
 import type { AlertNetworkSnapshot } from "../systems/AlertNetwork";
+import type { ObjectiveState } from "../systems/Objectives";
 
 /**
  * A parallel overlay scene for the HUD.
@@ -21,6 +24,8 @@ export class UIScene extends Phaser.Scene {
   private radar!: Radar;
   private inventory!: InventoryHud;
   private network!: AlertNetworkHud;
+  private objectives!: ObjectiveHud;
+  private sharedField!: SharedFieldHud;
   // A tiny stand-in that mirrors the phase the HUD needs to colour itself.
   private readonly alertView = { phase: "INFILTRATION" as AlertPhase };
 
@@ -33,12 +38,16 @@ export class UIScene extends Phaser.Scene {
     this.radar = new Radar(this);
     this.inventory = new InventoryHud(this);
     this.network = new AlertNetworkHud(this);
+    this.objectives = new ObjectiveHud(this);
+    this.sharedField = new SharedFieldHud(this);
   }
 
   update(): void {
     this.alertView.phase = (this.registry.get("alertPhase") as AlertPhase) ?? "INFILTRATION";
     const detection = (this.registry.get("detection") as number) ?? 0;
-    this.hud.update(this.alertView, detection);
+    const hp = (this.registry.get("playerHp") as number | undefined) ?? 0;
+    const maxHp = (this.registry.get("playerMaxHp") as number | undefined) ?? 1;
+    this.hud.update(this.alertView, detection, hp, maxHp);
 
     const radarSnapshot = this.registry.get("radar") as RadarSnapshot | undefined;
     if (radarSnapshot) this.radar.update(radarSnapshot);
@@ -47,5 +56,12 @@ export class UIScene extends Phaser.Scene {
 
     const network = this.registry.get("alertNetwork") as AlertNetworkSnapshot | undefined;
     if (network) this.network.update(network);
+
+    const objState = this.registry.get("objectives") as ObjectiveState | undefined;
+    const level = (this.registry.get("currentLevel") as string | undefined) ?? "";
+    if (objState) this.objectives.update(objState, level);
+
+    const field = this.registry.get("sharedField") as SharedFieldView | undefined;
+    if (field) this.sharedField.update(field);
   }
 }
