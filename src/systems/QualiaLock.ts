@@ -252,3 +252,51 @@ export const DEMO_ROUND: QualiaRound = {
   initialPlayer: DEFAULT_START_PLAYER,
   config: DEFAULT_CONFIG,
 };
+
+/**
+ * Terminal `type` that flags a silicate server rack: breaching one launches the
+ * Qualia Phase-Lock bypass instead of an instant hack. A map can author this
+ * type explicitly; the engine also promotes the terminal nearest the player's
+ * spawn so the trigger is always reachable in play.
+ */
+export const QUALIA_RACK_TERMINAL_TYPE = "qualia_rack";
+
+/** Minimal terminal shape needed to choose a rack (position + resolved type). */
+export interface RackCandidate {
+  type: string;
+  x: number;
+  y: number;
+}
+
+/**
+ * Chooses which terminal to promote to a silicate server rack — the one nearest
+ * `spawn`. Prefers a non-log-cache terminal, but falls back to a log-cache one
+ * (the shipped map types every terminal as a log-cache) while never taking the
+ * last log-cache, which the log-recovery objective needs. Returns the index in
+ * `terminals`, or -1 when none should be promoted (an explicit `qualia_rack`
+ * already exists, or there is nothing to spare).
+ */
+export function pickQualiaRackIndex(
+  terminals: readonly RackCandidate[],
+  spawn: { x: number; y: number },
+  logCacheType: string,
+): number {
+  if (terminals.some((t) => t.type === QUALIA_RACK_TERMINAL_TYPE)) return -1;
+
+  let pool = terminals.map((t, i) => ({ t, i })).filter((e) => e.t.type !== logCacheType);
+  if (pool.length === 0) {
+    if (terminals.length <= 1) return -1; // keep the sole log-cache for the mission
+    pool = terminals.map((t, i) => ({ t, i }));
+  }
+
+  let best = pool[0];
+  let bestD = Math.hypot(best.t.x - spawn.x, best.t.y - spawn.y);
+  for (const e of pool) {
+    const d = Math.hypot(e.t.x - spawn.x, e.t.y - spawn.y);
+    if (d < bestD) {
+      bestD = d;
+      best = e;
+    }
+  }
+  return best.i;
+}

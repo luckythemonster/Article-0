@@ -20,6 +20,7 @@ import { buildAlertNetworkSnapshot } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
 import { setMode, type GameMode } from "../systems/GameState";
 import { CERT_ITEM, PLAYER_DEFAULTS, VENT4_DEFAULTS } from "../systems/EntityStats";
+import { pickQualiaRackIndex, QUALIA_RACK_TERMINAL_TYPE } from "../systems/QualiaLock";
 import {
   initialObjectives,
   isRunWon,
@@ -115,6 +116,12 @@ export class GameScene extends Phaser.Scene {
   private complianceOpen = false;
   /** The log-cache terminal whose breach launched the compliance puzzle. */
   private pendingCompliance?: Terminal;
+  /** True while the Qualia Phase-Lock minigame overlay is open (sim frozen). */
+  private qualiaOpen = false;
+  /** The silicate-rack terminal whose breach launched the qualia bypass. */
+  private pendingQualia?: Terminal;
+  /** The terminal promoted to a silicate server rack in the current level. */
+  private qualiaRack?: Terminal;
   /** Mission progress (kept in the registry so it survives level swaps). */
   private objectives!: ObjectiveState;
   /** The Shared Field (WX-9) charge / active state. */
@@ -202,6 +209,9 @@ export class GameScene extends Phaser.Scene {
     this.codecOpen = false;
     this.complianceOpen = false;
     this.pendingCompliance = undefined;
+    this.qualiaOpen = false;
+    this.pendingQualia = undefined;
+    this.qualiaRack = undefined;
     this.sharedField = new SharedField();
     // Arm only after stepping off the arrival tile (see update()).
     this.transitionArmed = false;
@@ -235,6 +245,7 @@ export class GameScene extends Phaser.Scene {
     const wallBodies = this.renderLevel();
     this.spawnEntities();
     const doorBodies = this.spawnInteractables();
+    this.designateQualiaRack();
 
     this.wallCollider = this.physics.add.collider(this.player.sprite, wallBodies);
     this.doorCollider = this.physics.add.collider(this.player.sprite, doorBodies);
@@ -553,6 +564,42 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Toggles the Qualia Phase-Lock minigame overlay, freezing/thawing the sim. */
+  private setQualiaOpen(open: boolean): void {
+    if (open === this.qualiaOpen) return;
+    this.qualiaOpen = open;
+    if (open) {
+      this.physics.pause();
+      this.registry.remove("qualiaSolved");
+      this.registry.remove("qualiaClosed");
+      this.scene.launch("QualiaLockScene", {});
+    } else {
+      this.scene.stop("QualiaLockScene");
+      this.physics.resume();
+    }
+  }
+
+  /**
+   * Polls the qualia overlay's outcome while it's open. Completing the bypass
+   * runs the normal breach effect (nearby doors released); a purge or abort
+   * re-arms the rack so the spike can be reattempted.
+   */
+  private updateQualiaOverlay(): void {
+    if (this.registry.get("qualiaSolved") === true) {
+      this.registry.remove("qualiaSolved");
+      const term = this.pendingQualia;
+      this.pendingQualia = undefined;
+      this.setQualiaOpen(false);
+      if (term) this.applyHack(term);
+    } else if (this.registry.get("qualiaClosed") === true) {
+      this.registry.remove("qualiaClosed");
+      const term = this.pendingQualia;
+      this.pendingQualia = undefined;
+      this.setQualiaOpen(false);
+      term?.reopen();
+    }
+  }
+
   /** Abandons the run from the pause overlay and returns to the title. */
   private abortToTitle(): void {
     this.setPaused(false);
@@ -652,15 +699,15 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Pause (Esc), the codec (C) and the compliance minigame each freeze the sim
-    // behind an overlay scene. The latter two suppress the pause/codec toggles.
-    if (!this.codecOpen && !this.complianceOpen && Phaser.Input.Keyboard.JustDown(this.keys.pause)) {
+    // Pause (Esc), the codec (C) and the two minigames each freeze the sim behind
+    // an overlay scene. The minigames and codec suppress the pause/codec toggles.
+    if (!this.codecOpen && !this.complianceOpen && !this.qualiaOpen && Phaser.Input.Keyboard.JustDown(this.keys.pause)) {
       this.setPaused(!this.paused);
     }
-    if (!this.paused && !this.complianceOpen && Phaser.Input.Keyboard.JustDown(this.keys.codec)) {
+    if (!this.paused && !this.complianceOpen && !this.qualiaOpen && Phaser.Input.Keyboard.JustDown(this.keys.codec)) {
       this.setCodecOpen(!this.codecOpen);
     }
-    if (this.paused || this.codecOpen || this.complianceOpen) {
+    if (this.paused || this.codecOpen || this.complianceOpen || this.qualiaOpen) {
       this.player.sprite.setVelocity(0, 0);
       if (this.paused && Phaser.Input.Keyboard.JustDown(this.keys.abort)) this.abortToTitle();
       // The codec's 140.85 transmit finisher: CodecScene raises the flag, and
@@ -673,6 +720,7 @@ export class GameScene extends Phaser.Scene {
         if (tr) this.onVent4Transition(tr);
       }
       if (this.complianceOpen) this.updateComplianceOverlay();
+      if (this.qualiaOpen) this.updateQualiaOverlay();
       return;
     }
 
@@ -1026,9 +1074,37 @@ export class GameScene extends Phaser.Scene {
     if (terminal.stats.type === LOG_CACHE_TYPE) {
       this.pendingCompliance = terminal;
       this.setComplianceOpen(true);
+    } else if (this.isQualiaRack(terminal)) {
+      this.pendingQualia = terminal;
+      this.setQualiaOpen(true);
     } else {
       this.applyHack(terminal);
     }
+  }
+
+  /** A terminal is a silicate server rack if authored so, or promoted per level. */
+  private isQualiaRack(terminal: Terminal): boolean {
+    return terminal.stats.type === QUALIA_RACK_TERMINAL_TYPE || terminal === this.qualiaRack;
+  }
+
+  /**
+   * Promotes the terminal nearest the player's arrival point to a silicate server
+   * rack, so breaching it launches the Qualia Phase-Lock bypass. Prefers a plain
+   * terminal, but the shipped map types every terminal as a log-cache, so it will
+   * retype the nearest log-cache instead — never the last one, since the mission
+   * needs a log-cache to recover EIRA-7's logs. Skipped when the level already
+   * authors an explicit `qualia_rack` terminal or has no terminal to spare.
+   */
+  private designateQualiaRack(): void {
+    const idx = pickQualiaRackIndex(
+      this.terminals.map((t) => ({ type: t.stats.type, x: t.x, y: t.y })),
+      { x: this.player.x, y: this.player.y },
+      LOG_CACHE_TYPE,
+    );
+    if (idx < 0) return;
+    const rack = this.terminals[idx];
+    rack.stats.type = QUALIA_RACK_TERMINAL_TYPE;
+    this.qualiaRack = rack;
   }
 
   /** A completed hack releases every door within {@link HACK_UNLOCK_RADIUS}. */

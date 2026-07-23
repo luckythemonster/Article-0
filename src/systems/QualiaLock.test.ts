@@ -2,16 +2,21 @@ import { describe, it, expect } from "vitest";
 import {
   DEFAULT_CONFIG,
   DEFAULT_TARGET,
+  QUALIA_RACK_TERMINAL_TYPE,
   computeAlignment,
   createState,
   meanSquaredError,
+  pickQualiaRackIndex,
   playerWaveAt,
   setPlayer,
   signalDrift,
   targetWaveAt,
   tick,
   type PlayerParams,
+  type RackCandidate,
 } from "./QualiaLock";
+
+const CACHE = "log_cache";
 
 const cfg = DEFAULT_CONFIG;
 const matched: PlayerParams = { ...DEFAULT_TARGET, damping: 0 };
@@ -121,5 +126,34 @@ describe("bypass state machine", () => {
     tick(s, 1, cfg);
     expect(s.status).toBe("BYPASSED");
     expect(s.elapsed).toBe(bankedElapsed); // no further advance
+  });
+});
+
+describe("pickQualiaRackIndex", () => {
+  const spawn = { x: 0, y: 0 };
+  const T = (type: string, x: number, y: number): RackCandidate => ({ type, x, y });
+
+  it("promotes the log-cache nearest spawn when every terminal is a log-cache", () => {
+    // Mirrors the shipped map (all terminals log_cache); index 1 is nearest.
+    const terms = [T(CACHE, 30, 30), T(CACHE, 2, 3), T(CACHE, 20, 5)];
+    expect(pickQualiaRackIndex(terms, spawn, CACHE)).toBe(1);
+  });
+
+  it("keeps the sole log-cache for the log-recovery objective", () => {
+    expect(pickQualiaRackIndex([T(CACHE, 1, 1)], spawn, CACHE)).toBe(-1);
+  });
+
+  it("prefers a plain terminal over a nearer log-cache", () => {
+    const terms = [T(CACHE, 1, 1), T("door", 9, 9)];
+    expect(pickQualiaRackIndex(terms, spawn, CACHE)).toBe(1);
+  });
+
+  it("does nothing when a qualia rack is already authored", () => {
+    const terms = [T(QUALIA_RACK_TERMINAL_TYPE, 5, 5), T(CACHE, 1, 1)];
+    expect(pickQualiaRackIndex(terms, spawn, CACHE)).toBe(-1);
+  });
+
+  it("returns -1 for a level with no terminals", () => {
+    expect(pickQualiaRackIndex([], spawn, CACHE)).toBe(-1);
   });
 });
