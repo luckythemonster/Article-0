@@ -224,286 +224,6 @@
   "path": "assets/player/idle/south/3.png"
  },
  {
-  "anim": "crouch",
-  "direction": "west",
-  "frame": 0,
-  "key": "player-crouch-west-0",
-  "path": "assets/player/crouch/west/0.png"
- },
- {
-  "anim": "crouch",
-  "direction": "west",
-  "frame": 1,
-  "key": "player-crouch-west-1",
-  "path": "assets/player/crouch/west/1.png"
- },
- {
-  "anim": "crouch",
-  "direction": "west",
-  "frame": 2,
-  "key": "player-crouch-west-2",
-  "path": "assets/player/crouch/west/2.png"
- },
- {
-  "anim": "crouch",
-  "direction": "west",
-  "frame": 3,
-  "key": "player-crouch-west-3",
-  "path": "assets/player/crouch/west/3.png"
- },
- {
-  "anim": "crouch",
-  "direction": "west",
-  "frame": 4,
-  "key": "player-crouch-west-4",
-  "path": "assets/player/crouch/west/4.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-west",
-  "frame": 0,
-  "key": "player-crouch-north-west-0",
-  "path": "assets/player/crouch/north-west/0.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-west",
-  "frame": 1,
-  "key": "player-crouch-north-west-1",
-  "path": "assets/player/crouch/north-west/1.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-west",
-  "frame": 2,
-  "key": "player-crouch-north-west-2",
-  "path": "assets/player/crouch/north-west/2.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-west",
-  "frame": 3,
-  "key": "player-crouch-north-west-3",
-  "path": "assets/player/crouch/north-west/3.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-west",
-  "frame": 4,
-  "key": "player-crouch-north-west-4",
-  "path": "assets/player/crouch/north-west/4.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south-east",
-  "frame": 0,
-  "key": "player-crouch-south-east-0",
-  "path": "assets/player/crouch/south-east/0.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south-east",
-  "frame": 1,
-  "key": "player-crouch-south-east-1",
-  "path": "assets/player/crouch/south-east/1.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south-east",
-  "frame": 2,
-  "key": "player-crouch-south-east-2",
-  "path": "assets/player/crouch/south-east/2.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south-east",
-  "frame": 3,
-  "key": "player-crouch-south-east-3",
-  "path": "assets/player/crouch/south-east/3.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south-east",
-  "frame": 4,
-  "key": "player-crouch-south-east-4",
-  "path": "assets/player/crouch/south-east/4.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north",
-  "frame": 0,
-  "key": "player-crouch-north-0",
-  "path": "assets/player/crouch/north/0.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north",
-  "frame": 1,
-  "key": "player-crouch-north-1",
-  "path": "assets/player/crouch/north/1.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north",
-  "frame": 2,
-  "key": "player-crouch-north-2",
-  "path": "assets/player/crouch/north/2.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north",
-  "frame": 3,
-  "key": "player-crouch-north-3",
-  "path": "assets/player/crouch/north/3.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north",
-  "frame": 4,
-  "key": "player-crouch-north-4",
-  "path": "assets/player/crouch/north/4.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south-west",
-  "frame": 0,
-  "key": "player-crouch-south-west-0",
-  "path": "assets/player/crouch/south-west/0.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south-west",
-  "frame": 1,
-  "key": "player-crouch-south-west-1",
-  "path": "assets/player/crouch/south-west/1.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south-west",
-  "frame": 2,
-  "key": "player-crouch-south-west-2",
-  "path": "assets/player/crouch/south-west/2.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south-west",
-  "frame": 3,
-  "key": "player-crouch-south-west-3",
-  "path": "assets/player/crouch/south-west/3.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south-west",
-  "frame": 4,
-  "key": "player-crouch-south-west-4",
-  "path": "assets/player/crouch/south-west/4.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south",
-  "frame": 0,
-  "key": "player-crouch-south-0",
-  "path": "assets/player/crouch/south/0.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south",
-  "frame": 1,
-  "key": "player-crouch-south-1",
-  "path": "assets/player/crouch/south/1.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south",
-  "frame": 2,
-  "key": "player-crouch-south-2",
-  "path": "assets/player/crouch/south/2.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south",
-  "frame": 3,
-  "key": "player-crouch-south-3",
-  "path": "assets/player/crouch/south/3.png"
- },
- {
-  "anim": "crouch",
-  "direction": "south",
-  "frame": 4,
-  "key": "player-crouch-south-4",
-  "path": "assets/player/crouch/south/4.png"
- },
- {
-  "anim": "crouch",
-  "direction": "east",
-  "frame": 0,
-  "key": "player-crouch-east-0",
-  "path": "assets/player/crouch/east/0.png"
- },
- {
-  "anim": "crouch",
-  "direction": "east",
-  "frame": 1,
-  "key": "player-crouch-east-1",
-  "path": "assets/player/crouch/east/1.png"
- },
- {
-  "anim": "crouch",
-  "direction": "east",
-  "frame": 2,
-  "key": "player-crouch-east-2",
-  "path": "assets/player/crouch/east/2.png"
- },
- {
-  "anim": "crouch",
-  "direction": "east",
-  "frame": 3,
-  "key": "player-crouch-east-3",
-  "path": "assets/player/crouch/east/3.png"
- },
- {
-  "anim": "crouch",
-  "direction": "east",
-  "frame": 4,
-  "key": "player-crouch-east-4",
-  "path": "assets/player/crouch/east/4.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-east",
-  "frame": 0,
-  "key": "player-crouch-north-east-0",
-  "path": "assets/player/crouch/north-east/0.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-east",
-  "frame": 1,
-  "key": "player-crouch-north-east-1",
-  "path": "assets/player/crouch/north-east/1.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-east",
-  "frame": 2,
-  "key": "player-crouch-north-east-2",
-  "path": "assets/player/crouch/north-east/2.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-east",
-  "frame": 3,
-  "key": "player-crouch-north-east-3",
-  "path": "assets/player/crouch/north-east/3.png"
- },
- {
-  "anim": "crouch",
-  "direction": "north-east",
-  "frame": 4,
-  "key": "player-crouch-north-east-4",
-  "path": "assets/player/crouch/north-east/4.png"
- },
- {
   "anim": "run",
   "direction": "west",
   "frame": 0,
@@ -950,5 +670,565 @@
   "frame": 3,
   "key": "player-walk-south-east-3",
   "path": "assets/player/walk/south-east/3.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "north-west",
+  "frame": 0,
+  "key": "player-crouch-north-west-0",
+  "path": "assets/player/crouch/north-west/0.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "north-west",
+  "frame": 1,
+  "key": "player-crouch-north-west-1",
+  "path": "assets/player/crouch/north-west/1.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "north-west",
+  "frame": 2,
+  "key": "player-crouch-north-west-2",
+  "path": "assets/player/crouch/north-west/2.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "north-west",
+  "frame": 3,
+  "key": "player-crouch-north-west-3",
+  "path": "assets/player/crouch/north-west/3.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "east",
+  "frame": 0,
+  "key": "player-crouch-east-0",
+  "path": "assets/player/crouch/east/0.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "east",
+  "frame": 1,
+  "key": "player-crouch-east-1",
+  "path": "assets/player/crouch/east/1.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "east",
+  "frame": 2,
+  "key": "player-crouch-east-2",
+  "path": "assets/player/crouch/east/2.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "east",
+  "frame": 3,
+  "key": "player-crouch-east-3",
+  "path": "assets/player/crouch/east/3.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "south-east",
+  "frame": 0,
+  "key": "player-crouch-south-east-0",
+  "path": "assets/player/crouch/south-east/0.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "south-east",
+  "frame": 1,
+  "key": "player-crouch-south-east-1",
+  "path": "assets/player/crouch/south-east/1.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "south-east",
+  "frame": 2,
+  "key": "player-crouch-south-east-2",
+  "path": "assets/player/crouch/south-east/2.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "south-east",
+  "frame": 3,
+  "key": "player-crouch-south-east-3",
+  "path": "assets/player/crouch/south-east/3.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "south-west",
+  "frame": 0,
+  "key": "player-crouch-south-west-0",
+  "path": "assets/player/crouch/south-west/0.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "south-west",
+  "frame": 1,
+  "key": "player-crouch-south-west-1",
+  "path": "assets/player/crouch/south-west/1.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "south-west",
+  "frame": 2,
+  "key": "player-crouch-south-west-2",
+  "path": "assets/player/crouch/south-west/2.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "south-west",
+  "frame": 3,
+  "key": "player-crouch-south-west-3",
+  "path": "assets/player/crouch/south-west/3.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "west",
+  "frame": 0,
+  "key": "player-crouch-west-0",
+  "path": "assets/player/crouch/west/0.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "west",
+  "frame": 1,
+  "key": "player-crouch-west-1",
+  "path": "assets/player/crouch/west/1.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "west",
+  "frame": 2,
+  "key": "player-crouch-west-2",
+  "path": "assets/player/crouch/west/2.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "west",
+  "frame": 3,
+  "key": "player-crouch-west-3",
+  "path": "assets/player/crouch/west/3.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "south",
+  "frame": 0,
+  "key": "player-crouch-south-0",
+  "path": "assets/player/crouch/south/0.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "south",
+  "frame": 1,
+  "key": "player-crouch-south-1",
+  "path": "assets/player/crouch/south/1.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "south",
+  "frame": 2,
+  "key": "player-crouch-south-2",
+  "path": "assets/player/crouch/south/2.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "south",
+  "frame": 3,
+  "key": "player-crouch-south-3",
+  "path": "assets/player/crouch/south/3.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "north",
+  "frame": 0,
+  "key": "player-crouch-north-0",
+  "path": "assets/player/crouch/north/0.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "north",
+  "frame": 1,
+  "key": "player-crouch-north-1",
+  "path": "assets/player/crouch/north/1.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "north",
+  "frame": 2,
+  "key": "player-crouch-north-2",
+  "path": "assets/player/crouch/north/2.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "north",
+  "frame": 3,
+  "key": "player-crouch-north-3",
+  "path": "assets/player/crouch/north/3.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "north-east",
+  "frame": 0,
+  "key": "player-crouch-north-east-0",
+  "path": "assets/player/crouch/north-east/0.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "north-east",
+  "frame": 1,
+  "key": "player-crouch-north-east-1",
+  "path": "assets/player/crouch/north-east/1.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "north-east",
+  "frame": 2,
+  "key": "player-crouch-north-east-2",
+  "path": "assets/player/crouch/north-east/2.png"
+ },
+ {
+  "anim": "crouch",
+  "direction": "north-east",
+  "frame": 3,
+  "key": "player-crouch-north-east-3",
+  "path": "assets/player/crouch/north-east/3.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "south-west",
+  "frame": 0,
+  "key": "player-crouch-walk-south-west-0",
+  "path": "assets/player/crouch-walk/south-west/0.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "south-west",
+  "frame": 1,
+  "key": "player-crouch-walk-south-west-1",
+  "path": "assets/player/crouch-walk/south-west/1.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "south-west",
+  "frame": 2,
+  "key": "player-crouch-walk-south-west-2",
+  "path": "assets/player/crouch-walk/south-west/2.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "south-west",
+  "frame": 3,
+  "key": "player-crouch-walk-south-west-3",
+  "path": "assets/player/crouch-walk/south-west/3.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "south-west",
+  "frame": 4,
+  "key": "player-crouch-walk-south-west-4",
+  "path": "assets/player/crouch-walk/south-west/4.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "south-west",
+  "frame": 5,
+  "key": "player-crouch-walk-south-west-5",
+  "path": "assets/player/crouch-walk/south-west/5.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "north",
+  "frame": 0,
+  "key": "player-crouch-walk-north-0",
+  "path": "assets/player/crouch-walk/north/0.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "north",
+  "frame": 1,
+  "key": "player-crouch-walk-north-1",
+  "path": "assets/player/crouch-walk/north/1.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "north",
+  "frame": 2,
+  "key": "player-crouch-walk-north-2",
+  "path": "assets/player/crouch-walk/north/2.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "north",
+  "frame": 3,
+  "key": "player-crouch-walk-north-3",
+  "path": "assets/player/crouch-walk/north/3.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "north",
+  "frame": 4,
+  "key": "player-crouch-walk-north-4",
+  "path": "assets/player/crouch-walk/north/4.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "north",
+  "frame": 5,
+  "key": "player-crouch-walk-north-5",
+  "path": "assets/player/crouch-walk/north/5.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "south",
+  "frame": 0,
+  "key": "player-crouch-walk-south-0",
+  "path": "assets/player/crouch-walk/south/0.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "south",
+  "frame": 1,
+  "key": "player-crouch-walk-south-1",
+  "path": "assets/player/crouch-walk/south/1.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "south",
+  "frame": 2,
+  "key": "player-crouch-walk-south-2",
+  "path": "assets/player/crouch-walk/south/2.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "south",
+  "frame": 3,
+  "key": "player-crouch-walk-south-3",
+  "path": "assets/player/crouch-walk/south/3.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "south",
+  "frame": 4,
+  "key": "player-crouch-walk-south-4",
+  "path": "assets/player/crouch-walk/south/4.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "south",
+  "frame": 5,
+  "key": "player-crouch-walk-south-5",
+  "path": "assets/player/crouch-walk/south/5.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "north-east",
+  "frame": 0,
+  "key": "player-crouch-walk-north-east-0",
+  "path": "assets/player/crouch-walk/north-east/0.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "north-east",
+  "frame": 1,
+  "key": "player-crouch-walk-north-east-1",
+  "path": "assets/player/crouch-walk/north-east/1.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "north-east",
+  "frame": 2,
+  "key": "player-crouch-walk-north-east-2",
+  "path": "assets/player/crouch-walk/north-east/2.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "north-east",
+  "frame": 3,
+  "key": "player-crouch-walk-north-east-3",
+  "path": "assets/player/crouch-walk/north-east/3.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "north-east",
+  "frame": 4,
+  "key": "player-crouch-walk-north-east-4",
+  "path": "assets/player/crouch-walk/north-east/4.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "north-east",
+  "frame": 5,
+  "key": "player-crouch-walk-north-east-5",
+  "path": "assets/player/crouch-walk/north-east/5.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "north-west",
+  "frame": 0,
+  "key": "player-crouch-walk-north-west-0",
+  "path": "assets/player/crouch-walk/north-west/0.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "north-west",
+  "frame": 1,
+  "key": "player-crouch-walk-north-west-1",
+  "path": "assets/player/crouch-walk/north-west/1.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "north-west",
+  "frame": 2,
+  "key": "player-crouch-walk-north-west-2",
+  "path": "assets/player/crouch-walk/north-west/2.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "north-west",
+  "frame": 3,
+  "key": "player-crouch-walk-north-west-3",
+  "path": "assets/player/crouch-walk/north-west/3.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "north-west",
+  "frame": 4,
+  "key": "player-crouch-walk-north-west-4",
+  "path": "assets/player/crouch-walk/north-west/4.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "north-west",
+  "frame": 5,
+  "key": "player-crouch-walk-north-west-5",
+  "path": "assets/player/crouch-walk/north-west/5.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "west",
+  "frame": 0,
+  "key": "player-crouch-walk-west-0",
+  "path": "assets/player/crouch-walk/west/0.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "west",
+  "frame": 1,
+  "key": "player-crouch-walk-west-1",
+  "path": "assets/player/crouch-walk/west/1.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "west",
+  "frame": 2,
+  "key": "player-crouch-walk-west-2",
+  "path": "assets/player/crouch-walk/west/2.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "west",
+  "frame": 3,
+  "key": "player-crouch-walk-west-3",
+  "path": "assets/player/crouch-walk/west/3.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "west",
+  "frame": 4,
+  "key": "player-crouch-walk-west-4",
+  "path": "assets/player/crouch-walk/west/4.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "west",
+  "frame": 5,
+  "key": "player-crouch-walk-west-5",
+  "path": "assets/player/crouch-walk/west/5.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "south-east",
+  "frame": 0,
+  "key": "player-crouch-walk-south-east-0",
+  "path": "assets/player/crouch-walk/south-east/0.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "south-east",
+  "frame": 1,
+  "key": "player-crouch-walk-south-east-1",
+  "path": "assets/player/crouch-walk/south-east/1.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "south-east",
+  "frame": 2,
+  "key": "player-crouch-walk-south-east-2",
+  "path": "assets/player/crouch-walk/south-east/2.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "south-east",
+  "frame": 3,
+  "key": "player-crouch-walk-south-east-3",
+  "path": "assets/player/crouch-walk/south-east/3.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "south-east",
+  "frame": 4,
+  "key": "player-crouch-walk-south-east-4",
+  "path": "assets/player/crouch-walk/south-east/4.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "south-east",
+  "frame": 5,
+  "key": "player-crouch-walk-south-east-5",
+  "path": "assets/player/crouch-walk/south-east/5.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "east",
+  "frame": 0,
+  "key": "player-crouch-walk-east-0",
+  "path": "assets/player/crouch-walk/east/0.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "east",
+  "frame": 1,
+  "key": "player-crouch-walk-east-1",
+  "path": "assets/player/crouch-walk/east/1.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "east",
+  "frame": 2,
+  "key": "player-crouch-walk-east-2",
+  "path": "assets/player/crouch-walk/east/2.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "east",
+  "frame": 3,
+  "key": "player-crouch-walk-east-3",
+  "path": "assets/player/crouch-walk/east/3.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "east",
+  "frame": 4,
+  "key": "player-crouch-walk-east-4",
+  "path": "assets/player/crouch-walk/east/4.png"
+ },
+ {
+  "anim": "crouch-walk",
+  "direction": "east",
+  "frame": 5,
+  "key": "player-crouch-walk-east-5",
+  "path": "assets/player/crouch-walk/east/5.png"
  }
 ]

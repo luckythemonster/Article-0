@@ -185,11 +185,14 @@ All four were generated with [PixelLab.ai](https://www.pixellab.ai/) (high
 top-down templates) and pulled in via its API, every sprite scaled to ~1.5
 tiles tall:
 
-- **Player** ("Rowan Ibarra", 88x88) — idle/walk/run/crouch cycles in all 8
+- **Player** ("Rowan Ibarra", 88x88) — idle/walk/run cycles in all 8
   directions (`public/assets/player/`, manifest at
   `public/assets/player/manifest.json`). `PlayerAnimations.ts` maps that frame
   layout to Phaser animation keys; facing matches the free 8-directional
-  movement exactly, no direction snapping.
+  movement exactly, no direction snapping. Crouch and crouch-walk come from a
+  second, dedicated "Rowan Ibarra crouched" character sheet (same rig/outfit,
+  posed low) rather than a reskinned standing pose — a settled kneel for
+  standing still in cover, and a distinct low stride for sneaking on the move.
 - **Enforcer** (48x48) — a blocky robotic sentry gliding on magnetic tracks
   with a rotating crown of camera-arms. It shipped with no animations, so its
   "patrol-scan" cycle (the camera-arms sweeping back and forth while it

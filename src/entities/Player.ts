@@ -89,7 +89,7 @@ export class Player {
         ? "crouch"
         : "idle"
       : sneaking
-        ? "crouch"
+        ? "crouch-walk"
         : running
           ? "run"
           : "walk";
