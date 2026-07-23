@@ -81,12 +81,23 @@ export class Player {
     const moving = vx !== 0 || vy !== 0;
     const wantCrouch = cursors.sneak;
 
-    // Kick off a stance transition from a settled state; the one-shot clip
-    // (started in beginTransition) latches the target stance on completion.
+    // Advance a running transition the moment its one-shot clip has finished.
+    // A non-repeating anim sets isPlaying=false and holds its last frame when
+    // done, so this is deterministic — unlike a fire-once animationcomplete
+    // event it can never be missed, so holding Shift always settles into (and
+    // holds) the looping idle crouch instead of freezing on the lower clip.
+    if (
+      (this.stance === "crouching-down" || this.stance === "standing-up") &&
+      !this.sprite.anims.isPlaying
+    ) {
+      this.stance = this.stance === "crouching-down" ? "crouched" : "standing";
+    }
+
+    // Kick off a stance transition from a settled state.
     if (this.stance === "standing" && wantCrouch) {
-      this.beginTransition("crouch-down", "crouched");
+      this.beginTransition("crouch-down");
     } else if (this.stance === "crouched" && !wantCrouch) {
-      this.beginTransition("crouch-up", "standing");
+      this.beginTransition("crouch-up");
     }
 
     const transitioning = this.stance === "crouching-down" || this.stance === "standing-up";
@@ -129,19 +140,12 @@ export class Player {
   }
 
   /** Enters a lower/rise transition: plays the one-shot clip locked to the
-   * current facing, and advances to the target stance when it finishes. */
-  private beginTransition(anim: "crouch-down" | "crouch-up", target: Stance): void {
+   * current facing. `update()` advances to the settled stance once the clip
+   * finishes (see the isPlaying check there). */
+  private beginTransition(anim: "crouch-down" | "crouch-up"): void {
     this.stance = anim === "crouch-down" ? "crouching-down" : "standing-up";
-    const key = playerAnimKey(anim, this.dir);
     this.currentAnim = anim;
-    this.sprite.play(key, true);
-    this.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE_KEY + key, () => {
-      // Only latch if we're still in this transition (guards against a stray
-      // late event after some other state change).
-      if (this.stance === "crouching-down" || this.stance === "standing-up") {
-        this.stance = target;
-      }
-    });
+    this.sprite.play(playerAnimKey(anim, this.dir), true);
   }
 
   private setAnimation(anim: PlayerAnimName, dir: PlayerAnimDir): void {
