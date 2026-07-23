@@ -4,6 +4,11 @@
  * directions were exported per animation, so the sprite's facing matches the
  * free 8-directional movement exactly (no cardinal snapping).
  *
+ * idle/walk/run come from the standing "Rowan Ibarra" character; crouch and
+ * crouch-walk come from a second, dedicated "Rowan Ibarra crouched" character
+ * sheet (same rig/outfit, posed low) — a proper settled kneel for standing
+ * still in cover versus a distinct crouch-sneak stride for moving in it.
+ *
  * Frames live in public/assets/player/<anim>/<direction>/<frame>.png.
  */
 export const PLAYER_ANIM_DIRS = [
@@ -18,14 +23,15 @@ export const PLAYER_ANIM_DIRS = [
 ] as const;
 export type PlayerAnimDir = (typeof PLAYER_ANIM_DIRS)[number];
 
-export type PlayerAnimName = "idle" | "walk" | "run" | "crouch";
+export type PlayerAnimName = "idle" | "walk" | "run" | "crouch" | "crouch-walk";
 
 /** Frame count per animation (same across all 8 directions). */
 export const PLAYER_ANIM_FRAME_COUNTS: Record<PlayerAnimName, number> = {
   idle: 4,
   walk: 4,
   run: 4,
-  crouch: 5,
+  crouch: 4,
+  "crouch-walk": 6,
 };
 
 /** Playback rate (fps) per animation. */
@@ -33,7 +39,8 @@ export const PLAYER_ANIM_FRAME_RATES: Record<PlayerAnimName, number> = {
   idle: 4,
   walk: 6,
   run: 9,
-  crouch: 8,
+  crouch: 4,
+  "crouch-walk": 7,
 };
 
 export function playerFrameKey(anim: PlayerAnimName, dir: PlayerAnimDir, frame: number): string {
