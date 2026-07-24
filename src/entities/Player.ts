@@ -10,6 +10,7 @@ import {
   type PlayerAnimName,
 } from "./PlayerAnimations";
 import { PLAYER_DEFAULTS } from "../systems/EntityStats";
+import { PLAYER_IDLE_SOUTH_COLLIDER } from "./generated/playerCollider";
 
 /**
  * The player-controlled infiltrator, rendered with the PixelLab-generated
@@ -50,14 +51,18 @@ export class Player {
     this.sprite = scene.physics.add.sprite(x, y, playerFrameKey("idle", "south", 0));
     this.sprite.setDepth(500);
 
-    // Scale the 88x88 art to ~1.5 tiles tall, then size the collision body in
-    // the sprite's *unscaled* local space (Arcade Body convention) so it
-    // roughly covers the torso rather than the padded frame.
+    // Scale the 88x88 art to ~1.5 tiles tall, then fit the collision body to
+    // the sprite's alpha silhouette. The box is traced from the art by the
+    // collider generator (`npm run gen:colliders`) rather than hand-tuned, so
+    // it tracks the character instead of the padded frame. Values are in the
+    // sprite's *unscaled* local space (Arcade Body convention).
     const displaySize = tileSize * 1.5;
     this.baseScale = displaySize / 88;
     this.sprite.setScale(this.baseScale);
     const body = this.sprite.body as Phaser.Physics.Arcade.Body;
-    body.setSize(36, 40);
+    const { width, height, offsetX, offsetY } = PLAYER_IDLE_SOUTH_COLLIDER.aabb;
+    body.setSize(width, height);
+    body.setOffset(offsetX, offsetY);
     this.sprite.setCollideWorldBounds(true);
 
     this.sprite.play(playerAnimKey("idle", "south"));
