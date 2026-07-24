@@ -21,6 +21,8 @@ export class Chest {
 
   private opened = false;
   private progress = 0; // seconds accumulated
+  /** The loot still inside; overflow the player can't carry stays here. */
+  private contents: string[];
   private readonly image?: Phaser.GameObjects.Image;
   private readonly bar: Phaser.GameObjects.Graphics;
   private readonly tileSize: number;
@@ -30,6 +32,7 @@ export class Chest {
     this.tileY = tile.y;
     this.tileSize = tileSize;
     this.stats = chestStatsFor(tile.components);
+    this.contents = [...this.stats.items];
     this.x = (tile.x + 0.5) * tileSize + tile.offsetX;
     this.y = (tile.y + 0.5) * tileSize + tile.offsetY;
 
@@ -72,9 +75,24 @@ export class Chest {
     }
   }
 
-  /** The items this chest surrenders (already resolved to default loot if blank). */
+  /** The items this chest currently holds (resolved to default loot if blank). */
   take(): string[] {
-    return this.stats.items;
+    return [...this.contents];
+  }
+
+  /**
+   * Records the loot the scene couldn't take (consumable cap reached). Non-empty
+   * leftovers keep the chest searchable — it re-arms so the player can come back
+   * after freeing a slot; an emptied chest stays open with its looted tint.
+   */
+  retain(leftover: string[]): void {
+    this.contents = [...leftover];
+    if (leftover.length > 0) {
+      this.opened = false;
+      this.progress = 0;
+      this.image?.clearTint();
+      this.bar.setVisible(false);
+    }
   }
 
   private drawBar(visible: boolean): void {

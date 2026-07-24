@@ -43,6 +43,8 @@ export class Orderly {
   private wanderTimer: number;
   private dir: GuardDir = "south";
   private alerted = false;
+  /** Seconds of stun remaining; while > 0 the orderly is frozen and can't witness. */
+  private stunTimer = 0;
 
   private readonly body: Phaser.GameObjects.Sprite;
   private readonly bang: Phaser.GameObjects.Text;
@@ -70,8 +72,24 @@ export class Orderly {
       .setVisible(false);
   }
 
+  /** Freezes the orderly for a stretch (a Stun Rounds dart) — can't witness. */
+  stun(seconds: number): void {
+    this.stunTimer = Math.max(this.stunTimer, seconds);
+    this.moving = false;
+    this.bang.setVisible(false);
+  }
+
   /** True on the exact frame the orderly first spots the player. */
   update(dt: number, ctx: OrderlyContext): boolean {
+    // Stunned: hold still and stay blind until the dart wears off.
+    if (this.stunTimer > 0) {
+      this.stunTimer = Math.max(0, this.stunTimer - dt);
+      this.moving = false;
+      this.body.setPosition(this.x, this.y);
+      this.bang.setPosition(this.x, this.y - ctx.tileSize);
+      return false;
+    }
+
     if (!this.alerted) {
       this.wander(dt, ctx);
     }

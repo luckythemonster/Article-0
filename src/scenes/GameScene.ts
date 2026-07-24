@@ -20,14 +20,26 @@ import { buildAlertNetworkSnapshot } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
 import { setMode, type GameMode } from "../systems/GameState";
 import {
+  BATTERY_ITEM,
   CERT_ITEM,
   CHAFF_PACK_ITEM,
+  countConsumables,
+  FLASHLIGHT_DETECTION_MULTIPLIER,
+  isConsumable,
+  MAX_CONSUMABLES,
   PLAYER_DEFAULTS,
+  RATION_HEAL,
+  RATION_PACK_ITEM,
+  STUN_ROUND_DURATION,
+  STUN_ROUND_NOISE,
+  STUN_ROUND_REACH_TILES,
+  STUN_ROUNDS_ITEM,
   THERMAL_GEL_ITEM,
   VENT4_DEFAULTS,
 } from "../systems/EntityStats";
 import {
   ActiveItemState,
+  CHAFF_PACK_DURATION,
   CHAFF_PACK_RADIUS_TILES,
   type ActiveItemsView,
 } from "../systems/ActiveItems";
@@ -191,6 +203,7 @@ export class GameScene extends Phaser.Scene {
     abort: Phaser.Input.Keyboard.Key;
     codec: Phaser.Input.Keyboard.Key;
     field: Phaser.Input.Keyboard.Key;
+    flashlight: Phaser.Input.Keyboard.Key;
   };
 
   constructor() {
@@ -506,6 +519,7 @@ export class GameScene extends Phaser.Scene {
       abort: kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
       codec: kb.addKey(Phaser.Input.Keyboard.KeyCodes.C),
       field: kb.addKey(Phaser.Input.Keyboard.KeyCodes.F),
+      flashlight: kb.addKey(Phaser.Input.Keyboard.KeyCodes.L),
     };
 
     // Debug hotkeys: dev builds always, deployed builds via the ?debug opt-in.
@@ -717,21 +731,85 @@ export class GameScene extends Phaser.Scene {
       if (idx !== -1) {
         inv.splice(idx, 1);
         this.registry.set("inventory", inv);
-        if (request === CHAFF_PACK_ITEM) {
-          this.activeItems.activateChaff(this.player.x, this.player.y);
-          this.alert.forceEvasion();
-          this.cameras.main.flash(200, 120, 200, 255);
-        } else if (request === THERMAL_GEL_ITEM) {
-          this.activeItems.activateThermalGel();
-        }
+        this.applyConsumable(request);
       }
     }
     this.activeItems.update(dt);
     this.registry.set("activeItems", {
       chaffRemaining: this.activeItems.chaffRemaining,
       thermalRemaining: this.activeItems.thermalRemaining,
+      flashlightOwned: this.activeItems.flashlightOwned,
+      flashlightOn: this.activeItems.flashlightOn,
+      flashlightCharge: this.activeItems.flashlightCharge,
     } satisfies ActiveItemsView);
     this.drawChaffZone();
+  }
+
+  /** Applies a consumable's effect once it's been spent from the inventory. */
+  private applyConsumable(item: string): void {
+    switch (item) {
+      case CHAFF_PACK_ITEM:
+        this.fireChaffBurst();
+        break;
+      case THERMAL_GEL_ITEM:
+        this.activeItems.activateThermalGel();
+        break;
+      case RATION_PACK_ITEM:
+        this.player.heal(RATION_HEAL);
+        getAudio().pickup();
+        break;
+      case BATTERY_ITEM:
+        this.activeItems.rechargeFlashlight();
+        getAudio().pickup();
+        break;
+      case STUN_ROUNDS_ITEM:
+        this.fireStunDart();
+        break;
+    }
+  }
+
+  /**
+   * An instant EMP burst centred on the player: blinds guards and cameras (via
+   * the chaff zone), suppresses lasers within reach, and breaks any active
+   * pursuit into a search — jamming the alert network / clearing alarms.
+   */
+  private fireChaffBurst(): void {
+    this.activeItems.activateChaff(this.player.x, this.player.y);
+    this.alert.forceEvasion();
+    const radiusPx = CHAFF_PACK_RADIUS_TILES * this.tileSize;
+    for (const laser of this.lasers) {
+      if (Math.hypot(laser.x - this.player.x, laser.y - this.player.y) <= radiusPx) {
+        laser.emp(CHAFF_PACK_DURATION);
+      }
+    }
+    this.cameras.main.flash(200, 120, 200, 255);
+  }
+
+  /**
+   * Fires a short stun dart along Rowan's facing: the nearest orderly within
+   * reach and roughly ahead is frozen (can't witness). Firing makes a small noise.
+   */
+  private fireStunDart(): void {
+    const reachPx = STUN_ROUND_REACH_TILES * this.tileSize;
+    const fx = Math.cos(this.player.facing);
+    const fy = Math.sin(this.player.facing);
+    let target: Orderly | undefined;
+    let bestDist = Infinity;
+    for (const orderly of this.orderlies) {
+      const p = orderly.position;
+      const dx = p.x - this.player.x;
+      const dy = p.y - this.player.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > reachPx || dist === 0) continue;
+      // Only orderlies roughly in front of Rowan (within the forward half-plane).
+      if ((dx * fx + dy * fy) / dist < 0.5) continue;
+      if (dist < bestDist) {
+        bestDist = dist;
+        target = orderly;
+      }
+    }
+    target?.stun(STUN_ROUND_DURATION);
+    this.emitNoiseAt(this.player.x, this.player.y, STUN_ROUND_NOISE * this.tileSize);
   }
 
   /** Draws the Chaff Pack's EMP zone while it's live. */
@@ -796,7 +874,16 @@ export class GameScene extends Phaser.Scene {
     if (DEBUG_ALLOWED && this.handleDebugInput()) return;
 
     this.player.update(this.readInput(), dt);
-    this.lighting.update(dt);
+    // Flashlight: L toggles the beam; feed its state to the lighting cone.
+    if (Phaser.Input.Keyboard.JustDown(this.keys.flashlight)) {
+      this.activeItems.toggleFlashlight();
+    }
+    this.lighting.update(
+      dt,
+      this.activeItems.flashlightBeamActive
+        ? { x: this.player.x, y: this.player.y, facing: this.player.facing }
+        : null,
+    );
     this.updateInteractions(dt);
     this.updateSharedField(dt);
     this.updateActiveItems(dt);
@@ -820,7 +907,10 @@ export class GameScene extends Phaser.Scene {
       grid: this.grid,
       tileSize: this.tileSize,
       player: { x: this.player.x, y: this.player.y },
-      lightMultiplierAt: (x: number, y: number) => this.detection.multiplierAt(x, y),
+      // Emitting the flashlight beam makes Rowan far easier to spot in LOS.
+      lightMultiplierAt: (x: number, y: number) =>
+        this.detection.multiplierAt(x, y) *
+        (this.activeItems.flashlightBeamActive ? FLASHLIGHT_DETECTION_MULTIPLIER : 1),
       playerNoise: this.player.noise,
       playerConcealed: concealed,
       playerThermalConcealed: thermalConcealed,
@@ -1407,10 +1497,46 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Empties a searched chest into the persistent inventory and pings guards. */
+  /**
+   * Searches a chest with smart auto-use: a Ration Pack heals immediately if
+   * Rowan is hurt, a Battery tops the flashlight if it's low, and everything
+   * else is stored — but only while under the 4-consumable cap. Key items and
+   * equipment never count against the cap. Anything that can't be used or stored
+   * is left inside the chest, which re-arms so it can be searched again later.
+   */
   private collectChest(chest: Chest): void {
     const inv = (this.registry.get("inventory") as string[] | undefined) ?? [];
-    inv.push(...chest.take());
+    const leftover: string[] = [];
+    let held = countConsumables(inv);
+    const hasRoom = (): boolean => held < MAX_CONSUMABLES;
+
+    for (const item of chest.take()) {
+      if (item === RATION_PACK_ITEM && this.player.hp < this.player.maxHp) {
+        this.player.heal(RATION_HEAL); // auto-consumed on pickup
+        continue;
+      }
+      if (
+        item === BATTERY_ITEM &&
+        this.activeItems.flashlightOwned &&
+        this.activeItems.flashlightCharge < 1
+      ) {
+        this.activeItems.rechargeFlashlight(); // auto-consumed on pickup
+        continue;
+      }
+      if (isConsumable(item)) {
+        if (hasRoom()) {
+          inv.push(item);
+          held++;
+        } else {
+          leftover.push(item); // 4/4 — stays in the chest
+        }
+        continue;
+      }
+      // Key items (Access Chit, EIRA-7 log) and equipment: always stored, uncapped.
+      inv.push(item);
+    }
+
+    chest.retain(leftover);
     this.registry.set("inventory", inv);
     this.emitNoiseAt(chest.x, chest.y, chest.stats.noiseOnOpen * this.tileSize);
     getAudio().pickup();

@@ -101,6 +101,11 @@ export class Player {
     return true;
   }
 
+  /** Restores bio-integrity, capped at {@link maxHp} (Ration Pack). */
+  heal(amount: number): void {
+    this.hp = Math.min(this.maxHp, this.hp + amount);
+  }
+
   update(cursors: InputState, dt: number): void {
     let vx = 0;
     let vy = 0;

@@ -14,7 +14,7 @@ import type { AlertNetworkSnapshot } from "../systems/AlertNetwork";
 import type { ObjectiveState } from "../systems/Objectives";
 import type { Vent4View } from "../systems/Vent4Core";
 import type { ActiveItemsView } from "../systems/ActiveItems";
-import { CHAFF_PACK_ITEM, THERMAL_GEL_ITEM } from "../systems/EntityStats";
+import { consumableSlots } from "../systems/EntityStats";
 
 /**
  * A parallel overlay scene for the HUD.
@@ -37,8 +37,8 @@ export class UIScene extends Phaser.Scene {
   private debug?: DebugHud;
   // A tiny stand-in that mirrors the phase the HUD needs to colour itself.
   private readonly alertView = { phase: "INFILTRATION" as AlertPhase };
-  /** Hotkeys 1/2: use the Chaff Pack / Thermal Gel from the inventory. */
-  private itemKeys!: { one: Phaser.Input.Keyboard.Key; two: Phaser.Input.Keyboard.Key };
+  /** Hotkeys [1]–[4], mapped dynamically to the held consumables each frame. */
+  private itemKeys!: Phaser.Input.Keyboard.Key[];
 
   constructor() {
     super("UIScene");
@@ -54,10 +54,8 @@ export class UIScene extends Phaser.Scene {
     this.vent4 = new Vent4Hud(this);
     if (DEBUG_ALLOWED) this.debug = new DebugHud(this);
 
-    this.itemKeys = {
-      one: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ONE),
-      two: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.TWO),
-    };
+    const K = Phaser.Input.Keyboard.KeyCodes;
+    this.itemKeys = [K.ONE, K.TWO, K.THREE, K.FOUR].map((c) => this.input.keyboard!.addKey(c));
   }
 
   update(): void {
@@ -71,15 +69,19 @@ export class UIScene extends Phaser.Scene {
     if (radarSnapshot) this.radar.update(radarSnapshot);
 
     const items = (this.registry.get("inventory") as string[] | undefined) ?? [];
-    if (Phaser.Input.Keyboard.JustDown(this.itemKeys.one) && items.includes(CHAFF_PACK_ITEM)) {
-      this.registry.set("itemUseRequest", CHAFF_PACK_ITEM);
-    }
-    if (Phaser.Input.Keyboard.JustDown(this.itemKeys.two) && items.includes(THERMAL_GEL_ITEM)) {
-      this.registry.set("itemUseRequest", THERMAL_GEL_ITEM);
+    // Hotkeys [1]–[4] map to the held consumables in canonical slot order.
+    const slots = consumableSlots(items);
+    for (let i = 0; i < this.itemKeys.length; i++) {
+      if (!Phaser.Input.Keyboard.JustDown(this.itemKeys[i])) continue;
+      const slot = slots.find((s) => s.slot === i + 1);
+      if (slot) this.registry.set("itemUseRequest", slot.name);
     }
     const activeItems = (this.registry.get("activeItems") as ActiveItemsView | undefined) ?? {
       chaffRemaining: 0,
       thermalRemaining: 0,
+      flashlightOwned: true,
+      flashlightOn: false,
+      flashlightCharge: 1,
     };
     this.inventory.update(items, activeItems);
 
