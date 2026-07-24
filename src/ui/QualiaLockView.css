@@ -1,9 +1,10 @@
 /*
- * Qualia Phase-Lock minigame styles. Palette follows the codec / compliance
- * overlays (#39d3ff cyan / #ffb03b amber / #ff3b3b red / #070c12 bg /
- * #2b6e7a border, Courier New) so the diagnostic reads as the same Alignment
- * apparatus. Used by both the in-game QualiaLockScene overlay and the demo page.
+ * Qualia Phase-Lock minigame styles. Shared palette + font come from theme.css
+ * (the canonical token set); this file uses var(--c-*) so the diagnostic reads
+ * as the same Alignment apparatus as the codec / compliance overlays. Used by
+ * both the in-game QualiaLockScene overlay and the demo page.
  */
+@import "./theme.css";
 
 .qualia-root {
   position: relative;
@@ -12,7 +13,7 @@
   justify-content: center;
   width: 100%;
   height: 100%;
-  font-family: "Courier New", monospace;
+  font-family: var(--font-mono);
 }
 
 .qualia-panel {
@@ -25,8 +26,8 @@
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
-  background: #070c12;
-  border: 1px solid #2b6e7a;
+  background: var(--c-bg-panel);
+  border: 1px solid var(--c-border);
   box-shadow: 0 0 0 1px rgba(57, 211, 255, 0.08), 0 18px 60px rgba(0, 0, 0, 0.6);
 }
 
@@ -42,18 +43,18 @@
 .qualia-header-title {
   font-size: 14px;
   font-weight: bold;
-  color: #39d3ff;
+  color: var(--c-cyan);
   letter-spacing: 0.5px;
 }
 .qualia-header-sub {
   font-size: 11px;
-  color: #6b7f92;
+  color: var(--c-text-dim);
 }
 
 .qualia-flagnote {
   font-size: 11px;
   line-height: 1.4;
-  color: #ffb03b;
+  color: var(--c-amber);
 }
 
 /* --- oscilloscope --- */
@@ -74,7 +75,7 @@
   padding: 6px 2px 2px;
   font-size: 10px;
   letter-spacing: 0.5px;
-  color: #8fa9b4;
+  color: var(--c-text-muted);
 }
 .qualia-legend-item {
   display: inline-flex;
@@ -87,12 +88,12 @@
   display: inline-block;
 }
 .qualia-swatch--target {
-  background: #39d3ff;
-  box-shadow: 0 0 5px #39d3ff;
+  background: var(--c-cyan);
+  box-shadow: 0 0 5px var(--c-cyan);
 }
 .qualia-swatch--live {
-  background: #ffb03b;
-  box-shadow: 0 0 5px #ffb03b;
+  background: var(--c-amber);
+  box-shadow: 0 0 5px var(--c-amber);
 }
 
 /* --- readouts --- */
@@ -112,18 +113,18 @@
 .qualia-readout-label {
   font-size: 10px;
   letter-spacing: 1px;
-  color: #8899aa;
+  color: var(--c-text-faint);
 }
 .qualia-readout-val {
   font-size: 16px;
   font-weight: bold;
-  color: #bfe3ea;
+  color: var(--c-text);
 }
 .qualia-readout-val.is-ok {
-  color: #5effa0;
+  color: var(--c-green);
 }
 .qualia-readout-val.is-bad {
-  color: #ffb03b;
+  color: var(--c-amber);
 }
 
 /* --- status --- */
@@ -137,11 +138,11 @@
   border: 1px solid rgba(43, 110, 122, 0.35);
 }
 .qualia-status.is-ok {
-  color: #5effa0;
+  color: var(--c-green);
   border-color: rgba(94, 255, 160, 0.5);
 }
 .qualia-status.is-bad {
-  color: #ff5c6a;
+  color: var(--c-red);
   border-color: rgba(255, 92, 106, 0.45);
   animation: qualia-flicker 1.1s infinite steps(2, jump-none);
 }
@@ -163,16 +164,16 @@
   justify-content: space-between;
   font-size: 10px;
   letter-spacing: 1px;
-  color: #8899aa;
+  color: var(--c-text-faint);
   margin-bottom: 3px;
 }
 .qualia-meter-val {
-  color: #bfe3ea;
+  color: var(--c-text);
 }
 .qualia-meter-track {
   height: 8px;
-  background: #11202b;
-  border: 1px solid #2b4356;
+  background: var(--c-track);
+  border: 1px solid var(--c-border-cool);
   overflow: hidden;
 }
 .qualia-fill {
@@ -181,22 +182,22 @@
   transition: width 0.1s linear;
 }
 .qualia-fill--lock {
-  background: #5effa0;
+  background: var(--c-green);
   box-shadow: 0 0 8px rgba(94, 255, 160, 0.6);
 }
 .qualia-fill--inst {
-  background: #ffb03b;
+  background: var(--c-amber);
 }
 
 /* --- debug badge (debug builds only) --- */
 .qualia-debug {
   font-size: 10px;
   letter-spacing: 0.5px;
-  color: #45566a;
+  color: var(--c-text-debug);
   padding: 2px 0;
 }
 .qualia-debug.is-paused {
-  color: #ffe14d;
+  color: var(--c-amber-bright);
   font-weight: bold;
 }
 
@@ -218,15 +219,15 @@
   letter-spacing: 0.5px;
 }
 .qualia-control-label {
-  color: #cfe0f0;
+  color: var(--c-text-strong);
   font-weight: bold;
 }
 .qualia-control-val {
-  color: #39d3ff;
+  color: var(--c-cyan);
 }
 .qualia-slider {
   width: 100%;
-  accent-color: #39d3ff;
+  accent-color: var(--c-cyan);
   cursor: pointer;
 }
 
@@ -246,10 +247,10 @@
   min-height: 14px;
 }
 .qualia-banner.is-solved {
-  color: #5effa0;
+  color: var(--c-green);
 }
 .qualia-banner.is-purged {
-  color: #ff5c6a;
+  color: var(--c-red);
 }
 .qualia-btn {
   padding: 8px 14px;
@@ -259,13 +260,13 @@
   letter-spacing: 0.5px;
   cursor: pointer;
   background: transparent;
-  border: 1px solid #2b6e7a;
-  color: #9fb6c2;
+  border: 1px solid var(--c-border);
+  color: var(--c-text-btn);
   transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
 .qualia-btn--abort:hover {
-  border-color: #ff5c6a;
-  color: #ff5c6a;
+  border-color: var(--c-red);
+  color: var(--c-red);
 }
 
 /* --- keyboard focus --- */
@@ -273,7 +274,7 @@
 .qualia-panel:focus-visible,
 .qualia-btn:focus-visible,
 .qualia-slider:focus-visible {
-  outline: 2px solid #39d3ff;
+  outline: 2px solid var(--c-cyan);
   outline-offset: 2px;
 }
 

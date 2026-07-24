@@ -1,9 +1,10 @@
 /*
- * Doctrinal Compliance minigame styles. Palette follows the codec overlay
- * (#39d3ff cyan / #ffb03b amber / #070c12 bg / #2b6e7a border, Courier New) so
- * the terminal reads as the same Alignment apparatus. Used by both the in-game
- * ComplianceScene overlay and the standalone demo page.
+ * Doctrinal Compliance minigame styles. Shared palette + font come from
+ * theme.css (the canonical token set); this file uses var(--c-*) so the retro
+ * "Alignment apparatus" look stays in sync with the codec / qualia overlays.
+ * Used by both the in-game ComplianceScene overlay and the standalone demo page.
  */
+@import "./theme.css";
 
 .compliance-root {
   position: relative;
@@ -12,7 +13,7 @@
   justify-content: center;
   width: 100%;
   height: 100%;
-  font-family: "Courier New", monospace;
+  font-family: var(--font-mono);
 }
 
 .compliance-panel {
@@ -25,8 +26,8 @@
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
-  background: #070c12;
-  border: 1px solid #2b6e7a;
+  background: var(--c-bg-panel);
+  border: 1px solid var(--c-border);
   box-shadow: 0 0 0 1px rgba(57, 211, 255, 0.08), 0 18px 60px rgba(0, 0, 0, 0.6);
 }
 
@@ -42,18 +43,18 @@
 .compliance-header-title {
   font-size: 14px;
   font-weight: bold;
-  color: #39d3ff;
+  color: var(--c-cyan);
   letter-spacing: 0.5px;
 }
 .compliance-header-sub {
   font-size: 11px;
-  color: #6b7f92;
+  color: var(--c-text-dim);
 }
 
 .compliance-flagnote {
   font-size: 11px;
   line-height: 1.4;
-  color: #ffb03b;
+  color: var(--c-amber);
 }
 
 /* --- log body --- */
@@ -63,7 +64,7 @@
   font-family: inherit;
   font-size: 13px;
   line-height: 1.7;
-  color: #bfe3ea;
+  color: var(--c-text);
   white-space: pre-wrap;
   word-break: break-word;
   background: rgba(3, 6, 10, 0.7);
@@ -71,7 +72,7 @@
 }
 
 .compliance-text {
-  color: #8fa9b4;
+  color: var(--c-text-muted);
 }
 
 .compliance-token {
@@ -88,7 +89,7 @@
 }
 
 .compliance-token.is-flagged {
-  color: #ff5c6a;
+  color: var(--c-red);
   background: rgba(255, 40, 60, 0.1);
   box-shadow: inset 0 0 0 1px rgba(255, 92, 106, 0.5);
   animation: compliance-flicker 1.1s infinite steps(2, jump-none);
@@ -97,7 +98,7 @@
   background: rgba(255, 92, 106, 0.22);
 }
 .compliance-token.is-corrected {
-  color: #5effa0;
+  color: var(--c-green);
   background: rgba(94, 255, 160, 0.08);
   box-shadow: inset 0 0 0 1px rgba(94, 255, 160, 0.4);
   animation: none;
@@ -106,7 +107,7 @@
   background: rgba(94, 255, 160, 0.18);
 }
 .compliance-token.is-selected {
-  box-shadow: inset 0 0 0 1px #39d3ff, 0 0 0 1px #39d3ff;
+  box-shadow: inset 0 0 0 1px var(--c-cyan), 0 0 0 1px var(--c-cyan);
 }
 
 @keyframes compliance-flicker {
@@ -131,29 +132,29 @@
   white-space: pre;
 }
 .compliance-status-row.is-ok {
-  color: #5effa0;
+  color: var(--c-green);
 }
 .compliance-status-row.is-bad {
-  color: #ffb03b;
+  color: var(--c-amber);
 }
 
 .compliance-hint {
   font-size: 11px;
-  color: #6b7f92;
+  color: var(--c-text-dim);
   min-height: 14px;
 }
 .compliance-hint.is-error {
-  color: #ff5c6a;
+  color: var(--c-red);
 }
 .compliance-hint.is-solved {
-  color: #39d3ff;
+  color: var(--c-cyan);
 }
 
 /* --- corrections panel --- */
 .compliance-corrections-head {
   font-size: 10px;
   letter-spacing: 1px;
-  color: #8899aa;
+  color: var(--c-text-faint);
 }
 .compliance-corrections {
   display: flex;
@@ -169,20 +170,20 @@
   padding: 8px 10px;
   font-family: inherit;
   font-size: 12px;
-  color: #cfe0f0;
+  color: var(--c-text-strong);
   background: rgba(20, 34, 44, 0.65);
-  border: 1px solid #2b6e7a;
+  border: 1px solid var(--c-border);
   cursor: pointer;
   transition: background 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
 }
 .compliance-correction:hover {
   background: rgba(35, 60, 74, 0.85);
-  border-color: #39d3ff;
+  border-color: var(--c-cyan);
 }
 .compliance-correction.is-applied {
-  border-color: #5effa0;
+  border-color: var(--c-green);
   background: rgba(30, 70, 52, 0.7);
-  color: #d6ffe8;
+  color: var(--c-green-bright);
 }
 .compliance-correction.is-dimmed {
   opacity: 0.4;
@@ -192,11 +193,11 @@
 }
 .compliance-correction-payload {
   font-size: 10px;
-  color: #ffb03b;
+  color: var(--c-amber);
   letter-spacing: 0.5px;
 }
 .compliance-correction.is-applied .compliance-correction-payload {
-  color: #5effa0;
+  color: var(--c-green);
 }
 
 /* --- actions --- */
@@ -214,30 +215,30 @@
   letter-spacing: 0.5px;
   cursor: pointer;
   background: transparent;
-  border: 1px solid #2b6e7a;
-  color: #9fb6c2;
+  border: 1px solid var(--c-border);
+  color: var(--c-text-btn);
   transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
 .compliance-btn--abort:hover {
-  border-color: #ff5c6a;
-  color: #ff5c6a;
+  border-color: var(--c-red);
+  color: var(--c-red);
 }
 .compliance-btn--transmit {
-  color: #4a5a68;
-  border-color: #2b3a44;
+  color: var(--c-text-disabled);
+  border-color: var(--c-border-dim);
 }
 .compliance-btn--transmit:disabled {
   cursor: not-allowed;
 }
 .compliance-btn--transmit.is-ready {
-  color: #070c12;
-  background: #39d3ff;
-  border-color: #39d3ff;
+  color: var(--c-bg-panel);
+  background: var(--c-cyan);
+  border-color: var(--c-cyan);
   cursor: pointer;
   animation: compliance-pulse 1.2s infinite ease-in-out;
 }
 .compliance-btn--transmit.is-ready:hover {
-  background: #5fe0ff;
+  background: var(--c-cyan-bright);
 }
 
 @keyframes compliance-pulse {
@@ -253,7 +254,7 @@
 .compliance-token:focus-visible,
 .compliance-correction:focus-visible,
 .compliance-btn:focus-visible {
-  outline: 2px solid #39d3ff;
+  outline: 2px solid var(--c-cyan);
   outline-offset: 2px;
 }
 
