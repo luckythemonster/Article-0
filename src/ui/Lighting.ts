@@ -10,12 +10,27 @@ const DARK_ALPHA = 0.62;
 
 const DARK_COLOR = 0x05070a;
 
+/** Size (px) of the generated flashlight-cone stamp texture. */
+const CONE_SIZE = 256;
+/** Half-angle of the flashlight cone, in radians (~30° each side). */
+const CONE_HALF_ANGLE = Math.PI / 6;
+/** Reach of the flashlight cone, in tiles. */
+const CONE_RANGE_TILES = 5.5;
+
 interface Light {
   x: number;
   y: number;
   radiusPx: number;
   flicker: boolean;
   phase: number;
+}
+
+/** The player's flashlight beam, or null when it isn't emitting. */
+export interface FlashlightBeam {
+  x: number;
+  y: number;
+  /** Facing angle in radians. */
+  facing: number;
 }
 
 /**
@@ -33,13 +48,20 @@ interface Light {
 export class Lighting {
   private readonly rt: Phaser.GameObjects.RenderTexture;
   private readonly stamp: Phaser.GameObjects.Image;
+  private readonly coneStamp: Phaser.GameObjects.Image;
+  private readonly beamRangePx: number;
   private readonly lights: Light[] = [];
   private readonly hasFlicker: boolean;
   private time = 0;
+  /** The active flashlight beam this frame, or null. */
+  private beam: FlashlightBeam | null = null;
+  /** Whether the beam was drawn last frame — so turning it off triggers a clear. */
+  private lastBeamOn = false;
 
   constructor(scene: Phaser.Scene, level: GameLevel, tileSize: number) {
     const worldW = level.width * tileSize;
     const worldH = level.height * tileSize;
+    this.beamRangePx = CONE_RANGE_TILES * tileSize;
 
     const lightLayer = level.layers.find((l) => l.name === "light_sources");
     if (lightLayer) {
@@ -57,7 +79,10 @@ export class Lighting {
     this.hasFlicker = this.lights.some((l) => l.flicker);
 
     Lighting.ensureGradientTexture(scene);
+    Lighting.ensureConeTexture(scene);
     this.stamp = scene.make.image({ key: "light-gradient", add: false }).setOrigin(0.5);
+    // Apex-anchored so rotation pivots at the player and the cone opens forward.
+    this.coneStamp = scene.make.image({ key: "flashlight-cone", add: false }).setOrigin(0, 0.5);
 
     this.rt = scene.add
       .renderTexture(0, 0, worldW, worldH)
@@ -67,8 +92,18 @@ export class Lighting {
     this.draw();
   }
 
-  update(dt: number): void {
-    if (!this.hasFlicker) return; // static scene — the one-time draw stands.
+  /**
+   * @param beam the player's flashlight beam, or null when it isn't emitting.
+   */
+  update(dt: number, beam: FlashlightBeam | null = null): void {
+    this.beam = beam;
+    const beamOn = beam !== null;
+    // Redraw when a flickering light animates, the beam is on, or the beam just
+    // turned off (one final frame to clear the cone). Otherwise the static draw
+    // stands and we skip the reflow.
+    const needRedraw = this.hasFlicker || beamOn || this.lastBeamOn;
+    this.lastBeamOn = beamOn;
+    if (!needRedraw) return;
     this.time += dt;
     this.draw();
   }
@@ -88,6 +123,15 @@ export class Lighting {
       this.stamp.setPosition(l.x, l.y).setScale(scale).setAlpha(alpha);
       this.rt.erase(this.stamp);
     }
+    // The player's flashlight: a forward-facing bright cone carved into the dark.
+    if (this.beam) {
+      this.coneStamp
+        .setPosition(this.beam.x, this.beam.y)
+        .setRotation(this.beam.facing)
+        .setScale(this.beamRangePx / CONE_SIZE)
+        .setAlpha(1);
+      this.rt.erase(this.coneStamp);
+    }
   }
 
   /** Builds (once) the soft radial-gradient stamp: opaque centre → clear edge. */
@@ -104,6 +148,29 @@ export class Lighting {
       g.fillCircle(c, c, r);
     }
     g.generateTexture("light-gradient", GRADIENT_SIZE, GRADIENT_SIZE);
+    g.destroy();
+  }
+
+  /**
+   * Builds (once) the flashlight-cone stamp: a sector with its apex at the left
+   * edge (local origin), opening toward +x, brightest at the apex and softening
+   * along its reach — nested slices give the radial falloff, same idea as the
+   * light-pool gradient.
+   */
+  private static ensureConeTexture(scene: Phaser.Scene): void {
+    if (scene.textures.exists("flashlight-cone")) return;
+    const g = scene.make.graphics({ x: 0, y: 0 });
+    const apexY = CONE_SIZE / 2;
+    const steps = 48;
+    for (let i = steps; i > 0; i--) {
+      const r = (CONE_SIZE * i) / steps;
+      // Alpha rises toward the apex; stacked sectors make a smooth falloff.
+      const a = 0.03 + 0.85 * (1 - i / steps);
+      g.fillStyle(0xffffff, a);
+      g.slice(0, apexY, r, -CONE_HALF_ANGLE, CONE_HALF_ANGLE, false);
+      g.fillPath();
+    }
+    g.generateTexture("flashlight-cone", CONE_SIZE, CONE_SIZE);
     g.destroy();
   }
 }

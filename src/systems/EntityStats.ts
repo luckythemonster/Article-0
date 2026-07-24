@@ -244,6 +244,107 @@ export const CHAFF_PACK_ITEM = "Chaff Pack";
 /** Consumable: thermal-masking buff (hotkey 2). */
 export const THERMAL_GEL_ITEM = "Thermal Gel";
 
+/** Consumable: restores bio-integrity (heals Rowan). */
+export const RATION_PACK_ITEM = "Ration Pack";
+
+/** Consumable: recharges the flashlight battery to full. */
+export const BATTERY_ITEM = "Battery";
+
+/** Consumable: a dart that stuns Orderly bystanders. */
+export const STUN_ROUNDS_ITEM = "Stun Rounds";
+
+/** Equipment: the toggleable flashlight (does not count against the consumable cap). */
+export const FLASHLIGHT_ITEM = "Flashlight";
+
+/** Key item: a door-access credential (does not count against the consumable cap). */
+export const ACCESS_CHIT_ITEM = "Access Chit";
+
+/** Key item: a recovered EIRA-7 mission log (does not count against the consumable cap). */
+export const EIRA7_LOG_ITEM = "EIRA-7 Cached Log";
+
+// --- Item tuning ---------------------------------------------------------
+
+/** Seconds of continuous flashlight use to drain from 100% to 0%. */
+export const FLASHLIGHT_DRAIN_SECONDS = 45;
+/** Detection-rate multiplier applied while the flashlight beam is emitting. */
+export const FLASHLIGHT_DETECTION_MULTIPLIER = 1.8;
+/** Radius (tiles) of a Chaff Pack's EMP burst, centred on the player. */
+export const CHAFF_EMP_RADIUS_TILES = 4;
+/** Seconds a Chaff Pack's EMP burst disables electronics / blinds guards. */
+export const CHAFF_EMP_DURATION = 6;
+/** Seconds a Thermal Gel dose grants thermal immunity. */
+export const THERMAL_GEL_SECONDS = 12;
+/** Bio-integrity restored by a manually-used Ration Pack. */
+export const RATION_HEAL = 35;
+/** Reach (tiles) of a Stun Rounds dart. */
+export const STUN_ROUND_REACH_TILES = 5;
+/** Seconds an Orderly stays stunned after being hit by a dart. */
+export const STUN_ROUND_DURATION = 8;
+/** Noise ping (0..1) emitted when firing a Stun Rounds dart. */
+export const STUN_ROUND_NOISE = 0.2;
+
+// --- Item taxonomy -------------------------------------------------------
+
+/**
+ * The consumables that map to hotkeys [1]–[4], in canonical slot order. Held
+ * consumables fill slots dynamically (unheld names are skipped), so e.g. a
+ * player holding only Thermal Gel + Ration Pack sees them as [1] and [2].
+ */
+export const CONSUMABLE_ORDER = [
+  CHAFF_PACK_ITEM,
+  THERMAL_GEL_ITEM,
+  RATION_PACK_ITEM,
+  BATTERY_ITEM,
+  STUN_ROUNDS_ITEM,
+] as const;
+
+/** Hard cap on the total number of consumables held at once. */
+export const MAX_CONSUMABLES = 4;
+
+/** Passive items that persist and never count against the consumable cap. */
+export const KEY_ITEMS = [ACCESS_CHIT_ITEM, EIRA7_LOG_ITEM] as const;
+
+/** True when an item name is one of the capped, hotkey-usable consumables. */
+export function isConsumable(name: string): boolean {
+  return (CONSUMABLE_ORDER as readonly string[]).includes(name);
+}
+
+/** True when an item name is a passive key item (uncapped). */
+export function isKeyItem(name: string): boolean {
+  return (KEY_ITEMS as readonly string[]).includes(name);
+}
+
+/** Total consumables currently held — the value checked against {@link MAX_CONSUMABLES}. */
+export function countConsumables(items: string[]): number {
+  return items.filter(isConsumable).length;
+}
+
+/** One occupied consumable hotkey slot. */
+export interface ConsumableSlot {
+  /** Hotkey number, 1..MAX_CONSUMABLES. */
+  slot: number;
+  /** The consumable item name. */
+  name: string;
+  /** How many of it are held. */
+  count: number;
+}
+
+/**
+ * Maps held consumables to hotkey slots [1]..N (N ≤ {@link MAX_CONSUMABLES}) in
+ * {@link CONSUMABLE_ORDER}, skipping names the player isn't carrying. Shared by
+ * the inventory HUD and the UIScene hotkey reader so both agree on the mapping.
+ */
+export function consumableSlots(items: string[]): ConsumableSlot[] {
+  const slots: ConsumableSlot[] = [];
+  for (const name of CONSUMABLE_ORDER) {
+    const count = items.filter((i) => i === name).length;
+    if (count === 0) continue;
+    slots.push({ slot: slots.length + 1, name, count });
+    if (slots.length >= MAX_CONSUMABLES) break;
+  }
+  return slots;
+}
+
 export interface Vent4Stats {
   /** Compliance Index at the start of the encounter (the boss "health", 100→0). */
   complianceStart: number;

@@ -32,6 +32,8 @@ export class Laser {
   private sweep = 0;
   /** Debounce so one crossing trips once, not every frame. */
   private crossing = false;
+  /** Seconds of EMP suppression remaining; while > 0 the hazard is forced off. */
+  private empTimer = 0;
 
   private readonly cx: number;
   private readonly cy: number;
@@ -63,8 +65,20 @@ export class Laser {
     this.draw();
   }
 
+  /** Suppresses this hazard for a stretch (a Chaff Pack EMP burst). */
+  emp(seconds: number): void {
+    this.empTimer = Math.max(this.empTimer, seconds);
+  }
+
   update(dt: number): void {
     this.sweep += dt * 2.4;
+    // While EMP-suppressed the hazard holds off — no pulse toggle, no trip.
+    if (this.empTimer > 0) {
+      this.empTimer = Math.max(0, this.empTimer - dt);
+      this.active = false;
+      this.draw();
+      return;
+    }
     this.timer -= dt;
     if (this.timer <= 0) {
       this.active = !this.active;
@@ -73,6 +87,14 @@ export class Laser {
       this.timer = this.active ? on : off;
     }
     this.draw();
+  }
+
+  /** World-space centre of the hazard (used to test EMP-burst reach). */
+  get x(): number {
+    return this.cx;
+  }
+  get y(): number {
+    return this.cy;
   }
 
   /** True on the frame the player first enters this hazard while it's active. */
