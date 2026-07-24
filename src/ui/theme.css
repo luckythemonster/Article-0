@@ -1,0 +1,49 @@
+/*
+ * Shared design tokens for the "Alignment apparatus" overlay UI — the single
+ * source of truth for the retro terminal palette and font. The three overlay
+ * stylesheets (ComplianceView.css, QualiaLockView.css, CodecScene.css) @import
+ * this file and reference the variables instead of repeating hex literals.
+ *
+ * Only the opaque identity colours and the font live here. Decorative rgba()
+ * alpha variants (glows, translucent fills) stay inline in each stylesheet —
+ * they are local tints of these bases, not palette entries.
+ *
+ * The page-shell inline <style> blocks in index.html / *-demo.html keep their
+ * own literals: they paint before this bundled CSS loads, so referencing these
+ * vars there would risk a flash of unstyled colour.
+ */
+
+:root {
+  /* --- accents --- */
+  --c-cyan: #39d3ff;
+  --c-cyan-bright: #5fe0ff;
+  --c-amber: #ffb03b;
+  --c-amber-bright: #ffe14d;
+  --c-red: #ff5c6a;
+  --c-red-deep: #ff3b3b;
+  --c-green: #5effa0;
+  --c-green-bright: #d6ffe8;
+
+  /* --- surfaces --- */
+  --c-bg-panel: #070c12;
+  --c-bg-scope: #03070c;
+  --c-track: #11202b;
+
+  /* --- structure --- */
+  --c-border: #2b6e7a;
+  --c-border-cool: #2b4356;
+  --c-border-dim: #2b3a44;
+
+  /* --- text ramp (brightest → faintest) --- */
+  --c-text: #bfe3ea;
+  --c-text-strong: #cfe0f0;
+  --c-text-btn: #9fb6c2;
+  --c-text-muted: #8fa9b4;
+  --c-text-faint: #8899aa;
+  --c-text-dim: #6b7f92;
+  --c-text-disabled: #4a5a68;
+  --c-text-debug: #45566a;
+
+  /* --- type --- */
+  --font-mono: "Courier New", monospace;
+}
