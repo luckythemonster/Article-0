@@ -61,4 +61,29 @@ describe("SaveGame", () => {
     localStorage.setItem("article-zero-save", JSON.stringify({ level: "main1" }));
     expect(loadGame()).toBeNull();
   });
+
+  it("rejects out-of-range or corrupted field values", () => {
+    const base = { version: 1, ...sample };
+    const bad: Array<Record<string, unknown>> = [
+      { ...base, hp: Number.NaN }, // non-finite HP
+      { ...base, hp: -5 }, // negative HP
+      { ...base, tileX: -1 }, // off-grid tile
+      { ...base, tileY: 2.5 }, // fractional tile
+      { ...base, level: "" }, // empty level id
+      { ...base, inventory: ["ok", 7] }, // non-string inventory entry
+      { ...base, objectives: {} }, // missing logsRecovered
+      { ...base, objectives: { logsRecovered: "yes" } }, // wrong type
+    ];
+    for (const payload of bad) {
+      localStorage.setItem("article-zero-save", JSON.stringify(payload));
+      expect(loadGame()).toBeNull();
+    }
+  });
+
+  it("accepts a well-formed payload with optional objective fields", () => {
+    saveGame({ ...sample, objectives: { logsRecovered: true, vent4Silenced: true } });
+    const loaded = loadGame();
+    expect(loaded?.objectives.logsRecovered).toBe(true);
+    expect(loaded?.objectives.vent4Silenced).toBe(true);
+  });
 });

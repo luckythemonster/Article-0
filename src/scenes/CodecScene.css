@@ -82,3 +82,10 @@
   color: #6b7f92;
   text-align: center;
 }
+
+/* The panel takes programmatic focus when the codec opens; show a keyboard-only
+   ring so focus is visible without disturbing pointer users. */
+.codec-panel:focus-visible {
+  outline: 2px solid #39d3ff;
+  outline-offset: 2px;
+}

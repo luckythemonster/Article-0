@@ -9,9 +9,9 @@
  * FREQUENCY / PHASE / DAMPING sliders. A `requestAnimationFrame` loop advances
  * the pure {@link QualiaLockState} core, redraws both waves, and refreshes the
  * SIGNAL_DRIFT / ALIGNMENT / STATUS readouts plus the phase-lock and
- * instability meters. Sustaining ≥95% alignment for the lock duration fires
- * `onSolved`; the instability meter filling fires `onPurged`; ABORT / Esc fires
- * `onClose`.
+ * instability meters. Sustaining alignment at or above the config's
+ * `lockThreshold` (≥85%) for the lock duration fires `onSolved`; the
+ * instability meter filling fires `onPurged`; ABORT / Esc fires `onClose`.
  */
 import {
   createState,
@@ -26,6 +26,7 @@ import {
   type QualiaRound,
 } from "../systems/QualiaLock";
 import { DEBUG_ALLOWED } from "../systems/DebugFlag";
+import { captureModalFocus, el } from "./dom";
 import "./QualiaLockView.css";
 
 export interface QualiaLockViewCallbacks {
@@ -64,18 +65,6 @@ function mix(a: RGB, b: RGB, t: number): string {
   return `rgb(${r}, ${g}, ${bl})`;
 }
 
-/** Small typed helper for building elements. */
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className?: string,
-  text?: string,
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
-
 export class QualiaLockView {
   private readonly cfg: QualiaLockConfig;
   private readonly callbacks: QualiaLockViewCallbacks;
@@ -105,6 +94,8 @@ export class QualiaLockView {
   private ended = false;
   /** Debug-only: freezes the lock / instability timers (wave stays live). */
   private debugPaused = false;
+  /** Restores focus to wherever it was when the overlay opened. */
+  private restoreFocus?: () => void;
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     if (e.key === "Escape") {
@@ -124,13 +115,19 @@ export class QualiaLockView {
     this.yMax = round.config.amplitudeRange[1] + 0.2;
 
     this.root = el("div", "qualia-root");
+
+    // Expose the panel as a modal dialog for assistive tech; tabindex -1 lets
+    // it take programmatic focus without joining the tab order.
     const panel = el("div", "qualia-panel");
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+    panel.setAttribute("aria-labelledby", "qualia-title");
+    panel.tabIndex = -1;
 
     const header = el("div", "qualia-header");
-    header.append(
-      el("span", "qualia-header-title", "◎ QUALIA PHASE-LOCK — DIAGNOSTIC BYPASS"),
-      el("span", "qualia-header-sub", "NW-SMAC-01 · SILICATE RACK · Q0 MASK"),
-    );
+    const title = el("span", "qualia-header-title", "◎ QUALIA PHASE-LOCK — DIAGNOSTIC BYPASS");
+    title.id = "qualia-title";
+    header.append(title, el("span", "qualia-header-sub", "NW-SMAC-01 · SILICATE RACK · Q0 MASK"));
 
     const flagnote = el(
       "div",
@@ -141,6 +138,9 @@ export class QualiaLockView {
     // --- oscilloscope ---
     const scope = el("div", "qualia-scope");
     this.canvas = el("canvas", "qualia-canvas");
+    // Decorative: the SIGNAL_DRIFT / ALIGNMENT / STATUS readouts below are the
+    // accessible equivalent of the oscilloscope trace.
+    this.canvas.setAttribute("aria-hidden", "true");
     scope.appendChild(this.canvas);
     const legend = el("div", "qualia-legend");
     const legCyan = el("span", "qualia-legend-item");
@@ -163,7 +163,11 @@ export class QualiaLockView {
       this.readoutRow("ALIGNMENT", this.alignEl),
     );
 
+    // A polite live region so phase-lock status transitions are announced.
     this.statusEl = el("div", "qualia-status");
+    this.statusEl.setAttribute("role", "status");
+    this.statusEl.setAttribute("aria-live", "polite");
+    this.statusEl.setAttribute("aria-atomic", "true");
 
     // --- meters ---
     const meters = el("div", "qualia-meters");
@@ -210,6 +214,7 @@ export class QualiaLockView {
     mount.appendChild(this.root);
 
     document.addEventListener("keydown", this.onKeyDown);
+    this.restoreFocus = captureModalFocus(panel);
     this.lastTime = performance.now();
     this.raf = requestAnimationFrame(this.frame);
   }
@@ -218,6 +223,8 @@ export class QualiaLockView {
   destroy(): void {
     cancelAnimationFrame(this.raf);
     document.removeEventListener("keydown", this.onKeyDown);
+    this.restoreFocus?.();
+    this.restoreFocus = undefined;
     this.root.remove();
   }
 
@@ -272,9 +279,15 @@ export class QualiaLockView {
     input.max = String(max);
     input.step = String(step);
     input.value = String(initial);
+    // The visible label is a sibling span, not a <label>, so name the control
+    // explicitly and keep a human-readable value (with unit) for screen readers.
+    input.setAttribute("aria-label", label);
+    input.setAttribute("aria-valuetext", initial.toFixed(2) + unit);
     input.addEventListener("input", () => {
       const v = Number(input.value);
-      value.textContent = v.toFixed(2) + unit;
+      const formatted = v.toFixed(2) + unit;
+      value.textContent = formatted;
+      input.setAttribute("aria-valuetext", formatted);
       onInput(v);
     });
     row.append(head, input);
