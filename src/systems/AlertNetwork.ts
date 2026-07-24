@@ -57,3 +57,32 @@ export function buildAlertNetworkSnapshot(
     countdown: alert.remaining,
   };
 }
+
+/**
+ * Anti-exploit: tracks recent noise pings by tile so repeated distractions
+ * in the same area stop being free. Record each ping's origin tile; once more
+ * than `threshold` pings land within `radiusTiles` of a new one inside
+ * `windowSec`, guards should skip individual SUSPICIOUS investigation and
+ * escalate straight to a base-wide alert instead.
+ */
+export class NoiseSpamTracker {
+  private pings: { x: number; y: number; time: number }[] = [];
+
+  constructor(
+    private readonly radiusTiles: number = 4,
+    private readonly windowSec: number = 10,
+    private readonly threshold: number = 2,
+  ) {}
+
+  /** Records a ping at (tileX, tileY) at `now` (seconds) and reports spam. */
+  record(tileX: number, tileY: number, now: number): boolean {
+    this.pings = this.pings.filter((p) => now - p.time <= this.windowSec);
+    const nearby = this.pings.filter(
+      (p) => Math.hypot(p.x - tileX, p.y - tileY) <= this.radiusTiles,
+    ).length;
+    this.pings.push({ x: tileX, y: tileY, time: now });
+    // Include the ping just recorded: > threshold pings (e.g. a 3rd within a
+    // threshold of 2) counts as spam.
+    return nearby + 1 > this.threshold;
+  }
+}

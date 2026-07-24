@@ -103,4 +103,13 @@ export class CollisionGrid {
     }
     return true;
   }
+
+  /**
+   * {@link hasLineOfSight} for callers working in pixel space — divides both
+   * endpoints by `tileSize` before delegating. Used by guards checking sight
+   * to a noise's pixel origin.
+   */
+  lineOfSightPx(x0: number, y0: number, x1: number, y1: number, tileSize: number): boolean {
+    return this.hasLineOfSight(x0 / tileSize, y0 / tileSize, x1 / tileSize, y1 / tileSize);
+  }
 }

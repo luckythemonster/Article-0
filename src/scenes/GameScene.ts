@@ -8,7 +8,7 @@ import { AlertState } from "../systems/AlertState";
 import { TransitionGraph } from "../systems/TransitionGraph";
 import { buildRadarSnapshot } from "../systems/Radar";
 import { Player, type InputState } from "../entities/Player";
-import { Enforcer } from "../entities/Enforcer";
+import { Enforcer, type GuardAnomaly } from "../entities/Enforcer";
 import { Drone } from "../entities/Drone";
 import { Orderly } from "../entities/Orderly";
 import { Door } from "../entities/Door";
@@ -16,7 +16,7 @@ import { Terminal } from "../entities/Terminal";
 import { Laser } from "../entities/Laser";
 import { Sensor } from "../entities/Sensor";
 import { Chest } from "../entities/Chest";
-import { buildAlertNetworkSnapshot } from "../systems/AlertNetwork";
+import { buildAlertNetworkSnapshot, NoiseSpamTracker } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
 import { setMode, type GameMode } from "../systems/GameState";
 import {
@@ -94,6 +94,9 @@ const HACK_UNLOCK_RADIUS = 6;
 /** Radius (tiles) a spotted orderly's alarm carries to nearby guards. */
 const ORDERLY_ALERT_RADIUS_TILES = 6;
 
+/** Backup radius (tiles) when repeated noise pings in one area escalate straight to ALERT. */
+const SPAM_ESCALATION_RADIUS_TILES = 8;
+
 /** Debug warp targets, indexed by the number keys 1..5 (dev-only). */
 const DEBUG_WARP_LEVELS = ["main1", "main2", "duct1", "duct2", VENT_CORE_LEVEL];
 
@@ -122,6 +125,8 @@ export class GameScene extends Phaser.Scene {
   private grid!: CollisionGrid;
   private detection!: DetectionSystem;
   private alert = new AlertState();
+  /** Anti-exploit: escalates repeated noise pings in the same area straight to ALERT. */
+  private noiseSpam = new NoiseSpamTracker();
   private transitions!: TransitionGraph;
 
   /** Where this scene run should start (level + optional arrival tile). */
@@ -234,6 +239,7 @@ export class GameScene extends Phaser.Scene {
     this.chests = [];
     this.vent4 = undefined;
     this.alert = new AlertState();
+    this.noiseSpam = new NoiseSpamTracker();
     this.transitioning = false;
     this.paused = false;
     this.captureProgress = 0;
@@ -903,6 +909,11 @@ export class GameScene extends Phaser.Scene {
 
     const phaseBefore = this.alert.phase;
     let maxDetection = 0;
+    const chaffZone =
+      this.activeItems.chaffActive && this.activeItems.chaffOrigin
+        ? { ...this.activeItems.chaffOrigin, radiusPx: CHAFF_PACK_RADIUS_TILES * this.tileSize }
+        : null;
+    const playerBody = this.player.sprite.body as Phaser.Physics.Arcade.Body;
     const ctx = {
       grid: this.grid,
       tileSize: this.tileSize,
@@ -916,11 +927,12 @@ export class GameScene extends Phaser.Scene {
       playerThermalConcealed: thermalConcealed,
       thermalRadiusMultiplier: (base: number) =>
         this.detection.thermalRadiusFor(base, this.activeItems.thermalMasked),
-      chaffZone:
-        this.activeItems.chaffActive && this.activeItems.chaffOrigin
-          ? { ...this.activeItems.chaffOrigin, radiusPx: CHAFF_PACK_RADIUS_TILES * this.tileSize }
-          : null,
+      chaffZone,
       alert: this.alert,
+      // Opened doors/chests, EMP'd devices and stunned orderlies, for anomaly scanning.
+      anomalies: this.buildAnomalies(chaffZone),
+      playerVelocity: { x: playerBody.velocity.x, y: playerBody.velocity.y },
+      coverTilesNear: (tx: number, ty: number, r: number) => this.coverTilesNear(tx, ty, r),
     };
     // Debug freeze-world (H) short-circuits every AI/hazard update below by
     // iterating nothing (or ticking with 0), so patrols, cones, lasers, VENT-4,
@@ -1471,12 +1483,102 @@ export class GameScene extends Phaser.Scene {
     this.emitNoiseAt(orderly.position.x, orderly.position.y, ORDERLY_ALERT_RADIUS_TILES * this.tileSize);
   }
 
+  /**
+   * Minor investigations (a single noise ping) never broadcast over the alert
+   * network — only the individual guard(s) in earshot react. But repeated
+   * pings in the same area within a short window are a distraction exploit:
+   * once {@link NoiseSpamTracker} flags spam, skip per-guard investigation
+   * entirely and radio it in as a confirmed sighting instead.
+   */
   private emitNoiseAt(cx: number, cy: number, radiusPx: number): void {
     if (radiusPx <= 0) return;
+    const tx = Math.floor(cx / this.tileSize);
+    const ty = Math.floor(cy / this.tileSize);
+    if (this.noiseSpam.record(tx, ty, this.time.now / 1000)) {
+      this.alert.reportSighting(tx, ty);
+      this.emitNetworkAlert({ x: cx, y: cy }, SPAM_ESCALATION_RADIUS_TILES);
+      return;
+    }
     for (const e of this.guards()) {
       const d = Math.hypot(e.position.x - cx, e.position.y - cy);
       if (d < radiusPx) e.hearNoise(1 - d / radiusPx, cx, cy);
     }
+  }
+
+  /** Opened doors/chests, EMP'd cameras/lasers, and stunned orderlies this frame. */
+  private buildAnomalies(chaffZone: { x: number; y: number; radiusPx: number } | null): GuardAnomaly[] {
+    const anomalies: GuardAnomaly[] = [];
+
+    for (const door of this.doors) {
+      if (!door.isOpen) continue;
+      anomalies.push({
+        x: (door.tileX + 0.5) * this.tileSize,
+        y: (door.tileY + 0.5) * this.tileSize,
+        tx: door.tileX,
+        ty: door.tileY,
+        kind: "door",
+        key: `door:${door.tileX}:${door.tileY}`,
+      });
+    }
+
+    for (const chest of this.chests) {
+      if (!chest.isOpen) continue;
+      anomalies.push({
+        x: chest.x,
+        y: chest.y,
+        tx: chest.tileX,
+        ty: chest.tileY,
+        kind: "chest",
+        key: `chest:${chest.tileX}:${chest.tileY}`,
+      });
+    }
+
+    for (const laser of this.lasers) {
+      if (!laser.isEmped) continue;
+      const tx = Math.floor(laser.x / this.tileSize);
+      const ty = Math.floor(laser.y / this.tileSize);
+      anomalies.push({ x: laser.x, y: laser.y, tx, ty, kind: "device", key: `device:laser:${tx}:${ty}` });
+    }
+
+    if (chaffZone) {
+      for (const sensor of this.sensors) {
+        const p = sensor.position;
+        if (Math.hypot(p.x - chaffZone.x, p.y - chaffZone.y) > chaffZone.radiusPx) continue;
+        const tx = Math.floor(p.x / this.tileSize);
+        const ty = Math.floor(p.y / this.tileSize);
+        anomalies.push({ x: p.x, y: p.y, tx, ty, kind: "device", key: `device:camera:${tx}:${ty}` });
+      }
+    }
+
+    for (const orderly of this.orderlies) {
+      if (!orderly.isStunned) continue;
+      const p = orderly.position;
+      const tx = Math.floor(p.x / this.tileSize);
+      const ty = Math.floor(p.y / this.tileSize);
+      anomalies.push({ x: p.x, y: p.y, tx, ty, kind: "stunnedOrderly", key: `orderly:${tx}:${ty}` });
+    }
+
+    return anomalies;
+  }
+
+  /** Cover tile centers (pixels) within `radiusTiles` of a tile position — used for smart search points. */
+  private coverTilesNear(tileX: number, tileY: number, radiusTiles: number): { x: number; y: number }[] {
+    const out: { x: number; y: number }[] = [];
+    const minX = Math.max(0, Math.floor(tileX - radiusTiles));
+    const maxX = Math.min(this.level.width - 1, Math.ceil(tileX + radiusTiles));
+    const minY = Math.max(0, Math.floor(tileY - radiusTiles));
+    const maxY = Math.min(this.level.height - 1, Math.ceil(tileY + radiusTiles));
+    for (let ty = minY; ty <= maxY; ty++) {
+      for (let tx = minX; tx <= maxX; tx++) {
+        if (Math.hypot(tx - tileX, ty - tileY) > radiusTiles) continue;
+        if (this.grid.isBlocked(tx, ty)) continue;
+        const px = (tx + 0.5) * this.tileSize;
+        const py = (ty + 0.5) * this.tileSize;
+        if (this.detection.coverTypeAt(px, py) === undefined) continue;
+        out.push({ x: px, y: py });
+      }
+    }
+    return out;
   }
 
   /**
