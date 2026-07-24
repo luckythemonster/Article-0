@@ -267,3 +267,25 @@
   border-color: #ff5c6a;
   color: #ff5c6a;
 }
+
+/* --- keyboard focus --- */
+/* Keyboard-only focus rings; :focus-visible leaves pointer interaction as-is. */
+.qualia-panel:focus-visible,
+.qualia-btn:focus-visible,
+.qualia-slider:focus-visible {
+  outline: 2px solid #39d3ff;
+  outline-offset: 2px;
+}
+
+/* --- reduced motion --- */
+/* The status flicker is decorative; STATUS text and colour carry the meaning.
+   The oscilloscope RAF loop is core gameplay and intentionally left running. */
+@media (prefers-reduced-motion: reduce) {
+  .qualia-status.is-bad {
+    animation: none;
+  }
+  .qualia-fill,
+  .qualia-btn {
+    transition: none;
+  }
+}

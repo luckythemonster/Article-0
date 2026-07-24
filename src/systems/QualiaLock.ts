@@ -5,8 +5,9 @@
  * A statutory **Q0 baseline** wave (`target`) is fixed by regulation; the rack's
  * live signal (`player`) is erratic and must be *masked* onto that baseline by
  * hand. The player drives AMPLITUDE / FREQUENCY / PHASE (+ an optional DAMPING
- * envelope) until the two waves overlay, then must **sustain ≥95% alignment**
- * for `lockDuration` seconds to complete the bypass. Letting alignment rot below
+ * envelope) until the two waves overlay, then must **sustain alignment at or
+ * above `lockThreshold`** (the shipped rounds use 0.85) for `lockDuration`
+ * seconds to complete the bypass. Letting alignment rot below
  * `instabilityThreshold` fills an escalating hazard meter that trips an
  * automated purge.
  *

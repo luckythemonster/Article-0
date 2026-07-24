@@ -3,6 +3,7 @@ import { createFrame, type Frame, type FrameSettings } from "@arwes/frames";
 import { initialObjectives, objectiveLines, type ObjectiveState } from "../systems/Objectives";
 import { setMode } from "../systems/GameState";
 import { getAudio } from "../systems/AudioDirector";
+import { captureModalFocus } from "../ui/dom";
 import "./CodecScene.css";
 
 const CODEC_ROOT_ID = "codec-root";
@@ -71,6 +72,7 @@ export class CodecScene extends Phaser.Scene {
   private vent4 = false;
   private veil?: HTMLDivElement;
   private frame?: Frame;
+  private restoreFocus?: () => void;
 
   constructor() {
     super("CodecScene");
@@ -93,13 +95,20 @@ export class CodecScene extends Phaser.Scene {
 
     const panel = document.createElement("div");
     panel.className = showBand ? "codec-panel codec-panel--band" : "codec-panel";
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+    panel.setAttribute("aria-labelledby", "codec-title");
+    panel.tabIndex = -1;
 
     const svg = document.createElementNS(SVG_NS, "svg");
     svg.setAttribute("class", "codec-frame-svg");
+    // Decorative frame border; the panel's text carries the accessible content.
+    svg.setAttribute("aria-hidden", "true");
     panel.appendChild(svg);
 
     const header = document.createElement("div");
     header.className = "codec-header";
+    header.id = "codec-title";
     header.textContent = "◎ CODEC — INCOMING     140.85 · 37 Hz";
 
     const body = document.createElement("pre");
@@ -132,6 +141,7 @@ export class CodecScene extends Phaser.Scene {
     veil.appendChild(panel);
     mount.appendChild(veil);
     this.veil = veil;
+    this.restoreFocus = captureModalFocus(panel);
 
     this.frame = createFrame(svg, codecFrameSettings());
 
@@ -157,6 +167,8 @@ export class CodecScene extends Phaser.Scene {
   private teardownDom(): void {
     this.frame?.remove();
     this.frame = undefined;
+    this.restoreFocus?.();
+    this.restoreFocus = undefined;
     this.veil?.remove();
     this.veil = undefined;
   }

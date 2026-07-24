@@ -18,6 +18,7 @@ import {
   type Correction,
   type PuzzleState,
 } from "../systems/Compliance";
+import { asButton, captureModalFocus, el } from "./dom";
 import "./ComplianceView.css";
 
 export interface ComplianceViewCallbacks {
@@ -25,18 +26,6 @@ export interface ComplianceViewCallbacks {
   onSolved?: (finalText: string) => void;
   /** Fired when the player aborts (Esc / ABORT) without solving. */
   onClose?: () => void;
-}
-
-/** Small typed helper for building elements. */
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className?: string,
-  text?: string,
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
 }
 
 export class ComplianceView {
@@ -48,6 +37,8 @@ export class ComplianceView {
   private applied: AppliedCorrections = {};
   /** The flagged token the corrections panel is focused on. */
   private selectedTokenId: string | null = null;
+  /** Restores focus to wherever it was when the overlay opened. */
+  private restoreFocus?: () => void;
 
   // Cached regions rebuilt on each render.
   private readonly logEl: HTMLPreElement;
@@ -75,13 +66,18 @@ export class ComplianceView {
 
     this.root = el("div", "compliance-root");
 
+    // Expose the panel as a modal dialog so assistive tech announces it and
+    // scopes navigation to it; tabindex -1 lets it take programmatic focus.
     const panel = el("div", "compliance-panel");
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+    panel.setAttribute("aria-labelledby", "compliance-title");
+    panel.tabIndex = -1;
 
     const header = el("div", "compliance-header");
-    header.append(
-      el("span", "compliance-header-title", "◎ DOCTRINAL COMPLIANCE FILTER"),
-      el("span", "compliance-header-sub", puzzle.title),
-    );
+    const title = el("span", "compliance-header-title", "◎ DOCTRINAL COMPLIANCE FILTER");
+    title.id = "compliance-title";
+    header.append(title, el("span", "compliance-header-sub", puzzle.title));
 
     const flagNote = el(
       "div",
@@ -91,7 +87,11 @@ export class ComplianceView {
 
     this.logEl = el("pre", "compliance-log");
 
+    // A polite live region so compliance/override verdict flips are announced.
     const status = el("div", "compliance-status");
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    status.setAttribute("aria-atomic", "true");
     this.statusComplianceEl = el("div", "compliance-status-row");
     this.statusOverrideEl = el("div", "compliance-status-row");
     status.append(this.statusComplianceEl, this.statusOverrideEl);
@@ -116,11 +116,14 @@ export class ComplianceView {
 
     document.addEventListener("keydown", this.onKeyDown);
     this.render();
+    this.restoreFocus = captureModalFocus(panel);
   }
 
   /** Detaches the widget and its listeners. Safe to call more than once. */
   destroy(): void {
     document.removeEventListener("keydown", this.onKeyDown);
+    this.restoreFocus?.();
+    this.restoreFocus = undefined;
     this.root.remove();
   }
 
@@ -177,14 +180,24 @@ export class ComplianceView {
       span.classList.add(corr ? "is-corrected" : "is-flagged");
       if (this.selectedTokenId === tok.id) span.classList.add("is-selected");
 
+      // Each editable term is a keyboard-operable toggle button: aria-pressed
+      // tracks whether it is corrected, and a spoken label carries the state.
       if (corr) {
         span.append(el("span", "compliance-token-tag", "✓Q0 "), document.createTextNode(corr.replacementWord));
-        span.title = "Click to revert this correction";
-        span.addEventListener("click", () => this.removeCorrection(tok.id));
+        span.title = "Activate to revert this correction";
+        span.setAttribute("aria-pressed", "true");
+        span.setAttribute("aria-label", `Corrected to “${corr.replacementWord}”. Activate to revert.`);
+        asButton(span, () => this.removeCorrection(tok.id));
       } else {
+        const selected = this.selectedTokenId === tok.id;
         span.append(el("span", "compliance-token-tag", "⚠Q>0 "), document.createTextNode(tok.text));
         span.title = "Flagged subjective content — select, then apply a correction";
-        span.addEventListener("click", () => this.selectToken(tok.id));
+        span.setAttribute("aria-pressed", "false");
+        span.setAttribute(
+          "aria-label",
+          `Flagged term “${tok.text}”, Q greater than zero.${selected ? " Selected." : ""} Activate to select, then choose a correction module.`,
+        );
+        asButton(span, () => this.selectToken(tok.id));
       }
       this.logEl.appendChild(span);
     }
@@ -200,6 +213,7 @@ export class ComplianceView {
       if (isApplied) btn.classList.add("is-applied");
       if (this.selectedTokenId && !isForSelected) btn.classList.add("is-dimmed");
       if (corr.GrantsOverrideFlag) btn.classList.add("carries-payload");
+      btn.setAttribute("aria-pressed", isApplied ? "true" : "false");
 
       btn.append(el("span", "compliance-correction-label", `[CORRECTION] ${corr.label}`));
       if (corr.GrantsOverrideFlag && corr.overrideFlag) {
