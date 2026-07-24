@@ -97,6 +97,11 @@ export class Laser {
     return this.cy;
   }
 
+  /** True while suppressed by a Chaff Pack EMP burst — guards treat this as an anomaly. */
+  get isEmped(): boolean {
+    return this.empTimer > 0;
+  }
+
   /** True on the frame the player first enters this hazard while it's active. */
   checkTrip(px: number, py: number): boolean {
     const inside =

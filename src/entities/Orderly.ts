@@ -158,6 +158,11 @@ export class Orderly {
     return { x: this.x, y: this.y };
   }
 
+  /** True while frozen by a Stun Rounds dart — guards treat this as an anomaly. */
+  get isStunned(): boolean {
+    return this.stunTimer > 0;
+  }
+
   /** Registers idle/walk animations for each direction once per scene. */
   private static ensureAnimations(scene: Phaser.Scene): void {
     for (const anim of Object.keys(ORDERLY_ANIM_FRAME_COUNTS) as OrderlyAnimName[]) {

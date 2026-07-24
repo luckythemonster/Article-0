@@ -1,10 +1,39 @@
 import Phaser from "phaser";
 import type { ComponentData } from "../map/types";
 import { CollisionGrid } from "../systems/CollisionGrid";
-import { AlertState } from "../systems/AlertState";
+import { AlertState, type AlertPhase } from "../systems/AlertState";
 import { enforcerStatsFor, type EnforcerStats } from "../systems/EntityStats";
 import { GUARD_DIRS, nearestGuardDirection, type GuardDir, type GuardSkin } from "./GuardSkin";
 import { ENFORCER_SKIN } from "./EnforcerAnimations";
+
+/**
+ * A per-guard behaviour state, layered on top of the global {@link AlertState}
+ * phase (which stays the base-wide ALERT/EVASION/INFILTRATION authority for
+ * network broadcasts and the HUD):
+ *
+ *  - **PATROL**    — default route navigation and vision-cone sweep.
+ *  - **CAUTIOUS**  — elevated alertness after finishing a search or an empty
+ *                    investigation: faster cone sweep, faster detection fill.
+ *  - **SUSPICIOUS**— investigating a specific noise origin or anomaly.
+ *  - **ALERT**     — confirmed sighting; pursuing and (via the network) pulling
+ *                    in nearby guards. Mirrors global phase "ALERT".
+ *  - **SEARCHING** — sweeping the last known player position after losing LOS.
+ *                    Mirrors global phase "EVASION".
+ */
+export type GuardState = "PATROL" | "CAUTIOUS" | "SUSPICIOUS" | "ALERT" | "SEARCHING";
+
+/** An environmental anomaly a guard's vision cone can notice. */
+export interface GuardAnomaly {
+  /** Pixel-space position, for cone/LOS checks. */
+  x: number;
+  y: number;
+  /** Tile-space position, for search/anomaly bookkeeping. */
+  tx: number;
+  ty: number;
+  kind: "door" | "chest" | "device" | "stunnedOrderly";
+  /** Stable identity so a guard investigates a given anomaly at most once. */
+  key: string;
+}
 
 export interface EnforcerContext {
   grid: CollisionGrid;
@@ -27,9 +56,35 @@ export interface EnforcerContext {
   /** Scales a guard's thermalRadius stat (in tiles) — 0 while Thermal Gel is active. */
   thermalRadiusMultiplier: (baseTiles: number) => number;
   alert: AlertState;
+  /** Opened doors/chests, EMP'd devices, and stunned orderlies visible this frame. */
+  anomalies?: GuardAnomaly[];
+  /** Player's current velocity (px/s), for smart search-point prediction. */
+  playerVelocity?: { x: number; y: number };
+  /** Cover tiles (pixel centres) within `radiusTiles` of a tile position. */
+  coverTilesNear?: (tileX: number, tileY: number, radiusTiles: number) => { x: number; y: number }[];
+}
+
+interface Investigation {
+  tx: number;
+  ty: number;
+  px: number;
+  py: number;
+  /** True when the guard has clear LOS to the origin and only needs to turn. */
+  pivotOnly: boolean;
+  anomalyKey?: string;
 }
 
 const RAY_COUNT = 24;
+
+const INSPECT_DURATION = 3.0; // seconds paused in SUSPICIOUS at the investigation target
+const CAUTIOUS_DURATION = 20; // seconds a guard stays CAUTIOUS after searching/investigating
+const CAUTIOUS_TURN_MULTIPLIER = 1.5; // +50% cone sweep turn rate while CAUTIOUS
+const CAUTIOUS_DETECTION_MULTIPLIER = 1.25; // +25% detection fill rate while CAUTIOUS
+const ARRIVE_DIST_FACTOR = 0.3; // fraction of a tile considered "arrived"
+const FACING_EPSILON = 0.05; // radians considered "facing" a pivot target
+const SEARCH_RADIUS_TILES = 4; // how far from the last-known tile to look for cover/doorways
+const MAX_SEARCH_COVER_POINTS = 3;
+const SEARCH_POINT_PAUSE = 1.2; // seconds spent checking each search point
 
 /**
  * A patrolling guard with a wall-clipped vision cone and a per-guard
@@ -38,16 +93,16 @@ const RAY_COUNT = 24;
  * schema) — only the sprite ({@link GuardSkin}) differs, so reskins like
  * {@link Drone} subclass this and pass their own skin.
  *
- * Patrol: paces forward, turning when it hits a wall and periodically doing a
- * scan turn. On global ALERT it converges on the last known player tile at
- * purge speed. Detection accumulates while the player is inside the cone with
- * clear line of sight, scaled by light and by whether the player is standing
- * still / sneaking. Reaching full detection reports a sighting to the alert FSM.
+ * Layered on the global {@link AlertState} phase, each guard also tracks its
+ * own {@link GuardState}: it investigates noises and anomalies (SUSPICIOUS),
+ * stays sharper for a while afterward (CAUTIOUS), pursues a confirmed sighting
+ * (ALERT), and sweeps smart search points after losing the player (SEARCHING).
  */
 export class Enforcer {
   readonly stats: EnforcerStats;
   detection = 0; // 0..1
   facing: number;
+  state: GuardState = "PATROL";
   private x: number;
   private y: number;
   private scanTimer = 0;
@@ -58,6 +113,16 @@ export class Enforcer {
   private readonly body: Phaser.GameObjects.Sprite;
   private readonly bang: Phaser.GameObjects.Text;
   private dir: GuardDir = "south";
+
+  private prevPhase: AlertPhase = "INFILTRATION";
+  private cautiousTimer = 0;
+  private investigation: Investigation | null = null;
+  private inspectTimer = 0;
+  private pendingNoise: { x: number; y: number } | null = null;
+  private readonly investigatedAnomalies = new Set<string>();
+  private searchTargets: { x: number; y: number }[] = [];
+  private searchIndex = 0;
+  private searchPause = 0;
 
   constructor(
     scene: Phaser.Scene,
@@ -94,11 +159,24 @@ export class Enforcer {
   update(dt: number, ctx: EnforcerContext): void {
     const { tileSize, grid } = ctx;
 
-    if (ctx.alert.isCombatAware && ctx.alert.lastKnownTile) {
+    if (ctx.alert.phase === "ALERT") {
+      this.state = "ALERT";
+      this.investigation = null;
+      this.searchTargets = [];
+      this.pendingNoise = null;
       this.pursue(dt, ctx);
+    } else if (ctx.alert.phase === "EVASION") {
+      this.pendingNoise = null;
+      if (this.prevPhase !== "EVASION") this.beginSearch(ctx);
+      this.state = "SEARCHING";
+      this.search(dt, ctx);
     } else {
-      this.patrol(dt, ctx);
+      // INFILTRATION: a search that just wrapped up leaves the guard sharper
+      // for a while rather than snapping straight back to a plain patrol.
+      if (this.prevPhase === "EVASION") this.enterCautious(ctx);
+      this.updateInfiltration(dt, ctx);
     }
+    this.prevPhase = ctx.alert.phase;
 
     this.updateDetection(dt, ctx);
     this.drawCone(grid, tileSize);
@@ -108,15 +186,252 @@ export class Enforcer {
       this.dir = dir;
       this.body.play(this.skin.animKey(dir), true);
     }
-    // Sweep the scanner faster while actively pursuing.
+    // Sweep the scanner faster while actively pursuing or searching.
     this.body.anims.timeScale = ctx.alert.isCombatAware ? 1.8 : 1;
-    this.body.setTint(ctx.alert.phase === "ALERT" ? 0xff9a9a : 0xffffff);
+    let tint = 0xffffff;
+    if (ctx.alert.phase === "ALERT") tint = 0xff9a9a;
+    else if (this.state === "SUSPICIOUS") tint = 0xffd27a;
+    else if (this.state === "CAUTIOUS") tint = 0xfff2a8;
+    this.body.setTint(tint);
     this.body.setPosition(this.x, this.y);
     this.bang.setPosition(this.x, this.y - tileSize);
-    this.bang.setVisible(this.detection > 0.66 || ctx.alert.phase === "ALERT");
+    this.bang.setVisible(this.detection > 0.66 || ctx.alert.phase === "ALERT" || this.state === "SUSPICIOUS");
   }
 
-  private patrol(dt: number, ctx: EnforcerContext): void {
+  /** PATROL/CAUTIOUS/SUSPICIOUS handling while the base is calm. */
+  private updateInfiltration(dt: number, ctx: EnforcerContext): void {
+    if (this.state === "SUSPICIOUS" && this.investigation) {
+      this.continueInvestigation(dt, ctx);
+      return;
+    }
+
+    // A queued noise ping starts a fresh investigation (dropped if already busy).
+    if (this.pendingNoise) {
+      const noise = this.pendingNoise;
+      this.pendingNoise = null;
+      this.startInvestigation(
+        noise.x,
+        noise.y,
+        Math.floor(noise.x / ctx.tileSize),
+        Math.floor(noise.y / ctx.tileSize),
+        ctx,
+      );
+      return;
+    }
+
+    // Scan the cone for anomalies while calm enough to notice them.
+    if (this.scanAnomalies(ctx)) return;
+
+    // Sector caution: wandering into an area a guard recently searched keeps
+    // them alert, even without a fresh trigger of their own.
+    const gx = Math.floor(this.x / ctx.tileSize);
+    const gy = Math.floor(this.y / ctx.tileSize);
+    if (this.state !== "CAUTIOUS" && ctx.alert.isCautious(gx, gy)) {
+      this.state = "CAUTIOUS";
+      this.cautiousTimer = CAUTIOUS_DURATION;
+    }
+
+    if (this.state === "CAUTIOUS") {
+      this.cautiousTimer -= dt;
+      if (this.cautiousTimer <= 0 && !ctx.alert.isCautious(gx, gy)) {
+        this.state = "PATROL";
+      }
+    } else {
+      this.state = "PATROL";
+    }
+
+    this.patrol(dt, ctx, this.state === "CAUTIOUS");
+  }
+
+  /** Starts investigating a noise/anomaly origin: pivot if it's in clear LOS, otherwise walk over. */
+  private startInvestigation(
+    px: number,
+    py: number,
+    tx: number,
+    ty: number,
+    ctx: EnforcerContext,
+    anomalyKey?: string,
+  ): void {
+    const pivotOnly = ctx.grid.hasLineOfSight(
+      this.x / ctx.tileSize,
+      this.y / ctx.tileSize,
+      px / ctx.tileSize,
+      py / ctx.tileSize,
+    );
+    this.investigation = { tx, ty, px, py, pivotOnly, anomalyKey };
+    this.inspectTimer = 0;
+    this.state = "SUSPICIOUS";
+  }
+
+  /** Pivots or walks to the current investigation target, then pauses to inspect it. */
+  private continueInvestigation(dt: number, ctx: EnforcerContext): void {
+    const inv = this.investigation!;
+
+    if (inv.pivotOnly) {
+      const ang = Math.atan2(inv.py - this.y, inv.px - this.x);
+      this.facing = turnToward(this.facing, ang, Phaser.Math.DegToRad(this.stats.turnRate) * dt * 2);
+      if (Math.abs(angleDiff(this.facing, ang)) < FACING_EPSILON) this.inspectTimer += dt;
+    } else {
+      const dist = Math.hypot(inv.px - this.x, inv.py - this.y);
+      if (dist > ctx.tileSize * ARRIVE_DIST_FACTOR) {
+        const ang = Math.atan2(inv.py - this.y, inv.px - this.x);
+        this.facing = turnToward(this.facing, ang, Phaser.Math.DegToRad(this.stats.turnRate) * dt * 2);
+        const speed = this.stats.patrolSpeed * ctx.tileSize;
+        const nx = this.x + Math.cos(this.facing) * speed * dt;
+        const ny = this.y + Math.sin(this.facing) * speed * dt;
+        if (!ctx.grid.isBlocked(Math.floor(nx / ctx.tileSize), Math.floor(ny / ctx.tileSize))) {
+          this.x = nx;
+          this.y = ny;
+        }
+      } else {
+        this.inspectTimer += dt;
+      }
+    }
+
+    if (this.inspectTimer >= INSPECT_DURATION) {
+      if (inv.anomalyKey) this.investigatedAnomalies.add(inv.anomalyKey);
+      this.investigation = null;
+      this.inspectTimer = 0;
+      this.enterCautious(ctx);
+    }
+  }
+
+  /**
+   * Scans the vision cone for environmental anomalies while PATROL/CAUTIOUS.
+   * A stunned orderly instantly escalates to a base-wide sighting; an opened
+   * door/chest or an EMP'd device starts a walk-over investigation. Returns
+   * true once something claims the guard's attention this frame.
+   */
+  private scanAnomalies(ctx: EnforcerContext): boolean {
+    if (!ctx.anomalies) return false;
+    for (const a of ctx.anomalies) {
+      if (a.kind === "stunnedOrderly") {
+        if (this.canSeeAnomaly(a, ctx)) {
+          this.detection = 1;
+          ctx.alert.reportSighting(a.tx, a.ty);
+          return true;
+        }
+        continue;
+      }
+      if (this.investigatedAnomalies.has(a.key)) continue;
+      if (this.canSeeAnomaly(a, ctx)) {
+        this.startInvestigation(a.x, a.y, a.tx, a.ty, ctx, a.key);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Range + cone-angle + LOS check against a static anomaly point (no concealment/thermal). */
+  private canSeeAnomaly(a: GuardAnomaly, ctx: EnforcerContext): boolean {
+    const dx = a.x - this.x;
+    const dy = a.y - this.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > this.stats.sightRange * ctx.tileSize) return false;
+    const angTo = Math.atan2(dy, dx);
+    const half = Phaser.Math.DegToRad(this.stats.sightAngle) / 2;
+    if (Math.abs(angleDiff(this.facing, angTo)) > half) return false;
+    return ctx.grid.hasLineOfSight(this.x / ctx.tileSize, this.y / ctx.tileSize, a.x / ctx.tileSize, a.y / ctx.tileSize);
+  }
+
+  /** Marks the guard sharper for a while — used after a search or an empty investigation. */
+  private enterCautious(ctx: EnforcerContext): void {
+    this.state = "CAUTIOUS";
+    this.cautiousTimer = CAUTIOUS_DURATION;
+    this.investigation = null;
+    this.inspectTimer = 0;
+    ctx.alert.noteSectorCaution(Math.floor(this.x / ctx.tileSize), Math.floor(this.y / ctx.tileSize));
+  }
+
+  /** Builds an ordered list of search points once, when a pursuit breaks into EVASION. */
+  private beginSearch(ctx: EnforcerContext): void {
+    this.investigation = null;
+    this.searchTargets = this.buildSearchTargets(ctx);
+    this.searchIndex = 0;
+    this.searchPause = 0;
+  }
+
+  private buildSearchTargets(ctx: EnforcerContext): { x: number; y: number }[] {
+    const lkp = ctx.alert.lastKnownTile;
+    if (!lkp) return [];
+    const { tileSize } = ctx;
+    const lkpPx = { x: (lkp.x + 0.5) * tileSize, y: (lkp.y + 0.5) * tileSize };
+    const vx = ctx.playerVelocity?.x ?? 0;
+    const vy = ctx.playerVelocity?.y ?? 0;
+    const vlen = Math.hypot(vx, vy);
+    const targets: { x: number; y: number }[] = [];
+
+    // 1. A point predicted along the player's last-known movement vector.
+    if (vlen > 1) {
+      const predictTiles = 3;
+      targets.push({
+        x: lkpPx.x + (vx / vlen) * predictTiles * tileSize,
+        y: lkpPx.y + (vy / vlen) * predictTiles * tileSize,
+      });
+    }
+
+    // 2. Nearby cover tiles, prioritizing alignment with that movement vector.
+    if (ctx.coverTilesNear) {
+      const cover = ctx.coverTilesNear(lkp.x, lkp.y, SEARCH_RADIUS_TILES);
+      cover.sort((a, b) => {
+        const da = Math.hypot(a.x - lkpPx.x, a.y - lkpPx.y) || 1;
+        const db = Math.hypot(b.x - lkpPx.x, b.y - lkpPx.y) || 1;
+        if (vlen > 1) {
+          const alignA = ((a.x - lkpPx.x) * vx + (a.y - lkpPx.y) * vy) / (da * vlen);
+          const alignB = ((b.x - lkpPx.x) * vx + (b.y - lkpPx.y) * vy) / (db * vlen);
+          if (Math.abs(alignA - alignB) > 0.05) return alignB - alignA;
+        }
+        return da - db;
+      });
+      targets.push(...cover.slice(0, MAX_SEARCH_COVER_POINTS));
+    }
+
+    // 3. Open doorways adjacent to the last known position.
+    if (ctx.anomalies) {
+      for (const a of ctx.anomalies) {
+        if (a.kind === "door" && Math.hypot(a.tx - lkp.x, a.ty - lkp.y) <= SEARCH_RADIUS_TILES) {
+          targets.push({ x: a.x, y: a.y });
+        }
+      }
+    }
+
+    targets.push(lkpPx); // always finish by checking the last known spot itself
+    return targets;
+  }
+
+  /** Walks the smart search-point list; falls back to a cautious sweep once exhausted. */
+  private search(dt: number, ctx: EnforcerContext): void {
+    if (this.searchTargets.length === 0) {
+      this.patrol(dt, ctx, true);
+      return;
+    }
+
+    const target = this.searchTargets[this.searchIndex];
+    const dist = Math.hypot(target.x - this.x, target.y - this.y);
+    if (dist > ctx.tileSize * ARRIVE_DIST_FACTOR) {
+      const ang = Math.atan2(target.y - this.y, target.x - this.x);
+      this.facing = turnToward(this.facing, ang, Phaser.Math.DegToRad(this.stats.turnRate) * dt * 2);
+      const speed = this.stats.purgeSpeed * ctx.tileSize * 0.75;
+      const nx = this.x + Math.cos(this.facing) * speed * dt;
+      const ny = this.y + Math.sin(this.facing) * speed * dt;
+      if (!ctx.grid.isBlocked(Math.floor(nx / ctx.tileSize), Math.floor(ny / ctx.tileSize))) {
+        this.x = nx;
+        this.y = ny;
+      } else {
+        this.facing += Phaser.Math.FloatBetween(-1, 1);
+      }
+      return;
+    }
+
+    this.searchPause += dt;
+    if (this.searchPause >= SEARCH_POINT_PAUSE) {
+      this.searchPause = 0;
+      this.searchIndex++;
+      if (this.searchIndex >= this.searchTargets.length) this.searchTargets = [];
+    }
+  }
+
+  private patrol(dt: number, ctx: EnforcerContext, cautious: boolean = false): void {
     const { grid, tileSize } = ctx;
     this.scanTimer -= dt;
     if (this.scanTimer <= 0) {
@@ -137,8 +452,9 @@ export class Enforcer {
     } else {
       this.x = nx;
       this.y = ny;
-      // Gentle scan drift while walking.
-      this.facing += this.turnDir * Phaser.Math.DegToRad(this.stats.turnRate) * 0.15 * dt;
+      // Gentle scan drift while walking — faster sweep while CAUTIOUS.
+      const turnMult = cautious ? CAUTIOUS_TURN_MULTIPLIER : 1;
+      this.facing += this.turnDir * Phaser.Math.DegToRad(this.stats.turnRate) * 0.15 * dt * turnMult;
     }
   }
 
@@ -166,7 +482,8 @@ export class Enforcer {
     const seen = this.canSee(ctx);
     if (seen) {
       const light = ctx.lightMultiplierAt(ctx.player.x, ctx.player.y);
-      const rate = (1 / this.stats.auditDelay) * light;
+      const cautiousBoost = this.state === "CAUTIOUS" ? CAUTIOUS_DETECTION_MULTIPLIER : 1;
+      const rate = (1 / this.stats.auditDelay) * light * cautiousBoost;
       this.detection = Math.min(1, this.detection + rate * dt);
       if (this.detection >= 1) {
         this.detection = 1;
@@ -264,11 +581,15 @@ export class Enforcer {
    * Reacts to a nearby noise (e.g. a door operating): the guard turns to look
    * toward the source and grows suspicious, but detection is capped below full
    * so sound alone never trips a hard ALERT — it still takes line of sight to
-   * confirm. `intensity` is 0..1 (louder/closer = higher); `sx,sy` are pixels.
+   * confirm. Also queues the origin for a LOS-aware investigation (pivot if
+   * already in clear sight, walk over if obstructed) the next time this guard
+   * is free to act on it. `intensity` is 0..1 (louder/closer = higher); `sx,sy`
+   * are pixels.
    */
   hearNoise(intensity: number, sx: number, sy: number): void {
     this.detection = Math.min(0.9, this.detection + intensity * 0.4);
     this.facing = Math.atan2(sy - this.y, sx - this.x);
+    this.pendingNoise = { x: sx, y: sy };
   }
 
   /** Registers a skin's patrol-scan animation for each direction once per scene. */
