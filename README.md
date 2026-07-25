@@ -55,7 +55,7 @@ warps; visit with `?debug=0` to turn it back off.
 | N | No-clip — walk through walls and doors |
 | V | World overlay — draw guard line-of-sight rays, blocked tiles, and detection hot spots |
 | O | Darkness off — hide the lighting / line-of-sight overlay and read the level at full brightness |
-| 1–5 | Warp to `main1` / `main2` / `duct1` / `duct2` / `vent_core` (resets the alert; keeps your HP) |
+| 1–5 | Warp to the map's levels in board order, with the generated `vent_core` last — for the shipped map that's `main1` / `duct1` / `duct2` / `main2` / `vent_core` (resets the alert; keeps your HP) |
 
 While enabled, a top-right panel shows FPS, player position, facing, HP, capture
 progress, the current level, alert phase, and per-unit detection. The G/N/V/O and

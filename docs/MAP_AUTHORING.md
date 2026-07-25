@@ -165,6 +165,9 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
 7. **Unlit levels are genuinely dark.** Darkness is opaque and clipped to line of sight, so
    a level with no `light_sources` board is navigable only by flashlight and radar. Three of
    the shipped map's five levels are in that state.
+8. **Level order matters too**, separately from board order: the debug warp keys `1`–`5` map
+   to your levels in authored order, with the generated `vent_core` last. Put the levels you
+   iterate on most near the front.
 
 ## 6. Minimum viable map
 
