@@ -74,6 +74,12 @@ class BootScene extends Phaser.Scene {
   }
 }
 
+// Read the container's actual rendered size rather than the raw window
+// dimensions, so the canvas matches the (deliberately smaller than full-window)
+// #game element from the very first frame instead of a stale snapshot that
+// can be clipped by browser chrome.
+const gameEl = document.getElementById("game")!;
+
 new Phaser.Game({
   type: Phaser.AUTO,
   parent: "game",
@@ -83,8 +89,8 @@ new Phaser.Game({
   scale: {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: window.innerWidth,
-    height: window.innerHeight,
+    width: gameEl.clientWidth,
+    height: gameEl.clientHeight,
   },
   physics: {
     default: "arcade",
