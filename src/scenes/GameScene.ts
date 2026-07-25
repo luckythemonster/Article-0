@@ -937,16 +937,23 @@ export class GameScene extends Phaser.Scene {
     // built below, which reads the result. Walking normally with the base unaware
     // reads as staff and every sensor clears Rowan on sight; running, sneaking or
     // meddling with anything drops that cover for a cooldown.
+    // The Q0 cert (silencing VENT-4) is proof of compliance in good standing: with it
+    // Rowan can stand down a *search* and pass as staff again, though never an ALERT.
+    const certified = ((this.registry.get("inventory") as string[] | undefined) ?? []).includes(
+      CERT_ITEM,
+    );
     this.conduct.update(dt, {
-      alertAware: this.alert.isCombatAware,
+      alertPhase: this.alert.phase,
       running: this.player.running,
       sneaking: this.player.crouched,
+      certified,
     });
     const compliant = this.conduct.compliant;
     this.registry.set("conduct", {
       compliant,
       breach: this.conduct.breach,
       flaggedRemaining: this.conduct.flaggedRemaining,
+      certified,
     } satisfies ConductView);
 
     // Cover concealment: crouched on LOW cover (or on any HIGH cover) hides the
@@ -1543,6 +1550,9 @@ export class GameScene extends Phaser.Scene {
       compliant: this.conduct.compliant,
       breach: this.conduct.breach,
       flaggedRemaining: this.conduct.flaggedRemaining,
+      certified: ((this.registry.get("inventory") as string[] | undefined) ?? []).includes(
+        CERT_ITEM,
+      ),
       fps: this.game.loop.actualFps,
       px: this.player.x,
       py: this.player.y,

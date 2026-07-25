@@ -136,7 +136,11 @@ export class Hud {
       return;
     }
     if (conduct.compliant) {
-      this.conductText.setText("COMPLIANCE  OK").setColor("#9fd2ff");
+      // Call the credential out while it's held: a passive buff the player never learns
+      // they have is the exact mistake this reward existed as for so long.
+      this.conductText
+        .setText(conduct.certified ? "COMPLIANCE  OK  ·  CERTIFIED" : "COMPLIANCE  OK")
+        .setColor("#9fd2ff");
       return;
     }
     const countdown =

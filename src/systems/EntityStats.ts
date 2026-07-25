@@ -306,17 +306,25 @@ export const CONSUMABLE_ORDER = [
 /** Hard cap on the total number of consumables held at once. */
 export const MAX_CONSUMABLES = 4;
 
-/** Passive items that persist and never count against the consumable cap. */
-export const KEY_ITEMS = [ACCESS_CHIT_ITEM, EIRA7_LOG_ITEM] as const;
-
 /** True when an item name is one of the capped, hotkey-usable consumables. */
 export function isConsumable(name: string): boolean {
   return (CONSUMABLE_ORDER as readonly string[]).includes(name);
 }
 
-/** True when an item name is a passive key item (uncapped). */
+/**
+ * True when an item name is a passive key item (uncapped) — defined as anything that
+ * isn't a consumable.
+ *
+ * Deliberately the complement of {@link CONSUMABLE_ORDER} rather than its own allowlist.
+ * It used to be a hardcoded list of two, which quietly meant every other granted item
+ * was invisible: the InventoryHud renders held items by filtering on this, so the Q0
+ * compliance cert, the boss-critical Rail-Stapler and the vent-core chest's flavour
+ * loot were all being handed to the player and never shown. `CONSUMABLE_ORDER` is the
+ * list that genuinely has to stay curated — it drives the [1]–[4] hotkeys and the carry
+ * cap — so keying off its complement means a new item can't fail to appear.
+ */
 export function isKeyItem(name: string): boolean {
-  return (KEY_ITEMS as readonly string[]).includes(name);
+  return !isConsumable(name);
 }
 
 /** Total consumables currently held — the value checked against {@link MAX_CONSUMABLES}. */

@@ -7,8 +7,13 @@ import {
   SETTLE_SECONDS,
 } from "./Conduct";
 
-/** Clean conduct: walking normally, base unaware. */
-const CLEAN = { alertAware: false, running: false, sneaking: false };
+/** Clean conduct: walking normally, base unaware, no credential. */
+const CLEAN = {
+  alertPhase: "INFILTRATION" as const,
+  running: false,
+  sneaking: false,
+  certified: false,
+};
 
 /** Runs `seconds` of clean behaviour in small steps. */
 function settle(c: ConductState, seconds: number): void {
@@ -38,9 +43,9 @@ describe("ConductState", () => {
     expect(c.breach).toBe("SNEAKING");
   });
 
-  it("blocks compliance while the base is aware, whatever the gait", () => {
+  it("blocks compliance during an active alert, whatever the gait", () => {
     const c = new ConductState();
-    c.update(0.1, { alertAware: true, running: false, sneaking: false });
+    c.update(0.1, { ...CLEAN, alertPhase: "ALERT" });
     expect(c.compliant).toBe(false);
     expect(c.breach).toBe("ALERT");
   });
@@ -94,6 +99,42 @@ describe("ConductState", () => {
     // The discrete flag is still underneath, and resurfaces once you stop running.
     c.update(0.1, CLEAN);
     expect(c.breach).toBe("UNAUTHORIZED");
+  });
+
+  it("blocks compliance during a search without the Q0 cert", () => {
+    const c = new ConductState();
+    c.update(0.1, { ...CLEAN, alertPhase: "EVASION" });
+    expect(c.compliant).toBe(false);
+    expect(c.breach).toBe("EVASION");
+  });
+
+  it("lets the Q0 cert stand a search down", () => {
+    const c = new ConductState();
+    settle(c, 0.3);
+    c.update(0.1, { ...CLEAN, alertPhase: "EVASION", certified: true });
+    expect(c.compliant).toBe(true);
+    expect(c.breach).toBeNull();
+  });
+
+  it("still blocks an active alert even with the cert — that's the bound", () => {
+    const c = new ConductState();
+    c.update(0.1, { ...CLEAN, alertPhase: "ALERT", certified: true });
+    expect(c.compliant).toBe(false);
+    expect(c.breach).toBe("ALERT");
+  });
+
+  it("does not let the cert shorten a discrete flag", () => {
+    // The cert only relaxes the alert rule. If a later tuning pass widens it into a
+    // general cooldown reduction, that should be a deliberate change, not a silent one.
+    const plain = new ConductState();
+    const certified = new ConductState();
+    plain.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED);
+    certified.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED);
+    for (let i = 0; i < 20; i++) {
+      plain.update(0.1, CLEAN);
+      certified.update(0.1, { ...CLEAN, certified: true });
+    }
+    expect(certified.flaggedRemaining).toBeCloseTo(plain.flaggedRemaining, 5);
   });
 
   it("ignores a zero-length violation", () => {

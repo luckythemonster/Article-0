@@ -22,6 +22,8 @@ export interface DebugSnapshot {
   compliant: boolean;
   breach: string | null;
   flaggedRemaining: number;
+  /** Carrying the Q0 compliance cert (lets compliance survive a search). */
+  certified: boolean;
   fps: number;
   px: number;
   py: number;
@@ -114,9 +116,10 @@ export class DebugHud {
         `alert  ${view.alertPhase}`,
         `god ${flag(view.godMode)}  no-clip ${flag(view.noClip)}  world ${flag(view.worldDraw)}`,
         `freeze ${flag(view.frozenWorld)}  dark ${flag(!view.darknessOff)}`,
-        view.compliant
+        (view.compliant
           ? "conduct COMPLIANT"
-          : `conduct ${view.breach ?? "FLAGGED"} ${view.flaggedRemaining.toFixed(1)}s`,
+          : `conduct ${view.breach ?? "FLAGGED"} ${view.flaggedRemaining.toFixed(1)}s`) +
+          (view.certified ? "  cert ON" : ""),
         units ? `units:\n${units}` : "units: (none)",
       ].join("\n"),
     );
