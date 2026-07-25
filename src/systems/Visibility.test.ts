@@ -104,6 +104,14 @@ describe("rayDistance", () => {
     expect(maxStep).toBeLessThan(0.02);
   });
 
+  it("sees straight through glazing", () => {
+    // A pane still stops movement, so the ray must not stop where `isBlocked` would.
+    const g = new CollisionGrid(level());
+    g.setBlocked(2, 1, true, true);
+    expect(g.isBlocked(2, 1)).toBe(true);
+    expect(rayDistance(g, 0.5, 1.5, 1, 0, 3)).toBe(3);
+  });
+
   it("treats out of bounds as blocking", () => {
     const g = new CollisionGrid(level());
     // Heading left off the edge: stops rather than running to the cap.

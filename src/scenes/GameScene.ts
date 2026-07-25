@@ -11,7 +11,7 @@ import { Player, type InputState } from "../entities/Player";
 import { Enforcer, type GuardAnomaly } from "../entities/Enforcer";
 import { Drone } from "../entities/Drone";
 import { Orderly } from "../entities/Orderly";
-import { Door } from "../entities/Door";
+import { Door, footprintCells } from "../entities/Door";
 import { Terminal } from "../entities/Terminal";
 import { Laser } from "../entities/Laser";
 import { Sensor } from "../entities/Sensor";
@@ -25,6 +25,8 @@ import {
   CHAFF_PACK_ITEM,
   countConsumables,
   FLASHLIGHT_DETECTION_MULTIPLIER,
+  glassStatsFor,
+  isGlass,
   isConsumable,
   MAX_CONSUMABLES,
   PLAYER_DEFAULTS,
@@ -304,6 +306,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor("#05070a");
 
     this.grid = new CollisionGrid(this.level, ["walls"]);
+    this.registerGlazing();
     this.detection = new DetectionSystem(this.level, this.tileSize);
 
     const wallBodies = this.renderLevel();
@@ -405,6 +408,30 @@ export class GameScene extends Phaser.Scene {
     if (!this.scene.isActive("UIScene")) this.scene.launch("UIScene");
 
     this.saveCheckpoint();
+  }
+
+  /**
+   * Registers glazing with the collision grid: clear glass stops movement but not sight,
+   * so a pane reads as a window rather than a wall.
+   *
+   * Glass *doors* look after themselves — {@link Door} reads its own `glass` component and
+   * keeps its cells transparent through open and close. This pass exists for glass placed
+   * directly on a **blocking** board, which never becomes a `Door`: the shipped map puts
+   * two panes on `main2`'s `walls` board, and before this they blocked sight like
+   * concrete. Runs before the doors spawn, so it only touches already-blocked cells and
+   * leaves the door footprints to `Door.applyState`.
+   */
+  private registerGlazing(): void {
+    for (const layer of this.level.layers) {
+      for (const tile of layer.tiles) {
+        if (!isGlass(tile.components) || glassStatsFor(tile.components).visionBlock) continue;
+        for (const cell of footprintCells(tile, this.tileSize)) {
+          if (this.grid.isBlocked(cell.x, cell.y)) {
+            this.grid.setBlocked(cell.x, cell.y, true, true);
+          }
+        }
+      }
+    }
   }
 
   /** Draws tile-art layers in z-order and returns physics bodies for walls. */

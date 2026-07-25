@@ -120,6 +120,32 @@ export function doorStatsFor(components: ComponentData[]): DoorStats {
   };
 }
 
+/**
+ * A glazed panel. The map's glass tiles are *also* doors — the shipped tile defs carry a
+ * `door` and a `glass` component together — so this describes the glazing on top of the
+ * door behaviour rather than replacing it.
+ *
+ * Only `VisionBlock` is read. `type` (`CLEAR` etc.) is conveyed by the sprite, and
+ * `BreakNoise` would need a breakage mechanic that doesn't exist; reading either into a
+ * field nothing acts on is how the codebase accumulated dead content in the first place.
+ */
+export interface GlassStats {
+  /** True for glazing that blocks line of sight — frosted or opaque rather than clear. */
+  visionBlock: boolean;
+}
+
+/** True when a tile is glazed at all (carries a `glass` component). */
+export function isGlass(components: ComponentData[]): boolean {
+  return components.some((c) => c.type === "glass");
+}
+
+export function glassStatsFor(components: ComponentData[]): GlassStats {
+  // The schema defaults this to "0", and the editor also writes "true"/"false" for
+  // booleans elsewhere, so accept either spelling.
+  const raw = str(components, "glass", "VisionBlock", "0").toLowerCase();
+  return { visionBlock: raw === "1" || raw === "true" };
+}
+
 export interface TerminalStats {
   /** Seconds of held interaction to finish a hack. */
   hackTime: number;

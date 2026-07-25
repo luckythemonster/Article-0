@@ -70,7 +70,10 @@ access point — `main1` links to `main2` (stairs) and to `duct1`/`duct2`
 **Doors** are closed by default and block both movement and line of sight —
 they're real chokepoints. Stand next to one and tap **E** to open or close it
 (opening makes noise: nearby guards turn to look and grow suspicious, so timing
-matters). **Terminals** are hacked by holding **E** while adjacent — a progress
+matters). The **glass** ones are the exception: clear glazing stops you walking
+through without stopping anyone looking through, so a closed glass door is a window.
+You can scout the room beyond before committing to opening it — and a guard on the
+far side can see you just as well, with no noise to warn you first. **Terminals** are hacked by holding **E** while adjacent — a progress
 bar fills over the terminal's hack time, and finishing releases every door in
 the surrounding sector (the classic "hack the panel, the doors open" beat).
 Since the map carries no explicit terminal→door wiring, that link is derived by
@@ -194,6 +197,10 @@ beats.
 
 ## How the map is parsed
 
+> **Authoring a new map?** See **[`docs/MAP_AUTHORING.md`](docs/MAP_AUTHORING.md)** — which
+> boards and components the engine actually reads, which fields it ignores, the level names
+> it hardcodes, and the handful of things that throw at boot if they're missing.
+
 The whole pipeline lives in `src/`:
 
 - **`src/map/`** — the format. `types.ts` describes the edplay schema and the
@@ -313,6 +320,14 @@ engine will use that value instead.
   *phase* rather than a boolean, because carrying `Q0_COMPLIANCE_CERT` (the VENT-4
   reward) lets compliance survive EVASION while still never surviving ALERT — the
   optional boss's payout, which until now was an item wired to nothing.
+- Glazing: `CollisionGrid` tracks movement and sight separately, so a cell can block one
+  without the other — `isBlocked` for anything physical (movement, pathing, radar,
+  knocking) and `blocksSight` for anything optical (line-of-sight tests, vision cones, the
+  darkness overlay's visibility polygon). Clear glass is the case that needs it: the map's
+  glass doors carry a `glass` component *alongside* their `door` one, so they are real
+  openable doors that happen never to block sight (`glassStatsFor` reads `VisionBlock`).
+  Two panes on `main2`'s `walls` board are static rather than doors, so
+  `GameScene.registerGlazing` covers glass placed directly on a blocking board.
 - Held items: `isKeyItem` is the complement of `CONSUMABLE_ORDER` rather than its own
   allowlist, so anything granted shows up under KEY ITEMS. It used to be a hardcoded
   pair, which silently hid the compliance cert, the two vent-core flavour items, and the
