@@ -11,6 +11,26 @@ import type { ComponentData } from "../map/types";
  *   - angles in degrees (full cone width)
  *   - speeds in tiles/second
  */
+
+/**
+ * Global pace multiplier for everything that *moves*: walk/patrol/chase speeds,
+ * turn rates, vision-cone sweeps, VENT-4's suction and impulses, and animation
+ * playback (via `anims.globalTimeScale`, set in `GameScene.create`).
+ *
+ * Deliberately *not* applied to gameplay clocks — detection fill, the alert and
+ * evasion durations, hold-to-hack/search times, laser on/off windows, item
+ * timers. Those stay in real seconds, so the balance ratios they encode keep the
+ * meaning they were authored with; only the physical pace of the world changes.
+ *
+ * Every speed below is written at its design value and scaled by this on the way
+ * out, so the numbers stay readable as "tiles per second at full pace".
+ */
+export const GAME_SPEED = 0.6;
+
+/** Scales a design-time rate (tiles/s, degrees/s, radians/s) by {@link GAME_SPEED}. */
+export function paced(rate: number): number {
+  return rate * GAME_SPEED;
+}
 export interface EnforcerStats {
   sightRange: number;
   sightAngle: number;
@@ -61,14 +81,20 @@ export function num(
   return Number.isFinite(parsed) && parsed !== 0 ? parsed : fallback;
 }
 
+/**
+ * The three rate fields are {@link paced} here rather than in
+ * {@link ENFORCER_DEFAULTS}, so a map that *does* override `PatrolSpeed` gets
+ * slowed by the same factor as the engine default instead of running at full
+ * pace on its own.
+ */
 export function enforcerStatsFor(components: ComponentData[]): EnforcerStats {
   return {
     sightRange: num(components, "enforcer", "SightRange", ENFORCER_DEFAULTS.sightRange),
     sightAngle: num(components, "enforcer", "SightAngle", ENFORCER_DEFAULTS.sightAngle),
     thermalRadius: num(components, "enforcer", "ThermalDetectionRadius", ENFORCER_DEFAULTS.thermalRadius),
-    patrolSpeed: num(components, "enforcer", "PatrolSpeed", ENFORCER_DEFAULTS.patrolSpeed),
-    purgeSpeed: num(components, "enforcer", "PurgeSpeed", ENFORCER_DEFAULTS.purgeSpeed),
-    turnRate: num(components, "enforcer", "TurnRate", ENFORCER_DEFAULTS.turnRate),
+    patrolSpeed: paced(num(components, "enforcer", "PatrolSpeed", ENFORCER_DEFAULTS.patrolSpeed)),
+    purgeSpeed: paced(num(components, "enforcer", "PurgeSpeed", ENFORCER_DEFAULTS.purgeSpeed)),
+    turnRate: paced(num(components, "enforcer", "TurnRate", ENFORCER_DEFAULTS.turnRate)),
     auditDelay: num(components, "enforcer", "AuditDelay", ENFORCER_DEFAULTS.auditDelay),
     alertNetworkRadius: num(components, "enforcer", "AlertNetworkRadius", ENFORCER_DEFAULTS.alertNetworkRadius),
   };
@@ -409,7 +435,7 @@ export interface Vent4Stats {
   sweepRange: number;
   /** Full spotlight cone width, in degrees. */
   sweepAngle: number;
-  /** Sweep rotation, radians/second, by band. */
+  /** Sweep rotation, radians/second, by band. Already {@link paced}. */
   sweepSpeedLaminar: number;
   sweepSpeedTurbulent: number;
   /** Seconds inside a sweep before full detection (a correction burst). */
@@ -418,7 +444,11 @@ export interface Vent4Stats {
   hubRadius: number;
   /** Radial suction reach in tiles; pull ramps from 0 there to suctionMax at the hub. */
   suctionRadius: number;
-  /** Peak suction, tiles/second — between walk (3.2) and run (5.12) speed. */
+  /**
+   * Peak suction, tiles/second — sits between the player's design-time walk
+   * (3.2) and run (5.12), and is {@link paced} along with them so the
+   * "can out-run it at a sprint, not at a walk" relationship survives.
+   */
   suctionMax: number;
   /** Within this many tiles of the hub the intake itself deals damage. */
   intakeRadius: number;
@@ -447,7 +477,7 @@ export interface Vent4Stats {
   steamDamage: number;
   /** Player noise above this on a floor grate pings the boss (walk 0.5 > sneak 0.15). */
   grateNoiseThreshold: number;
-  /** Correction-burst knockback (tiles/second) and damage. */
+  /** Correction-burst knockback (tiles/second, {@link paced}) and damage. */
   burstImpulse: number;
   burstDamage: number;
 }
@@ -455,6 +485,11 @@ export interface Vent4Stats {
 /**
  * VENT-4 tuning. The arena is engine-generated (no map component), so like the
  * player these are used directly.
+ *
+ * The movement-bearing fields (`sweepSpeed*`, `suctionMax`, `burstImpulse`) are
+ * {@link paced} right here rather than at their use sites, because
+ * `Vent4PhysicsSystem` is a pure, unit-tested module that asserts against these
+ * constants — scaling inside it would make the tests disagree with the game.
  */
 export const VENT4_DEFAULTS: Vent4Stats = {
   complianceStart: 100,
@@ -471,12 +506,12 @@ export const VENT4_DEFAULTS: Vent4Stats = {
   sweepCount: 4,
   sweepRange: 9,
   sweepAngle: 26,
-  sweepSpeedLaminar: 0.35,
-  sweepSpeedTurbulent: 0.6,
+  sweepSpeedLaminar: paced(0.35),
+  sweepSpeedTurbulent: paced(0.6),
   sweepDetectTime: 1.1,
   hubRadius: 1.6,
   suctionRadius: 11,
-  suctionMax: 4.2,
+  suctionMax: paced(4.2),
   intakeRadius: 2.3,
   intakeDamage: 25,
   gripRadius: 1.35,
@@ -493,6 +528,6 @@ export const VENT4_DEFAULTS: Vent4Stats = {
   dripCoolDuration: 6,
   steamDamage: 15,
   grateNoiseThreshold: 0.2,
-  burstImpulse: 9,
+  burstImpulse: paced(9),
   burstDamage: 15,
 };

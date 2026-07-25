@@ -79,8 +79,8 @@ entities draw their own sprites.
 | `spawn` | **First tile only** = player start. Extra tiles ignored. Falls back to level centre. | — |
 | `walls` | Collision grid + static physics bodies + blocks sight. Tile presence is enough. | — |
 | `floor` | Nothing special — just art. (Only `VentCoreLevel` looks it up, for prototypes.) | — |
-| `enforcers` | One `Enforcer` per tile. | `enforcer`, optional |
-| `drones` | One `Drone` per tile — identical AI, different skin. | `enforcer`, optional |
+| `enforcers` | **One `Enforcer` for the whole board.** Its tiles are that guard's ordered patrol waypoints, not a headcount — see §3.1. | `enforcer` (read from the first tile), optional |
+| `drones` | Same, for one `Drone` — identical AI, different skin. | `enforcer` (read from the first tile), optional |
 | `orderlies` | One `Orderly` per tile. No fields read at all. | — |
 | `security` | One `Sensor` (fixed camera) per tile. Facing is **inferred from surrounding walls**; tuning comes from `EntityStats` defaults. | none — a `sensor` component is never read |
 | `doors` | Tiles **with** a `door` component become doors. Anything else is drawn as decorative art at depth 120 and does nothing. | **`door` required** |
@@ -92,6 +92,35 @@ entities draw their own sprites.
 | `maintenance_access` | Hatch/ladder transition on **E**. Also what makes a level eligible to host the vent core (§2). | — |
 | `extraction` | Marks the level as the win condition's destination (§2). Any tile will do; nothing is drawn. | — |
 | `substations`, `grates` | VENT-4 boss fixtures, only read on the generated `vent_core` level. | — |
+
+### 3.1 A guard board is one guard's patrol route
+
+Tiles on `enforcers` and `drones` are **ordered waypoints for a single guard**, walked as a
+loop, not one guard each. Ordering comes from the trailing number on each tile's `ref`
+(`enforcer0`, `enforcer1`, …); tiles whose ref has no number keep their file order and sort
+behind the numbered ones. The guard spawns on the first waypoint and reads its `enforcer`
+component from that tile.
+
+This is how the shipped map was authored. `main1`'s four tiles trace a circuit down the
+level's spine — the central hall at (18,25), the row-30 corridor at (14,30) and (22,30),
+then the south hall at (17,38) — and `duct1`'s two sit at opposite ends of the *same*
+one-tile shaft at x=21, which is a corridor patrol rather than two guards standing in a
+line. The engine used to read these boards as a headcount and let each guard wander, which
+is why `main1` fielded four enforcers milling around instead of one walking a beat.
+
+Consecutive waypoints do **not** need to be adjacent, or even in the same room: guards route
+between them with A* (`src/systems/Pathfinder.ts`), so a leg may cross the whole level. They
+will also open unlocked doors in their way and shut them again once through — `main1`'s beat
+depends on it, since the only routes to the south hall are the doors at (4,33) and (32,33).
+Locked doors stop guards exactly as they stop the player.
+
+Practical notes for authoring:
+
+- **One waypoint** is a sentry post: the guard holds that spot and sweeps its cone.
+- **No tiles** means no guard on that level, which is what `duct2` and `main2` do.
+- A leg A* can't solve is skipped, and the loop picks the waypoint up next time round, so a
+  route temporarily severed by a locked door degrades rather than wedging the guard.
+- Want more guards on a level? That needs a second guard board, not more tiles on this one.
 
 ### Lasers are found by ref, not by board
 

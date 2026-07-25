@@ -6,12 +6,14 @@
  * (for Phaser Arcade `body.setSize`/`setOffset`) plus the simplified polygon
  * (for future Matter.js / line-of-sight use).
  *
- *   npm run gen:colliders                       # regenerate the player collider
+ *   npm run gen:colliders                       # regenerate every TARGET below
  *   npm run gen:colliders -- --verbose          # + ASCII silhouette preview
  *   npm run gen:colliders -- --input assets/x.png --out src/entities/generated/x.ts \
  *                            --export FOO_COLLIDER --epsilon 2 --inset 0 --origin top-left
  *
- * Deterministic: same input + flags → byte-identical output.
+ * With no `--input`/`--out`/`--export` it walks {@link TARGETS}; naming any of
+ * them switches to a single one-off run. Deterministic either way: the same
+ * input + flags produce byte-identical output.
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
@@ -34,16 +36,42 @@ interface Args {
   verbose: boolean;
 }
 
-const DEFAULTS: Args = {
-  input: "public/assets/player/idle/south/0.png",
-  out: "src/entities/generated/playerCollider.ts",
-  exportName: "PLAYER_IDLE_SOUTH_COLLIDER",
+/** Tracing options shared by every target; only the three paths differ. */
+const SHARED: Omit<Args, "input" | "out" | "exportName"> = {
   epsilon: 2.0,
   inset: 0,
   origin: "top-left",
   threshold: 10,
   verbose: false,
 };
+
+/**
+ * Every sprite the game needs a collider for. The guards trace their *south*
+ * frame for the same reason the player does — it's the resting pose — but note
+ * that a guard's silhouette changes shape with facing (the enforcer is 32×43
+ * facing south and 37×40 facing east), so guards use the traced extent to size
+ * a *circle* (`GuardSkin.collisionRadiusTiles`) rather than feeding the AABB
+ * straight to a physics body the way the player does.
+ */
+const TARGETS: ReadonlyArray<Pick<Args, "input" | "out" | "exportName">> = [
+  {
+    input: "public/assets/player/idle/south/0.png",
+    out: "src/entities/generated/playerCollider.ts",
+    exportName: "PLAYER_IDLE_SOUTH_COLLIDER",
+  },
+  {
+    input: "public/assets/enforcer/patrol/south/0.png",
+    out: "src/entities/generated/enforcerCollider.ts",
+    exportName: "ENFORCER_PATROL_SOUTH_COLLIDER",
+  },
+  {
+    input: "public/assets/drone/patrol/south/0.png",
+    out: "src/entities/generated/droneCollider.ts",
+    exportName: "DRONE_PATROL_SOUTH_COLLIDER",
+  },
+];
+
+const DEFAULTS: Args = { ...SHARED, ...TARGETS[0] };
 
 function parseArgs(argv: string[]): Args {
   const args: Args = { ...DEFAULTS };
@@ -163,7 +191,17 @@ ${polyLiteral},
 }
 
 function main(): void {
-  const args = parseArgs(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  const base = parseArgs(argv);
+  // Naming any of the three path flags means "just this one"; otherwise the
+  // bare command regenerates the whole set, so they can't drift apart.
+  const oneOff = ["--input", "--out", "--export"].some((f) => argv.includes(f));
+  for (const target of oneOff ? [base] : TARGETS.map((t) => ({ ...base, ...t }))) {
+    generateOne(target);
+  }
+}
+
+function generateOne(args: Args): void {
   const buffer = readFileSync(args.input);
   const img = decodeRgba8(new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength));
 

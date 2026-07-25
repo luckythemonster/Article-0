@@ -2,6 +2,7 @@ import type Phaser from "phaser";
 import type { ComponentData } from "../map/types";
 import { Enforcer } from "./Enforcer";
 import { DRONE_SKIN } from "./DroneAnimations";
+import type { PatrolRoute } from "../systems/PatrolRoute";
 
 /**
  * A patrol drone. Mechanically identical to {@link Enforcer} — the map's
@@ -16,7 +17,8 @@ export class Drone extends Enforcer {
     tileY: number,
     tileSize: number,
     components: ComponentData[],
+    route: PatrolRoute = [],
   ) {
-    super(scene, tileX, tileY, tileSize, components, DRONE_SKIN);
+    super(scene, tileX, tileY, tileSize, components, DRONE_SKIN, route);
   }
 }

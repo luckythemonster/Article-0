@@ -87,6 +87,11 @@ export class Door {
     return !this.locked;
   }
 
+  /** True when this door's footprint covers the given tile. */
+  covers(tileX: number, tileY: number): boolean {
+    return this.cells.some((c) => c.x === tileX && c.y === tileY);
+  }
+
   /** Opens/closes the door. Returns true if it changed state. */
   setOpen(open: boolean): boolean {
     if (this.open === open) return false;

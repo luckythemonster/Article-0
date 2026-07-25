@@ -9,7 +9,7 @@ import {
   type PlayerAnimDir,
   type PlayerAnimName,
 } from "./PlayerAnimations";
-import { PLAYER_DEFAULTS } from "../systems/EntityStats";
+import { PLAYER_DEFAULTS, paced } from "../systems/EntityStats";
 import { PLAYER_IDLE_SOUTH_COLLIDER } from "./generated/playerCollider";
 
 /**
@@ -44,7 +44,7 @@ export class Player {
   private static readonly CROUCH_SCALE_FACTOR = 0.8;
 
   constructor(scene: Phaser.Scene, x: number, y: number, tileSize: number) {
-    this.walkSpeed = tileSize * 3.2; // px/sec baseline
+    this.walkSpeed = tileSize * paced(3.2); // px/sec baseline
 
     Player.ensureAnimations(scene);
 

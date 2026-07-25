@@ -12,7 +12,7 @@ import {
   type Vent4View,
 } from "../systems/Vent4Core";
 import { Vent4PhysicsSystem, type Vent4Forces } from "../systems/Vent4PhysicsSystem";
-import { STAPLER_ITEM, VENT4_DEFAULTS, type Vent4Stats } from "../systems/EntityStats";
+import { STAPLER_ITEM, VENT4_DEFAULTS, paced, type Vent4Stats } from "../systems/EntityStats";
 import { PressureSubStation } from "./PressureSubStation";
 import {
   HUB_CENTER_TILE,
@@ -234,14 +234,15 @@ export class Vent4Boss {
     const state = this.core.state;
 
     // Blade spin: a physical tell for every state (stalled while jammed).
-    const targetSpeed =
+    const targetSpeed = paced(
       state === Vent4State.DEFEATED || state === Vent4State.JAMMED
         ? 0
         : state === Vent4State.PHASE_2_VACUUM
           ? 9
           : state === Vent4State.PHASE_3_PURGE
             ? 6
-            : 3.5;
+            : 3.5,
+    );
     const ease = targetSpeed < this.bladeSpeed ? 1.4 : 0.8;
     this.bladeSpeed += (targetSpeed - this.bladeSpeed) * Math.min(1, dt * ease);
     this.bladePhase += this.bladeSpeed * dt;
@@ -249,7 +250,7 @@ export class Vent4Boss {
     const hatchTarget =
       state === Vent4State.JAMMED || state === Vent4State.DEFEATED ? 1 : 0;
     this.hatch = Phaser.Math.Clamp(
-      this.hatch + Math.sign(hatchTarget - this.hatch) * dt * 2.5,
+      this.hatch + Math.sign(hatchTarget - this.hatch) * dt * paced(2.5),
       0,
       1,
     );
