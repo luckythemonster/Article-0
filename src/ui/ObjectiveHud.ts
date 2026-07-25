@@ -43,8 +43,13 @@ export class ObjectiveHud {
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.scale.off("resize", onResize));
   }
 
-  update(state: ObjectiveState, currentLevel: string): void {
-    const lines = objectiveLines(state, currentLevel);
+  update(
+    state: ObjectiveState,
+    currentLevel: string,
+    extractionLevel: string,
+    hasVentCore: boolean,
+  ): void {
+    const lines = objectiveLines(state, currentLevel, extractionLevel, hasVentCore);
     const text = lines.map((l) => `${l.done ? "✓" : "○"} ${l.label}`).join("\n");
     if (text === this.last) return;
     this.last = text;

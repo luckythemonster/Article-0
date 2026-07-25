@@ -12,6 +12,7 @@ import type { AlertPhase } from "../systems/AlertState";
 import type { RadarSnapshot } from "../systems/Radar";
 import type { AlertNetworkSnapshot } from "../systems/AlertNetwork";
 import type { ObjectiveState } from "../systems/Objectives";
+import type { MapPlan } from "../map/MapPlan";
 import type { Vent4View } from "../systems/Vent4Core";
 import type { ActiveItemsView } from "../systems/ActiveItems";
 import type { ConductView } from "../systems/Conduct";
@@ -97,7 +98,15 @@ export class UIScene extends Phaser.Scene {
 
     const objState = this.registry.get("objectives") as ObjectiveState | undefined;
     const level = (this.registry.get("currentLevel") as string | undefined) ?? "";
-    if (objState) this.objectives.update(objState, level);
+    const plan = this.registry.get("mapPlan") as MapPlan | undefined;
+    if (objState) {
+      this.objectives.update(
+        objState,
+        level,
+        plan?.extractionLevel ?? "",
+        (this.registry.get("hasVentCore") as boolean | undefined) ?? true,
+      );
+    }
 
     const field = this.registry.get("sharedField") as SharedFieldView | undefined;
     if (field) this.sharedField.update(field);

@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { createFrame, type Frame, type FrameSettings } from "@arwes/frames";
 import { initialObjectives, objectiveLines, type ObjectiveState } from "../systems/Objectives";
+import type { MapPlan } from "../map/MapPlan";
 import { setMode } from "../systems/GameState";
 import { getAudio } from "../systems/AudioDirector";
 import { captureModalFocus } from "../ui/dom";
@@ -123,7 +124,13 @@ export class CodecScene extends Phaser.Scene {
     const level = (this.registry.get("currentLevel") as string | undefined) ?? "";
     const directive = document.createElement("pre");
     directive.className = "codec-directive";
-    directive.textContent = objectiveLines(state, level)
+    const plan = this.registry.get("mapPlan") as MapPlan | undefined;
+    directive.textContent = objectiveLines(
+      state,
+      level,
+      plan?.extractionLevel ?? "",
+      (this.registry.get("hasVentCore") as boolean | undefined) ?? true,
+    )
       .map((l) => `${l.done ? "✓" : "○"} ${l.label}`)
       .join("\n");
 

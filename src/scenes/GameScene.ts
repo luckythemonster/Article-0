@@ -57,6 +57,7 @@ import {
 import { Vent4Boss, type Vent4InteractResult } from "../entities/Vent4Boss";
 import { Vent4State, type Vent4Snapshot, type Vent4Transition } from "../systems/Vent4Core";
 import { VENT_CORE_LEVEL } from "../map/VentCoreLevel";
+import { planFor, type MapPlan } from "../map/MapPlan";
 import { getAudio } from "../systems/AudioDirector";
 import { saveGame, clearSave } from "../systems/SaveGame";
 import { SharedField, WITNESS_RADIUS_TILES } from "../systems/SharedField";
@@ -112,8 +113,12 @@ const KNOCK_NOISE_TILES = 5;
 /** Seconds between knocks, so the action can't be mashed. */
 const KNOCK_COOLDOWN = 0.6;
 
-/** Debug warp targets, indexed by the number keys 1..5 (dev-only). */
-const DEBUG_WARP_LEVELS = ["main1", "main2", "duct1", "duct2", VENT_CORE_LEVEL];
+/**
+ * How many levels the debug number keys can warp to. The targets themselves come from
+ * the map's own level list (see `debugWarpLevels`) rather than hardcoded names, so the
+ * warps keep working on a map that doesn't reuse the shipped level names.
+ */
+const DEBUG_WARP_SLOTS = 5;
 
 /**
  * The playable scene. Renders one level's tile art in board z-order, builds the
@@ -145,7 +150,8 @@ export class GameScene extends Phaser.Scene {
   private transitions!: TransitionGraph;
 
   /** Where this scene run should start (level + optional arrival tile). */
-  private levelName = "main1";
+  /** Set in init() from the map plan; the literal is only a pre-init placeholder. */
+  private levelName = "";
   private arriveTile?: { x: number; y: number };
   /** A fade + level swap is in flight; input and further triggers are ignored. */
   private transitioning = false;
@@ -239,7 +245,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   init(data: GameSceneData): void {
-    this.levelName = data.level ?? "main1";
+    this.levelName = data.level ?? this.mapPlan().startLevel;
     this.arriveTile =
       data.arriveX !== undefined && data.arriveY !== undefined
         ? { x: data.arriveX, y: data.arriveY }
@@ -1130,7 +1136,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     // Win — logs recovered and Rowan has reached the Lattice uplink deck.
-    if (isRunWon(this.objectives, this.level.name)) {
+    if (isRunWon(this.objectives, this.level.name, this.mapPlan().extractionLevel)) {
       this.endRun("LATTICE", "VictoryScene");
       return;
     }
@@ -1478,13 +1484,40 @@ export class GameScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(dk.world)) this.worldDraw = !this.worldDraw;
     if (Phaser.Input.Keyboard.JustDown(dk.freeze)) this.frozenWorld = !this.frozenWorld;
     if (Phaser.Input.Keyboard.JustDown(dk.darkness)) this.setDarknessOff(!this.darknessOff);
-    for (let i = 0; i < dk.warp.length; i++) {
+    const warps = this.debugWarpLevels();
+    for (let i = 0; i < dk.warp.length && i < warps.length; i++) {
       if (Phaser.Input.Keyboard.JustDown(dk.warp[i])) {
-        this.debugWarp(DEBUG_WARP_LEVELS[i]);
+        this.debugWarp(warps[i]);
         return true;
       }
     }
     return false;
+  }
+
+  /**
+   * The map's shape — start level, extraction level, vent-core host — published by
+   * `BootScene`. Recomputed from the parsed map if absent, so starting `GameScene` directly
+   * (a harness, a deep link) can't leave the run without a start level.
+   */
+  private mapPlan(): MapPlan {
+    const published = this.registry.get("mapPlan") as MapPlan | undefined;
+    if (published) return published;
+    const parsed = this.registry.get("parsedMap") as ParsedMap | undefined;
+    return parsed
+      ? planFor(parsed.map)
+      : { startLevel: "", extractionLevel: "", ventCoreHost: null };
+  }
+
+  /**
+   * Warp targets for the debug number keys: the map's own levels in authored order, with
+   * the generated vent core last so it stays on the highest key. Derived rather than
+   * hardcoded so the warps work on any map.
+   */
+  private debugWarpLevels(): string[] {
+    const names = this.map.levels.map((l) => l.name);
+    const authored = names.filter((n) => n !== VENT_CORE_LEVEL);
+    const generated = names.filter((n) => n === VENT_CORE_LEVEL);
+    return [...authored, ...generated].slice(0, DEBUG_WARP_SLOTS);
   }
 
   /** Master switch. Disabling clears every cheat for a clean return to play. */

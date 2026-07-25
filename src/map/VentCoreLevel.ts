@@ -1,4 +1,4 @@
-import type { ComponentData, GameLayer, GameMap, GameTile } from "./types";
+import type { ComponentData, GameLayer, GameLevel, GameMap, GameTile } from "./types";
 import { STAPLER_ITEM } from "../systems/EntityStats";
 
 /**
@@ -8,16 +8,17 @@ import { STAPLER_ITEM } from "../systems/EntityStats";
  * is guaranteed to be in the parse's uniqueFrames (SpriteAtlas registers it
  * with no extra work).
  *
- * The arena links to duct2 the same way every other level connects: the
- * TransitionGraph pairs `maintenance_access` tiles that share an exact
- * coordinate across levels. duct2's row-34 crawl corridor is open floor at
- * (18,34) and no level has an access tile there, so a hatch is injected into
- * duct2 at that spot and vent_core carries its twin.
+ * The arena links to its *host* level the same way every other level connects: the
+ * TransitionGraph pairs `maintenance_access` tiles that share an exact coordinate
+ * across levels. A hatch is injected into the host at (18,34) — open floor with no
+ * access tile in the shipped map — and vent_core carries its twin. Which level hosts
+ * it is decided by `MapPlan.ventCoreHost` rather than hardcoded, so a new map isn't
+ * obliged to have a level called `duct2`.
  */
 
 export const VENT_CORE_LEVEL = "vent_core";
 
-/** The hatch tile shared with duct2 — entry and only exit. */
+/** The hatch tile shared with the host level — entry and only exit. */
 export const VENT_CORE_ENTRY = { x: 18, y: 34 };
 
 /** Turbine centre in tile units (the hub is the 3×3 block around it). */
@@ -165,6 +166,13 @@ function protoTile(
   return undefined;
 }
 
+/**
+ * Thrown internally when the map can't supply a prototype tile the arena needs. Caught by
+ * {@link appendVentCore}, which skips generation rather than letting a map that simply
+ * doesn't have the boards take the whole boot down.
+ */
+class MissingProto extends Error {}
+
 function mustProto(
   map: GameMap,
   layerName: string,
@@ -172,7 +180,7 @@ function mustProto(
   levelName?: string,
 ): GameTile {
   const t = protoTile(map, layerName, refMatch, levelName) ?? protoTile(map, layerName);
-  if (!t) throw new Error(`vent_core: no proto tile found on any "${layerName}" board`);
+  if (!t) throw new MissingProto(`no proto tile found on any "${layerName}" board`);
   return t;
 }
 
@@ -197,22 +205,41 @@ function marker(ref: string, x: number, y: number): GameTile {
 }
 
 /**
- * Appends the vent_core level and injects its duct2-side hatch. Idempotent —
+ * Appends the vent_core level and injects the host-side hatch that reaches it. Idempotent —
  * the parsed map is cached in the registry and must not grow twice.
+ *
+ * **Optional, and silent when it can't run.** The arena is spliced into a maintenance level
+ * and clones that level's art, so a map without a suitable host (or without the boards the
+ * prototypes come from) simply doesn't get a VENT-4 — and therefore no Q0 compliance cert,
+ * since that is the reward for silencing it. It used to throw instead, which took the whole
+ * boot down for any map that wasn't the shipped one.
+ *
+ * @param host level to graft onto — `MapPlan.ventCoreHost`. Null skips generation.
+ * @returns whether the arena was generated.
  */
-export function appendVentCore(map: GameMap): void {
-  if (map.levels.some((l) => l.name === VENT_CORE_LEVEL)) return;
+export function appendVentCore(map: GameMap, host: string | null): boolean {
+  if (map.levels.some((l) => l.name === VENT_CORE_LEVEL)) return true;
+  if (host === null) return false;
 
-  const duct2 = map.levels.find((l) => l.name === "duct2");
-  if (!duct2) throw new Error("vent_core: duct2 level missing from map");
+  const hostLevel = map.levels.find((l) => l.name === host);
+  if (!hostLevel) return false;
+  try {
+    buildVentCore(map, host, hostLevel);
+    return true;
+  } catch (e) {
+    if (e instanceof MissingProto) return false; // map can't furnish the arena; skip it
+    throw e;
+  }
+}
 
+function buildVentCore(map: GameMap, host: string, hostLevel: GameLevel): void {
   // --- Protos (all from tiles the shipped map already places) ---
   const grateRef = "tdVents_Interior1_13";
   const floorProtos: GameTile[] = [];
   {
-    const duct2Floor = duct2.layers.find((l) => l.name === "floor");
+    const hostFloor = hostLevel.layers.find((l) => l.name === "floor");
     const seen = new Set<string>();
-    for (const t of duct2Floor?.tiles ?? []) {
+    for (const t of hostFloor?.tiles ?? []) {
       if (t.ref === grateRef || seen.has(t.ref) || !t.frame) continue;
       seen.add(t.ref);
       floorProtos.push(t);
@@ -221,20 +248,20 @@ export function appendVentCore(map: GameMap): void {
   }
   if (floorProtos.length === 0) floorProtos.push(mustProto(map, "floor"));
   const grateProto = mustProto(map, "floor", (r) => r === grateRef);
-  const wallProto = mustProto(map, "walls", (r) => r.includes("Concrete_Wall"), "duct2");
+  const wallProto = mustProto(map, "walls", (r) => r.includes("Concrete_Wall"), host);
   const columnProto =
-    protoTile(map, "walls", (r) => r.endsWith("_13"), "duct2") ?? wallProto;
-  const hatchProto = mustProto(map, "maintenance_access", (r) => r === "hatch", "duct2");
+    protoTile(map, "walls", (r) => r.endsWith("_13"), host) ?? wallProto;
+  const hatchProto = mustProto(map, "maintenance_access", (r) => r === "hatch", host);
   const terminalProto = mustProto(map, "terminals", (r) => r === "terminal0");
   const coverProto = mustProto(map, "cover", (r) => r === "cover0");
   const lightProto = mustProto(map, "light_sources", (r) => r.includes("light_source"));
   const chestProto = mustProto(map, "items", (r) => r === "chest0");
 
-  // --- Inject the duct2-side hatch (skip if a re-parse already carries it) ---
-  const duct2Access = duct2.layers.find((l) => l.name === "maintenance_access");
-  if (!duct2Access) throw new Error("vent_core: duct2 has no maintenance_access board");
-  if (!duct2Access.tiles.some((t) => t.x === VENT_CORE_ENTRY.x && t.y === VENT_CORE_ENTRY.y)) {
-    duct2Access.tiles.push(cloneTile(hatchProto, VENT_CORE_ENTRY.x, VENT_CORE_ENTRY.y));
+  // --- Inject the host-side hatch (skip if a re-parse already carries it) ---
+  const hostAccess = hostLevel.layers.find((l) => l.name === "maintenance_access");
+  if (!hostAccess) throw new MissingProto(`host "${host}" has no maintenance_access board`);
+  if (!hostAccess.tiles.some((t) => t.x === VENT_CORE_ENTRY.x && t.y === VENT_CORE_ENTRY.y)) {
+    hostAccess.tiles.push(cloneTile(hatchProto, VENT_CORE_ENTRY.x, VENT_CORE_ENTRY.y));
   }
 
   // --- Build the arena layers ---
