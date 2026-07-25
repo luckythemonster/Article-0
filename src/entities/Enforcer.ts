@@ -46,6 +46,13 @@ export interface EnforcerContext {
   /** True when the player is hidden (crouched in cover) — cones can't see them. */
   playerConcealed: boolean;
   /**
+   * True when the player currently reads as compliant staff (see
+   * {@link ConductState}). Not the same thing as concealment: the guard *does* see
+   * Rowan and clears him anyway, so it suppresses sensing outright rather than
+   * breaking a sightline.
+   */
+  playerCompliant: boolean;
+  /**
    * True when the player is hidden from *thermal* sensing too. Normally equal to
    * {@link playerConcealed}, but heat-leaking cover (ThermalBleed) still exposes
    * them to the short-range heat sense while breaking the visible cone.
@@ -505,9 +512,15 @@ export class Enforcer {
    *    cover and there's clear line of sight;
    *  - **cone** — inside the vision cone, within {@link EnforcerStats.sightRange},
    *    with clear LOS, and not crouched behind cover.
+   *
+   * Compliance short-circuits both, at any range. That is the point of it: the guard
+   * looks straight at Rowan, reads him as staff going about his business, and returns
+   * to the sweep. Distance is not the limiter — conduct is.
    */
   private canSee(ctx: EnforcerContext): boolean {
     const { player, tileSize, grid } = ctx;
+
+    if (ctx.playerCompliant) return false;
 
     // A live Chaff Pack EMP zone blinds any guard caught inside it outright.
     if (ctx.chaffZone) {

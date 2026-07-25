@@ -81,6 +81,10 @@ export class Sensor {
   private canSee(ctx: EnforcerContext): boolean {
     const { player, tileSize, grid } = ctx;
 
+    // Cameras clear a compliant Rowan the same as the guards do — the feed goes to the
+    // same Alignment apparatus, and it is judging conduct, not faces.
+    if (ctx.playerCompliant) return false;
+
     // A live Chaff Pack EMP zone blinds any camera caught inside it outright.
     if (ctx.chaffZone) {
       const dz = Math.hypot(this.x - ctx.chaffZone.x, this.y - ctx.chaffZone.y);

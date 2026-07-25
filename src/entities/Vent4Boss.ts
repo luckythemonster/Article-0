@@ -407,7 +407,14 @@ export class Vent4Boss {
 
   // --- per-frame internals ---
 
-  /** Sweep spotlights (Phase 1) and the purge's arena-wide thermal scan. */
+  /**
+   * Sweep spotlights (Phase 1) and the purge's arena-wide thermal scan.
+   *
+   * Note this reads `ctx.playerConcealed` but deliberately ignores
+   * `ctx.playerCompliant`. Compliance is a social judgement made by things that could
+   * plausibly mistake Rowan for staff; VENT-4 is already mid-purge and knows exactly
+   * what he is, so no amount of walking nicely talks it down.
+   */
   private updateExposure(dt: number, ctx: EnforcerContext, res: Vent4TickResult): void {
     const s = this.stats;
     const ts = this.tileSize;

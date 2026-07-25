@@ -15,6 +15,8 @@ export interface OrderlyContext {
   player: { x: number; y: number };
   /** True when the player is hidden (crouched in cover) — orderlies can't see them either. */
   playerConcealed: boolean;
+  /** True when the player reads as compliant staff — nothing to report. */
+  playerCompliant: boolean;
 }
 
 const SIGHT_RANGE_TILES = 5;
@@ -201,6 +203,9 @@ export class Orderly {
 
   /** Unobstructed sight to the player within range — no cone-angle limit. */
   private canSee(ctx: OrderlyContext): boolean {
+    // Orderlies are the readiest to be fooled: a coworker walking by is a coworker
+    // walking by, so a compliant Rowan never startles one into raising the alarm.
+    if (ctx.playerCompliant) return false;
     if (ctx.playerConcealed) return false;
     const { player, tileSize, grid } = ctx;
     const dist = Math.hypot(player.x - this.x, player.y - this.y);

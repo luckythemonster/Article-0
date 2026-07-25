@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import type { AlertPhase } from "../systems/AlertState";
+import { SETTLE_SECONDS, type ConductView } from "../systems/Conduct";
 
 const PHASE_COLOR: Record<AlertPhase, string> = {
   INFILTRATION: "#39d3ff",
@@ -16,6 +17,7 @@ const PHASE_COLOR: Record<AlertPhase, string> = {
  */
 export class Hud {
   private readonly phaseText: Phaser.GameObjects.Text;
+  private readonly conductText: Phaser.GameObjects.Text;
   private readonly hint: Phaser.GameObjects.Text;
   private readonly srpFill: Phaser.GameObjects.Rectangle;
   private readonly srpAxes: Phaser.GameObjects.Text;
@@ -79,15 +81,36 @@ export class Hud {
       .setScrollFactor(0)
       .setDepth(1000);
 
+    // Bottom-left, just above the controls hint. Deliberately not up beside the phase:
+    // the objective heading is centred on the viewport, so a fixed-x readout up there
+    // collides with it as soon as the window narrows.
+    this.conductText = scene.add
+      .text(pad, scene.scale.height - pad - 18, "", {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: "#9fd2ff",
+      })
+      .setOrigin(0, 1)
+      .setScrollFactor(0)
+      .setDepth(1000);
+
     const onResize = (size: Phaser.Structs.Size): void => {
       this.hint.setPosition(pad, size.height - pad);
+      this.conductText.setPosition(pad, size.height - pad - 18);
     };
     scene.scale.on("resize", onResize);
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.scale.off("resize", onResize));
   }
 
-  update(alert: { phase: AlertPhase }, detection: number, hp: number, maxHp: number): void {
+  update(
+    alert: { phase: AlertPhase },
+    detection: number,
+    hp: number,
+    maxHp: number,
+    conduct?: ConductView,
+  ): void {
     this.phaseText.setText(alert.phase).setColor(PHASE_COLOR[alert.phase]);
+    this.updateConduct(conduct);
 
     const risk = Phaser.Math.Clamp(detection, 0, 1);
     this.srpFill.width = Math.round(178 * risk);
@@ -98,5 +121,30 @@ export class Hud {
     const frac = maxHp > 0 ? Phaser.Math.Clamp(hp / maxHp, 0, 1) : 0;
     this.hpFill.width = Math.round(178 * frac);
     this.hpFill.setFillStyle(frac > 0.5 ? 0x59d98e : frac > 0.25 ? 0xffb03b : 0xff3b3b);
+  }
+
+  /**
+   * Whether Rowan currently passes as staff, and if not, what gave him away.
+   *
+   * The countdown is only shown once there's meaningfully more than the settle period
+   * left — for a breach that's still happening (running, sneaking, an active alert) the
+   * timer is pinned at its floor, so a ticking number there would be noise.
+   */
+  private updateConduct(conduct?: ConductView): void {
+    if (!conduct) {
+      this.conductText.setText("");
+      return;
+    }
+    if (conduct.compliant) {
+      this.conductText.setText("COMPLIANCE  OK").setColor("#9fd2ff");
+      return;
+    }
+    const countdown =
+      conduct.flaggedRemaining > SETTLE_SECONDS + 0.1
+        ? `  ${conduct.flaggedRemaining.toFixed(1)}s`
+        : "";
+    this.conductText
+      .setText(`COMPLIANCE  ${conduct.breach ?? "FLAGGED"}${countdown}`)
+      .setColor(conduct.breach === "ALERT" ? "#ff3b3b" : "#ffb03b");
   }
 }

@@ -18,6 +18,10 @@ export interface DebugSnapshot {
   worldDraw: boolean;
   frozenWorld: boolean;
   darknessOff: boolean;
+  /** Whether Rowan currently reads as compliant staff, and if not, what broke it. */
+  compliant: boolean;
+  breach: string | null;
+  flaggedRemaining: number;
   fps: number;
   px: number;
   py: number;
@@ -110,6 +114,9 @@ export class DebugHud {
         `alert  ${view.alertPhase}`,
         `god ${flag(view.godMode)}  no-clip ${flag(view.noClip)}  world ${flag(view.worldDraw)}`,
         `freeze ${flag(view.frozenWorld)}  dark ${flag(!view.darknessOff)}`,
+        view.compliant
+          ? "conduct COMPLIANT"
+          : `conduct ${view.breach ?? "FLAGGED"} ${view.flaggedRemaining.toFixed(1)}s`,
         units ? `units:\n${units}` : "units: (none)",
       ].join("\n"),
     );
