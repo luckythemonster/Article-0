@@ -96,7 +96,8 @@ holds. What breaks it is behaviour, not geometry:
 | `UNAUTHORIZED` | Working a terminal or a silicate rack |
 | `TAMPERING` | Searching a chest, knocking on walls (**R**) |
 | `HOSTILE` | A stun dart, a Chaff Pack burst |
-| `ALERT` | The base already knows — no posture talks you out of that |
+| `EVASION` | Guards are sweeping for you — unless you have papers (see below) |
+| `ALERT` | Active pursuit. Nothing talks you out of that |
 
 Sneaking counts against you, which inverts the usual stealth reflex: the safe move
 when you're relying on cover is the tell when you're relying on conduct. Stopping a
@@ -110,6 +111,16 @@ free pass while it holds: **lasers** are a physical trip, not a judgement, so a 
 still catches a perfectly compliant Rowan; doors you leave open and chests you empty
 are still investigated as anomalies; and **VENT-4** is already mid-purge and knows
 exactly what he is.
+
+Silencing VENT-4 (the optional objective) pays out the **Q0 compliance cert**, and
+that credential is what changes the rule: documented as compliant in good standing,
+Rowan can stand down a *search* and go back to reading as staff, so **EVASION** stops
+blocking him. It buys nothing during an active **ALERT** — papers don't help once
+they're actually chasing you. The readout says `COMPLIANCE OK · CERTIFIED` while it's
+carrying you, and the cert sits under **KEY ITEMS** in the inventory. That makes the
+optional boss worth beating on the way to the uplink, which is squarely where the
+credential pays for itself: the run to main deck 2 after you've made noise getting
+the logs.
 
 **The dark is opaque, and you only see what you have line of sight to.** Unlit
 space is genuinely black rather than dimmed, and walls cut your view — a lit room
@@ -298,7 +309,14 @@ engine will use that value instead.
   `violate` takes the *max*, so a held action re-reporting itself every frame reads as
   "flagged throughout, then a cooldown" with no extra bookkeeping. It plugs into the
   same `canSee` choke points as concealment, via a `playerCompliant` flag on the guard
-  and orderly contexts. `Vent4Boss` deliberately ignores it.
+  and orderly contexts. `Vent4Boss` deliberately ignores it. The rules read the alert
+  *phase* rather than a boolean, because carrying `Q0_COMPLIANCE_CERT` (the VENT-4
+  reward) lets compliance survive EVASION while still never surviving ALERT — the
+  optional boss's payout, which until now was an item wired to nothing.
+- Held items: `isKeyItem` is the complement of `CONSUMABLE_ORDER` rather than its own
+  allowlist, so anything granted shows up under KEY ITEMS. It used to be a hardcoded
+  pair, which silently hid the compliance cert, the two vent-core flavour items, and the
+  boss-critical Rail-Stapler that `Vent4Boss` gates capacitor fire on.
 - Sensor cameras: the `security` board becomes fixed optical cameras
   (`src/entities/Sensor.ts`) — a stationary, wall-clipped vision cone that pans
   back and forth around a facing inferred from the surrounding walls, fills the

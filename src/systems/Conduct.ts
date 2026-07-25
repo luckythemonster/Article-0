@@ -20,10 +20,17 @@
  * still says COMPLIANCE — in the fiction they are the same doctrine.
  */
 
+import type { AlertPhase } from "./AlertState";
+
 /** Why compliance is currently withheld. Drives the HUD readout. */
 export type ConductBreach =
-  /** The base is already aware. No posture talks your way out of an active alert. */
+  /** Active pursuit. Nothing talks your way out of this, credential or not. */
   | "ALERT"
+  /**
+   * Guards are sweeping for you. Blocking unless Rowan carries the Q0 compliance
+   * cert — with papers in hand he can stand the search down and pass as staff again.
+   */
+  | "EVASION"
   | "RUNNING"
   | "SNEAKING"
   /** Working a terminal or a silicate rack. */
@@ -37,11 +44,18 @@ export type ConductBreach =
 
 /** The player's live conduct, sampled once per frame. */
 export interface ConductInput {
-  /** Global alert phase is anything but INFILTRATION. */
-  alertAware: boolean;
+  /** The global alert phase. ALERT and EVASION are not equivalent — see `certified`. */
+  alertPhase: AlertPhase;
   running: boolean;
   /** Crouched — whether moving or not. Skulking is its own kind of conspicuous. */
   sneaking: boolean;
+  /**
+   * Carrying `Q0_COMPLIANCE_CERT`, the proof-of-compliance awarded for silencing
+   * VENT-4. Documented as Q0 in good standing, Rowan can talk down a *search* and go
+   * back to reading as staff — which is what makes the optional boss worth beating on
+   * the way to the uplink. It buys nothing during an active ALERT.
+   */
+  certified: boolean;
 }
 
 /**
@@ -86,15 +100,17 @@ export class ConductState {
   }
 
   update(dt: number, input: ConductInput): void {
+    // A live pursuit always blocks; a search only blocks without the credential.
+    const alertBreach: ConductBreach | null =
+      input.alertPhase === "ALERT"
+        ? "ALERT"
+        : input.alertPhase === "EVASION" && !input.certified
+          ? "EVASION"
+          : null;
+
     // Continuous conditions hold the timer at its floor for as long as they last, so
     // ending one still costs a beat of honest walking.
-    this.live = input.alertAware
-      ? "ALERT"
-      : input.running
-        ? "RUNNING"
-        : input.sneaking
-          ? "SNEAKING"
-          : null;
+    this.live = alertBreach ?? (input.running ? "RUNNING" : input.sneaking ? "SNEAKING" : null);
 
     if (this.live) {
       this.flagged = Math.max(this.flagged, SETTLE_SECONDS);
@@ -125,4 +141,6 @@ export interface ConductView {
   compliant: boolean;
   breach: ConductBreach | null;
   flaggedRemaining: number;
+  /** Carrying the Q0 cert — surfaced so the HUD can show the credential doing work. */
+  certified: boolean;
 }
