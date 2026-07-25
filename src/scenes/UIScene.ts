@@ -14,6 +14,7 @@ import type { AlertNetworkSnapshot } from "../systems/AlertNetwork";
 import type { ObjectiveState } from "../systems/Objectives";
 import type { Vent4View } from "../systems/Vent4Core";
 import type { ActiveItemsView } from "../systems/ActiveItems";
+import type { ConductView } from "../systems/Conduct";
 import { consumableSlots } from "../systems/EntityStats";
 
 /**
@@ -63,7 +64,13 @@ export class UIScene extends Phaser.Scene {
     const detection = (this.registry.get("detection") as number) ?? 0;
     const hp = (this.registry.get("playerHp") as number | undefined) ?? 0;
     const maxHp = (this.registry.get("playerMaxHp") as number | undefined) ?? 1;
-    this.hud.update(this.alertView, detection, hp, maxHp);
+    this.hud.update(
+      this.alertView,
+      detection,
+      hp,
+      maxHp,
+      this.registry.get("conduct") as ConductView | undefined,
+    );
 
     const radarSnapshot = this.registry.get("radar") as RadarSnapshot | undefined;
     if (radarSnapshot) this.radar.update(radarSnapshot);

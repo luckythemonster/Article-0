@@ -82,6 +82,35 @@ cone turns red, a `!` appears, guards converge on your last known position).
 Break line of sight and it decays back through **EVASION** to **INFILTRATION**.
 Standing in a light pool fills the meter faster; standing on cover slows it.
 
+**Compliance** is the other way past a guard, and it is the opposite of hiding. This
+place runs on conformance, so if you walk normally, touch nothing you shouldn't and
+set off no alarm, the whole apparatus reads you as staff — enforcers, drones,
+orderlies *and* the cameras all look straight at Rowan and clear him, at any range.
+The bottom-left readout tracks it and a **COMPLIANT** marker floats over him while it
+holds. What breaks it is behaviour, not geometry:
+
+| Breach | What does it |
+| --- | --- |
+| `RUNNING` | Sprinting (**Space**) |
+| `SNEAKING` | Crouching (**Shift**) — skulking is its own kind of conspicuous |
+| `UNAUTHORIZED` | Working a terminal or a silicate rack |
+| `TAMPERING` | Searching a chest, knocking on walls (**R**) |
+| `HOSTILE` | A stun dart, a Chaff Pack burst |
+| `ALERT` | The base already knows — no posture talks you out of that |
+
+Sneaking counts against you, which inverts the usual stealth reflex: the safe move
+when you're relying on cover is the tell when you're relying on conduct. Stopping a
+breach isn't instant either — it takes a beat of honest walking to settle, and the
+discrete violations hold their flag for a cooldown (a terminal for ~10s, a stun dart
+for ~14s), so you can't tap-dance in and out of it.
+
+Compliance buys you *traversal*; it can't buy you progress, because every objective
+is a violation — the log-cache, the silicate rack, every terminal. And it isn't a
+free pass while it holds: **lasers** are a physical trip, not a judgement, so a beam
+still catches a perfectly compliant Rowan; doors you leave open and chests you empty
+are still investigated as anomalies; and **VENT-4** is already mid-purge and knows
+exactly what he is.
+
 **The dark is opaque, and you only see what you have line of sight to.** Unlit
 space is genuinely black rather than dimmed, and walls cut your view — a lit room
 on the far side of a wall, and a guard patrolling around the corner, are both
@@ -261,6 +290,15 @@ engine will use that value instead.
   (`Enforcer.canSee`); all map cover is `LOW` (crouch). Thermal detection reads
   each cover tile's `ThermalBleed` flag (all map cover blocks heat, so cover hides
   you from thermal too); the `Destructible` cover field is left for later.
+- Compliance: behaving like staff makes every sensor clear Rowan on sight, at any
+  range — the counterpart to concealment rather than a variant of it
+  (`src/systems/Conduct.ts`). One timer drives it: continuous breaches (running,
+  crouching, an active alert) pin it at a settle floor while they last, and discrete
+  ones (terminals, chests, knocks, darts, chaff) hold a per-severity cooldown.
+  `violate` takes the *max*, so a held action re-reporting itself every frame reads as
+  "flagged throughout, then a cooldown" with no extra bookkeeping. It plugs into the
+  same `canSee` choke points as concealment, via a `playerCompliant` flag on the guard
+  and orderly contexts. `Vent4Boss` deliberately ignores it.
 - Sensor cameras: the `security` board becomes fixed optical cameras
   (`src/entities/Sensor.ts`) — a stationary, wall-clipped vision cone that pans
   back and forth around a facing inferred from the surrounding walls, fills the
@@ -317,7 +355,7 @@ src/entities/       Player, Enforcer, Drone, Orderly, Sensor, Door, Terminal,
                     Laser, Chest, GuardSkin, PlayerAnimations,
                     EnforcerAnimations, DroneAnimations, OrderlyAnimations
 src/systems/        CollisionGrid, DetectionSystem, Visibility, AlertState,
-                    TransitionGraph, Radar, AlertNetwork, EntityStats
+                    Conduct, TransitionGraph, Radar, AlertNetwork, EntityStats
 src/ui/             Hud, Radar, InventoryHud, AlertNetworkHud, Lighting
 ```
 

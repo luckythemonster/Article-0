@@ -89,6 +89,16 @@ export class Player {
     return this.stance === "crouched";
   }
 
+  /**
+   * True while actually sprinting — moving, upright, with run held. Not just the key
+   * state: standing still on Space isn't running. Read by the conduct rules, where a
+   * sprint is one of the things that stops you reading as staff.
+   */
+  get running(): boolean {
+    return this.runningNow;
+  }
+  private runningNow = false;
+
   get alive(): boolean {
     return this.hp > 0;
   }
@@ -143,6 +153,7 @@ export class Player {
     const crouchedNow = this.stance === "crouched";
     const sneaking = crouchedNow && moving;
     const running = cursors.run && moving && this.stance === "standing";
+    this.runningNow = running;
     // Crouched *and* mid-transition both move at the slow sneak pace.
     const stanceMul = transitioning || sneaking ? 0.45 : running ? 1.6 : 1;
     const speed = this.walkSpeed * stanceMul;

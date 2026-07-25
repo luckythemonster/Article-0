@@ -58,6 +58,13 @@ import { VENT_CORE_LEVEL } from "../map/VentCoreLevel";
 import { getAudio } from "../systems/AudioDirector";
 import { saveGame, clearSave } from "../systems/SaveGame";
 import { SharedField, WITNESS_RADIUS_TILES } from "../systems/SharedField";
+import {
+  ConductState,
+  FLAG_HOSTILE,
+  FLAG_TAMPERING,
+  FLAG_UNAUTHORIZED,
+  type ConductView,
+} from "../systems/Conduct";
 import { DEBUG_ALLOWED } from "../systems/DebugFlag";
 import type { DebugSnapshot } from "../ui/DebugHud";
 
@@ -162,6 +169,8 @@ export class GameScene extends Phaser.Scene {
   private objectives!: ObjectiveState;
   /** The Shared Field (WX-9) charge / active state. */
   private sharedField = new SharedField();
+  /** Whether Rowan currently reads to the facility as compliant staff. */
+  private conduct = new ConductState();
   /** Chaff Pack / Thermal Gel consumable timers. */
   private activeItems = new ActiveItemState();
   /** Draws the Chaff Pack's EMP zone while it's live. */
@@ -263,6 +272,7 @@ export class GameScene extends Phaser.Scene {
     this.pendingQualia = undefined;
     this.qualiaRack = undefined;
     this.sharedField = new SharedField();
+    this.conduct = new ConductState();
     this.activeItems = new ActiveItemState();
     // Arm only after stepping off the arrival tile (see update()).
     this.transitionArmed = false;
@@ -800,6 +810,7 @@ export class GameScene extends Phaser.Scene {
    */
   private fireChaffBurst(): void {
     this.activeItems.activateChaff(this.player.x, this.player.y);
+    this.conduct.violate("HOSTILE", FLAG_HOSTILE);
     this.alert.forceEvasion();
     const radiusPx = CHAFF_PACK_RADIUS_TILES * this.tileSize;
     for (const laser of this.lasers) {
@@ -834,6 +845,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
     target?.stun(STUN_ROUND_DURATION);
+    this.conduct.violate("HOSTILE", FLAG_HOSTILE);
     this.emitNoiseAt(this.player.x, this.player.y, STUN_ROUND_NOISE * this.tileSize);
   }
 
@@ -920,6 +932,23 @@ export class GameScene extends Phaser.Scene {
     this.updateActiveItems(dt);
     const fieldActive = this.sharedField.isActive;
 
+    // Conduct: ticked after updateInteractions so this frame's violations (a terminal
+    // hold, a chest search) are already registered, and before the sensing context is
+    // built below, which reads the result. Walking normally with the base unaware
+    // reads as staff and every sensor clears Rowan on sight; running, sneaking or
+    // meddling with anything drops that cover for a cooldown.
+    this.conduct.update(dt, {
+      alertAware: this.alert.isCombatAware,
+      running: this.player.running,
+      sneaking: this.player.crouched,
+    });
+    const compliant = this.conduct.compliant;
+    this.registry.set("conduct", {
+      compliant,
+      breach: this.conduct.breach,
+      flaggedRemaining: this.conduct.flaggedRemaining,
+    } satisfies ConductView);
+
     // Cover concealment: crouched on LOW cover (or on any HIGH cover) hides the
     // player from vision cones. The Shared Field (WX-9) hides Rowan from
     // everything for its duration — the mesh perceives him as part of "we".
@@ -930,7 +959,7 @@ export class GameScene extends Phaser.Scene {
     // all blocks heat, so concealment normally hides from thermal too.
     const thermalConcealed =
       fieldActive || (coverConceal && !this.detection.thermalBleedAt(this.player.x, this.player.y));
-    this.updateHiddenMarker(concealed);
+    this.updateStatusMarker(concealed, compliant);
 
     const phaseBefore = this.alert.phase;
     let maxDetection = 0;
@@ -949,6 +978,7 @@ export class GameScene extends Phaser.Scene {
         (this.activeItems.flashlightBeamActive ? FLASHLIGHT_DETECTION_MULTIPLIER : 1),
       playerNoise: this.player.noise,
       playerConcealed: concealed,
+      playerCompliant: compliant,
       playerThermalConcealed: thermalConcealed,
       thermalRadiusMultiplier: (base: number) =>
         this.detection.thermalRadiusFor(base, this.activeItems.thermalMasked),
@@ -1011,7 +1041,15 @@ export class GameScene extends Phaser.Scene {
     // Orderlies: bystanders, not guards — a clear sighting is a one-shot
     // "witness" event that raises nearby guards' suspicion, same as a noisy door.
     for (const orderly of this.frozenWorld ? [] : this.orderlies) {
-      if (orderly.update(dt, { grid: this.grid, tileSize: this.tileSize, player: ctx.player, playerConcealed: concealed })) {
+      if (
+        orderly.update(dt, {
+          grid: this.grid,
+          tileSize: this.tileSize,
+          player: ctx.player,
+          playerConcealed: concealed,
+          playerCompliant: compliant,
+        })
+      ) {
         this.emitOrderlyAlert(orderly);
       }
     }
@@ -1155,6 +1193,11 @@ export class GameScene extends Phaser.Scene {
       }
     }
     const hacking = !!nearestTerminal && interactDown;
+    // Working a panel you have no business at is the clearest possible breach, and
+    // re-reporting it every frame keeps the flag topped up for as long as the hold
+    // lasts (ConductState.violate takes the max), then starts its cooldown when you
+    // let go — no separate "still hacking" bookkeeping needed.
+    if (hacking) this.conduct.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED);
     if (hacking && nearestTerminal!.hack(dt)) this.onHackComplete(nearestTerminal!);
     for (const term of this.terminals) {
       if (term !== nearestTerminal || !interactDown) term.idle(dt);
@@ -1172,6 +1215,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
     const searching = !!nearestChest && interactDown && !hacking && !ventHold;
+    if (searching) this.conduct.violate("TAMPERING", FLAG_TAMPERING);
     if (searching && nearestChest!.open(dt)) this.collectChest(nearestChest!);
     for (const chest of this.chests) {
       if (chest !== nearestChest || !interactDown || hacking || ventHold) chest.idle(dt);
@@ -1217,15 +1261,23 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
-  /** Shows a single `[E] …` hint over the player for the nearest interactable. */
-  /** Floats the "HIDDEN" marker over the player while concealed in cover. */
-  private updateHiddenMarker(concealed: boolean): void {
-    if (concealed) {
-      this.hidden.setPosition(this.player.x, this.player.y - this.tileSize * 0.9);
-      this.hidden.setVisible(true);
-    } else {
+  /**
+   * Floats a single status marker over the player: "HIDDEN" while concealed in cover,
+   * otherwise "COMPLIANT" while Rowan reads as staff. One label rather than two so
+   * they can't stack on the same spot — concealment wins, being the stronger state
+   * (it survives an active alert, which compliance does not).
+   */
+  private updateStatusMarker(concealed: boolean, compliant: boolean): void {
+    const label = concealed ? "HIDDEN" : compliant ? "COMPLIANT" : null;
+    if (!label) {
       this.hidden.setVisible(false);
+      return;
     }
+    this.hidden
+      .setText(label)
+      .setColor(concealed ? "#8effc0" : "#9fd2ff")
+      .setPosition(this.player.x, this.player.y - this.tileSize * 0.9)
+      .setVisible(true);
   }
 
   private showPrompt(
@@ -1488,6 +1540,9 @@ export class GameScene extends Phaser.Scene {
       worldDraw: this.worldDraw,
       frozenWorld: this.frozenWorld,
       darknessOff: this.darknessOff,
+      compliant: this.conduct.compliant,
+      breach: this.conduct.breach,
+      flaggedRemaining: this.conduct.flaggedRemaining,
       fps: this.game.loop.actualFps,
       px: this.player.x,
       py: this.player.y,
@@ -1531,6 +1586,8 @@ export class GameScene extends Phaser.Scene {
     const radiusPx = KNOCK_NOISE_TILES * this.tileSize;
     this.emitNoiseAt(cx, cy, radiusPx); // guards (reuses the shared noise pipeline)
     this.emitKnockDistraction(cx, cy, radiusPx); // orderlies walk over to look
+    // Deliberately banging on the walls is not what staff do.
+    this.conduct.violate("TAMPERING", FLAG_TAMPERING);
     getAudio().door();
     this.knockCooldown = KNOCK_COOLDOWN;
   }
