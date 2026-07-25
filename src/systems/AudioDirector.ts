@@ -1,8 +1,16 @@
+import { BeepBoxSynth } from "./beepbox/BeepBoxSynth";
+import titleThemeData from "../data/titleTheme.json";
+import type { Song } from "./beepbox/types";
+
+const titleTheme = titleThemeData as Song;
+
 /**
  * Adaptive audio, synthesised with the Web Audio API so the game ships no audio
  * assets (none exist in the repo). Two continuous music layers — a calm
  * "sneaking" pad and a pulsed "red alert" klaxon — crossfade with the alert
- * mood, and short enveloped tones cover the gameplay SFX. EIRA-7's presence is
+ * mood, short enveloped tones cover the gameplay SFX, and the title screen's
+ * theme is a BeepBox composition (`src/data/titleTheme.json`) played back live
+ * by {@link BeepBoxSynth} rather than a recorded file. EIRA-7's presence is
  * felt as a faint 37 Hz sub under the calm layer (her carrier-wave signature).
  *
  * Browsers gate audio behind a user gesture, so the context starts suspended
@@ -23,6 +31,8 @@ class AudioDirector {
   private suctionOn = false;
   private purgeGain?: GainNode;
   private purgeOn = false;
+  private titleGain?: GainNode;
+  private titleSynth?: BeepBoxSynth;
 
   constructor() {
     const Ctor: typeof AudioContext | undefined =
@@ -158,6 +168,29 @@ class AudioDirector {
       this.drone("sine", 110, throb, 0.25);
     }
     this.ramp(this.purgeGain, on ? 0.4 : 0, on ? 0.8 : 1.2);
+  }
+
+  // --- title theme ---
+
+  /** Starts (or resumes, if already built) the title screen's BeepBox theme. */
+  playTitleTheme(): void {
+    if (!this.ctx || !this.master) return;
+    void this.ctx.resume();
+    if (!this.titleGain) {
+      this.titleGain = this.ctx.createGain();
+      this.titleGain.gain.value = 0;
+      this.titleGain.connect(this.master);
+    }
+    if (!this.titleSynth) this.titleSynth = new BeepBoxSynth(this.ctx, this.titleGain, titleTheme);
+    this.ramp(this.titleGain, 0.9, 0.8);
+    this.titleSynth.play();
+  }
+
+  /** Fades out and stops the title theme. */
+  stopTitleTheme(): void {
+    if (!this.titleSynth) return;
+    this.ramp(this.titleGain, 0, 0.4);
+    this.titleSynth.stop();
   }
 
   // --- internals ---

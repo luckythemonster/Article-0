@@ -193,7 +193,12 @@ carry them to the Lattice uplink.
 
 Adaptive audio (synthesised with the Web Audio API — no assets) crossfades a
 sneaking pad and a red-alert klaxon with the mesh's state, with SFX on the key
-beats.
+beats. The title screen's theme is likewise synthesised live rather than a
+recorded file: a BeepBox composition (`src/data/titleTheme.json`) is played
+back by a small in-engine player (`src/systems/beepbox/`) that reads the
+song's own channels, instruments and patterns and drives real oscillators,
+noise and filters to match — FM operators, additive `harmonics` waves,
+Karplus-Strong plucked strings and filtered-noise drums/spectrum among them.
 
 ## How the map is parsed
 
@@ -390,7 +395,10 @@ src/entities/       Player, Enforcer, Drone, Orderly, Sensor, Door, Terminal,
                     Laser, Chest, GuardSkin, PlayerAnimations,
                     EnforcerAnimations, DroneAnimations, OrderlyAnimations
 src/systems/        CollisionGrid, DetectionSystem, Visibility, AlertState,
-                    Conduct, TransitionGraph, Radar, AlertNetwork, EntityStats
+                    Conduct, TransitionGraph, Radar, AlertNetwork, EntityStats,
+                    AudioDirector
+src/systems/beepbox/ BeepBoxSynth: reads titleTheme.json and plays it back live
+src/data/           titleTheme.json (the title screen's BeepBox song)
 src/ui/             Hud, Radar, InventoryHud, AlertNetworkHud, Lighting
 ```
 

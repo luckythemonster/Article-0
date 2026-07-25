@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { Menu, type MenuItem } from "../ui/Menu";
 import { resetRun, setMode, startFreshRun } from "../systems/GameState";
 import { hasSave, loadGame } from "../systems/SaveGame";
+import { getAudio } from "../systems/AudioDirector";
 
 /**
  * The title screen. Boots first after the map has parsed and offers the entry
@@ -14,6 +15,7 @@ export class TitleScene extends Phaser.Scene {
 
   create(): void {
     setMode(this.registry, "TITLE");
+    getAudio().playTitleTheme();
     this.cameras.main.setBackgroundColor("#05070a");
 
     const veil = this.add.rectangle(0, 0, 10, 10, 0x05070a, 0.6).setOrigin(0, 0).setScrollFactor(0);
@@ -55,7 +57,10 @@ export class TitleScene extends Phaser.Scene {
     layout(this.scale.width, this.scale.height);
     const onResize = (size: Phaser.Structs.Size): void => layout(size.width, size.height);
     this.scale.on("resize", onResize);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", onResize));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off("resize", onResize);
+      getAudio().stopTitleTheme();
+    });
   }
 
   /** Resumes the saved checkpoint: restore run state to the registry, then start. */
