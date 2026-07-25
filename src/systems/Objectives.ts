@@ -15,9 +15,6 @@ export interface ObjectiveState {
   vent4Silenced?: boolean;
 }
 
-/** The level that serves as the Lattice-uplink extraction point. */
-export const EXTRACTION_LEVEL = "main2";
-
 /** The terminal type (lowercased edplay TerminalType) whose breach recovers the logs. */
 export const LOG_CACHE_TYPE = "log_cache";
 
@@ -35,9 +32,18 @@ export function noteVent4Defeated(state: ObjectiveState): void {
   state.vent4Silenced = true;
 }
 
-/** The run is won once the logs are recovered and Rowan reaches the uplink level. */
-export function isRunWon(state: ObjectiveState, currentLevel: string): boolean {
-  return state.logsRecovered && currentLevel === EXTRACTION_LEVEL;
+/**
+ * The run is won once the logs are recovered and Rowan reaches the uplink level.
+ *
+ * The extraction level is passed in rather than being a constant here, so a map isn't
+ * obliged to name its final level `main2` to be winnable — see `MapPlan.extractionLevel`.
+ */
+export function isRunWon(
+  state: ObjectiveState,
+  currentLevel: string,
+  extractionLevel: string,
+): boolean {
+  return state.logsRecovered && currentLevel === extractionLevel;
 }
 
 export interface ObjectiveLine {
@@ -45,14 +51,28 @@ export interface ObjectiveLine {
   done: boolean;
 }
 
-/** A codec/HUD view of the objectives with per-line completion flags. */
-export function objectiveLines(state: ObjectiveState, currentLevel: string): ObjectiveLine[] {
-  return [
+/**
+ * A codec/HUD view of the objectives with per-line completion flags.
+ *
+ * @param hasVentCore whether this map generated a vent-core arena. When it didn't, the
+ *   optional VENT-4 line is omitted entirely rather than shown as an objective the player
+ *   has no way to complete.
+ */
+export function objectiveLines(
+  state: ObjectiveState,
+  currentLevel: string,
+  extractionLevel: string,
+  hasVentCore = true,
+): ObjectiveLine[] {
+  const lines: ObjectiveLine[] = [
     { label: "Recover EIRA-7's logs (breach a log-cache)", done: state.logsRecovered },
     {
-      label: "Reach the Lattice uplink (main deck 2)",
-      done: state.logsRecovered && currentLevel === EXTRACTION_LEVEL,
+      label: "Reach the Lattice uplink",
+      done: state.logsRecovered && currentLevel === extractionLevel,
     },
-    { label: "(Optional) Silence VENT-4 (vent core)", done: !!state.vent4Silenced },
   ];
+  if (hasVentCore) {
+    lines.push({ label: "(Optional) Silence VENT-4 (vent core)", done: !!state.vent4Silenced });
+  }
+  return lines;
 }

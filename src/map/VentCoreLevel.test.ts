@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect, beforeAll } from "vitest";
 import { EdplayLoader, type ParsedMap } from "./EdplayLoader";
-import type { EdPlayFile } from "./types";
+import { planFor } from "./MapPlan";
+import type { EdPlayFile, GameMap } from "./types";
 import { TransitionGraph } from "../systems/TransitionGraph";
 import { STAPLER_ITEM } from "../systems/EntityStats";
 import { chestStatsFor } from "../systems/EntityStats";
@@ -26,7 +27,7 @@ describe("VentCoreLevel", () => {
       readFileSync(new URL("../../public/assets/edplay.json", import.meta.url), "utf8"),
     ) as EdPlayFile;
     parsed = EdplayLoader.parse(raw, raw.SpriteSheets.map((s) => s.RelativePath));
-    appendVentCore(parsed.map);
+    appendVentCore(parsed.map, planFor(parsed.map).ventCoreHost);
   });
 
   it("appends the level with every expected board", () => {
@@ -80,7 +81,7 @@ describe("VentCoreLevel", () => {
       .find((l) => l.name === "duct2")!
       .layers.find((l) => l.name === "maintenance_access")!;
     const accessCount = duct2Access.tiles.length;
-    appendVentCore(parsed.map);
+    appendVentCore(parsed.map, planFor(parsed.map).ventCoreHost);
     expect(parsed.map.levels.length).toBe(levelCount);
     expect(duct2Access.tiles.length).toBe(accessCount);
   });
@@ -128,5 +129,48 @@ describe("VentCoreLevel", () => {
     for (const g of ventCoreGrateTiles()) {
       expect(walls.has(`${g.x},${g.y}`)).toBe(false);
     }
+  });
+
+  describe("when the map can't host it", () => {
+    /** A minimal map with no maintenance level and none of the prototype boards. */
+    const bareMap = (): GameMap =>
+      ({
+        name: "bare",
+        tileWidth: 32,
+        tileHeight: 32,
+        sheetTextureKeys: [],
+        levels: [
+          {
+            name: "only",
+            width: 10,
+            height: 10,
+            layers: [{ name: "floor", tiles: [{ x: 1, y: 1, ref: "f", components: [] }] }],
+          },
+        ],
+      }) as unknown as GameMap;
+
+    it("skips generation instead of throwing when there is no host", () => {
+      const m = bareMap();
+      // This used to throw ("duct2 level missing from map") and, because BootScene calls it
+      // unconditionally, took the whole boot down for any map but the shipped one.
+      expect(() => appendVentCore(m, null)).not.toThrow();
+      expect(appendVentCore(m, null)).toBe(false);
+      expect(m.levels.map((l) => l.name)).toEqual(["only"]);
+    });
+
+    it("skips when the named host is absent, or can't furnish the prototypes", () => {
+      const m = bareMap();
+      expect(appendVentCore(m, "nonexistent")).toBe(false);
+      // "only" exists but has no walls/terminals/cover/... to clone from.
+      expect(() => appendVentCore(m, "only")).not.toThrow();
+      expect(appendVentCore(m, "only")).toBe(false);
+      expect(m.levels).toHaveLength(1);
+    });
+
+    it("reports true for the shipped map, which can host it", () => {
+      expect(planFor(parsed.map).ventCoreHost).toBe("duct2");
+      // Already generated in beforeAll, so this is the idempotent path.
+      expect(appendVentCore(parsed.map, "duct2")).toBe(true);
+    });
   });
 });
