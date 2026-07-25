@@ -97,6 +97,12 @@ const ORDERLY_ALERT_RADIUS_TILES = 6;
 /** Backup radius (tiles) when repeated noise pings in one area escalate straight to ALERT. */
 const SPAM_ESCALATION_RADIUS_TILES = 8;
 
+/** Radius (tiles) a knock's noise carries — between a door (4) and an orderly alarm (6). */
+const KNOCK_NOISE_TILES = 5;
+
+/** Seconds between knocks, so the action can't be mashed. */
+const KNOCK_COOLDOWN = 0.6;
+
 /** Debug warp targets, indexed by the number keys 1..5 (dev-only). */
 const DEBUG_WARP_LEVELS = ["main1", "main2", "duct1", "duct2", VENT_CORE_LEVEL];
 
@@ -138,6 +144,8 @@ export class GameScene extends Phaser.Scene {
   private paused = false;
   /** Seconds the player has been cornered by a silicate during a full alert. */
   private captureProgress = 0;
+  /** Cooldown (seconds) remaining before the player can knock again. */
+  private knockCooldown = 0;
   /** True while the in-game codec overlay is open (sim frozen). */
   private codecOpen = false;
   /** True while the Doctrinal Compliance minigame overlay is open (sim frozen). */
@@ -209,6 +217,7 @@ export class GameScene extends Phaser.Scene {
     codec: Phaser.Input.Keyboard.Key;
     field: Phaser.Input.Keyboard.Key;
     flashlight: Phaser.Input.Keyboard.Key;
+    knock: Phaser.Input.Keyboard.Key;
   };
 
   constructor() {
@@ -243,6 +252,7 @@ export class GameScene extends Phaser.Scene {
     this.transitioning = false;
     this.paused = false;
     this.captureProgress = 0;
+    this.knockCooldown = 0;
     this.codecOpen = false;
     this.complianceOpen = false;
     this.pendingCompliance = undefined;
@@ -526,6 +536,7 @@ export class GameScene extends Phaser.Scene {
       codec: kb.addKey(Phaser.Input.Keyboard.KeyCodes.C),
       field: kb.addKey(Phaser.Input.Keyboard.KeyCodes.F),
       flashlight: kb.addKey(Phaser.Input.Keyboard.KeyCodes.L),
+      knock: kb.addKey(Phaser.Input.Keyboard.KeyCodes.R),
     };
 
     // Debug hotkeys: dev builds always, deployed builds via the ?debug opt-in.
@@ -883,6 +894,11 @@ export class GameScene extends Phaser.Scene {
     // Flashlight: L toggles the beam; feed its state to the lighting cone.
     if (Phaser.Input.Keyboard.JustDown(this.keys.flashlight)) {
       this.activeItems.toggleFlashlight();
+    }
+    // Knock (R): rap on an adjacent wall/object to lure guards and orderlies there.
+    this.knockCooldown = Math.max(0, this.knockCooldown - dt);
+    if (this.knockCooldown <= 0 && Phaser.Input.Keyboard.JustDown(this.keys.knock)) {
+      this.knock();
     }
     this.lighting.update(
       dt,
@@ -1481,6 +1497,82 @@ export class GameScene extends Phaser.Scene {
   /** A spotted orderly raises the alarm: nearby guards turn to look and grow wary. */
   private emitOrderlyAlert(orderly: Orderly): void {
     this.emitNoiseAt(orderly.position.x, orderly.position.y, ORDERLY_ALERT_RADIUS_TILES * this.tileSize);
+  }
+
+  /**
+   * Knock (R): rap on an adjacent wall or object. The noise originates at that
+   * tile — not at the player — so guards and orderlies in earshot converge on
+   * the spot while Rowan slips past. A no-op (no cooldown spent) when there's
+   * nothing knockable next to the player.
+   */
+  private knock(): void {
+    const target = this.findKnockTarget();
+    if (!target) return;
+    const cx = (target.tx + 0.5) * this.tileSize;
+    const cy = (target.ty + 0.5) * this.tileSize;
+    const radiusPx = KNOCK_NOISE_TILES * this.tileSize;
+    this.emitNoiseAt(cx, cy, radiusPx); // guards (reuses the shared noise pipeline)
+    this.emitKnockDistraction(cx, cy, radiusPx); // orderlies walk over to look
+    getAudio().door();
+    this.knockCooldown = KNOCK_COOLDOWN;
+  }
+
+  /**
+   * The wall/object a knock lands on: the tile one step along the player's
+   * facing if it's knockable, else the nearest knockable of the 8 neighbours,
+   * biased toward the facing direction.
+   */
+  private findKnockTarget(): { tx: number; ty: number } | null {
+    const ts = this.tileSize;
+    const px = this.player.x;
+    const py = this.player.y;
+    const fx = Math.cos(this.player.facing);
+    const fy = Math.sin(this.player.facing);
+
+    const aheadX = Math.floor((px + fx * ts) / ts);
+    const aheadY = Math.floor((py + fy * ts) / ts);
+    if (this.isKnockable(aheadX, aheadY)) return { tx: aheadX, ty: aheadY };
+
+    const ptx = Math.floor(px / ts);
+    const pty = Math.floor(py / ts);
+    let best: { tx: number; ty: number } | null = null;
+    let bestScore = -Infinity;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const tx = ptx + dx;
+        const ty = pty + dy;
+        if (!this.isKnockable(tx, ty)) continue;
+        // Prefer neighbours that lie in the direction the player is facing.
+        const len = Math.hypot(dx, dy);
+        const score = (dx * fx + dy * fy) / len;
+        if (score > bestScore) {
+          bestScore = score;
+          best = { tx, ty };
+        }
+      }
+    }
+    return best;
+  }
+
+  /** True when a tile holds something to knock on: a wall/closed door, or a door/chest/terminal. */
+  private isKnockable(tx: number, ty: number): boolean {
+    if (!this.grid.inBounds(tx, ty)) return false;
+    if (this.grid.isBlocked(tx, ty)) return true;
+    if (this.doors.some((d) => d.tileX === tx && d.tileY === ty)) return true;
+    if (this.chests.some((c) => c.tileX === tx && c.tileY === ty)) return true;
+    return this.terminals.some(
+      (t) => Math.floor(t.x / this.tileSize) === tx && Math.floor(t.y / this.tileSize) === ty,
+    );
+  }
+
+  /** A knock draws nearby orderlies over to investigate (guards use {@link emitNoiseAt}). */
+  private emitKnockDistraction(cx: number, cy: number, radiusPx: number): void {
+    if (radiusPx <= 0) return;
+    for (const orderly of this.orderlies) {
+      const p = orderly.position;
+      if (Math.hypot(p.x - cx, p.y - cy) < radiusPx) orderly.distract(cx, cy);
+    }
   }
 
   /**
