@@ -8,6 +8,12 @@ import type { GameLevel } from "../map/types";
 export class CollisionGrid {
   readonly width: number;
   readonly height: number;
+  /**
+   * Bumped whenever a tile's blocked state actually changes. Lets a cache of
+   * derived geometry — the player's visibility polygon in {@link Lighting} — know
+   * a door opened even if nothing else about the frame moved.
+   */
+  revision = 0;
   private readonly blocked: Uint8Array;
 
   constructor(level: GameLevel, blockingLayers: string[] = ["walls"]) {
@@ -40,7 +46,11 @@ export class CollisionGrid {
    */
   setBlocked(tileX: number, tileY: number, blocked: boolean): void {
     if (!this.inBounds(tileX, tileY)) return;
-    this.blocked[tileY * this.width + tileX] = blocked ? 1 : 0;
+    const i = tileY * this.width + tileX;
+    const next = blocked ? 1 : 0;
+    if (this.blocked[i] === next) return;
+    this.blocked[i] = next;
+    this.revision++;
   }
 
   /**

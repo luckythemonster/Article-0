@@ -17,6 +17,7 @@ export interface DebugSnapshot {
   noClip: boolean;
   worldDraw: boolean;
   frozenWorld: boolean;
+  darknessOff: boolean;
   fps: number;
   px: number;
   py: number;
@@ -63,7 +64,7 @@ export class DebugHud {
       .setVisible(false);
 
     this.legend = scene.add
-      .text(x, this.pad, "`=debug  G=god  N=no-clip  V=world  H=halt  1-5=warp", {
+      .text(x, this.pad, "`=debug  G=god  N=no-clip  V=world  H=halt  O=dark  1-5=warp", {
         fontFamily: "monospace",
         fontSize: "11px",
         color: "#6b7f92",
@@ -107,7 +108,8 @@ export class DebugHud {
         `hp     ${Math.round(view.hp)}/${view.maxHp}`,
         `capture ${view.capture.toFixed(2)}/${view.captureTime.toFixed(2)}`,
         `alert  ${view.alertPhase}`,
-        `god ${flag(view.godMode)}  no-clip ${flag(view.noClip)}  world ${flag(view.worldDraw)}  freeze ${flag(view.frozenWorld)}`,
+        `god ${flag(view.godMode)}  no-clip ${flag(view.noClip)}  world ${flag(view.worldDraw)}`,
+        `freeze ${flag(view.frozenWorld)}  dark ${flag(!view.darknessOff)}`,
         units ? `units:\n${units}` : "units: (none)",
       ].join("\n"),
     );
