@@ -15,18 +15,26 @@ export const SIGHT_RAYS = 720;
 
 /**
  * How far (in tiles) sight carries *past* the face of the wall it stops at, so the
- * wall you are looking at is lit rather than wearing a black band.
+ * near half of the wall you are looking at is lit rather than wearing a black band.
  *
  * Measured along the ray from where it entered the wall — deliberately not "to the
- * far side of the blocking tile". Which face a ray exits a tile through flips from
- * top to side as the angle sweeps, and that flip is a discontinuity: along a
- * perfectly flat wall it made the shadow boundary sawtooth over a full tile,
- * pitching visible black triangles along every room edge. Offsetting the entry
- * surface by a constant instead is smooth in the ray angle, so the boundary stays
- * clean; the trade is that a grazing ray reveals less wall depth than a
- * perpendicular one, which reads as the wall fading into the dark.
+ * far side of the blocking tile", and deliberately not the *whole* tile depth either:
+ * for a wall exactly one tile thick (the normal case), a full tile of reveal lands
+ * exactly on its far face — the boundary of whatever sits behind it — which reads as
+ * seeing through the wall once the shadow edge is softened by the feather blur. Half
+ * a tile stops at the wall's mid-depth instead, so the far half stays black no matter
+ * how thin the wall is.
+ *
+ * Also why the reveal is a constant offset rather than "to the exit boundary": which
+ * face a ray exits a tile through flips from top to side as the angle sweeps, and
+ * that flip is a discontinuity — along a perfectly flat wall it made the shadow
+ * boundary sawtooth over a full tile, pitching visible black triangles along every
+ * room edge. Offsetting the entry surface by a constant is smooth in the ray angle,
+ * so the boundary stays clean; the trade is that a grazing ray reveals even less wall
+ * depth than a perpendicular one already does, which reads as the wall fading into
+ * the dark rather than a hard edge.
  */
-export const WALL_REVEAL_TILES = 1;
+export const WALL_REVEAL_TILES = 0.5;
 
 /** Unit ray directions, split into parallel arrays so casting allocates nothing. */
 export interface RayDirections {
@@ -97,8 +105,8 @@ export function rayDistance(
     // Ran out of reach before entering the next cell.
     if (enter >= maxTiles) return maxTiles;
     if (grid.blocksSight(ix, iy)) {
-      // A constant step past the face we just crossed, never the exit boundary — see
-      // WALL_REVEAL_TILES for why that distinction is the whole ballgame.
+      // Half a tile past the face we just crossed — the wall's mid-depth, never its
+      // far face. See WALL_REVEAL_TILES for why that distinction is the whole ballgame.
       return Math.min(enter + WALL_REVEAL_TILES, maxTiles);
     }
   }

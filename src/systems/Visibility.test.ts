@@ -66,10 +66,12 @@ describe("rayDistance", () => {
     expect(rayDistance(g, 0.5, 4.5, 1, 0, 3)).toBe(3);
   });
 
-  it("stops at the far side of the first wall, so the wall tile stays visible", () => {
+  it("stops at the middle of the first wall, not its far side", () => {
     const g = new CollisionGrid(level());
-    // From x=0.5 the wall tile at x=2 spans x∈[2,3]; its far side is 2.5 away.
-    expect(rayDistance(g, 0.5, 1.5, 1, 0, 10)).toBeCloseTo(2.5);
+    // From x=0.5 the wall tile at x=2 spans x∈[2,3]; entry is 1.5 away, and reveal
+    // stops half a tile past that (2.0) — short of the far face at 2.5, so nothing
+    // on the other side of a one-tile-thick wall is ever lit.
+    expect(rayDistance(g, 0.5, 1.5, 1, 0, 10)).toBeCloseTo(2.0);
   });
 
   it("sees through a tile cleared at runtime (a door opening)", () => {
