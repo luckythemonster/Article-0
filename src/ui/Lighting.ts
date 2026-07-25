@@ -24,6 +24,15 @@ const CONE_HALF_ANGLE = Math.PI / 6;
 /** Reach of the flashlight cone, in tiles. */
 const CONE_RANGE_TILES = 5.5;
 
+/**
+ * Radius (tiles) of the soft pool Rowan carries with him, so his immediate
+ * surroundings read even with no fixture nearby. Dark-adapted eyes, not an emitted
+ * light: it is deliberately *not* fed to `DetectionSystem`, so unlike the flashlight
+ * it costs nothing in visibility to the guards. Still clipped by line of sight —
+ * it lights the floor around you, not through the wall you are standing against.
+ */
+const PLAYER_LIGHT_TILES = 2.75;
+
 /** How far (px) the viewer must move before the visibility polygon is recast. */
 const RECAST_EPSILON = 0.5;
 
@@ -75,10 +84,16 @@ export interface FlashlightBeam {
 export class Lighting {
   private readonly rt: Phaser.GameObjects.RenderTexture;
   private readonly coneStamp: Phaser.GameObjects.Image;
+  /** The pool Rowan carries — see {@link PLAYER_LIGHT_TILES}. */
+  private readonly playerStamp: Phaser.GameObjects.Image;
   /** The shadow fan, layered directly above {@link rt}. */
   private readonly shadowGfx: Phaser.GameObjects.Graphics;
-  /** Reused erase list: every light stamp, plus the cone when the beam is on. */
+  /**
+   * Reused erase list. The fixed `light_source` stamps occupy the first
+   * {@link lightCount} slots; the player's pool and the cone are appended per draw.
+   */
   private readonly eraseList: Phaser.GameObjects.Image[] = [];
+  private readonly lightCount: number;
   private readonly beamRangePx: number;
   private readonly lights: Light[] = [];
   private readonly hasFlicker: boolean;
@@ -144,12 +159,18 @@ export class Lighting {
       }
     }
     this.hasFlicker = this.lights.some((l) => l.flicker);
+    this.lightCount = this.eraseList.length;
 
     // Apex-anchored so rotation pivots at the player and the cone opens forward.
     this.coneStamp = scene.make
       .image({ key: "flashlight-cone", add: false })
       .setOrigin(0, 0.5)
       .setScale(this.beamRangePx / CONE_SIZE);
+
+    this.playerStamp = scene.make
+      .image({ key: "light-gradient", add: false })
+      .setOrigin(0.5)
+      .setScale((PLAYER_LIGHT_TILES * tileSize * 2) / GRADIENT_SIZE);
 
     this.rt = scene.add
       .renderTexture(0, 0, worldW, worldH)
@@ -172,23 +193,27 @@ export class Lighting {
     if (!this.enabled) return;
     this.time += dt;
 
-    // The light texture only depends on the lights and the beam. Flickering lights
-    // animate, and the beam tracks the player; otherwise the last composite stands.
+    const viewerMoved =
+      Math.abs(viewer.x - this.lastViewX) > RECAST_EPSILON ||
+      Math.abs(viewer.y - this.lastViewY) > RECAST_EPSILON;
+
+    // The light texture depends on the lights, the beam, and — since Rowan carries a
+    // pool of his own — on where he is standing. Flickering lights animate and the
+    // beam tracks him; otherwise the last composite stands.
     const beamOn = beam !== null;
-    if (this.dirty || this.hasFlicker || beamOn || this.lastBeamOn) {
-      this.drawLights(beam);
+    if (this.dirty || viewerMoved || this.hasFlicker || beamOn || this.lastBeamOn) {
+      this.drawLights(viewer, beam);
     }
     this.lastBeamOn = beamOn;
 
-    // The shadow fan depends on where the player is standing, on the walls (so a door
-    // opening re-clips sight even if the player never moved), and on the camera view,
-    // since the fan only reaches as far as the camera can see. The camera keeps easing
+    // The shadow fan depends on the same position, on the walls (so a door opening
+    // re-clips sight even if the player never moved), and on the camera view, since
+    // the fan only reaches as far as the camera can see. The camera keeps easing
     // toward the player for a few frames after they stop, and a resize changes the
     // view outright — both have to re-extend the fan.
     const v = this.camera.worldView;
     const moved =
-      Math.abs(viewer.x - this.lastViewX) > RECAST_EPSILON ||
-      Math.abs(viewer.y - this.lastViewY) > RECAST_EPSILON ||
+      viewerMoved ||
       Math.abs(v.x - this.lastCamX) > RECAST_EPSILON ||
       Math.abs(v.y - this.lastCamY) > RECAST_EPSILON ||
       v.width !== this.lastCamW ||
@@ -220,7 +245,7 @@ export class Lighting {
   }
 
   /** Recomposites the darkness and the light carved out of it. */
-  private drawLights(beam: FlashlightBeam | null): void {
+  private drawLights(viewer: { x: number; y: number }, beam: FlashlightBeam | null): void {
     this.rt.clear();
     this.rt.fill(DARK_COLOR, DARK_ALPHA);
 
@@ -232,16 +257,14 @@ export class Lighting {
       l.stamp.setAlpha(f).setScale(((l.radiusPx * 2) / GRADIENT_SIZE) * (0.92 + 0.08 * f));
     }
 
-    // The player's flashlight: a forward-facing bright cone carved into the dark.
-    // One batched erase for everything — each erase is a framebuffer round-trip.
-    if (beam) {
-      this.coneStamp.setPosition(beam.x, beam.y).setRotation(beam.facing);
-      this.eraseList.push(this.coneStamp);
-      this.rt.erase(this.eraseList);
-      this.eraseList.pop();
-    } else if (this.eraseList.length > 0) {
-      this.rt.erase(this.eraseList);
-    }
+    // Everything in one batched erase — each erase is a framebuffer round-trip, and
+    // doing them one stamp at a time is what made this unaffordable.
+    const list = this.eraseList;
+    list.push(this.playerStamp.setPosition(viewer.x, viewer.y));
+    // The flashlight: a forward-facing bright cone carved into the dark.
+    if (beam) list.push(this.coneStamp.setPosition(beam.x, beam.y).setRotation(beam.facing));
+    this.rt.erase(list);
+    list.length = this.lightCount;
   }
 
   /**

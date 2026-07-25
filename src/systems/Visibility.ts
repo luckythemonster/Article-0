@@ -11,7 +11,22 @@ import type { CollisionGrid } from "./CollisionGrid";
  */
 
 /** Rays cast per visibility polygon. Raise for accuracy, lower for cost. */
-export const SIGHT_RAYS = 288;
+export const SIGHT_RAYS = 720;
+
+/**
+ * How far (in tiles) sight carries *past* the face of the wall it stops at, so the
+ * wall you are looking at is lit rather than wearing a black band.
+ *
+ * Measured along the ray from where it entered the wall — deliberately not "to the
+ * far side of the blocking tile". Which face a ray exits a tile through flips from
+ * top to side as the angle sweeps, and that flip is a discontinuity: along a
+ * perfectly flat wall it made the shadow boundary sawtooth over a full tile,
+ * pitching visible black triangles along every room edge. Offsetting the entry
+ * surface by a constant instead is smooth in the ray angle, so the boundary stays
+ * clean; the trade is that a grazing ray reveals less wall depth than a
+ * perpendicular one, which reads as the wall fading into the dark.
+ */
+export const WALL_REVEAL_TILES = 1;
 
 /** Unit ray directions, split into parallel arrays so casting allocates nothing. */
 export interface RayDirections {
@@ -39,10 +54,9 @@ export function rayDirections(rayCount: number = SIGHT_RAYS): RayDirections {
  * direction `(dirX, dirY)`, capped at `maxTiles`.
  *
  * An Amanatides–Woo grid walk: step boundary to boundary, stopping at the first
- * blocked cell. The blocking cell is *included* — the distance returned is to its
- * far side, not its near face — so a wall you are looking at is itself lit rather
- * than wearing a black band. The origin cell is never tested, so standing inside a
- * wall (debug no-clip) still sees out.
+ * blocked cell, then carrying {@link WALL_REVEAL_TILES} further so the wall itself
+ * is lit. The origin cell is never tested, so standing inside a wall (debug
+ * no-clip) still sees out.
  */
 export function rayDistance(
   grid: CollisionGrid,
@@ -83,8 +97,9 @@ export function rayDistance(
     // Ran out of reach before entering the next cell.
     if (enter >= maxTiles) return maxTiles;
     if (grid.isBlocked(ix, iy)) {
-      // Carry on to where the ray leaves this cell, so the wall tile stays visible.
-      return Math.min(nextX < nextY ? nextX : nextY, maxTiles);
+      // A constant step past the face we just crossed, never the exit boundary — see
+      // WALL_REVEAL_TILES for why that distinction is the whole ballgame.
+      return Math.min(enter + WALL_REVEAL_TILES, maxTiles);
     }
   }
   return maxTiles;
