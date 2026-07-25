@@ -49,7 +49,10 @@ export class Player {
     Player.ensureAnimations(scene);
 
     this.sprite = scene.physics.add.sprite(x, y, playerFrameKey("idle", "south", 0));
-    this.sprite.setDepth(500);
+    // Above the lighting overlay (700), unlike every other entity. Unlit space is
+    // fully opaque, so Rowan would otherwise vanish along with the room whenever he
+    // stepped out of the light — the room stays black, but the character reads.
+    this.sprite.setDepth(750);
 
     // Scale the 88x88 art to ~1.5 tiles tall, then fit the collision body to
     // the sprite's alpha silhouette. The box is traced from the art by the

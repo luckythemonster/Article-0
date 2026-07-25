@@ -33,6 +33,7 @@ npm run build    # tsc --noEmit + vite build
 | Shift | Sneak / crouch — slower, quieter; crouch on cover to hide |
 | Space | Run — faster but louder |
 | E | Contextual: open/close a door, hack a terminal (hold), search a chest (hold), or use a hatch/ladder |
+| L | Flashlight — the only way to see in the unlit levels, but it drains and makes you far easier to spot |
 | F | Shared Field — once charged (by staying near a silicate), merge for 3.7s and become undetectable |
 | C | Open the EIRA-7 codec |
 | Esc | Pause (from the pause screen, Q aborts to the title) |
@@ -53,10 +54,11 @@ warps; visit with `?debug=0` to turn it back off.
 | G | God mode — blocks both death paths (bio-integrity loss and capture) |
 | N | No-clip — walk through walls and doors |
 | V | World overlay — draw guard line-of-sight rays, blocked tiles, and detection hot spots |
+| O | Darkness off — hide the lighting / line-of-sight overlay and read the level at full brightness |
 | 1–5 | Warp to `main1` / `main2` / `duct1` / `duct2` / `vent_core` (resets the alert; keeps your HP) |
 
 While enabled, a top-right panel shows FPS, player position, facing, HP, capture
-progress, the current level, alert phase, and per-unit detection. The G/N/V and
+progress, the current level, alert phase, and per-unit detection. The G/N/V/O and
 warp keys only respond while debug mode is on.
 
 Walk onto a **staircase** and you descend/ascend automatically; **hatches and
@@ -79,6 +81,20 @@ detection meter fills; fill it completely and the base goes to **ALERT** (the
 cone turns red, a `!` appears, guards converge on your last known position).
 Break line of sight and it decays back through **EVASION** to **INFILTRATION**.
 Standing in a light pool fills the meter faster; standing on cover slows it.
+
+**The dark is opaque, and you only see what you have line of sight to.** Unlit
+space is genuinely black rather than dimmed, and walls cut your view — a lit room
+on the far side of a wall, and a guard patrolling around the corner, are both
+invisible until you actually have sight of them. Rowan carries a small pool of his
+own (a couple of tiles, dark-adapted eyes rather than a lamp — it costs you nothing
+in visibility to the guards), so you can always read your immediate surroundings and
+feel your way along a wall. Seeing any further than that is what the **flashlight**
+(**L**) is for, and it matters: only `main1` and the vent core carry light fixtures,
+so the two crawlspaces and main deck 2 are lit by your beam alone. It drains in
+about 45 seconds of continuous use and gives you away badly while it's lit
+(1.8× detection), so it's a resource to spend in bursts, not to leave on — a
+**Battery** from a chest refills it. The radar still draws nearby walls too, so
+it's your fallback for feeling out a dark corridor.
 
 The top-right **radar** is a Soliton-style minimap: a world-aligned circular
 plan view showing nearby walls and guards (yellow, red once they're close to
@@ -215,11 +231,30 @@ engine will use that value instead.
   the alarm instantly on contact. Kind and orientation are inferred from the
   `ref` and the footprint from `ColSpan`/`RowSpan`, since the tiles carry no
   components.
-- Lighting: the level is darkened with soft, bright pools punched out at each
-  `light_source` (`src/ui/Lighting.ts`), so you can see where the shadows are.
-  It reads the *same* light data `DetectionSystem` uses, so a lit spot is both
-  visibly brighter and mechanically easier to be spotted in; `flicker`-type
-  lights pulse.
+- Lighting & player line of sight: the level is filled with *opaque* darkness, soft
+  bright pools are punched out at each `light_source` (plus a small one the player
+  carries and the flashlight cone), and then the darkness is put back everywhere the
+  player has no sightline (`src/ui/Lighting.ts` + `src/systems/Visibility.ts`). It
+  reads the *same* light data `DetectionSystem` uses, so a lit spot is both visibly
+  brighter and mechanically easier to be spotted in; `flicker`-type lights pulse. The
+  player's own pool is presentation only — it is not fed to `DetectionSystem`, so it
+  costs nothing in visibility, unlike the beam. Two layers, kept apart because they
+  change at different rates: a `RenderTexture` for the lights (recomposited when a
+  light, the beam or the player moves, with every stamp erased in one batched call —
+  each `erase` is a framebuffer round-trip) and a `Graphics` shadow fan above it
+  (rebuilt whenever the player or camera moves). The fan is a triangle-per-ray-pair
+  sweep out to the edge of the camera view, cast against the same `CollisionGrid` the
+  guards' sight tests use — being layered *over* the lights is what clips the pools
+  and the cone, so no per-light sight test is needed. Every edge is feathered: the
+  stamps are generated per pixel from an explicit falloff curve (flat to a core, then
+  a smoothstep out) and filtered LINEAR rather than the game-wide `pixelArt` NEAREST,
+  and the fan carries a small blur post-effect — the penumbra a corner throws is the
+  fan's inner boundary *between* adjacent rays, so softening it needs a blur rather
+  than more rays. Rays carry a fixed
+  `WALL_REVEAL_TILES` past the wall face they stop at rather than to that tile's exit
+  boundary: the exit face flips from top to side as the angle sweeps, and that
+  discontinuity sawtoothed the shadow edge over a full tile along flat walls. Debug
+  **O** hides the whole overlay.
 - Cover: crouch (**Shift**) on a `cover` tile to break the guards' line of sight
   entirely — a "HIDDEN" marker confirms it. Standing on cover still softens
   detection (0.4×). Concealment is gated in the one vision choke point
@@ -281,7 +316,7 @@ src/scenes/         GameScene, UIScene
 src/entities/       Player, Enforcer, Drone, Orderly, Sensor, Door, Terminal,
                     Laser, Chest, GuardSkin, PlayerAnimations,
                     EnforcerAnimations, DroneAnimations, OrderlyAnimations
-src/systems/        CollisionGrid, DetectionSystem, AlertState,
+src/systems/        CollisionGrid, DetectionSystem, Visibility, AlertState,
                     TransitionGraph, Radar, AlertNetwork, EntityStats
 src/ui/             Hud, Radar, InventoryHud, AlertNetworkHud, Lighting
 ```

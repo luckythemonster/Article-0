@@ -185,6 +185,8 @@ export class GameScene extends Phaser.Scene {
   private worldDraw = false;
   /** Freeze-world: halts guards, cameras, hazards, alert and capture (player free). */
   private frozenWorld = false;
+  /** Darkness off — the lighting/line-of-sight overlay is hidden so the level reads. */
+  private darknessOff = false;
   /** Graphics layer for the world-space debug draw. */
   private debugGfx?: Phaser.GameObjects.Graphics;
   /** The player↔wall / player↔door colliders, kept so no-clip can toggle them. */
@@ -197,6 +199,7 @@ export class GameScene extends Phaser.Scene {
     noClip: Phaser.Input.Keyboard.Key;
     world: Phaser.Input.Keyboard.Key;
     freeze: Phaser.Input.Keyboard.Key;
+    darkness: Phaser.Input.Keyboard.Key;
     warp: Phaser.Input.Keyboard.Key[];
   };
 
@@ -269,6 +272,8 @@ export class GameScene extends Phaser.Scene {
     this.noClip = false;
     this.worldDraw = false;
     this.frozenWorld = false;
+    // A fresh Lighting is built below, so this must start in step with it (on).
+    this.darknessOff = false;
 
     // Slice every referenced sprite rect into a named frame.
     SpriteAtlas.register(this, parsed.uniqueFrames);
@@ -299,9 +304,11 @@ export class GameScene extends Phaser.Scene {
     this.wallCollider = this.physics.add.collider(this.player.sprite, wallBodies);
     this.doorCollider = this.physics.add.collider(this.player.sprite, doorBodies);
 
-    // Darken the level and light it from the `light_sources` — shares the same
-    // data DetectionSystem uses, so lit spots are visibly and mechanically hot.
-    this.lighting = new Lighting(this, this.level, this.tileSize);
+    // Fill the level with opaque darkness, light it from the `light_sources`, and
+    // clip all of it to the player's line of sight. Shares the same light data
+    // DetectionSystem uses, so lit spots are visibly and mechanically hot; takes the
+    // same collision grid the guards' sight tests use, so walls occlude identically.
+    this.lighting = new Lighting(this, this.level, this.tileSize, this.grid);
 
     // VENT-4 lives only in the vent core. Its continuous audio layers are
     // scene-independent, so silence them on every entry and re-arm to match a
@@ -548,6 +555,7 @@ export class GameScene extends Phaser.Scene {
         noClip: kb.addKey(K.N),
         world: kb.addKey(K.V),
         freeze: kb.addKey(K.H),
+        darkness: kb.addKey(K.O),
         warp: [K.ONE, K.TWO, K.THREE, K.FOUR, K.FIVE].map((c) => kb.addKey(c)),
       };
     }
@@ -902,6 +910,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.lighting.update(
       dt,
+      { x: this.player.x, y: this.player.y },
       this.activeItems.flashlightBeamActive
         ? { x: this.player.x, y: this.player.y, facing: this.player.facing }
         : null,
@@ -1382,6 +1391,7 @@ export class GameScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(dk.noClip)) this.setNoClip(!this.noClip);
     if (Phaser.Input.Keyboard.JustDown(dk.world)) this.worldDraw = !this.worldDraw;
     if (Phaser.Input.Keyboard.JustDown(dk.freeze)) this.frozenWorld = !this.frozenWorld;
+    if (Phaser.Input.Keyboard.JustDown(dk.darkness)) this.setDarknessOff(!this.darknessOff);
     for (let i = 0; i < dk.warp.length; i++) {
       if (Phaser.Input.Keyboard.JustDown(dk.warp[i])) {
         this.debugWarp(DEBUG_WARP_LEVELS[i]);
@@ -1399,8 +1409,15 @@ export class GameScene extends Phaser.Scene {
       this.worldDraw = false;
       this.frozenWorld = false;
       this.setNoClip(false);
+      this.setDarknessOff(false);
       this.debugGfx?.clear();
     }
+  }
+
+  /** Hides/restores the darkness + line-of-sight overlay so the level can be read. */
+  private setDarknessOff(off: boolean): void {
+    this.darknessOff = off;
+    this.lighting.setEnabled(!off);
   }
 
   /** Toggles no-clip by enabling/disabling the player's wall+door colliders. */
@@ -1470,6 +1487,7 @@ export class GameScene extends Phaser.Scene {
       noClip: this.noClip,
       worldDraw: this.worldDraw,
       frozenWorld: this.frozenWorld,
+      darknessOff: this.darknessOff,
       fps: this.game.loop.actualFps,
       px: this.player.x,
       py: this.player.y,

@@ -192,8 +192,13 @@ export interface ChestStats {
 export const CHEST_DEFAULTS = {
   interactionTime: 1.4,
   noiseOnOpen: 3,
-  /** Loot used when the map leaves a chest's item slots blank (they all are). */
-  items: ["Ration Pack", "Stun Rounds", "Access Chit"],
+  /**
+   * Loot used when the map leaves a chest's item slots blank (they all are). The
+   * schema only carries three slots, and since unlit space became genuinely opaque
+   * a Battery outranks Stun Rounds — light is load-bearing, stunning an Orderly
+   * bystander is a convenience.
+   */
+  items: ["Ration Pack", "Battery", "Access Chit"],
 } as const;
 
 export function chestStatsFor(components: ComponentData[]): ChestStats {
