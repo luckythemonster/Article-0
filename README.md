@@ -55,7 +55,7 @@ warps; visit with `?debug=0` to turn it back off.
 | N | No-clip — walk through walls and doors |
 | V | World overlay — draw guard line-of-sight rays, blocked tiles, and detection hot spots |
 | O | Darkness off — hide the lighting / line-of-sight overlay and read the level at full brightness |
-| 1–5 | Warp to `main1` / `main2` / `duct1` / `duct2` / `vent_core` (resets the alert; keeps your HP) |
+| 1–5 | Warp to the map's levels in board order, with the generated `vent_core` last — for the shipped map that's `main1` / `duct1` / `duct2` / `main2` / `vent_core` (resets the alert; keeps your HP) |
 
 While enabled, a top-right panel shows FPS, player position, facing, HP, capture
 progress, the current level, alert phase, and per-unit detection. The G/N/V/O and
@@ -297,11 +297,13 @@ engine will use that value instead.
   a smoothstep out) and filtered LINEAR rather than the game-wide `pixelArt` NEAREST,
   and the fan carries a small blur post-effect — the penumbra a corner throws is the
   fan's inner boundary *between* adjacent rays, so softening it needs a blur rather
-  than more rays. Rays carry a fixed
-  `WALL_REVEAL_TILES` past the wall face they stop at rather than to that tile's exit
-  boundary: the exit face flips from top to side as the angle sweeps, and that
-  discontinuity sawtoothed the shadow edge over a full tile along flat walls. Debug
-  **O** hides the whole overlay.
+  than more rays. Rays carry a fixed `WALL_REVEAL_TILES` (half a tile) past the wall
+  face they stop at, lighting the near half of the wall without ever reaching its far
+  face — a full tile of reveal would land exactly on that boundary for a normal
+  one-tile-thick wall, which read as seeing through it. The offset is constant rather
+  than "to the exit boundary" for a second reason too: that exit face flips from top
+  to side as the angle sweeps, and the discontinuity sawtoothed the shadow edge over a
+  full tile along flat walls. Debug **O** hides the whole overlay.
 - Cover: crouch (**Shift**) on a `cover` tile to break the guards' line of sight
   entirely — a "HIDDEN" marker confirms it. Standing on cover still softens
   detection (0.4×). Concealment is gated in the one vision choke point

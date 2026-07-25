@@ -77,8 +77,13 @@ const SHADOW_FEATHER_STEPS = 2;
  * light: it is deliberately *not* fed to `DetectionSystem`, so unlike the flashlight
  * it costs nothing in visibility to the guards. Still clipped by line of sight —
  * it lights the floor around you, not through the wall you are standing against.
+ *
+ * Kept small on purpose: at `POOL_CORE` (0.5) this is full-bright to 0.75 tiles and
+ * fades out by 1.5 — enough to read your own feet and the tile beside you, not a
+ * rooms-away glow. A bigger radius reads as a personal spotlight rather than
+ * eyes-adjusting-to-the-dark, which undercuts the point of the darkness being opaque.
  */
-const PLAYER_LIGHT_TILES = 2.75;
+const PLAYER_LIGHT_TILES = 1.5;
 
 /** How far (px) the viewer must move before the visibility polygon is recast. */
 const RECAST_EPSILON = 0.5;
