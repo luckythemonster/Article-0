@@ -9,7 +9,9 @@ import { TransitionGraph } from "../systems/TransitionGraph";
 import { buildRadarSnapshot } from "../systems/Radar";
 import { Player, type InputState } from "../entities/Player";
 import { Enforcer, type GuardAnomaly } from "../entities/Enforcer";
+import { ENFORCER_SKIN } from "../entities/EnforcerAnimations";
 import { Drone } from "../entities/Drone";
+import { routeFromLayer } from "../systems/PatrolRoute";
 import { Orderly } from "../entities/Orderly";
 import { Door, footprintCells } from "../entities/Door";
 import { Terminal } from "../entities/Terminal";
@@ -25,6 +27,7 @@ import {
   CHAFF_PACK_ITEM,
   countConsumables,
   FLASHLIGHT_DETECTION_MULTIPLIER,
+  GAME_SPEED,
   glassStatsFor,
   isGlass,
   isConsumable,
@@ -352,6 +355,14 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setZoom(2);
     this.cameras.main.roundPixels = true;
 
+    // Every walk/run/patrol cycle has to advance at the same fraction of real
+    // time as the feet it belongs to, or the whole cast skates. This is the
+    // game-wide AnimationManager, which is what we want — it is the one place
+    // that covers the player, the guards and the orderlies at once, and no
+    // other scene animates. Per-sprite scales (e.g. the guards' 1.8× combat
+    // sweep) multiply on top of it.
+    this.anims.globalTimeScale = GAME_SPEED;
+
     this.bindInput();
 
     // Chaff Pack EMP zone: drawn between the guard cones (400) and bodies (450).
@@ -474,18 +485,33 @@ export class GameScene extends Phaser.Scene {
     const py = tile ? tile.y * this.tileSize + half : this.level.height * half;
     this.player = new Player(this, px, py, this.tileSize);
 
+    // A guard board is one guard's *route*, not a headcount — see
+    // `routeFromLayer`. Each board therefore spawns a single guard standing on
+    // waypoint 0 and walking the rest as a loop.
     const enforcerLayer = this.level.layers.find((l) => l.name === "enforcers");
-    if (enforcerLayer) {
-      for (const t of enforcerLayer.tiles) {
-        this.enforcers.push(new Enforcer(this, t.x, t.y, this.tileSize, t.components));
-      }
+    const enforcerRoute = routeFromLayer(enforcerLayer);
+    if (enforcerLayer && enforcerRoute.length > 0) {
+      const start = enforcerRoute[0];
+      this.enforcers.push(
+        new Enforcer(
+          this,
+          start.x,
+          start.y,
+          this.tileSize,
+          enforcerLayer.tiles[0].components,
+          ENFORCER_SKIN,
+          enforcerRoute,
+        ),
+      );
     }
 
     const droneLayer = this.level.layers.find((l) => l.name === "drones");
-    if (droneLayer) {
-      for (const t of droneLayer.tiles) {
-        this.drones.push(new Drone(this, t.x, t.y, this.tileSize, t.components));
-      }
+    const droneRoute = routeFromLayer(droneLayer);
+    if (droneLayer && droneRoute.length > 0) {
+      const start = droneRoute[0];
+      this.drones.push(
+        new Drone(this, start.x, start.y, this.tileSize, droneLayer.tiles[0].components, droneRoute),
+      );
     }
 
     const orderlyLayer = this.level.layers.find((l) => l.name === "orderlies");
@@ -1028,6 +1054,12 @@ export class GameScene extends Phaser.Scene {
       anomalies: this.buildAnomalies(chaffZone),
       playerVelocity: { x: playerBody.velocity.x, y: playerBody.velocity.y },
       coverTilesNear: (tx: number, ty: number, r: number) => this.coverTilesNear(tx, ty, r),
+      isGuardDoor: (tx: number, ty: number) => this.guardOperableDoorAt(tx, ty) !== null,
+      setDoorOpen: (tx: number, ty: number, open: boolean) => {
+        // Silent on purpose: the operation-noise ping is there to give away the
+        // player working a door, not staff using one on their own beat.
+        this.guardOperableDoorAt(tx, ty)?.setOpen(open);
+      },
     };
     // Debug freeze-world (H) short-circuits every AI/hazard update below by
     // iterating nothing (or ticking with 0), so patrols, cones, lasers, VENT-4,
@@ -1595,6 +1627,59 @@ export class GameScene extends Phaser.Scene {
       g.lineStyle(1, clear ? 0x59d98e : 0xff3b3b, 0.6);
       g.lineBetween(this.player.x, this.player.y, pos.x, pos.y);
     }
+
+    this.drawGuardNavigation(g, ts);
+  }
+
+  /**
+   * Patrol routes, live A* paths and collision circles for every guard.
+   *
+   * This is the readout for the three things that are otherwise invisible and
+   * hard to trust: that a guard board really did resolve to one ordered loop,
+   * that the planner routes around geometry rather than through it, and that
+   * the body a guard collides with matches the sprite drawn over it.
+   */
+  private drawGuardNavigation(g: Phaser.GameObjects.Graphics, ts: number): void {
+    const centre = (p: { x: number; y: number }): { x: number; y: number } => ({
+      x: (p.x + 0.5) * ts,
+      y: (p.y + 0.5) * ts,
+    });
+
+    for (const e of this.guards()) {
+      const route = e.patrolRoute;
+      // The route loop, dimmed — it's context, not the live state.
+      if (route.length > 1) {
+        g.lineStyle(1, 0x4db8ff, 0.35);
+        for (let i = 0; i < route.length; i++) {
+          const a = centre(route[i]);
+          const b = centre(route[(i + 1) % route.length]);
+          g.lineBetween(a.x, a.y, b.x, b.y);
+        }
+      }
+      g.fillStyle(0x4db8ff, 0.75);
+      for (const wp of route) {
+        const c = centre(wp);
+        g.fillCircle(c.x, c.y, Math.max(2, ts * 0.12));
+      }
+
+      // The path being walked right now, from the guard to its current goal.
+      const path = e.plannedPath;
+      if (path.length > 0) {
+        const pos = e.position;
+        g.lineStyle(2, 0xffe14d, 0.8);
+        let prev = pos;
+        for (const node of path) {
+          const c = centre(node);
+          g.lineBetween(prev.x, prev.y, c.x, c.y);
+          prev = c;
+        }
+      }
+
+      // The circle the guard actually collides with.
+      const pos = e.position;
+      g.lineStyle(1, 0x59d98e, 0.7);
+      g.strokeCircle(pos.x, pos.y, e.collisionRadiusTiles * ts);
+    }
   }
 
   /** Snapshot of live state for the DebugHud (published to the registry). */
@@ -1743,6 +1828,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Opened doors/chests, EMP'd cameras/lasers, and stunned orderlies this frame. */
+  /**
+   * The door covering a tile, if it's one a guard may work itself.
+   *
+   * Locked doors are excluded — a keycard door is a chokepoint for the guards
+   * too, and a terminal hack is the only thing that releases it.
+   */
+  private guardOperableDoorAt(tileX: number, tileY: number): Door | null {
+    return this.doors.find((d) => d.isManual && d.covers(tileX, tileY)) ?? null;
+  }
+
   private buildAnomalies(chaffZone: { x: number; y: number; radiusPx: number } | null): GuardAnomaly[] {
     const anomalies: GuardAnomaly[] = [];
 

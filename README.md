@@ -53,7 +53,7 @@ warps; visit with `?debug=0` to turn it back off.
 | `` ` `` (backtick) | Toggle debug mode. Turning it off clears every cheat and hides the panel. |
 | G | God mode — blocks both death paths (bio-integrity loss and capture) |
 | N | No-clip — walk through walls and doors |
-| V | World overlay — draw guard line-of-sight rays, blocked tiles, and detection hot spots |
+| V | World overlay — guard patrol routes and live A* paths, collision circles, line-of-sight rays, blocked tiles, and detection hot spots |
 | O | Darkness off — hide the lighting / line-of-sight overlay and read the level at full brightness |
 | 1–5 | Warp to the map's levels in board order, with the generated `vent_core` last — for the shipped map that's `main1` / `duct1` / `duct2` / `main2` / `vent_core` (resets the alert; keeps your HP) |
 
@@ -82,6 +82,12 @@ proximity.
 Walk into a guard's yellow vision cone with a clear line of sight and the
 detection meter fills; fill it completely and the base goes to **ALERT** (the
 cone turns red, a `!` appears, guards converge on your last known position).
+Breaking line of sight doesn't shake them the way it used to: a guard chases you
+directly while it can see you and **paths** to your last known tile the moment it
+can't, so rounding a corner no longer leaves it grinding against the wall you
+disappeared behind. It then sweeps the search points around that tile — where
+your momentum was carrying you, the cover nearby, the doorways you could have
+taken — before walking back to its patrol route.
 Break line of sight and it decays back through **EVASION** to **INFILTRATION**.
 Standing in a light pool fills the meter faster; standing on cover slows it.
 
@@ -215,9 +221,9 @@ The whole pipeline lives in `src/`:
   wall collision, spawns entities, and drives the systems each frame.
   `UIScene` is a parallel, unzoomed overlay for the HUD.
 - **`src/entities/`** — `Player` (arcade-body 8-dir movement, stance/noise,
-  animated character sprite), `Enforcer` (patrol + wall-clipped vision cone
-  + per-guard detection meter, animated scanner-drone sprite; `GuardSkin.ts`
-  factors out the animation/sizing config so `Drone` is a one-line subclass
+  animated character sprite), `Enforcer` (A*-routed patrol + wall-clipped vision
+  cone + per-guard detection meter, animated scanner-drone sprite; `GuardSkin.ts`
+  factors out the animation/sizing/collider config so `Drone` is a one-line subclass
   with its own sprite), `Orderly` (a lighter, non-combat bystander that
   wanders near its spawn and raises a one-shot alert if it spots the player),
   `Sensor` (a fixed security camera — a stationary, sweeping vision cone with
@@ -226,6 +232,10 @@ The whole pipeline lives in `src/`:
   nearby doors) and `Chest` (hold-to-search supply container that yields items).
 - **`src/systems/`** — `CollisionGrid` (wall/door grid + line-of-sight raycast
   + runtime `setBlocked` for doors, plus a radius query for nearby walls),
+  `GridMotion` (circle-vs-grid collision with wall sliding, for everything that
+  isn't an Arcade body), `Pathfinder` (8-connected A* over that grid, radius-aware
+  and no corner-cutting, with string-pulled paths), `PatrolRoute` (reads a guard
+  board as one guard's ordered waypoints),
   `DetectionSystem` (light/cover modifiers, plus per-tile thermal-bleed lookup),
   `AlertState` (the INFILTRATION → ALERT → EVASION FSM),
   `TransitionGraph` (auto-derived level-to-level connections for
@@ -236,7 +246,12 @@ The whole pipeline lives in `src/`:
 
 The gameplay numbers live in `EntityStats.ts` because the map author left the
 per-entity fields at their defaults — override any of them in the map and the
-engine will use that value instead.
+engine will use that value instead. `GAME_SPEED` lives there too: one multiplier
+on everything that *moves* (walk/patrol/chase speeds, turn rates, cone sweeps,
+VENT-4's suction, and animation playback via `anims.globalTimeScale`, so walk
+cycles don't skate). It deliberately doesn't touch the gameplay clocks —
+detection fill, alert durations, hold-to-hack times, laser windows — which stay
+in real seconds so the balance they encode keeps its meaning.
 
 ## What's implemented (Phase 1 — playable vertical slice)
 
@@ -244,13 +259,25 @@ engine will use that value instead.
 - Render `main1` from the real spritesheets, in correct layer order.
 - Player: free 8-directional movement, wall collision, sneak/run stances,
   animated character sprite (idle/walk/run/crouch, full 8-direction).
-- Guards: patrol, wall-clipped vision cones, per-guard detection, animated
-  scanner-drone sprite (patrol-scan cycle, full 8-direction), roughly
-  player-sized. `enforcer` map tiles spawn regular guards; `drones` tiles
-  (found in the crawlspace levels) spawn the same AI wearing a small
-  spider-legged sentry skin — the map gives both the identical `enforcer`
-  stats component, so they share one implementation (`Enforcer`/`Drone` +
-  `GuardSkin`).
+- Guards: **A*-routed patrol** along the waypoints their map board describes,
+  wall-clipped vision cones, per-guard detection, animated scanner-drone sprite
+  (patrol-scan cycle, full 8-direction). A guard board is **one guard's ordered
+  route**, not a headcount — see [`docs/MAP_AUTHORING.md`](docs/MAP_AUTHORING.md)
+  §3.1 — so `main1` fields one enforcer walking a circuit through the central
+  hall, the row-30 corridor and the south hall, and `duct1` one drone running its
+  crawlway end to end. Guards path around geometry rather than through it
+  (`Pathfinder.ts`), open unlocked doors on their beat and shut them behind
+  themselves (an open door is an *anomaly*, so leaving their own doors ajar would
+  have the patrol investigating itself), and collide with walls as a real circle
+  that slides along them (`GridMotion.ts`) instead of the single centre-point test
+  that used to let half a sentry sit inside a wall. Their bodies are traced from
+  the sprite art by `npm run gen:colliders`, the same pipeline as the player's,
+  and sized to clear a one-tile passage — `main1` has 24 of them and `duct1` is
+  built from nothing else, which is also why the drone is half the size it was.
+  `enforcer` map tiles spawn regular guards; `drones` tiles (found in the
+  crawlspace levels) spawn the same AI wearing a small spider-legged sentry skin —
+  the map gives both the identical `enforcer` stats component, so they share one
+  implementation (`Enforcer`/`Drone` + `GuardSkin`).
 - Orderlies: `orderlies` tiles spawn unarmed bystanders that wander loosely
   near their spawn point and idle/walk in place otherwise. They carry no
   gameplay component, so they're not a persistent threat — instead, an
@@ -397,8 +424,7 @@ src/ui/             Hud, Radar, InventoryHud, AlertNetworkHud, Lighting
 ## Character & enemy art
 
 All four were generated with [PixelLab.ai](https://www.pixellab.ai/) (high
-top-down templates) and pulled in via its API, every sprite scaled to ~1.5
-tiles tall:
+top-down templates) and pulled in via its API:
 
 - **Player** ("Rowan Ibarra", 88x88) — idle/walk/run cycles in all 8
   directions (`public/assets/player/`, manifest at
@@ -419,6 +445,15 @@ tiles tall:
   at 0.8× his standing height while crouched, scaled smoothly in sync with the
   transition clip's own playback progress rather than a fixed timer, so the
   height change always finishes exactly when the pose does.
+Display size is per sprite rather than one shared number, because "1.5 tiles"
+means different things for different art. The player and orderly are ~1.5 tiles
+tall; the guards are smaller, and deliberately. The player's
+88x88 sheet is mostly padding, so Rowan's body is only ~0.5 tiles across; the
+guards' frames are nearly edge-to-edge robot, so at the same nominal size they
+were genuinely *wider than the doorways they patrol through*. The enforcer sits at
+1.15 tiles and the drone at 0.75 — see the collider note under *What's
+implemented*.
+
 - **Enforcer** (48x48) — a blocky robotic sentry gliding on magnetic tracks
   with a rotating crown of camera-arms. It shipped with no animations, so its
   "patrol-scan" cycle (the camera-arms sweeping back and forth while it

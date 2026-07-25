@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import type { CollisionGrid } from "../systems/CollisionGrid";
+import { paced } from "../systems/EntityStats";
 import { GUARD_DIRS, nearestGuardDirection, type GuardDir } from "./GuardSkin";
 import {
   ORDERLY_ANIM_FRAME_COUNTS,
@@ -21,7 +22,7 @@ export interface OrderlyContext {
 
 const SIGHT_RANGE_TILES = 5;
 const WANDER_LEASH_TILES = 2.5;
-const WALK_SPEED_TILES = 1.1;
+const WALK_SPEED_TILES = paced(1.1);
 /** Seconds an orderly lingers at a knock it walked over to inspect before resuming its wander. */
 const DISTRACT_PAUSE = 2.5;
 

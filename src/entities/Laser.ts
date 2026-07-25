@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import type { GameTile } from "../map/types";
+import { paced } from "../systems/EntityStats";
 
 /**
  * A laser hazard, drawn procedurally from the map's footprint data.
@@ -71,7 +72,9 @@ export class Laser {
   }
 
   update(dt: number): void {
-    this.sweep += dt * 2.4;
+    // Only the sweep line's rotation is paced — the active/idle pulse below is a
+    // timing window the player reads and slips through, so it stays real-time.
+    this.sweep += dt * paced(2.4);
     // While EMP-suppressed the hazard holds off — no pulse toggle, no trip.
     if (this.empTimer > 0) {
       this.empTimer = Math.max(0, this.empTimer - dt);

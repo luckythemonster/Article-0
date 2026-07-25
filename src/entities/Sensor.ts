@@ -1,14 +1,14 @@
 import Phaser from "phaser";
 import type { GameTile } from "../map/types";
 import type { CollisionGrid } from "../systems/CollisionGrid";
-import { sensorStatsFor, type SensorStats } from "../systems/EntityStats";
+import { paced, sensorStatsFor, type SensorStats } from "../systems/EntityStats";
 import type { EnforcerContext } from "./Enforcer";
 
 const RAY_COUNT = 20;
 /** Half-arc (degrees) the mounted camera pans its cone across. */
 const SWEEP_ARC = 55;
 /** Pan oscillation speed (radians of phase per second). */
-const SWEEP_SPEED = 0.7;
+const SWEEP_SPEED = paced(0.7);
 
 /**
  * A fixed optical security camera — the `security` board's stationary answer to
