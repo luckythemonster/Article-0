@@ -245,7 +245,12 @@ engine will use that value instead.
   (rebuilt whenever the player or camera moves). The fan is a triangle-per-ray-pair
   sweep out to the edge of the camera view, cast against the same `CollisionGrid` the
   guards' sight tests use — being layered *over* the lights is what clips the pools
-  and the cone, so no per-light sight test is needed. Rays carry a fixed
+  and the cone, so no per-light sight test is needed. Every edge is feathered: the
+  stamps are generated per pixel from an explicit falloff curve (flat to a core, then
+  a smoothstep out) and filtered LINEAR rather than the game-wide `pixelArt` NEAREST,
+  and the fan carries a small blur post-effect — the penumbra a corner throws is the
+  fan's inner boundary *between* adjacent rays, so softening it needs a blur rather
+  than more rays. Rays carry a fixed
   `WALL_REVEAL_TILES` past the wall face they stop at rather than to that tile's exit
   boundary: the exit face flips from top to side as the angle sweeps, and that
   discontinuity sawtoothed the shadow edge over a full tile along flat walls. Debug
