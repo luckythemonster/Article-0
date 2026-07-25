@@ -20,6 +20,8 @@ export interface OrderlyContext {
 const SIGHT_RANGE_TILES = 5;
 const WANDER_LEASH_TILES = 2.5;
 const WALK_SPEED_TILES = 1.1;
+/** Seconds an orderly lingers at a knock it walked over to inspect before resuming its wander. */
+const DISTRACT_PAUSE = 2.5;
 
 /**
  * A bystander, not a threat — the map's `orderlies` tiles carry no gameplay
@@ -45,6 +47,9 @@ export class Orderly {
   private alerted = false;
   /** Seconds of stun remaining; while > 0 the orderly is frozen and can't witness. */
   private stunTimer = 0;
+  /** A knock the orderly is walking over to inspect, or null while wandering. */
+  private distractTarget: { x: number; y: number } | null = null;
+  private distractPause = 0;
 
   private readonly body: Phaser.GameObjects.Sprite;
   private readonly bang: Phaser.GameObjects.Text;
@@ -79,6 +84,17 @@ export class Orderly {
     this.bang.setVisible(false);
   }
 
+  /**
+   * Lures the orderly to inspect a nearby noise (a player's knock): it leaves
+   * its wander, walks over, pauses, then drifts back. A no-op while stunned or
+   * already startled by witnessing the player. `sx,sy` are pixels.
+   */
+  distract(sx: number, sy: number): void {
+    if (this.stunTimer > 0 || this.alerted) return;
+    this.distractTarget = { x: sx, y: sy };
+    this.distractPause = 0;
+  }
+
   /** True on the exact frame the orderly first spots the player. */
   update(dt: number, ctx: OrderlyContext): boolean {
     // Stunned: hold still and stay blind until the dart wears off.
@@ -91,7 +107,8 @@ export class Orderly {
     }
 
     if (!this.alerted) {
-      this.wander(dt, ctx);
+      if (this.distractTarget) this.investigateDistraction(dt, ctx);
+      else this.wander(dt, ctx);
     }
 
     const dir = nearestGuardDirection(this.facing);
@@ -142,6 +159,43 @@ export class Orderly {
     } else {
       this.x = nx;
       this.y = ny;
+    }
+  }
+
+  /**
+   * Walks toward a knock and lingers there before giving up. Once the pause
+   * elapses (or the path is blocked) it clears the target so {@link wander}
+   * resumes — the spawn leash then drifts the orderly back home.
+   */
+  private investigateDistraction(dt: number, ctx: OrderlyContext): void {
+    const target = this.distractTarget!;
+    const { grid, tileSize } = ctx;
+    const dist = Math.hypot(target.x - this.x, target.y - this.y);
+
+    if (dist > tileSize * 0.5) {
+      this.moving = true;
+      this.facing = Math.atan2(target.y - this.y, target.x - this.x);
+      const speed = WALK_SPEED_TILES * tileSize;
+      const nx = this.x + Math.cos(this.facing) * speed * dt;
+      const ny = this.y + Math.sin(this.facing) * speed * dt;
+      if (grid.isBlocked(Math.floor(nx / tileSize), Math.floor(ny / tileSize))) {
+        // Can't reach it — pause where we are, then give up.
+        this.moving = false;
+        this.distractPause += dt;
+        if (this.distractPause >= DISTRACT_PAUSE) this.distractTarget = null;
+      } else {
+        this.x = nx;
+        this.y = ny;
+      }
+      return;
+    }
+
+    // Arrived: look around for a beat, then resume wandering.
+    this.moving = false;
+    this.distractPause += dt;
+    if (this.distractPause >= DISTRACT_PAUSE) {
+      this.distractTarget = null;
+      this.distractPause = 0;
     }
   }
 
