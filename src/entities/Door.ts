@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import type { GameTile, SpriteFrame } from "../map/types";
 import type { CollisionGrid } from "../systems/CollisionGrid";
-import { doorStatsFor, type DoorStats } from "../systems/EntityStats";
+import { doorStatsFor, glassStatsFor, isGlass, type DoorStats } from "../systems/EntityStats";
 
 /**
  * An interactive door, sized and placed from the map's authoring data.
@@ -14,15 +14,23 @@ import { doorStatsFor, type DoorStats } from "../systems/EntityStats";
  * on state change rather than just fading.
  *
  * Closed, it blocks the player (an Arcade static body covering the footprint)
- * and every grid cell the footprint spans (so it also blocks line of sight,
- * radar, and enforcer pathing). Opening clears both. A door with a non-zero
- * `key` is *locked* — only a terminal hack (or, later, a keycard) opens it.
+ * and every grid cell the footprint spans (so it also blocks radar and enforcer
+ * pathing). Opening clears both. A door with a non-zero `key` is *locked* — only a
+ * terminal hack (or, later, a keycard) opens it.
+ *
+ * **Glazed** doors are the exception to blocking sight: the map's glass doors carry a
+ * `glass` component alongside their `door` one, and clear glazing stops you walking
+ * through without stopping you (or a guard) looking through. So a closed glass door is a
+ * window — you can be spotted across it, and you can scout the room beyond before
+ * committing to opening it.
  */
 export class Door {
   readonly tileX: number;
   readonly tileY: number;
   readonly stats: DoorStats;
   readonly locked: boolean;
+  /** Clear glazing: blocks movement while closed, but never line of sight. */
+  readonly seeThrough: boolean;
 
   private open: boolean;
   private readonly image: Phaser.Physics.Arcade.Image;
@@ -39,6 +47,7 @@ export class Door {
     this.grid = grid;
     this.stats = doorStatsFor(tile.components);
     this.locked = this.stats.key !== 0 || this.stats.state === "locked";
+    this.seeThrough = isGlass(tile.components) && !glassStatsFor(tile.components).visionBlock;
     this.open = this.stats.state === "open";
 
     this.closedFrame = tile.stateFrames?.closed ?? tile.frame;
@@ -91,8 +100,9 @@ export class Door {
   }
 
   private applyState(): void {
-    // Grid: closed doors block their whole footprint; open doors clear it.
-    for (const c of this.cells) this.grid.setBlocked(c.x, c.y, !this.open);
+    // Grid: closed doors block their whole footprint; open doors clear it. Glazed doors
+    // stay transparent to sight the whole time, closed or not.
+    for (const c of this.cells) this.grid.setBlocked(c.x, c.y, !this.open, this.seeThrough);
 
     const body = this.image.body as Phaser.Physics.Arcade.StaticBody;
     body.enable = !this.open;
@@ -107,7 +117,7 @@ export class Door {
 }
 
 /** Grid cells whose centre lies inside a tile's footprint rectangle. */
-function footprintCells(tile: GameTile, tileSize: number): { x: number; y: number }[] {
+export function footprintCells(tile: GameTile, tileSize: number): { x: number; y: number }[] {
   const halfW = tile.colSpan / 2;
   const halfH = tile.rowSpan / 2;
   const cx = tile.x + 0.5 + tile.offsetX / tileSize;

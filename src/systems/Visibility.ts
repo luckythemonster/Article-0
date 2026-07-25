@@ -96,7 +96,7 @@ export function rayDistance(
     }
     // Ran out of reach before entering the next cell.
     if (enter >= maxTiles) return maxTiles;
-    if (grid.isBlocked(ix, iy)) {
+    if (grid.blocksSight(ix, iy)) {
       // A constant step past the face we just crossed, never the exit boundary — see
       // WALL_REVEAL_TILES for why that distinction is the whole ballgame.
       return Math.min(enter + WALL_REVEAL_TILES, maxTiles);

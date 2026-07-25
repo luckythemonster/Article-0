@@ -647,7 +647,7 @@ export class Vent4Boss {
       const x = ox + cx * d;
       const y = oy + cy * d;
       if (Math.hypot(x - this.hub.x, y - this.hub.y) <= hubClear) continue;
-      if (this.grid.isBlocked(Math.floor(x / ts), Math.floor(y / ts))) return d - step;
+      if (this.grid.blocksSight(Math.floor(x / ts), Math.floor(y / ts))) return d - step;
     }
     return maxDist;
   }

@@ -136,7 +136,7 @@ export class Sensor {
     for (let d = step; d <= maxDist; d += step) {
       const tx = Math.floor((this.x + cx * d) / tileSize);
       const ty = Math.floor((this.y + cy * d) / tileSize);
-      if (grid.isBlocked(tx, ty)) return d - step;
+      if (grid.blocksSight(tx, ty)) return d - step;
     }
     return maxDist;
   }
