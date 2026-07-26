@@ -8,13 +8,12 @@
       Favicons live in `public/` and are referenced relatively, because
       vite.config.ts sets `base: "./"` — a root-absolute `/favicon.ico` would
       break the moment this is served from anywhere but a domain root.
-      The generator's `favicon.svg` is deliberately not shipped: it carries no
-      vector data at all, just two 1000x1000 PNGs base64'd into an <svg>, at
-      3.7 MB — twice the whole game bundle, for a 16px tab icon. The .ico and
-      the 96px PNG cover every browser.
+      `favicon.svg` is hand-drawn vector (see the file); the generator's own was
+      a 3.7 MB <svg> wrapping two copies of the same PNG.
     -->
     <link rel="icon" type="image/png" href="./favicon-96x96.png" sizes="96x96" />
-    <link rel="icon" href="./favicon.ico" sizes="32x32" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="shortcut icon" href="./favicon.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
     <link rel="manifest" href="./site.webmanifest" />
     <meta name="theme-color" content="#05070a" />

@@ -447,7 +447,9 @@ in real seconds so the balance they encode keeps its meaning.
 
 ```
 public/favicon*         tab icons + site.webmanifest (referenced relatively — vite
-                        sets base: "./", so root-absolute hrefs would break off-root)
+                        sets base: "./", so root-absolute hrefs would break off-root).
+                        favicon.svg is hand-drawn vector, ~5 KB; see its header
+                        comment for the measurements it was traced from
 public/assets/          edplay.json + spritesheet_{0,1,2}.png (extracted from the zip)
 public/assets/player/   player character frames (see below)
 public/assets/enforcer/ enforcer sentry frames (see below)

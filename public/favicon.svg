@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Article Zero">
+  <title>Article Zero</title>
+  <!--
+    Real vector geometry, drawn from measurements of the 512x512 source render
+    (which the icon generator had shipped as a 3.7 MB <svg> wrapping two copies
+    of the same 1000x1000 PNG — no vector data in it at all).
+
+    Measured off the source:
+      background   #05070a          corners sampled ~#08070a
+      disc         r 54 of 512      body #fdf9d9, hottest #fefad6
+      core         r 19             #cd9b64 - a warm dimming, not a black hole
+      halo         sampled every 8px from the disc edge out to r 256
+
+    Two deliberate departures, both so the thing survives a 16px tab:
+      * The subject is drawn larger - disc r 120 rather than 54. At the source's
+        framing the disc is 10% of the frame, so a 16px favicon gets a 1.7px disc
+        with a 0.6px core: the ring closes up and reads as a featureless dot. The
+        shipped .ico has exactly that problem. At r 120 the hole still reads at
+        16px while the corners stay true background.
+      * The core is a little deeper than #cd9b64, so the ring stays a ring when
+        it is only a few pixels across.
+
+    The halo circle (r 380) reaches past the frame corners (256*sqrt(2) = 362)
+    and its falloff finishes early, at offset 0.79 - otherwise the gradient ends
+    mid-frame and shows a hard circular edge against the background.
+  -->
+  <defs>
+    <!--
+      userSpaceOnUse so these numbers mean viewBox pixels: multiply an offset by
+      564 to get its radius. (The default objectBoundingBox units are relative to
+      the painted circle's box, which for r=380 is 760 wide — offsets there mean
+      nothing you can check against the measurements above.)
+      The gradient runs past the r=380 circle on purpose: the circle only has to
+      cover the frame corners at 362, and the halo is still mid-falloff there.
+    -->
+    <radialGradient id="az-halo" gradientUnits="userSpaceOnUse" cx="256" cy="256" r="564">
+      <stop offset="0.3158" stop-color="#d0a96c"/>
+      <stop offset="0.3392" stop-color="#b17e4d"/>
+      <stop offset="0.3768" stop-color="#8a5b31"/>
+      <stop offset="0.4143" stop-color="#724525"/>
+      <stop offset="0.4518" stop-color="#5d3721"/>
+      <stop offset="0.4893" stop-color="#4e2d1d"/>
+      <stop offset="0.5644" stop-color="#391f16"/>
+      <stop offset="0.6394" stop-color="#291714"/>
+      <stop offset="0.7144" stop-color="#1d1312"/>
+      <stop offset="0.7895" stop-color="#05070a"/>
+      <stop offset="1.0000" stop-color="#05070a"/>
+    </radialGradient>
+    <radialGradient id="az-body" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fefad6"/>
+      <stop offset="0.88" stop-color="#fdf9d9"/>
+      <stop offset="0.96" stop-color="#f2e0ae"/>
+      <stop offset="1" stop-color="#d0a96c"/>
+    </radialGradient>
+    <radialGradient id="az-core" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#b8823f"/>
+      <stop offset="0.62" stop-color="#c18c4c"/>
+      <stop offset="0.86" stop-color="#cd9b64"/>
+      <stop offset="1" stop-color="#cd9b64" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="#05070a"/>
+  <!-- Starfield: kept clear of the glow, fainter close in. -->
+  <g fill="#fff">
+    <circle cx="466" cy="239" r="2.3" opacity="0.26"/> <circle cx="102" cy="407" r="2.3" opacity="0.26"/> <circle cx="401" cy="55" r="1.1" opacity="0.3"/>
+    <circle cx="275" cy="450" r="2.3" opacity="0.22"/> <circle cx="495" cy="487" r="2.3" opacity="0.62"/> <circle cx="421" cy="39" r="1.4" opacity="0.27"/>
+    <circle cx="105" cy="124" r="1.1" opacity="0.21"/> <circle cx="146" cy="503" r="1.1" opacity="0.56"/> <circle cx="43" cy="388" r="1.4" opacity="0.33"/>
+    <circle cx="200" cy="483" r="1.1" opacity="0.38"/> <circle cx="114" cy="468" r="1.8" opacity="0.25"/> <circle cx="494" cy="205" r="1.4" opacity="0.25"/>
+    <circle cx="394" cy="142" r="1.4" opacity="0.17"/> <circle cx="16" cy="211" r="1.4" opacity="0.43"/> <circle cx="130" cy="58" r="1.8" opacity="0.23"/>
+    <circle cx="371" cy="73" r="1.1" opacity="0.29"/> <circle cx="204" cy="499" r="2.3" opacity="0.23"/> <circle cx="159" cy="447" r="1.8" opacity="0.23"/>
+    <circle cx="502" cy="307" r="1.1" opacity="0.38"/> <circle cx="499" cy="114" r="2.3" opacity="0.35"/> <circle cx="44" cy="53" r="1.4" opacity="0.5"/>
+    <circle cx="16" cy="191" r="1.4" opacity="0.38"/> <circle cx="484" cy="248" r="1.8" opacity="0.31"/> <circle cx="99" cy="84" r="2.3" opacity="0.39"/>
+    <circle cx="132" cy="102" r="2.3" opacity="0.24"/> <circle cx="106" cy="479" r="2.3" opacity="0.52"/> <circle cx="47" cy="32" r="2.3" opacity="0.34"/>
+    <circle cx="485" cy="126" r="1.4" opacity="0.45"/> <circle cx="217" cy="457" r="2.3" opacity="0.24"/> <circle cx="95" cy="365" r="1.4" opacity="0.19"/>
+    <circle cx="313" cy="45" r="1.4" opacity="0.23"/> <circle cx="379" cy="42" r="1.4" opacity="0.33"/> <circle cx="38" cy="95" r="2.3" opacity="0.37"/>
+    <circle cx="491" cy="54" r="1.8" opacity="0.35"/> <circle cx="494" cy="334" r="2.3" opacity="0.4"/> <circle cx="478" cy="301" r="1.8" opacity="0.36"/>
+    <circle cx="459" cy="356" r="1.1" opacity="0.37"/> <circle cx="305" cy="45" r="1.4" opacity="0.21"/> <circle cx="166" cy="504" r="2.3" opacity="0.27"/>
+    <circle cx="190" cy="30" r="1.4" opacity="0.4"/> <circle cx="401" cy="462" r="1.8" opacity="0.32"/> <circle cx="455" cy="440" r="1.1" opacity="0.38"/>
+    <circle cx="436" cy="292" r="1.8" opacity="0.19"/> <circle cx="196" cy="14" r="1.1" opacity="0.25"/> <circle cx="325" cy="501" r="1.4" opacity="0.46"/>
+    <circle cx="424" cy="50" r="1.1" opacity="0.47"/> <circle cx="162" cy="52" r="1.1" opacity="0.21"/> <circle cx="465" cy="135" r="1.4" opacity="0.23"/>
+    <circle cx="79" cy="311" r="1.4" opacity="0.19"/> <circle cx="450" cy="170" r="1.4" opacity="0.28"/> <circle cx="382" cy="107" r="1.4" opacity="0.2"/>
+    <circle cx="76" cy="254" r="1.1" opacity="0.18"/>
+  </g>
+  <!-- Halo, then the disc body, then the dimmed core. -->
+  <circle cx="256" cy="256" r="380" fill="url(#az-halo)"/>
+  <circle cx="256" cy="256" r="120" fill="url(#az-body)"/>
+  <circle cx="256" cy="256" r="42.2" fill="url(#az-core)"/>
+</svg>
