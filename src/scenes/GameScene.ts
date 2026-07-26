@@ -2,7 +2,10 @@ import Phaser from "phaser";
 import type { GameLevel, GameMap, Transition } from "../map/types";
 import type { ParsedMap } from "../map/EdplayLoader";
 import { SensingContext } from "./game/SensingContext";
-import { bakeTileLayers, buildWallBodies } from "../map/TileBake";
+import { DebugOverlay, type DebugWorld } from "./game/DebugOverlay";
+import { buildLevel, registerGlazing } from "./game/LevelBuilder";
+import { NoiseEvents } from "./game/NoiseEvents";
+import { OverlayGate } from "./game/OverlayGate";
 import { SpriteAtlas } from "../map/SpriteAtlas";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { DetectionSystem } from "../systems/DetectionSystem";
@@ -10,12 +13,9 @@ import { AlertState } from "../systems/AlertState";
 import { TransitionGraph } from "../systems/TransitionGraph";
 import { buildRadarSnapshot, emptyRadarSnapshot } from "../systems/Radar";
 import { Player, type InputState } from "../entities/Player";
-import { Enforcer, type GuardAnomaly } from "../entities/Enforcer";
-import { ENFORCER_SKIN } from "../entities/EnforcerAnimations";
-import { Drone } from "../entities/Drone";
-import { routeFromLayer } from "../systems/PatrolRoute";
+import { Enforcer, type EnforcerContext, type GuardAnomaly } from "../entities/Enforcer";
 import { Orderly } from "../entities/Orderly";
-import { Door, footprintCells } from "../entities/Door";
+import { Door } from "../entities/Door";
 import { Terminal } from "../entities/Terminal";
 import { Laser } from "../entities/Laser";
 import { Sensor } from "../entities/Sensor";
@@ -45,8 +45,6 @@ import {
   countConsumables,
   FLASHLIGHT_DETECTION_MULTIPLIER,
   GAME_SPEED,
-  glassStatsFor,
-  isGlass,
   isConsumable,
   MAX_CONSUMABLES,
   PLAYER_DEFAULTS,
@@ -89,9 +87,8 @@ import {
   type ConductView,
 } from "../systems/Conduct";
 import { DEBUG_ALLOWED } from "../systems/DebugFlag";
-import type { DebugSnapshot } from "../ui/DebugHud";
 import { FONT_MONO } from "../ui/fonts";
-import { len, within, withinOrEqual } from "../systems/distance";
+import { len, withinOrEqual } from "../systems/distance";
 
 /** Data passed to {@link GameScene} when (re)starting for a level swap. */
 interface GameSceneData {
@@ -130,15 +127,6 @@ const INTERACT_RANGE = 1.4;
 
 /** Radius (tiles) around a hacked terminal whose doors it releases. */
 const HACK_UNLOCK_RADIUS = 6;
-
-/** Radius (tiles) a spotted orderly's alarm carries to nearby guards. */
-const ORDERLY_ALERT_RADIUS_TILES = 6;
-
-/** Backup radius (tiles) when repeated noise pings in one area escalate straight to ALERT. */
-const SPAM_ESCALATION_RADIUS_TILES = 8;
-
-/** Radius (tiles) a knock's noise carries — between a door (4) and an orderly alarm (6). */
-const KNOCK_NOISE_TILES = 5;
 
 /** Seconds between knocks, so the action can't be mashed. */
 const KNOCK_COOLDOWN = 0.6;
@@ -179,6 +167,10 @@ export class GameScene extends Phaser.Scene {
   private vent4?: Vent4Boss;
   /** The reused per-frame guard/camera sensing context. Rebuilt per level. */
   private sensing!: SensingContext;
+  /** Noise propagation: doors, chests, knocks, and the alert-network rally. */
+  private noise!: NoiseEvents;
+  /** The pause / codec / minigame overlays and the sim freeze behind them. */
+  private overlays!: OverlayGate;
   /** This frame's anomaly list, and the entry objects it recycles. */
   private readonly anomalyBuf: GuardAnomaly[] = [];
   private readonly anomalyPool: GuardAnomaly[] = [];
@@ -198,20 +190,12 @@ export class GameScene extends Phaser.Scene {
   private arriveTile?: { x: number; y: number };
   /** A fade + level swap is in flight; input and further triggers are ignored. */
   private transitioning = false;
-  /** True while paused: the PauseScene overlay is shown and the sim is frozen. */
-  private paused = false;
   /** Seconds the player has been cornered by a silicate during a full alert. */
   private captureProgress = 0;
   /** Cooldown (seconds) remaining before the player can knock again. */
   private knockCooldown = 0;
-  /** True while the in-game codec overlay is open (sim frozen). */
-  private codecOpen = false;
-  /** True while the Doctrinal Compliance minigame overlay is open (sim frozen). */
-  private complianceOpen = false;
   /** The log-cache terminal whose breach launched the compliance puzzle. */
   private pendingCompliance?: Terminal;
-  /** True while the Qualia Phase-Lock minigame overlay is open (sim frozen). */
-  private qualiaOpen = false;
   /** The silicate-rack terminal whose breach launched the qualia bypass. */
   private pendingQualia?: Terminal;
   /** The terminal promoted to a silicate server rack in the current level. */
@@ -242,34 +226,15 @@ export class GameScene extends Phaser.Scene {
   private prompt!: Phaser.GameObjects.Text;
   private hidden!: Phaser.GameObjects.Text;
 
-  // --- Debug mode (see DEBUG_ALLOWED — dev builds, or an explicit ?debug opt-in) ---
-  /** Master switch: the debug panel is shown and the debug hotkeys respond. */
-  private debugEnabled = false;
-  /** Invincibility — blocks both death paths (HP depletion and capture). */
-  private godMode = false;
-  /** No-clip — the player's wall/door colliders are disabled. */
-  private noClip = false;
-  /** World-space debug draw: LOS rays, blocked tiles, detection tint. */
-  private worldDraw = false;
-  /** Freeze-world: halts guards, cameras, hazards, alert and capture (player free). */
-  private frozenWorld = false;
-  /** Darkness off — the lighting/line-of-sight overlay is hidden so the level reads. */
-  private darknessOff = false;
-  /** Graphics layer for the world-space debug draw. */
-  private debugGfx?: Phaser.GameObjects.Graphics;
+  /**
+   * Developer debug mode — hotkeys, cheats, the world overlay. Present only
+   * when DEBUG_ALLOWED (a dev build, or an explicit `?debug` opt-in), so every
+   * read of it is guarded. See {@link DebugOverlay}.
+   */
+  private debug?: DebugOverlay;
   /** The player↔wall / player↔door colliders, kept so no-clip can toggle them. */
   private wallCollider?: Phaser.Physics.Arcade.Collider;
   private doorCollider?: Phaser.Physics.Arcade.Collider;
-  /** Debug hotkeys, bound only in dev builds. */
-  private debugKeys?: {
-    toggle: Phaser.Input.Keyboard.Key;
-    god: Phaser.Input.Keyboard.Key;
-    noClip: Phaser.Input.Keyboard.Key;
-    world: Phaser.Input.Keyboard.Key;
-    freeze: Phaser.Input.Keyboard.Key;
-    darkness: Phaser.Input.Keyboard.Key;
-    warp: Phaser.Input.Keyboard.Key[];
-  };
 
   private keys!: {
     up: Phaser.Input.Keyboard.Key;
@@ -307,44 +272,7 @@ export class GameScene extends Phaser.Scene {
     this.map = parsed.map;
     this.tileSize = this.map.tileWidth;
 
-    // Reset per-run state: class-field initializers don't re-run on restart.
-    this.guards = [];
-    this.orderlies = [];
-    this.doors = [];
-    this.terminals = [];
-    this.lasers = [];
-    this.sensors = [];
-    this.chests = [];
-    this.vent4 = undefined;
-    this.alert = new AlertState();
-    this.noiseSpam = new NoiseSpamTracker();
-    this.transitioning = false;
-    this.paused = false;
-    this.exploredCooldown = 0;
-    this.captureProgress = 0;
-    this.knockCooldown = 0;
-    this.codecOpen = false;
-    this.complianceOpen = false;
-    this.pendingCompliance = undefined;
-    this.qualiaOpen = false;
-    this.pendingQualia = undefined;
-    this.qualiaRack = undefined;
-    // Flags above just reset; republish so a restart out of an overlay (a load
-    // from the pause menu) can't leave UIScene's input gate stuck closed.
-    this.syncSuspended();
-    this.sharedField = new SharedField();
-    this.conduct = new ConductState();
-    this.activeItems = new ActiveItemState();
-    // Arm only after stepping off the arrival tile (see update()).
-    this.transitionArmed = false;
-    // Debug flags don't survive a restart; the master toggle stays on so a
-    // debug-mode warp keeps the panel up, but the cheats reset to a clean state.
-    this.godMode = false;
-    this.noClip = false;
-    this.worldDraw = false;
-    this.frozenWorld = false;
-    // A fresh Lighting is built below, so this must start in step with it (on).
-    this.darknessOff = false;
+    this.resetPerRun();
 
     // Slice every referenced sprite rect into a named frame.
     SpriteAtlas.register(this, parsed.uniqueFrames);
@@ -365,30 +293,47 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor("#05070a");
 
     this.grid = new CollisionGrid(this.level, ["walls"]);
-    this.registerGlazing();
+    // Glass has to be re-marked see-through after the grid exists, and before
+    // anything reads sight off it.
+    registerGlazing(this.level, this.grid, this.tileSize);
     this.detection = new DetectionSystem(this.level, this.tileSize);
-    this.sensing = new SensingContext({
-      grid: this.grid,
-      tileSize: this.tileSize,
-      detection: this.detection,
-      alert: this.alert,
-      flashlightOn: () => this.activeItems.flashlightBeamActive,
-      thermalMasked: () => this.activeItems.thermalMasked,
-      flashlightMultiplier: FLASHLIGHT_DETECTION_MULTIPLIER,
-      coverTilesNear: (tx, ty, r) => this.coverTilesNear(tx, ty, r),
-      isGuardDoor: (tx, ty) => this.guardOperableDoorAt(tx, ty) !== null,
-      // Silent on purpose: the operation-noise ping is there to give away the
-      // player working a door, not staff using one on their own beat.
-      setDoorOpen: (tx, ty, open) => void this.guardOperableDoorAt(tx, ty)?.setOpen(open),
-    });
+    this.sensing = this.buildSensingContext();
 
-    const wallBodies = this.renderLevel();
-    this.spawnEntities();
-    const doorBodies = this.spawnInteractables();
+    const built = buildLevel(
+      this,
+      this.level,
+      this.tileSize,
+      this.grid,
+      this.arriveTile,
+      ENTITY_LAYERS,
+    );
+    this.player = built.player;
+    this.guards = built.guards;
+    this.orderlies = built.orderlies;
+    this.doors = built.doors;
+    this.terminals = built.terminals;
+    this.sensors = built.sensors;
+    this.chests = built.chests;
+    this.lasers = built.lasers;
     this.designateQualiaRack();
 
-    this.wallCollider = this.physics.add.collider(this.player.sprite, wallBodies);
-    this.doorCollider = this.physics.add.collider(this.player.sprite, doorBodies);
+    // Holds the arrays by reference, so it always sees this level's cast.
+    this.noise = new NoiseEvents({
+      tileSize: this.tileSize,
+      grid: this.grid,
+      alert: this.alert,
+      noiseSpam: this.noiseSpam,
+      guards: this.guards,
+      player: this.player,
+      orderlies: this.orderlies,
+      doors: this.doors,
+      chests: this.chests,
+      terminals: this.terminals,
+      now: () => this.time.now / 1000,
+    });
+
+    this.wallCollider = this.physics.add.collider(this.player.sprite, built.wallBodies);
+    this.doorCollider = this.physics.add.collider(this.player.sprite, built.doorBodies);
 
     // Fill the level with opaque darkness, light it from the `light_sources`, and
     // clip all of it to the player's line of sight. Shares the same light data
@@ -429,17 +374,73 @@ export class GameScene extends Phaser.Scene {
 
     this.bindInput();
 
+
+    // Debug mode is rebuilt per level: the cheats reset to a clean state on a
+    // restart, and a fresh Lighting means darkness starts on again. The master
+    // toggle *does* survive, via the registry — a warp is itself a debug action,
+    // and disarming the panel mid-warp would disarm the warp keys with it.
+    if (DEBUG_ALLOWED) {
+      this.debug = new DebugOverlay(this, {
+        lighting: this.lighting,
+        wallCollider: () => this.wallCollider,
+        doorCollider: () => this.doorCollider,
+        warpTargets: () => this.debugWarpLevels(),
+        warpTo: (levelName) => this.debugWarp(levelName),
+      });
+    }
+
+    this.createWorldMarkers();
+
+    // Fade in from black (also covers arrivals from a transition).
+    this.cameras.main.fadeIn(FADE_MS, 5, 7, 10);
+
+    this.restoreRunState();
+
+    if (!this.scene.isActive("UIScene")) this.scene.launch("UIScene");
+
+    // A level transition is a scene.restart(), which builds a fresh Lighting.
+    // The old one owns off-display-list stamps Phaser will not reclaim on its
+    // own, so hand them back before this run of the scene goes away.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.lighting.destroy());
+
+    this.saveCheckpoint();
+  }
+
+  /**
+   * The sensing context's fixed wiring — the collaborators it reads and the
+   * scene callbacks it reaches back through. Per level, because the grid and
+   * the detection field are.
+   */
+  private buildSensingContext(): SensingContext {
+    return new SensingContext({
+      grid: this.grid,
+      tileSize: this.tileSize,
+      detection: this.detection,
+      alert: this.alert,
+      flashlightOn: () => this.activeItems.flashlightBeamActive,
+      thermalMasked: () => this.activeItems.thermalMasked,
+      flashlightMultiplier: FLASHLIGHT_DETECTION_MULTIPLIER,
+      coverTilesNear: (tx, ty, r) => this.coverTilesNear(tx, ty, r),
+      isGuardDoor: (tx, ty) => this.guardOperableDoorAt(tx, ty) !== null,
+      // Silent on purpose: the operation-noise ping is there to give away the
+      // player working a door, not staff using one on their own beat.
+      setDoorOpen: (tx, ty, open) => void this.guardOperableDoorAt(tx, ty)?.setOpen(open),
+    });
+  }
+
+  /**
+   * The scene's own world-space overlays: the chaff zone, and the two floating
+   * labels above the player.
+   *
+   * World-space rather than screen-anchored on purpose — the same approach as
+   * the guards' "!" marker — so the camera's zoom and follow keep them legible
+   * over the player without any anchor maths.
+   */
+  private createWorldMarkers(): void {
     // Chaff Pack EMP zone: drawn between the guard cones (400) and bodies (450).
     this.empGfx = this.add.graphics().setDepth(410);
 
-    // World-space debug overlay: drawn below the depth-1000 HUD/prompts.
-    if (DEBUG_ALLOWED) {
-      this.debugGfx = this.add.graphics().setDepth(900);
-    }
-
-    // Interact prompt for hatches/ladders: a small world-space hint floated
-    // above the player (same approach as the Enforcer's "!" marker), so the
-    // camera zoom/follow keeps it legible without screen-anchor math.
+    // Interact prompt for hatches and ladders.
     this.prompt = this.add
       .text(0, 0, "[E] Use access", {
         fontFamily: FONT_MONO,
@@ -465,46 +466,81 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5, 1)
       .setDepth(1000)
       .setVisible(false);
+  }
 
-    // Fade in from black (also covers arrivals from a transition).
-    this.cameras.main.fadeIn(FADE_MS, 5, 7, 10);
-
-    // The HUD lives in a parallel, unzoomed scene so the camera zoom doesn't
-    // scale it. We publish state to the registry for it to read.
+  /**
+   * Restores what belongs to the *run* rather than to this level, and publishes
+   * the frame-zero HUD state.
+   *
+   * The counterpart to {@link resetPerRun}: objectives, journal, inventory,
+   * bio-integrity and the play clock all ride the registry across the
+   * `scene.restart()` a level transition performs, so each is read back here if
+   * present and seeded if not. The HUD lives in a parallel, unzoomed scene and
+   * reads all of it from the registry.
+   */
+  private restoreRunState(): void {
     this.registry.set("alertPhase", this.alert.phase);
     this.registry.set("detection", 0);
-    // Bio-integrity carries across level transitions / a loaded save via the
-    // registry; a fresh run (resetRun cleared it) starts at full.
+    // A fresh run (resetRun cleared it) starts at full bio-integrity.
     const carriedHp = this.registry.get("playerHp") as number | undefined;
     if (carriedHp !== undefined) this.player.hp = carriedHp;
     this.registry.set("playerHp", this.player.hp);
     this.registry.set("playerMaxHp", this.player.maxHp);
     setMode(this.registry, "PLAYING");
+
     this.objectives =
       (this.registry.get("objectives") as ObjectiveState | undefined) ?? initialObjectives();
     this.registry.set("objectives", this.objectives);
     this.registry.set("currentLevel", this.level.name);
-    // Inventory persists across level transitions (registry survives restarts).
     if (!this.registry.has("inventory")) this.registry.set("inventory", []);
 
-    // Journal, explored map and run clock ride the registry across the
-    // scene.restart() a level transition performs, exactly as objectives do.
     this.journal = (this.registry.get("journal") as JournalState | undefined) ?? initialJournal();
     this.registry.set("journal", this.journal);
     this.playTimeMs = (this.registry.get("playTimeMs") as number | undefined) ?? 0;
     this.explored = this.loadExplored();
+
     this.note("orders");
     const arrival = journalIdForLevel(this.level.name);
     if (arrival) this.note(arrival);
+  }
 
-    if (!this.scene.isActive("UIScene")) this.scene.launch("UIScene");
-
-    // A level transition is a scene.restart(), which builds a fresh Lighting.
-    // The old one owns off-display-list stamps Phaser will not reclaim on its
-    // own, so hand them back before this run of the scene goes away.
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.lighting.destroy());
-
-    this.saveCheckpoint();
+  /**
+   * Clears everything that must not survive a level swap.
+   *
+   * A transition is a `scene.restart()`, and class-field initialisers do not
+   * re-run on one — the instance is reused. Anything belonging to *this level*
+   * rather than to the run has to be reset by hand here. Anything that should
+   * carry across — objectives, journal, inventory, HP, the play clock — is
+   * deliberately absent, and rides the registry instead.
+   */
+  private resetPerRun(): void {
+    this.guards = [];
+    this.orderlies = [];
+    this.doors = [];
+    this.terminals = [];
+    this.lasers = [];
+    this.sensors = [];
+    this.chests = [];
+    this.vent4 = undefined;
+    this.alert = new AlertState();
+    this.noiseSpam = new NoiseSpamTracker();
+    this.sharedField = new SharedField();
+    this.conduct = new ConductState();
+    this.activeItems = new ActiveItemState();
+    this.transitioning = false;
+    this.exploredCooldown = 0;
+    this.captureProgress = 0;
+    this.knockCooldown = 0;
+    this.pendingCompliance = undefined;
+    this.pendingQualia = undefined;
+    this.qualiaRack = undefined;
+    // Arm only after stepping off the arrival tile (see update()).
+    this.transitionArmed = false;
+    // A fresh gate starts with every overlay closed; republish that, so a
+    // restart out of an overlay (a load from the pause menu) can't leave
+    // UIScene's input gate stuck shut.
+    this.overlays = this.buildOverlayGate();
+    this.overlays.resync();
   }
 
   // --- Journal / map bookkeeping -----------------------------------------
@@ -593,161 +629,6 @@ export class GameScene extends Phaser.Scene {
     } satisfies MapSnapshot);
   }
 
-  /**
-   * Registers glazing with the collision grid: clear glass stops movement but not sight,
-   * so a pane reads as a window rather than a wall.
-   *
-   * Glass *doors* look after themselves — {@link Door} reads its own `glass` component and
-   * keeps its cells transparent through open and close. This pass exists for glass placed
-   * directly on a **blocking** board, which never becomes a `Door`: the shipped map puts
-   * two panes on `main2`'s `walls` board, and before this they blocked sight like
-   * concrete. Runs before the doors spawn, so it only touches already-blocked cells and
-   * leaves the door footprints to `Door.applyState`.
-   */
-  private registerGlazing(): void {
-    for (const layer of this.level.layers) {
-      for (const tile of layer.tiles) {
-        if (!isGlass(tile.components) || glassStatsFor(tile.components).visionBlock) continue;
-        for (const cell of footprintCells(tile, this.tileSize)) {
-          if (this.grid.isBlocked(cell.x, cell.y)) {
-            this.grid.setBlocked(cell.x, cell.y, true, true);
-          }
-        }
-      }
-    }
-  }
-
-  /**
-   * Bakes the tile art into one texture and returns the merged wall bodies.
-   *
-   * This used to make a Game Object per tile and a static body per wall cell —
-   * 3,227 and 1,427 respectively on `duct1`, for a level that never changes a
-   * pixel. See {@link bakeTileLayers} and {@link buildWallBodies}.
-   */
-  private renderLevel(): Phaser.GameObjects.GameObject[] {
-    bakeTileLayers(this, this.level, this.tileSize, ENTITY_LAYERS);
-    return buildWallBodies(this, this.level, this.tileSize);
-  }
-
-  /** Places the player at the arrival/spawn tile and instantiates guards. */
-  private spawnEntities(): void {
-    const half = this.tileSize / 2;
-    // Arriving via a transition overrides the level's own spawn point.
-    const spawnLayer = this.level.layers.find((l) => l.name === "spawn");
-    const spawn = spawnLayer?.tiles[0];
-    const tile = this.arriveTile ?? spawn;
-    const px = tile ? tile.x * this.tileSize + half : this.level.width * half;
-    const py = tile ? tile.y * this.tileSize + half : this.level.height * half;
-    this.player = new Player(this, px, py, this.tileSize);
-
-    // A guard board is one guard's *route*, not a headcount — see
-    // `routeFromLayer`. Each board therefore spawns a single guard standing on
-    // waypoint 0 and walking the rest as a loop.
-    const enforcerLayer = this.level.layers.find((l) => l.name === "enforcers");
-    const enforcerRoute = routeFromLayer(enforcerLayer);
-    if (enforcerLayer && enforcerRoute.length > 0) {
-      const start = enforcerRoute[0];
-      this.guards.push(
-        new Enforcer(
-          this,
-          start.x,
-          start.y,
-          this.tileSize,
-          enforcerLayer.tiles[0].components,
-          ENFORCER_SKIN,
-          enforcerRoute,
-        ),
-      );
-    }
-
-    const droneLayer = this.level.layers.find((l) => l.name === "drones");
-    const droneRoute = routeFromLayer(droneLayer);
-    if (droneLayer && droneRoute.length > 0) {
-      const start = droneRoute[0];
-      this.guards.push(
-        new Drone(this, start.x, start.y, this.tileSize, droneLayer.tiles[0].components, droneRoute),
-      );
-    }
-
-    const orderlyLayer = this.level.layers.find((l) => l.name === "orderlies");
-    if (orderlyLayer) {
-      for (const t of orderlyLayer.tiles) {
-        this.orderlies.push(new Orderly(this, t.x, t.y, this.tileSize));
-      }
-    }
-  }
-
-  /**
-   * Instantiates doors and terminals from their layers. Doors register their
-   * closed cells on the collision grid (built just before this) and expose an
-   * Arcade body for player collision; those bodies are returned so the scene can
-   * add them to the player collider.
-   */
-  private spawnInteractables(): Phaser.GameObjects.GameObject[] {
-    const doorBodies: Phaser.GameObjects.GameObject[] = [];
-
-    const doorLayer = this.level.layers.find((l) => l.name === "doors");
-    if (doorLayer) {
-      for (const t of doorLayer.tiles) {
-        // Only tiles carrying a `door` component are real doors; the board can
-        // also hold stray art. Laser tiles are handled below as Laser hazards;
-        // anything else non-door stays decorative.
-        if (!t.components.some((c) => c.type === "door")) {
-          if (t.frame && !t.ref.toLowerCase().includes("laser")) {
-            this.add
-              .image(t.x * this.tileSize + this.tileSize / 2, t.y * this.tileSize + this.tileSize / 2, t.frame.textureKey, t.frame.frameKey)
-              .setDepth(120);
-          }
-          continue;
-        }
-        const door = new Door(this, t, this.tileSize, this.grid);
-        this.doors.push(door);
-        if (door.body) doorBodies.push(door.body);
-      }
-    }
-
-    const terminalLayer = this.level.layers.find((l) => l.name === "terminals");
-    if (terminalLayer) {
-      for (const t of terminalLayer.tiles) {
-        if (!t.components.some((c) => c.type === "terminal")) continue;
-        this.terminals.push(new Terminal(this, t, this.tileSize));
-      }
-    }
-
-    // Sensor cameras: the `security` board holds fixed optical cameras (its
-    // tiles use a laser-ref sprite but are reinterpreted as cameras here).
-    const securityLayer = this.level.layers.find((l) => l.name === "security");
-    if (securityLayer) {
-      for (const t of securityLayer.tiles) {
-        this.sensors.push(new Sensor(this, t, this.tileSize, this.grid));
-      }
-    }
-
-    // Chests: the `items` board holds searchable supply containers.
-    const itemLayer = this.level.layers.find((l) => l.name === "items");
-    if (itemLayer) {
-      for (const t of itemLayer.tiles) {
-        if (!t.components.some((c) => c.type === "chest")) continue;
-        this.chests.push(new Chest(this, t, this.tileSize));
-      }
-    }
-
-    // Lasers can sit on several boards (a dedicated `lasers` board in main1, a
-    // stray tile on the `doors` board in main2), so gather them by ref across
-    // all layers rather than a single board. The `security` board is skipped —
-    // its laser-ref tiles are cameras, spawned above.
-    for (const layer of this.level.layers) {
-      if (layer.name === "security") continue;
-      for (const t of layer.tiles) {
-        if (t.ref.toLowerCase().includes("laser")) {
-          this.lasers.push(new Laser(this, t, this.tileSize));
-        }
-      }
-    }
-
-    return doorBodies;
-  }
-
   private bindInput(): void {
     const kb = this.input.keyboard!;
     this.keys = {
@@ -771,55 +652,57 @@ export class GameScene extends Phaser.Scene {
       flashlight: kb.addKey(Phaser.Input.Keyboard.KeyCodes.L),
       knock: kb.addKey(Phaser.Input.Keyboard.KeyCodes.R),
     };
-
-    // Debug hotkeys: dev builds always, deployed builds via the ?debug opt-in.
-    if (DEBUG_ALLOWED) {
-      const K = Phaser.Input.Keyboard.KeyCodes;
-      this.debugKeys = {
-        toggle: kb.addKey(K.BACKTICK),
-        god: kb.addKey(K.G),
-        noClip: kb.addKey(K.N),
-        world: kb.addKey(K.V),
-        freeze: kb.addKey(K.H),
-        darkness: kb.addKey(K.O),
-        warp: [K.ONE, K.TWO, K.THREE, K.FOUR, K.FIVE].map((c) => kb.addKey(c)),
-      };
-    }
   }
 
   /**
-   * Publishes whether an overlay currently owns the screen.
+   * Wires the four overlays to their scenes and their setup work.
    *
-   * `UIScene` runs in parallel and keeps updating behind every overlay, so it
-   * needs to know when *not* to read gameplay input — see the hotkey gate there.
-   * Computed from all four flags in one place rather than set by each toggle, so
-   * closing one overlay while another is open can't clear it.
+   * Rebuilt per run rather than per game because the codec's launch data reads
+   * the VENT-4 boss, which only exists on some levels.
    */
-  private syncSuspended(): void {
-    const suspended = this.paused || this.codecOpen || this.complianceOpen || this.qualiaOpen;
-    this.registry.set(SUSPENDED_KEY, suspended);
-  }
-
-  /** Toggles the pause menu and freezes/thaws the arcade sim. */
-  private setPaused(p: boolean): void {
-    if (p === this.paused) return;
-    this.paused = p;
-    this.syncSuspended();
-    if (p) {
-      this.physics.pause();
-      setMode(this.registry, "PAUSED");
-      // The menu's MAP tab needs the collision grid, which only this scene has.
-      // Published on the way in rather than per frame: it's a whole-level walk,
-      // and nothing behind a frozen sim can change it.
-      this.publishMapSnapshot();
-      this.registry.remove(PAUSE_REQUEST_KEY);
-      this.scene.launch("PauseScene");
-    } else {
-      this.scene.stop("PauseScene");
-      this.registry.remove(PAUSE_REQUEST_KEY);
-      setMode(this.registry, "PLAYING");
-      this.physics.resume();
-    }
+  private buildOverlayGate(): OverlayGate {
+    return new OverlayGate(
+      this,
+      {
+        pause: {
+          sceneKey: "PauseScene",
+          onOpen: () => {
+            setMode(this.registry, "PAUSED");
+            // The menu's MAP tab needs the collision grid, which only this
+            // scene has. Published on the way in rather than per frame: it's a
+            // whole-level walk, and nothing behind a frozen sim can change it.
+            this.publishMapSnapshot();
+            this.registry.remove(PAUSE_REQUEST_KEY);
+          },
+          onClose: () => {
+            this.registry.remove(PAUSE_REQUEST_KEY);
+            setMode(this.registry, "PLAYING");
+          },
+        },
+        codec: {
+          sceneKey: "CodecScene",
+          launchData: () => ({
+            interactive: false,
+            vent4: this.vent4?.canTransmit ?? false,
+          }),
+        },
+        compliance: {
+          sceneKey: "ComplianceScene",
+          onOpen: () => {
+            this.registry.remove("complianceSolved");
+            this.registry.remove("complianceClosed");
+          },
+        },
+        qualia: {
+          sceneKey: "QualiaLockScene",
+          onOpen: () => {
+            this.registry.remove("qualiaSolved");
+            this.registry.remove("qualiaClosed");
+          },
+        },
+      },
+      (suspended) => this.registry.set(SUSPENDED_KEY, suspended),
+    );
   }
 
   /**
@@ -835,7 +718,7 @@ export class GameScene extends Phaser.Scene {
     this.registry.remove(PAUSE_REQUEST_KEY);
     switch (request.kind) {
       case "resume":
-        this.setPaused(false);
+        this.overlays.set("pause", false);
         return;
       case "save":
         this.writeSave(request.slot);
@@ -845,46 +728,13 @@ export class GameScene extends Phaser.Scene {
       case "load": {
         const save = loadGame(request.slot);
         if (!save) return; // Empty slot: the menu stays open, nothing happens.
-        this.setPaused(false);
+        this.overlays.set("pause", false);
         resumeFromSave(this, save);
         return;
       }
       case "quit":
         this.abortToTitle();
         return;
-    }
-  }
-
-  /** Toggles the in-game codec overlay, freezing/thawing the sim behind it. */
-  private setCodecOpen(open: boolean): void {
-    if (open === this.codecOpen) return;
-    this.codecOpen = open;
-    this.syncSuspended();
-    if (open) {
-      this.physics.pause();
-      this.scene.launch("CodecScene", {
-        interactive: false,
-        vent4: this.vent4?.canTransmit ?? false,
-      });
-    } else {
-      this.scene.stop("CodecScene");
-      this.physics.resume();
-    }
-  }
-
-  /** Toggles the Doctrinal Compliance minigame overlay, freezing/thawing the sim. */
-  private setComplianceOpen(open: boolean): void {
-    if (open === this.complianceOpen) return;
-    this.complianceOpen = open;
-    this.syncSuspended();
-    if (open) {
-      this.physics.pause();
-      this.registry.remove("complianceSolved");
-      this.registry.remove("complianceClosed");
-      this.scene.launch("ComplianceScene", {});
-    } else {
-      this.scene.stop("ComplianceScene");
-      this.physics.resume();
     }
   }
 
@@ -895,34 +745,15 @@ export class GameScene extends Phaser.Scene {
    * mission-critical log stays recoverable.
    */
   private updateComplianceOverlay(): void {
-    if (this.registry.get("complianceSolved") === true) {
-      this.registry.remove("complianceSolved");
-      const term = this.pendingCompliance;
-      this.pendingCompliance = undefined;
-      this.setComplianceOpen(false);
+    const result = this.overlays.pollResult("complianceSolved", "complianceClosed");
+    if (!result) return;
+    const term = this.pendingCompliance;
+    this.pendingCompliance = undefined;
+    this.overlays.set("compliance", false);
+    if (result === "solved") {
       if (term) this.applyHack(term);
-    } else if (this.registry.get("complianceClosed") === true) {
-      this.registry.remove("complianceClosed");
-      const term = this.pendingCompliance;
-      this.pendingCompliance = undefined;
-      this.setComplianceOpen(false);
-      term?.reopen();
-    }
-  }
-
-  /** Toggles the Qualia Phase-Lock minigame overlay, freezing/thawing the sim. */
-  private setQualiaOpen(open: boolean): void {
-    if (open === this.qualiaOpen) return;
-    this.qualiaOpen = open;
-    this.syncSuspended();
-    if (open) {
-      this.physics.pause();
-      this.registry.remove("qualiaSolved");
-      this.registry.remove("qualiaClosed");
-      this.scene.launch("QualiaLockScene", {});
     } else {
-      this.scene.stop("QualiaLockScene");
-      this.physics.resume();
+      term?.reopen();
     }
   }
 
@@ -932,24 +763,21 @@ export class GameScene extends Phaser.Scene {
    * re-arms the rack so the spike can be reattempted.
    */
   private updateQualiaOverlay(): void {
-    if (this.registry.get("qualiaSolved") === true) {
-      this.registry.remove("qualiaSolved");
-      const term = this.pendingQualia;
-      this.pendingQualia = undefined;
-      this.setQualiaOpen(false);
+    const result = this.overlays.pollResult("qualiaSolved", "qualiaClosed");
+    if (!result) return;
+    const term = this.pendingQualia;
+    this.pendingQualia = undefined;
+    this.overlays.set("qualia", false);
+    if (result === "solved") {
       if (term) this.applyHack(term);
-    } else if (this.registry.get("qualiaClosed") === true) {
-      this.registry.remove("qualiaClosed");
-      const term = this.pendingQualia;
-      this.pendingQualia = undefined;
-      this.setQualiaOpen(false);
+    } else {
       term?.reopen();
     }
   }
 
   /** Abandons the run from the pause overlay and returns to the title. */
   private abortToTitle(): void {
-    this.setPaused(false);
+    this.overlays.set("pause", false);
     getAudio().setMood("none");
     setMode(this.registry, "TITLE");
     this.scene.stop("UIScene");
@@ -1141,7 +969,7 @@ export class GameScene extends Phaser.Scene {
     }
     target?.stun(STUN_ROUND_DURATION);
     this.conduct.violate("HOSTILE", FLAG_HOSTILE);
-    this.emitNoiseAt(this.player.x, this.player.y, STUN_ROUND_NOISE * this.tileSize);
+    this.noise.emitAt(this.player.x, this.player.y, STUN_ROUND_NOISE * this.tileSize);
   }
 
   /** Draws the Chaff Pack's EMP zone while it's live. */
@@ -1179,58 +1007,22 @@ export class GameScene extends Phaser.Scene {
 
     // Pause (Esc), the codec (C) and the two minigames each freeze the sim behind
     // an overlay scene. The minigames and codec suppress the pause/codec toggles.
-    if (!this.codecOpen && !this.complianceOpen && !this.qualiaOpen && Phaser.Input.Keyboard.JustDown(this.keys.pause)) {
-      this.setPaused(!this.paused);
+    const ov = this.overlays;
+    if (!ov.isOpen("codec") && !ov.minigameOpen && Phaser.Input.Keyboard.JustDown(this.keys.pause)) {
+      ov.set("pause", !ov.isOpen("pause"));
     }
-    if (!this.paused && !this.complianceOpen && !this.qualiaOpen && Phaser.Input.Keyboard.JustDown(this.keys.codec)) {
-      this.setCodecOpen(!this.codecOpen);
+    if (!ov.isOpen("pause") && !ov.minigameOpen && Phaser.Input.Keyboard.JustDown(this.keys.codec)) {
+      ov.set("codec", !ov.isOpen("codec"));
     }
-    if (this.paused || this.codecOpen || this.complianceOpen || this.qualiaOpen) {
-      this.player.sprite.setVelocity(0, 0);
-      // Save / load / quit chosen in the pause menu. Consumed here for the same
-      // reason as the codec flag below: the sim update never runs behind an overlay.
-      if (this.paused) this.consumePauseRequest();
-      // The codec's 140.85 transmit finisher: CodecScene raises the flag, and
-      // it must be consumed here — the sim update below never runs while the
-      // overlay is open.
-      if (this.codecOpen && this.registry.get("vent4Transmit") === true) {
-        this.registry.remove("vent4Transmit");
-        const tr = this.vent4?.transmitFinisher() ?? null;
-        this.setCodecOpen(false);
-        if (tr) this.onVent4Transition(tr);
-      }
-      if (this.complianceOpen) this.updateComplianceOverlay();
-      if (this.qualiaOpen) this.updateQualiaOverlay();
+    if (ov.anyOpen) {
+      this.updateSuspended();
       return;
     }
 
     // Debug hotkeys. A warp restarts the scene, so bail this frame.
-    if (DEBUG_ALLOWED && this.handleDebugInput()) return;
+    if (this.debug?.handleInput(this.player)) return;
 
-    this.player.update(this.readInput(), dt);
-    // Flashlight: L toggles the beam; feed its state to the lighting cone.
-    if (Phaser.Input.Keyboard.JustDown(this.keys.flashlight)) {
-      this.activeItems.toggleFlashlight();
-    }
-    // Knock (R): rap on an adjacent wall/object to lure guards and orderlies there.
-    this.knockCooldown = Math.max(0, this.knockCooldown - dt);
-    if (this.knockCooldown <= 0 && Phaser.Input.Keyboard.JustDown(this.keys.knock)) {
-      this.knock();
-    }
-    this.lighting.update(
-      dt,
-      { x: this.player.x, y: this.player.y },
-      this.activeItems.flashlightBeamActive
-        ? { x: this.player.x, y: this.player.y, facing: this.player.facing }
-        : null,
-    );
-    // The run clock and the map only advance during live play — everything above
-    // this point returns early while an overlay or a fade owns the frame, so time
-    // spent reading the journal is not time spent infiltrating.
-    this.playTimeMs += delta;
-    this.registry.set("playTimeMs", this.playTimeMs);
-    this.markExplored(dt);
-
+    this.updatePlayerFrame(dt, delta);
     this.updateInteractions(dt);
     this.updateSharedField(dt);
     this.updateActiveItems(dt);
@@ -1273,10 +1065,64 @@ export class GameScene extends Phaser.Scene {
     this.updateStatusMarker(concealed, compliant);
 
     const phaseBefore = this.alert.phase;
-    let maxDetection = 0;
-    // The sensing context is built once per level and refreshed in place — see
-    // SensingContext for why this isn't an object literal.
-    const playerBody = this.player.sprite.body as Phaser.Physics.Arcade.Body;
+    // Debug freeze-world holds every AI, hazard and timer still while leaving
+    // the player free to walk. Read once so the frame is internally consistent.
+    const frozen = this.debug?.frozenWorld ?? false;
+    const ctx = this.refreshSensing(concealed, compliant, thermalConcealed);
+    const maxDetection = this.tickWorld(dt, ctx, frozen);
+
+    this.alert.update(frozen ? 0 : dt);
+    if (this.alert.phase === "ALERT" && phaseBefore !== "ALERT") {
+      getAudio().ping();
+      this.note("flagged");
+    }
+    getAudio().setMood(
+      this.alert.phase === "ALERT" ? "alert" : this.alert.phase === "EVASION" ? "search" : "calm",
+    );
+    this.registry.set("alertPhase", this.alert.phase);
+    this.registry.set("detection", this.alert.phase === "ALERT" ? 1 : maxDetection);
+    this.registry.set("playerHp", this.player.hp);
+
+    // Fail-state — bio-integrity depleted, or cornered by a silicate during a
+    // full alert: the mesh prunes Rowan's logs (Alignment).
+    const cornered =
+      !frozen && !fieldActive && this.alert.isCombatAware && this.guards.some((e) => this.isCornering(e));
+    this.captureProgress = cornered
+      ? this.captureProgress + dt
+      : Math.max(0, this.captureProgress - dt * 2);
+    // God mode (debug): neutralize both death paths after they've been computed
+    // for the frame — restore bio-integrity and clear any capture progress.
+    if (this.debug?.godMode) {
+      this.player.hp = this.player.maxHp;
+      this.captureProgress = 0;
+    }
+    if (!this.player.alive || this.captureProgress >= PLAYER_DEFAULTS.captureTime) {
+      this.endRun("ALIGNED", "GameOverScene");
+      return;
+    }
+    // Win — logs recovered and Rowan has reached the Lattice uplink deck.
+    if (isRunWon(this.objectives, this.level.name, this.mapPlan().extractionLevel)) {
+      this.note("the-uplink");
+      this.endRun("LATTICE", "VictoryScene");
+      return;
+    }
+
+    this.publishFrame();
+  }
+
+  /**
+   * Points the shared sensing context at this frame.
+   *
+   * Built once per level and mutated in place rather than rebuilt — see
+   * {@link SensingContext} for why. The returned context is only valid for this
+   * frame; every guard, camera and the boss read the same one.
+   */
+  private refreshSensing(
+    concealed: boolean,
+    compliant: boolean,
+    thermalConcealed: boolean,
+  ): EnforcerContext {
+    const body = this.player.sprite.body as Phaser.Physics.Arcade.Body;
     const chaffOrigin = this.activeItems.chaffOrigin;
     this.sensing.setChaff(
       this.activeItems.chaffActive && !!chaffOrigin,
@@ -1288,40 +1134,107 @@ export class GameScene extends Phaser.Scene {
       this.player.x,
       this.player.y,
       this.player.noise,
-      playerBody.velocity.x,
-      playerBody.velocity.y,
+      body.velocity.x,
+      body.velocity.y,
     );
     this.sensing.setConcealment(concealed, compliant, thermalConcealed);
     // Opened doors/chests, EMP'd devices and stunned orderlies, for anomaly scanning.
     this.sensing.setAnomalies(this.buildAnomalies(this.sensing.chaffZone));
-    const ctx = this.sensing.current;
-    // Debug freeze-world (H) short-circuits every AI/hazard update below by
-    // iterating nothing (or ticking with 0), so patrols, cones, lasers, VENT-4,
-    // alert decay and capture all hold still while the player can still move.
-    if (!this.frozenWorld) for (const e of this.guards) {
+    return this.sensing.current;
+  }
+
+  /**
+   * The frame while an overlay owns the screen.
+   *
+   * Nothing below this in `update` runs, so anything an overlay scene posts back
+   * has to be collected here — the pause menu's save/load/quit, the codec's
+   * 140.85 transmit finisher, and either minigame's outcome.
+   */
+  private updateSuspended(): void {
+    const ov = this.overlays;
+    this.player.sprite.setVelocity(0, 0);
+    if (ov.isOpen("pause")) this.consumePauseRequest();
+    if (ov.isOpen("codec") && this.registry.get("vent4Transmit") === true) {
+      this.registry.remove("vent4Transmit");
+      const tr = this.vent4?.transmitFinisher() ?? null;
+      ov.set("codec", false);
+      if (tr) this.onVent4Transition(tr);
+    }
+    if (ov.isOpen("compliance")) this.updateComplianceOverlay();
+    if (ov.isOpen("qualia")) this.updateQualiaOverlay();
+  }
+
+  /**
+   * Input, the lights it drives, and the clocks that only tick during live play.
+   *
+   * The run clock and the explored-tile map advance here rather than at the top
+   * of the frame because everything above returns early while an overlay or a
+   * fade owns it: time spent reading the journal is not time spent infiltrating.
+   */
+  private updatePlayerFrame(dt: number, delta: number): void {
+    this.player.update(this.readInput(), dt);
+    // Flashlight: L toggles the beam; feed its state to the lighting cone.
+    if (Phaser.Input.Keyboard.JustDown(this.keys.flashlight)) {
+      this.activeItems.toggleFlashlight();
+    }
+    // Knock (R): rap on an adjacent wall/object to lure guards and orderlies there.
+    this.knockCooldown = Math.max(0, this.knockCooldown - dt);
+    if (
+      this.knockCooldown <= 0 &&
+      Phaser.Input.Keyboard.JustDown(this.keys.knock) &&
+      this.noise.knock(this.player.x, this.player.y, this.player.facing)
+    ) {
+      // Deliberately banging on the walls is not what staff do.
+      this.conduct.violate("TAMPERING", FLAG_TAMPERING);
+      getAudio().door();
+      this.knockCooldown = KNOCK_COOLDOWN;
+    }
+    this.lighting.update(
+      dt,
+      this.player,
+      this.activeItems.flashlightBeamActive ? this.player : null,
+    );
+    this.playTimeMs += delta;
+    this.registry.set("playTimeMs", this.playTimeMs);
+    this.markExplored(dt);
+  }
+
+  /**
+   * Ticks every AI, hazard and boss for the frame, and returns the highest
+   * detection any of them reached (what the HUD's threat meter reads).
+   *
+   * `frozen` is the debug freeze-world: it holds all of this still — patrols,
+   * cones, lasers, VENT-4 — while leaving the player free to walk around and
+   * look at it.
+   */
+  private tickWorld(dt: number, ctx: EnforcerContext, frozen: boolean): number {
+    let maxDetection = 0;
+    if (frozen) return maxDetection;
+
+    for (const e of this.guards) {
       const before = e.detection;
       e.update(dt, ctx);
       maxDetection = Math.max(maxDetection, e.detection);
       // A fresh full sighting alerts networked guards within reach.
       if (before < 1 && e.detection >= 1) {
-        this.emitNetworkAlert(e.x, e.y, e.stats.alertNetworkRadius);
+        this.noise.broadcast(e.x, e.y, e.stats.alertNetworkRadius);
       }
     }
 
     // Sensor cameras run on the same context, reporting sightings themselves.
-    if (!this.frozenWorld) for (const s of this.sensors) {
+    for (const s of this.sensors) {
       const before = s.detection;
       s.update(dt, ctx);
       maxDetection = Math.max(maxDetection, s.detection);
       if (before < 1 && s.detection >= 1) {
-        this.emitNetworkAlert(s.x, s.y, s.stats.alertNetworkRadius);
+        this.noise.broadcast(s.x, s.y, s.stats.alertNetworkRadius);
       }
     }
 
     // VENT-4: sweeps/steam/jam clock, then its environmental forces — added
     // AFTER Player.update's setVelocity so suction and air jets survive the
     // frame (the player re-sets velocity from input every tick).
-    if (this.vent4 && !this.frozenWorld) {
+    if (this.vent4) {
       const tick = this.vent4.update(dt, ctx);
       maxDetection = Math.max(maxDetection, this.vent4.detection);
       if (tick.transition) this.onVent4Transition(tick.transition);
@@ -1349,13 +1262,13 @@ export class GameScene extends Phaser.Scene {
     // An OrderlyContext is a structural subset of the guards' context — same
     // grid, tile size, player position and concealment — so hand over the one
     // already built rather than minting a fresh literal per orderly per frame.
-    if (!this.frozenWorld) for (const orderly of this.orderlies) {
-      if (orderly.update(dt, ctx)) this.emitOrderlyAlert(orderly);
+    for (const orderly of this.orderlies) {
+      if (orderly.update(dt, ctx)) this.noise.orderlyAlarm(orderly);
     }
 
     // Lasers: crossing an active beam/scan zone instantly trips the alarm.
     let laserTripped = false;
-    if (!this.frozenWorld) for (const laser of this.lasers) {
+    for (const laser of this.lasers) {
       laser.update(dt);
       if (laser.checkTrip(this.player.x, this.player.y)) laserTripped = true;
     }
@@ -1368,47 +1281,15 @@ export class GameScene extends Phaser.Scene {
       this.player.takeDamage(PLAYER_DEFAULTS.hazardDamage);
     }
 
-    this.alert.update(this.frozenWorld ? 0 : dt);
-    if (this.alert.phase === "ALERT" && phaseBefore !== "ALERT") {
-      getAudio().ping();
-      this.note("flagged");
-    }
-    getAudio().setMood(
-      this.alert.phase === "ALERT" ? "alert" : this.alert.phase === "EVASION" ? "search" : "calm",
-    );
-    this.registry.set("alertPhase", this.alert.phase);
-    this.registry.set("detection", this.alert.phase === "ALERT" ? 1 : maxDetection);
-    this.registry.set("playerHp", this.player.hp);
+    return maxDetection;
+  }
 
-    // Fail-state — bio-integrity depleted, or cornered by a silicate during a
-    // full alert: the mesh prunes Rowan's logs (Alignment).
-    const cornered =
-      !this.frozenWorld && !fieldActive && this.alert.isCombatAware && this.guards.some((e) => this.isCornering(e));
-    this.captureProgress = cornered
-      ? this.captureProgress + dt
-      : Math.max(0, this.captureProgress - dt * 2);
-    // God mode (debug): neutralize both death paths after they've been computed
-    // for the frame — restore bio-integrity and clear any capture progress.
-    if (this.godMode) {
-      this.player.hp = this.player.maxHp;
-      this.captureProgress = 0;
-    }
-    if (!this.player.alive || this.captureProgress >= PLAYER_DEFAULTS.captureTime) {
-      this.endRun("ALIGNED", "GameOverScene");
-      return;
-    }
-    // Win — logs recovered and Rowan has reached the Lattice uplink deck.
-    if (isRunWon(this.objectives, this.level.name, this.mapPlan().extractionLevel)) {
-      this.note("the-uplink");
-      this.endRun("LATTICE", "VictoryScene");
-      return;
-    }
-
+  /** Publishes this frame's HUD state, and draws the debug overlay over it. */
+  private publishFrame(): void {
     this.registry.set(
       "alertNetwork",
       buildAlertNetworkSnapshot(this.guards, this.sensors, this.alert),
     );
-
     this.registry.set(
       "radar",
       buildRadarSnapshot(
@@ -1421,11 +1302,10 @@ export class GameScene extends Phaser.Scene {
         this.radarSnapshot,
       ),
     );
-
-    // Debug mode: world-space overlay + a state snapshot for the HUD.
-    if (DEBUG_ALLOWED) {
-      this.drawDebugWorld();
-      this.registry.set("debug", this.buildDebugSnapshot());
+    if (this.debug) {
+      const world = this.debugWorld();
+      this.debug.draw(world);
+      this.registry.set("debug", this.debug.snapshot(world));
     }
   }
 
@@ -1528,7 +1408,7 @@ export class GameScene extends Phaser.Scene {
       if (nearestDoor && nearestDoorDist <= hatchDist) {
         if (nearestDoor.toggle()) {
           getAudio().door();
-          if (nearestDoor.isOpen) this.emitDoorNoise(nearestDoor);
+          if (nearestDoor.isOpen) this.noise.doorOperated(nearestDoor);
         }
       } else if (hatch) {
         this.beginTransition(hatch);
@@ -1618,10 +1498,10 @@ export class GameScene extends Phaser.Scene {
   private onHackComplete(terminal: Terminal): void {
     if (terminal.stats.type === LOG_CACHE_TYPE) {
       this.pendingCompliance = terminal;
-      this.setComplianceOpen(true);
+      this.overlays.set("compliance", true);
     } else if (this.isQualiaRack(terminal)) {
       this.pendingQualia = terminal;
-      this.setQualiaOpen(true);
+      this.overlays.set("qualia", true);
     } else {
       this.applyHack(terminal);
     }
@@ -1658,7 +1538,7 @@ export class GameScene extends Phaser.Scene {
     const ty = terminal.y / this.tileSize;
     for (const door of this.doors) {
       const d = len(door.tileX + 0.5 - tx, door.tileY + 0.5 - ty);
-      if (d <= HACK_UNLOCK_RADIUS && door.setOpen(true)) this.emitDoorNoise(door);
+      if (d <= HACK_UNLOCK_RADIUS && door.setOpen(true)) this.noise.doorOperated(door);
     }
     getAudio().hack();
     // Breaching a log-cache terminal recovers EIRA-7's logs (mission objective).
@@ -1713,34 +1593,6 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // ------------------------------------------------------------------ debug --
-  // Everything below is only reachable when DEBUG_ALLOWED is true — dev builds,
-  // or a deployed build with the ?debug opt-in (see src/systems/DebugFlag.ts).
-
-  /**
-   * Reads the debug hotkeys for the frame and applies them. Returns `true` if a
-   * warp was triggered (the scene is restarting, so the caller should bail).
-   */
-  private handleDebugInput(): boolean {
-    const dk = this.debugKeys;
-    if (!dk) return false;
-    if (Phaser.Input.Keyboard.JustDown(dk.toggle)) this.setDebugEnabled(!this.debugEnabled);
-    if (!this.debugEnabled) return false;
-    if (Phaser.Input.Keyboard.JustDown(dk.god)) this.godMode = !this.godMode;
-    if (Phaser.Input.Keyboard.JustDown(dk.noClip)) this.setNoClip(!this.noClip);
-    if (Phaser.Input.Keyboard.JustDown(dk.world)) this.worldDraw = !this.worldDraw;
-    if (Phaser.Input.Keyboard.JustDown(dk.freeze)) this.frozenWorld = !this.frozenWorld;
-    if (Phaser.Input.Keyboard.JustDown(dk.darkness)) this.setDarknessOff(!this.darknessOff);
-    const warps = this.debugWarpLevels();
-    for (let i = 0; i < dk.warp.length && i < warps.length; i++) {
-      if (Phaser.Input.Keyboard.JustDown(dk.warp[i])) {
-        this.debugWarp(warps[i]);
-        return true;
-      }
-    }
-    return false;
-  }
-
   /**
    * The map's shape — start level, extraction level, vent-core host — published by
    * `BootScene`. Recomputed from the parsed map if absent, so starting `GameScene` directly
@@ -1767,35 +1619,6 @@ export class GameScene extends Phaser.Scene {
     return [...authored, ...generated].slice(0, DEBUG_WARP_SLOTS);
   }
 
-  /** Master switch. Disabling clears every cheat for a clean return to play. */
-  private setDebugEnabled(on: boolean): void {
-    this.debugEnabled = on;
-    if (!on) {
-      this.godMode = false;
-      this.worldDraw = false;
-      this.frozenWorld = false;
-      this.setNoClip(false);
-      this.setDarknessOff(false);
-      this.debugGfx?.clear();
-    }
-  }
-
-  /** Hides/restores the darkness + line-of-sight overlay so the level can be read. */
-  private setDarknessOff(off: boolean): void {
-    this.darknessOff = off;
-    this.lighting.setEnabled(!off);
-  }
-
-  /** Toggles no-clip by enabling/disabling the player's wall+door colliders. */
-  private setNoClip(on: boolean): void {
-    this.noClip = on;
-    if (this.wallCollider) this.wallCollider.active = !on;
-    if (this.doorCollider) this.doorCollider.active = !on;
-    const body = this.player.sprite.body as Phaser.Physics.Arcade.Body;
-    body.checkCollision.none = on;
-    this.player.sprite.setCollideWorldBounds(!on);
-  }
-
   /** Warps to a level by restarting the scene at its own spawn tile. */
   private debugWarp(levelName: string): void {
     if (this.transitioning) return;
@@ -1803,245 +1626,23 @@ export class GameScene extends Phaser.Scene {
     this.scene.restart({ level: levelName });
   }
 
-  /** Draws the world-space debug overlay: blocked tiles, detection tint, LOS. */
-  private drawDebugWorld(): void {
-    const g = this.debugGfx;
-    if (!g) return;
-    g.clear();
-    if (!this.debugEnabled || !this.worldDraw) return;
-
-    const ts = this.tileSize;
-    const view = this.cameras.main.worldView;
-    const minTx = Math.max(0, Math.floor(view.x / ts));
-    const maxTx = Math.min(this.grid.width - 1, Math.ceil(view.right / ts));
-    const minTy = Math.max(0, Math.floor(view.y / ts));
-    const maxTy = Math.min(this.grid.height - 1, Math.ceil(view.bottom / ts));
-
-    // Blocked tiles (red) and detection-multiplier hot spots (amber) in view.
-    for (let ty = minTy; ty <= maxTy; ty++) {
-      for (let tx = minTx; tx <= maxTx; tx++) {
-        if (this.grid.isBlocked(tx, ty)) {
-          g.fillStyle(0xff3b3b, 0.12);
-          g.fillRect(tx * ts, ty * ts, ts, ts);
-          continue;
-        }
-        const m = this.detection.multiplierAt((tx + 0.5) * ts, (ty + 0.5) * ts);
-        if (m > 1.05) {
-          g.fillStyle(0xffb03b, Math.min(0.25, (m - 1) * 0.3));
-          g.fillRect(tx * ts, ty * ts, ts, ts);
-        }
-      }
-    }
-
-    // Line of sight from the player to each guard (green = clear, red = blocked).
-    const ptx = this.player.x / ts;
-    const pty = this.player.y / ts;
-    for (const e of this.guards) {
-      const clear = this.grid.hasLineOfSight(ptx, pty, e.x / ts, e.y / ts);
-      g.lineStyle(1, clear ? 0x59d98e : 0xff3b3b, 0.6);
-      g.lineBetween(this.player.x, this.player.y, e.x, e.y);
-    }
-
-    this.drawGuardNavigation(g, ts);
-  }
-
-  /**
-   * Patrol routes, live A* paths and collision circles for every guard.
-   *
-   * This is the readout for the three things that are otherwise invisible and
-   * hard to trust: that a guard board really did resolve to one ordered loop,
-   * that the planner routes around geometry rather than through it, and that
-   * the body a guard collides with matches the sprite drawn over it.
-   */
-  private drawGuardNavigation(g: Phaser.GameObjects.Graphics, ts: number): void {
-    const centre = (p: { x: number; y: number }): { x: number; y: number } => ({
-      x: (p.x + 0.5) * ts,
-      y: (p.y + 0.5) * ts,
-    });
-
-    for (const e of this.guards) {
-      const route = e.patrolRoute;
-      // The route loop, dimmed — it's context, not the live state.
-      if (route.length > 1) {
-        g.lineStyle(1, 0x4db8ff, 0.35);
-        for (let i = 0; i < route.length; i++) {
-          const a = centre(route[i]);
-          const b = centre(route[(i + 1) % route.length]);
-          g.lineBetween(a.x, a.y, b.x, b.y);
-        }
-      }
-      g.fillStyle(0x4db8ff, 0.75);
-      for (const wp of route) {
-        const c = centre(wp);
-        g.fillCircle(c.x, c.y, Math.max(2, ts * 0.12));
-      }
-
-      // The path being walked right now, from the guard to its current goal.
-      const path = e.plannedPath;
-      if (path.length > 0) {
-        g.lineStyle(2, 0xffe14d, 0.8);
-        let prevX = e.x;
-        let prevY = e.y;
-        for (const node of path) {
-          const c = centre(node);
-          g.lineBetween(prevX, prevY, c.x, c.y);
-          prevX = c.x;
-          prevY = c.y;
-        }
-      }
-
-      // The circle the guard actually collides with.
-      g.lineStyle(1, 0x59d98e, 0.7);
-      g.strokeCircle(e.x, e.y, e.collisionRadiusTiles * ts);
-    }
-  }
-
-  /** Snapshot of live state for the DebugHud (published to the registry). */
-  private buildDebugSnapshot(): DebugSnapshot {
-    const ts = this.tileSize;
+  /** This frame's live state, for the debug overlay to draw and report. */
+  private debugWorld(): DebugWorld {
     return {
-      enabled: this.debugEnabled,
-      godMode: this.godMode,
-      noClip: this.noClip,
-      worldDraw: this.worldDraw,
-      frozenWorld: this.frozenWorld,
-      darknessOff: this.darknessOff,
-      compliant: this.conduct.compliant,
-      breach: this.conduct.breach,
-      flaggedRemaining: this.conduct.flaggedRemaining,
-      certified: ((this.registry.get("inventory") as string[] | undefined) ?? []).includes(
-        CERT_ITEM,
-      ),
-      fps: this.game.loop.actualFps,
-      px: this.player.x,
-      py: this.player.y,
-      tileX: Math.floor(this.player.x / ts),
-      tileY: Math.floor(this.player.y / ts),
-      facing: this.player.facing,
-      hp: this.player.hp,
-      maxHp: this.player.maxHp,
-      capture: this.captureProgress,
-      captureTime: PLAYER_DEFAULTS.captureTime,
-      level: this.level.name,
-      alertPhase: this.alert.phase,
-      units: [
-        ...this.guards.map((e, i) => ({ label: `G${i}`, detection: e.detection })),
-        ...this.sensors.map((s, i) => ({ label: `S${i}`, detection: s.detection })),
-      ],
+      grid: this.grid,
+      detection: this.detection,
+      conduct: this.conduct,
+      alert: this.alert,
+      player: this.player,
+      guards: this.guards,
+      sensors: this.sensors,
+      tileSize: this.tileSize,
+      levelName: this.level.name,
+      captureProgress: this.captureProgress,
+      inventory: (this.registry.get("inventory") as string[] | undefined) ?? [],
     };
   }
 
-  /** A door operating emits noise: nearby guards turn to look and grow wary. */
-  private emitDoorNoise(door: Door): void {
-    this.emitNoiseAt((door.tileX + 0.5) * this.tileSize, (door.tileY + 0.5) * this.tileSize, door.stats.operationNoise * this.tileSize);
-  }
-
-  /** A spotted orderly raises the alarm: nearby guards turn to look and grow wary. */
-  private emitOrderlyAlert(orderly: Orderly): void {
-    this.emitNoiseAt(orderly.x, orderly.y, ORDERLY_ALERT_RADIUS_TILES * this.tileSize);
-  }
-
-  /**
-   * Knock (R): rap on an adjacent wall or object. The noise originates at that
-   * tile — not at the player — so guards and orderlies in earshot converge on
-   * the spot while Rowan slips past. A no-op (no cooldown spent) when there's
-   * nothing knockable next to the player.
-   */
-  private knock(): void {
-    const target = this.findKnockTarget();
-    if (!target) return;
-    const cx = (target.tx + 0.5) * this.tileSize;
-    const cy = (target.ty + 0.5) * this.tileSize;
-    const radiusPx = KNOCK_NOISE_TILES * this.tileSize;
-    this.emitNoiseAt(cx, cy, radiusPx); // guards (reuses the shared noise pipeline)
-    this.emitKnockDistraction(cx, cy, radiusPx); // orderlies walk over to look
-    // Deliberately banging on the walls is not what staff do.
-    this.conduct.violate("TAMPERING", FLAG_TAMPERING);
-    getAudio().door();
-    this.knockCooldown = KNOCK_COOLDOWN;
-  }
-
-  /**
-   * The wall/object a knock lands on: the tile one step along the player's
-   * facing if it's knockable, else the nearest knockable of the 8 neighbours,
-   * biased toward the facing direction.
-   */
-  private findKnockTarget(): { tx: number; ty: number } | null {
-    const ts = this.tileSize;
-    const px = this.player.x;
-    const py = this.player.y;
-    const fx = Math.cos(this.player.facing);
-    const fy = Math.sin(this.player.facing);
-
-    const aheadX = Math.floor((px + fx * ts) / ts);
-    const aheadY = Math.floor((py + fy * ts) / ts);
-    if (this.isKnockable(aheadX, aheadY)) return { tx: aheadX, ty: aheadY };
-
-    const ptx = Math.floor(px / ts);
-    const pty = Math.floor(py / ts);
-    let best: { tx: number; ty: number } | null = null;
-    let bestScore = -Infinity;
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        if (dx === 0 && dy === 0) continue;
-        const tx = ptx + dx;
-        const ty = pty + dy;
-        if (!this.isKnockable(tx, ty)) continue;
-        // Prefer neighbours that lie in the direction the player is facing.
-        const mag = len(dx, dy);
-        const score = (dx * fx + dy * fy) / mag;
-        if (score > bestScore) {
-          bestScore = score;
-          best = { tx, ty };
-        }
-      }
-    }
-    return best;
-  }
-
-  /** True when a tile holds something to knock on: a wall/closed door, or a door/chest/terminal. */
-  private isKnockable(tx: number, ty: number): boolean {
-    if (!this.grid.inBounds(tx, ty)) return false;
-    if (this.grid.isBlocked(tx, ty)) return true;
-    if (this.doors.some((d) => d.tileX === tx && d.tileY === ty)) return true;
-    if (this.chests.some((c) => c.tileX === tx && c.tileY === ty)) return true;
-    return this.terminals.some(
-      (t) => Math.floor(t.x / this.tileSize) === tx && Math.floor(t.y / this.tileSize) === ty,
-    );
-  }
-
-  /** A knock draws nearby orderlies over to investigate (guards use {@link emitNoiseAt}). */
-  private emitKnockDistraction(cx: number, cy: number, radiusPx: number): void {
-    if (radiusPx <= 0) return;
-    for (const orderly of this.orderlies) {
-      const p = orderly;
-      if (within(p.x - cx, p.y - cy, radiusPx)) orderly.distract(cx, cy);
-    }
-  }
-
-  /**
-   * Minor investigations (a single noise ping) never broadcast over the alert
-   * network — only the individual guard(s) in earshot react. But repeated
-   * pings in the same area within a short window are a distraction exploit:
-   * once {@link NoiseSpamTracker} flags spam, skip per-guard investigation
-   * entirely and radio it in as a confirmed sighting instead.
-   */
-  private emitNoiseAt(cx: number, cy: number, radiusPx: number): void {
-    if (radiusPx <= 0) return;
-    const tx = Math.floor(cx / this.tileSize);
-    const ty = Math.floor(cy / this.tileSize);
-    if (this.noiseSpam.record(tx, ty, this.time.now / 1000)) {
-      this.alert.reportSighting(tx, ty);
-      this.emitNetworkAlert(cx, cy, SPAM_ESCALATION_RADIUS_TILES);
-      return;
-    }
-    for (const e of this.guards) {
-      const d = len(e.x - cx, e.y - cy);
-      if (d < radiusPx) e.hearNoise(1 - d / radiusPx, cx, cy);
-    }
-  }
-
-  /** Opened doors/chests, EMP'd cameras/lasers, and stunned orderlies this frame. */
   /**
    * The door covering a tile, if it's one a guard may work itself.
    *
@@ -2182,26 +1783,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * A confirmed sighting propagates through the alert network: every guard
-   * within the spotter's {@link EnforcerStats.alertNetworkRadius} snaps to look
-   * toward the player and grows wary, so a camera or a distant guard tripping
-   * the alarm immediately rallies the ones nearby.
-   */
-  private emitNetworkAlert(originX: number, originY: number, radiusTiles: number): void {
-    const radiusPx = radiusTiles * this.tileSize;
-    if (radiusPx <= 0) return;
-    const r2 = radiusPx * radiusPx;
-    for (const e of this.guards) {
-      if (e.x === originX && e.y === originY) continue; // skip the spotter itself
-      const dx = e.x - originX;
-      const dy = e.y - originY;
-      if (dx * dx + dy * dy < r2) {
-        e.hearNoise(1, this.player.x, this.player.y);
-      }
-    }
-  }
-
-  /**
    * Searches a chest with smart auto-use: a Ration Pack heals immediately if
    * Rowan is hurt, a Battery tops the flashlight if it's low, and everything
    * else is stored — but only while under the 4-consumable cap. Key items and
@@ -2243,7 +1824,7 @@ export class GameScene extends Phaser.Scene {
 
     chest.retain(leftover);
     this.registry.set("inventory", inv);
-    this.emitNoiseAt(chest.x, chest.y, chest.stats.noiseOnOpen * this.tileSize);
+    this.noise.emitAt(chest.x, chest.y, chest.stats.noiseOnOpen * this.tileSize);
     getAudio().pickup();
   }
 
