@@ -1,6 +1,7 @@
-import Phaser from "phaser";
+import type Phaser from "phaser";
 import type { GameTile } from "../map/types";
 import { terminalStatsFor, type TerminalStats } from "../systems/EntityStats";
+import { HoldTarget, HOLD_BAR_CYAN } from "./HoldTarget";
 
 /**
  * A hackable terminal. Hold the interact key while adjacent to fill a progress
@@ -9,7 +10,8 @@ import { terminalStatsFor, type TerminalStats } from "../systems/EntityStats";
  * owns that, since the map carries no explicit terminal→door links).
  *
  * Renders its own sprite from the map tile's frame (the `terminals` board is in
- * GameScene's ENTITY_LAYERS so the static renderer skips it).
+ * GameScene's ENTITY_LAYERS so the static renderer skips it). The sprite, bar
+ * and hold timer are a {@link HoldTarget}.
  */
 export class Terminal {
   readonly tileX: number;
@@ -19,27 +21,15 @@ export class Terminal {
   readonly stats: TerminalStats;
 
   private hacked = false;
-  private progress = 0; // seconds accumulated
-  private readonly image?: Phaser.GameObjects.Image;
-  private readonly bar: Phaser.GameObjects.Graphics;
-  private readonly tileSize: number;
+  private readonly hold: HoldTarget;
 
   constructor(scene: Phaser.Scene, tile: GameTile, tileSize: number) {
     this.tileX = tile.x;
     this.tileY = tile.y;
-    this.tileSize = tileSize;
     this.stats = terminalStatsFor(tile.components);
-    // Cell centre plus the tile's authored placement offset.
-    this.x = (tile.x + 0.5) * tileSize + tile.offsetX;
-    this.y = (tile.y + 0.5) * tileSize + tile.offsetY;
-
-    if (tile.frame) {
-      this.image = scene.add
-        .image(this.x, this.y, tile.frame.textureKey, tile.frame.frameKey)
-        .setDisplaySize(tile.colSpan * tileSize, tile.rowSpan * tileSize)
-        .setDepth(120);
-    }
-    this.bar = scene.add.graphics().setDepth(1000).setVisible(false);
+    this.hold = new HoldTarget(scene, tile, tileSize, this.stats.hackTime, HOLD_BAR_CYAN);
+    this.x = this.hold.x;
+    this.y = this.hold.y;
   }
 
   get isHacked(): boolean {
@@ -52,15 +42,10 @@ export class Terminal {
    */
   hack(dt: number): boolean {
     if (this.hacked) return false;
-    this.progress = Math.min(this.stats.hackTime, this.progress + dt);
-    this.drawBar(true);
-    if (this.progress >= this.stats.hackTime) {
-      this.hacked = true;
-      this.bar.setVisible(false);
-      this.image?.setTint(0x5effa0); // hacked = green
-      return true;
-    }
-    return false;
+    if (!this.hold.advance(dt)) return false;
+    this.hacked = true;
+    this.hold.settle(0x5effa0); // hacked = green
+    return true;
   }
 
   /**
@@ -70,32 +55,12 @@ export class Terminal {
    */
   reopen(): void {
     this.hacked = false;
-    this.progress = 0;
-    this.image?.clearTint();
-    this.bar.setVisible(false);
+    this.hold.reset();
   }
 
   /** Called when the player isn't hacking this frame — decays partial progress. */
   idle(dt: number): void {
     if (this.hacked) return;
-    if (this.progress > 0) {
-      this.progress = Math.max(0, this.progress - dt * 1.5);
-      this.drawBar(this.progress > 0);
-    }
-  }
-
-  private drawBar(visible: boolean): void {
-    this.bar.setVisible(visible);
-    if (!visible) return;
-    const w = this.tileSize * 0.9;
-    const h = 5;
-    const x = this.x - w / 2;
-    const y = this.y - this.tileSize * 0.8;
-    const frac = this.stats.hackTime > 0 ? this.progress / this.stats.hackTime : 1;
-    this.bar.clear();
-    this.bar.fillStyle(0x0a0f16, 0.85);
-    this.bar.fillRect(x - 1, y - 1, w + 2, h + 2);
-    this.bar.fillStyle(0x39d3ff, 1);
-    this.bar.fillRect(x, y, w * frac, h);
+    this.hold.decay(dt);
   }
 }

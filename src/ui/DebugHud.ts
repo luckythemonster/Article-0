@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import type { AlertPhase } from "../systems/AlertState";
 import { FONT_MONO } from "./fonts";
+import { onResize } from "./resize";
 
 /** A named unit and its current detection level (0..1). */
 export interface DebugUnitView {
@@ -83,9 +84,7 @@ export class DebugHud {
       .setDepth(1500)
       .setVisible(false);
 
-    const onResize = (size: Phaser.Structs.Size): void => this.reposition(size.width);
-    scene.scale.on("resize", onResize);
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.scale.off("resize", onResize));
+    onResize(scene, (w) => this.reposition(w));
   }
 
   private reposition(width: number): void {

@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { Menu } from "../ui/Menu";
 import { setMode, startFreshRun } from "../systems/GameState";
 import { FONT_DISPLAY, FONT_MONO } from "../ui/fonts";
+import { onResize } from "../ui/resize";
 
 /**
  * The success screen — reached when EIRA-7's logs clear the last uplink and
@@ -45,9 +46,6 @@ export class VictoryScene extends Phaser.Scene {
       flavor.setPosition(w / 2, h * 0.32 + 50);
       menu.layout(w / 2, h * 0.62);
     };
-    layout(this.scale.width, this.scale.height);
-    const onResize = (size: Phaser.Structs.Size): void => layout(size.width, size.height);
-    this.scale.on("resize", onResize);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", onResize));
+    onResize(this, layout, true);
   }
 }

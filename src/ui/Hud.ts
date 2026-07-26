@@ -3,6 +3,7 @@ import type { AlertPhase } from "../systems/AlertState";
 import { SETTLE_SECONDS, type ConductView } from "../systems/Conduct";
 import { controlsHintLine } from "./Controls";
 import { FONT_MONO } from "./fonts";
+import { onResize } from "./resize";
 
 const PHASE_COLOR: Record<AlertPhase, string> = {
   INFILTRATION: "#39d3ff",
@@ -96,12 +97,10 @@ export class Hud {
       .setScrollFactor(0)
       .setDepth(1000);
 
-    const onResize = (size: Phaser.Structs.Size): void => {
-      this.hint.setPosition(pad, size.height - pad);
-      this.conductText.setPosition(pad, size.height - pad - 18);
-    };
-    scene.scale.on("resize", onResize);
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.scale.off("resize", onResize));
+    onResize(scene, (_w, h) => {
+      this.hint.setPosition(pad, h - pad);
+      this.conductText.setPosition(pad, h - pad - 18);
+    });
   }
 
   update(

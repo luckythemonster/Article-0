@@ -3,6 +3,7 @@ import { Menu, type MenuItem } from "../ui/Menu";
 import { resumeFromSave, setMode, startFreshRun } from "../systems/GameState";
 import { hasAnySave, newestSave } from "../systems/SaveGame";
 import { FONT_DISPLAY, FONT_MONO } from "../ui/fonts";
+import { onResize } from "../ui/resize";
 
 /**
  * The title screen. Boots first after the map has parsed and offers the entry
@@ -53,10 +54,7 @@ export class TitleScene extends Phaser.Scene {
       menu.layout(w / 2, h * 0.62);
       footer.setPosition(w / 2, h - 28);
     };
-    layout(this.scale.width, this.scale.height);
-    const onResize = (size: Phaser.Structs.Size): void => layout(size.width, size.height);
-    this.scale.on("resize", onResize);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", onResize));
+    onResize(this, layout, true);
   }
 
   /**

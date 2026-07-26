@@ -1,4 +1,4 @@
-import { GUARD_DIRS, guardRadiusTiles, type GuardSkin } from "./GuardSkin";
+import { makeGuardSkin, type GuardSkin } from "./GuardSkin";
 import { DRONE_PATROL_SOUTH_COLLIDER } from "./generated/droneCollider";
 
 /**
@@ -16,22 +16,6 @@ import { DRONE_PATROL_SOUTH_COLLIDER } from "./generated/droneCollider";
  *
  * Frames live in public/assets/drone/patrol/<direction>/<frame>.png.
  */
-export const DRONE_ANIM_DIRS = GUARD_DIRS;
-export type DroneAnimDir = (typeof DRONE_ANIM_DIRS)[number];
-
-export const DRONE_PATROL_FRAME_COUNT = 8;
-
-export function droneFrameKey(dir: DroneAnimDir, frame: number): string {
-  return `drone-patrol-${dir}-${frame}`;
-}
-
-export function droneFramePath(dir: DroneAnimDir, frame: number): string {
-  return `assets/drone/patrol/${dir}/${frame}.png`;
-}
-
-export function droneAnimKey(dir: DroneAnimDir): string {
-  return `drone-patrol-${dir}`;
-}
 
 /**
  * Display height in tiles — half the old 1.5.
@@ -46,13 +30,11 @@ export function droneAnimKey(dir: DroneAnimDir): string {
 const DRONE_DISPLAY_TILES = 0.75;
 
 /** The drone's {@link GuardSkin}. */
-export const DRONE_SKIN: GuardSkin = {
-  frameCount: DRONE_PATROL_FRAME_COUNT,
+export const DRONE_SKIN: GuardSkin = makeGuardSkin({
+  id: "drone",
+  frameCount: 8,
   frameRate: 8,
   displayTiles: DRONE_DISPLAY_TILES,
   sourceSize: 85,
-  collisionRadiusTiles: guardRadiusTiles(DRONE_PATROL_SOUTH_COLLIDER, DRONE_DISPLAY_TILES),
-  frameKey: droneFrameKey,
-  framePath: droneFramePath,
-  animKey: droneAnimKey,
-};
+  collider: DRONE_PATROL_SOUTH_COLLIDER,
+});

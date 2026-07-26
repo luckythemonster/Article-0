@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { Vent4State, type Vent4View } from "../systems/Vent4Core";
 import { FONT_MONO } from "./fonts";
+import { onResize } from "./resize";
 
 /** Fill/status colors per compliance band. */
 const BAND_STYLE: Record<string, { hex: number; css: string; label: string }> = {
@@ -91,10 +92,7 @@ export class Vent4Hud {
       this.banner.setPosition(cx, 122);
       this.overlay.setPosition(0, 0).setSize(w, h);
     };
-    layout(scene.scale.width, scene.scale.height);
-    const onResize = (size: Phaser.Structs.Size): void => layout(size.width, size.height);
-    scene.scale.on("resize", onResize);
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.scale.off("resize", onResize));
+    onResize(scene, layout, true);
   }
 
   update(v: Vent4View | null): void {

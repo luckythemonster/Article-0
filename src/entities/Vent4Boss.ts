@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import type { GameLevel } from "../map/types";
 import type { CollisionGrid } from "../systems/CollisionGrid";
+import { angleDiff } from "../systems/angles";
 import type { EnforcerContext } from "./Enforcer";
 import {
   Vent4Core,
@@ -853,10 +854,3 @@ export class Vent4Boss {
   }
 }
 
-/** Smallest signed angle from a to b, in (-pi, pi]. */
-function angleDiff(a: number, b: number): number {
-  let d = b - a;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
-  return d;
-}

@@ -1,8 +1,8 @@
 import Phaser from "phaser";
 import type { CollisionGrid } from "../systems/CollisionGrid";
 import { paced } from "../systems/EntityStats";
-import { GUARD_DIRS, nearestGuardDirection, type GuardDir } from "./GuardSkin";
-import { FONT_MONO } from "../ui/fonts";
+import { DIRS_8, nearestDirection, type Dir8 } from "./directions";
+import { alertMarker } from "./markers";
 import {
   ORDERLY_ANIM_FRAME_COUNTS,
   ORDERLY_ANIM_FRAME_RATES,
@@ -47,7 +47,7 @@ export class Orderly {
   private facing = 0;
   private moving = false;
   private wanderTimer: number;
-  private dir: GuardDir = "south";
+  private dir: Dir8 = "south";
   private alerted = false;
   /** Seconds of stun remaining; while > 0 the orderly is frozen and can't witness. */
   private stunTimer = 0;
@@ -69,16 +69,7 @@ export class Orderly {
     this.body.setScale((tileSize * 1.5) / 84);
     this.body.play(orderlyAnimKey("idle", "south"));
 
-    this.bang = scene.add
-      .text(this.x, this.y - tileSize, "!", {
-        fontFamily: FONT_MONO,
-        fontSize: `${Math.floor(tileSize * 0.9)}px`,
-        color: "#ffec3d",
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5)
-      .setDepth(600)
-      .setVisible(false);
+    this.bang = alertMarker(scene, this.x, this.y, tileSize);
   }
 
   /** Freezes the orderly for a stretch (a Stun Rounds dart) — can't witness. */
@@ -115,7 +106,7 @@ export class Orderly {
       else this.wander(dt, ctx);
     }
 
-    const dir = nearestGuardDirection(this.facing);
+    const dir = nearestDirection(this.facing);
     const anim: OrderlyAnimName = this.moving ? "walk" : "idle";
     if (dir !== this.dir || this.body.anims.currentAnim?.key !== orderlyAnimKey(anim, dir)) {
       this.dir = dir;
@@ -229,7 +220,7 @@ export class Orderly {
     for (const anim of Object.keys(ORDERLY_ANIM_FRAME_COUNTS) as OrderlyAnimName[]) {
       const frameCount = ORDERLY_ANIM_FRAME_COUNTS[anim];
       const frameRate = ORDERLY_ANIM_FRAME_RATES[anim];
-      for (const dir of GUARD_DIRS) {
+      for (const dir of DIRS_8) {
         const key = orderlyAnimKey(anim, dir);
         if (scene.anims.exists(key)) continue;
         scene.anims.create({

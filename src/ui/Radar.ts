@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { RADAR_RADIUS_TILES, type RadarSnapshot } from "../systems/Radar";
 import { FONT_MONO } from "./fonts";
+import { onResize } from "./resize";
 
 const PANEL_BG = 0x0a0f16;
 const PANEL_BG_ALPHA = 0.85;
@@ -61,9 +62,7 @@ export class Radar {
       .setVisible(false);
 
     this.reposition();
-    const onResize = (): void => this.reposition();
-    scene.scale.on("resize", onResize);
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.scale.off("resize", onResize));
+    onResize(scene, () => this.reposition());
   }
 
   private reposition(): void {

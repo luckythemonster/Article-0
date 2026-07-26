@@ -1,17 +1,6 @@
 import type Phaser from "phaser";
 import type { SpriteCollider } from "./generated/playerCollider";
-
-export const GUARD_DIRS = [
-  "south",
-  "south-east",
-  "east",
-  "north-east",
-  "north",
-  "north-west",
-  "west",
-  "south-west",
-] as const;
-export type GuardDir = (typeof GUARD_DIRS)[number];
+import { DIRS_8, type Dir8 } from "./directions";
 
 /**
  * Describes one guard's sprite sheet + display tuning, so the shared vision-
@@ -31,9 +20,9 @@ export interface GuardSkin {
    * See {@link guardRadiusTiles} for how it's derived.
    */
   collisionRadiusTiles: number;
-  frameKey(dir: GuardDir, frame: number): string;
-  framePath(dir: GuardDir, frame: number): string;
-  animKey(dir: GuardDir): string;
+  frameKey(dir: Dir8, frame: number): string;
+  framePath(dir: Dir8, frame: number): string;
+  animKey(dir: Dir8): string;
 }
 
 /**
@@ -69,28 +58,52 @@ export function guardRadiusTiles(collider: SpriteCollider, displayTiles: number)
   return Math.min(MAX_GUARD_RADIUS_TILES, widthTiles / 2);
 }
 
-const DIRECTION_ORDER: GuardDir[] = [
-  "east",
-  "south-east",
-  "south",
-  "south-west",
-  "west",
-  "north-west",
-  "north",
-  "north-east",
-];
+/** The tuning that actually differs between one guard's art and another's. */
+export interface GuardSkinSpec {
+  /**
+   * Asset/animation slug. Frames are expected at
+   * `public/assets/<id>/patrol/<direction>/<frame>.png`, and every texture and
+   * animation key is derived from it — so this one string is the whole naming
+   * convention.
+   */
+  id: string;
+  frameCount: number;
+  frameRate: number;
+  /** Display height as a multiple of tile size. */
+  displayTiles: number;
+  /** Native pixel size of the (square) source art. */
+  sourceSize: number;
+  /** Generated collider for the south frame; see {@link guardRadiusTiles}. */
+  collider: SpriteCollider;
+}
 
-/** Snaps a facing angle (radians) to the nearest of the 8 guard directions. */
-export function nearestGuardDirection(angle: number): GuardDir {
-  const angleDeg = (angle * 180) / Math.PI;
-  const normalized = ((angleDeg % 360) + 360) % 360;
-  const index = Math.round(normalized / 45) % 8;
-  return DIRECTION_ORDER[index];
+/**
+ * Builds a {@link GuardSkin} from the handful of numbers that distinguish one
+ * guard's art from another's.
+ *
+ * The enforcer and the drone are the same 58-line module twice over — identical
+ * key/path/anim helpers, identical shape, differing only in a slug and four
+ * constants. Every future reskin would have been a third copy. The per-skin
+ * files keep their tuning and the reasoning behind it, which is the part worth
+ * reading.
+ */
+export function makeGuardSkin(spec: GuardSkinSpec): GuardSkin {
+  const { id } = spec;
+  return {
+    frameCount: spec.frameCount,
+    frameRate: spec.frameRate,
+    displayTiles: spec.displayTiles,
+    sourceSize: spec.sourceSize,
+    collisionRadiusTiles: guardRadiusTiles(spec.collider, spec.displayTiles),
+    frameKey: (dir, frame) => `${id}-patrol-${dir}-${frame}`,
+    framePath: (dir, frame) => `assets/${id}/patrol/${dir}/${frame}.png`,
+    animKey: (dir) => `${id}-patrol-${dir}`,
+  };
 }
 
 /** Queues every frame a skin needs, for BootScene's preload. */
 export function preloadGuardSkin(scene: Phaser.Scene, skin: GuardSkin): void {
-  for (const dir of GUARD_DIRS) {
+  for (const dir of DIRS_8) {
     for (let i = 0; i < skin.frameCount; i++) {
       scene.load.image(skin.frameKey(dir, i), skin.framePath(dir, i));
     }

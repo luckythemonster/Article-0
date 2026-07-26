@@ -5,6 +5,7 @@
  * isolation (`npm run dev` → open /compliance-demo.html).
  */
 import "./ui/fonts.css";
+import "./ui/demo.css";
 import { ComplianceView } from "./ui/ComplianceView";
 import { DEMO_PUZZLE, renderCompliantText } from "./systems/Compliance";
 
@@ -20,7 +21,7 @@ function start(): void {
   view = new ComplianceView(mount, DEMO_PUZZLE, {
     onSolved: (finalText) => {
       banner.textContent = "✔ OVERRIDE TRANSMITTED — door lock released. (click to replay)";
-      banner.className = "demo-banner is-solved";
+      banner.className = "demo-banner is-solved is-replayable";
       banner.onclick = start;
       // eslint-disable-next-line no-console
       console.log("[compliance] solved — pruned log:\n" + finalText);

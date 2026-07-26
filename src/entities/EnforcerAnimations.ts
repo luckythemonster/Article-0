@@ -1,4 +1,4 @@
-import { GUARD_DIRS, guardRadiusTiles, type GuardSkin } from "./GuardSkin";
+import { makeGuardSkin, type GuardSkin } from "./GuardSkin";
 import { ENFORCER_PATROL_SOUTH_COLLIDER } from "./generated/enforcerCollider";
 
 /**
@@ -13,22 +13,6 @@ import { ENFORCER_PATROL_SOUTH_COLLIDER } from "./generated/enforcerCollider";
  *
  * Frames live in public/assets/enforcer/patrol/<direction>/<frame>.png.
  */
-export const ENFORCER_ANIM_DIRS = GUARD_DIRS;
-export type EnforcerAnimDir = (typeof ENFORCER_ANIM_DIRS)[number];
-
-export const ENFORCER_PATROL_FRAME_COUNT = 8;
-
-export function enforcerFrameKey(dir: EnforcerAnimDir, frame: number): string {
-  return `enforcer-patrol-${dir}-${frame}`;
-}
-
-export function enforcerFramePath(dir: EnforcerAnimDir, frame: number): string {
-  return `assets/enforcer/patrol/${dir}/${frame}.png`;
-}
-
-export function enforcerAnimKey(dir: EnforcerAnimDir): string {
-  return `enforcer-patrol-${dir}`;
-}
 
 /**
  * Display height in tiles.
@@ -44,16 +28,11 @@ export function enforcerAnimKey(dir: EnforcerAnimDir): string {
 const ENFORCER_DISPLAY_TILES = 1.15;
 
 /** The enforcer's {@link GuardSkin}. */
-export const ENFORCER_SKIN: GuardSkin = {
-  frameCount: ENFORCER_PATROL_FRAME_COUNT,
+export const ENFORCER_SKIN: GuardSkin = makeGuardSkin({
+  id: "enforcer",
+  frameCount: 8,
   frameRate: 8,
   displayTiles: ENFORCER_DISPLAY_TILES,
   sourceSize: 48,
-  collisionRadiusTiles: guardRadiusTiles(
-    ENFORCER_PATROL_SOUTH_COLLIDER,
-    ENFORCER_DISPLAY_TILES,
-  ),
-  frameKey: enforcerFrameKey,
-  framePath: enforcerFramePath,
-  animKey: enforcerAnimKey,
-};
+  collider: ENFORCER_PATROL_SOUTH_COLLIDER,
+});

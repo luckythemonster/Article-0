@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { SHARED_FIELD_DURATION } from "../systems/SharedField";
 import { FONT_MONO } from "./fonts";
+import { onResize } from "./resize";
 
 export interface SharedFieldView {
   charge: number;
@@ -53,10 +54,7 @@ export class SharedFieldHud {
       this.fill.setPosition(cx - this.barW / 2 + 1, y);
       this.label.setPosition(cx, y - 8);
     };
-    layout(scene.scale.width, scene.scale.height);
-    const onResize = (size: Phaser.Structs.Size): void => layout(size.width, size.height);
-    scene.scale.on("resize", onResize);
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.scale.off("resize", onResize));
+    onResize(scene, layout, true);
   }
 
   update(v: SharedFieldView): void {

@@ -1,5 +1,5 @@
 import type Phaser from "phaser";
-import { GUARD_DIRS, type GuardDir } from "./GuardSkin";
+import { DIRS_8, type Dir8 } from "./directions";
 
 /**
  * Frame manifest for the orderly sprite (generated via PixelLab.ai — a human
@@ -21,15 +21,15 @@ export const ORDERLY_ANIM_FRAME_RATES: Record<OrderlyAnimName, number> = {
   walk: 6,
 };
 
-export function orderlyFrameKey(anim: OrderlyAnimName, dir: GuardDir, frame: number): string {
+export function orderlyFrameKey(anim: OrderlyAnimName, dir: Dir8, frame: number): string {
   return `orderly-${anim}-${dir}-${frame}`;
 }
 
-export function orderlyFramePath(anim: OrderlyAnimName, dir: GuardDir, frame: number): string {
+export function orderlyFramePath(anim: OrderlyAnimName, dir: Dir8, frame: number): string {
   return `assets/orderly/${anim}/${dir}/${frame}.png`;
 }
 
-export function orderlyAnimKey(anim: OrderlyAnimName, dir: GuardDir): string {
+export function orderlyAnimKey(anim: OrderlyAnimName, dir: Dir8): string {
   return `orderly-${anim}-${dir}`;
 }
 
@@ -37,7 +37,7 @@ export function orderlyAnimKey(anim: OrderlyAnimName, dir: GuardDir): string {
 export function preloadOrderly(scene: Phaser.Scene): void {
   for (const anim of Object.keys(ORDERLY_ANIM_FRAME_COUNTS) as OrderlyAnimName[]) {
     const count = ORDERLY_ANIM_FRAME_COUNTS[anim];
-    for (const dir of GUARD_DIRS) {
+    for (const dir of DIRS_8) {
       for (let i = 0; i < count; i++) {
         scene.load.image(orderlyFrameKey(anim, dir, i), orderlyFramePath(anim, dir, i));
       }

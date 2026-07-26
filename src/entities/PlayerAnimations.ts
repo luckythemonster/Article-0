@@ -1,3 +1,4 @@
+import { type Dir8 } from "./directions";
 /**
  * Frame manifest for the player character sprite (generated via PixelLab.ai,
  * "Rowan Ibarra" — high top-down, 88x88, 8-direction template). All 8
@@ -11,17 +12,6 @@
  *
  * Frames live in public/assets/player/<anim>/<direction>/<frame>.png.
  */
-export const PLAYER_ANIM_DIRS = [
-  "south",
-  "south-east",
-  "east",
-  "north-east",
-  "north",
-  "north-west",
-  "west",
-  "south-west",
-] as const;
-export type PlayerAnimDir = (typeof PLAYER_ANIM_DIRS)[number];
 
 export type PlayerAnimName =
   | "idle"
@@ -56,35 +46,16 @@ export const PLAYER_ANIM_FRAME_RATES: Record<PlayerAnimName, number> = {
   "crouch-up": 15,
 };
 
-export function playerFrameKey(anim: PlayerAnimName, dir: PlayerAnimDir, frame: number): string {
+export function playerFrameKey(anim: PlayerAnimName, dir: Dir8, frame: number): string {
   return `player-${anim}-${dir}-${frame}`;
 }
 
-export function playerFramePath(anim: PlayerAnimName, dir: PlayerAnimDir, frame: number): string {
+export function playerFramePath(anim: PlayerAnimName, dir: Dir8, frame: number): string {
   return `assets/player/${anim}/${dir}/${frame}.png`;
 }
 
 /** The Phaser animation key for a given anim+direction pair. */
-export function playerAnimKey(anim: PlayerAnimName, dir: PlayerAnimDir): string {
+export function playerAnimKey(anim: PlayerAnimName, dir: Dir8): string {
   return `player-${anim}-${dir}`;
 }
 
-/** The 8 directions in angular order, starting at east (0°) going clockwise. */
-const DIRECTION_ORDER: PlayerAnimDir[] = [
-  "east",
-  "south-east",
-  "south",
-  "south-west",
-  "west",
-  "north-west",
-  "north",
-  "north-east",
-];
-
-/** Snaps a movement vector to the nearest of the 8 exported directions. */
-export function nearestDirection(dx: number, dy: number): PlayerAnimDir {
-  const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
-  const normalized = (angleDeg + 360) % 360;
-  const index = Math.round(normalized / 45) % 8;
-  return DIRECTION_ORDER[index];
-}

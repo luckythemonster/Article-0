@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { objectiveLines, type ObjectiveState } from "../systems/Objectives";
 import { FONT_MONO } from "./fonts";
+import { onResize } from "./resize";
 
 /**
  * A compact objective tracker pinned to the top-centre of the screen. Reads the
@@ -38,10 +39,7 @@ export class ObjectiveHud {
       this.heading.setPosition(w / 2, 10);
       this.body.setPosition(w / 2, 28);
     };
-    layout(scene.scale.width);
-    const onResize = (size: Phaser.Structs.Size): void => layout(size.width);
-    scene.scale.on("resize", onResize);
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.scale.off("resize", onResize));
+    onResize(scene, (w) => layout(w), true);
   }
 
   update(

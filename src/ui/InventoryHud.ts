@@ -9,6 +9,7 @@ import {
 } from "../systems/EntityStats";
 import type { ActiveItemsView } from "../systems/ActiveItems";
 import { FONT_MONO } from "./fonts";
+import { onResize } from "./resize";
 
 /**
  * A compact inventory readout pinned to the bottom-right of the screen, in three
@@ -35,11 +36,7 @@ export class InventoryHud {
       .setScrollFactor(0)
       .setDepth(1000);
 
-    const onResize = (size: Phaser.Structs.Size): void => {
-      this.text.setPosition(size.width - pad, size.height - pad);
-    };
-    scene.scale.on("resize", onResize);
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.scale.off("resize", onResize));
+    onResize(scene, (w, h) => this.text.setPosition(w - pad, h - pad));
   }
 
   update(items: string[], active: ActiveItemsView): void {
