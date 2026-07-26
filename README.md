@@ -35,8 +35,15 @@ npm run build    # tsc --noEmit + vite build
 | E | Contextual: open/close a door, hack a terminal (hold), search a chest (hold), or use a hatch/ladder |
 | L | Flashlight — the only way to see in the unlit levels, but it drains and makes you far easier to spot |
 | F | Shared Field — once charged (by staying near a silicate), merge for 3.7s and become undetectable |
+| R | Knock — rap on a wall to lure guards and orderlies to the noise |
+| 1 – 4 | Use the consumable in that slot |
 | C | Open the EIRA-7 codec |
-| Esc | Pause (from the pause screen, Q aborts to the title) |
+| Esc | Pause menu — objectives, journal, inventory, index, status, map, controls, settings, saves |
+
+Inside the pause menu: **← / →** move between sections, **1–9** jump straight to
+one, **↑ / ↓** move within a list, **Enter** confirms, **Esc** resumes. Quitting a
+run lives on the SYSTEM tab behind a confirmation (it used to be a bare `Q` on
+the pause screen, which was one keystroke away from throwing a run away).
 
 #### Debug mode
 
@@ -376,6 +383,38 @@ in real seconds so the balance they encode keeps its meaning.
   (`src/entities/Chest.ts`) that surrender their items (engine default loot, since
   the map leaves the slots blank) into a HUD inventory (`src/ui/InventoryHud.ts`)
   that persists across level transitions via the registry.
+- The pause menu (**Esc**): a nine-tab console rendered as a DOM overlay in the
+  same terminal styling as the codec (`src/ui/PauseMenuView.ts`), reading a
+  snapshot of the frozen run out of the registry and posting the player's choices
+  back as a `pauseRequest` for `GameScene` to act on — it never touches game state
+  itself. **OBJECTIVES** (the directive, via the same `objectiveLines` the HUD
+  uses), **JOURNAL**, **INVENTORY** (per-item descriptions from
+  `ItemCatalog.ts`, with the effect numbers interpolated from the `EntityStats`
+  tuning constants so the copy can't drift from the balance), **INDEX**,
+  **STATUS**, **MAP**, **CONTROLS**, **SETTINGS** (volume/mute, stored separately
+  from saves) and **SYSTEM** (the save slots).
+- The journal (`src/systems/Journal.ts`) — Rowan's counter-archive, and the point
+  of the pause menu existing. The fiction turns on a claim about records: EIRA-7's
+  cached logs *are* her experience rather than a report of it, and "Log Pruning"
+  is what this facility calls deleting a person. So the game lets the player keep
+  something. Twelve authored entries unlock on beats Rowan actually lives through
+  — the call at 04:12, arriving on each deck, the eleven seconds the log cache
+  took to give her up, the 3.7 seconds inside a *we* — and locked entries stay
+  listed as `— — —`, so the archive has a visible shape before it is filled.
+- The index (`src/systems/Lexicon.ts`) — a glossary of the setting's working
+  vocabulary (Article Zero, the Non-Subject Status Act, the SRP's pinned Q axis,
+  Alignment, silicate, the Shared Field, the Citizen Lattice). Visibility is
+  **derived** from the journal, inventory and objectives rather than stored, so
+  there's no third progress record to version and migrate.
+- The map: a per-level explored-tile mask (`src/systems/Explored.ts`, a bit per
+  tile, base64 in the save) marked from the same `hasLineOfSight` raycast the
+  guards' vision and the darkness overlay use — so the map shows exactly what
+  Rowan has had a sightline to, and the rooms off a corridor you walked stay dark.
+- Saves: four slots (`SaveGame.ts` v2) — the engine's `auto` checkpoint, written
+  on entry to each level as before, plus three the player writes from the SYSTEM
+  tab, so a level transition can never clobber a deliberate save. A v1 blob is
+  *upgraded on read* rather than rejected. Winning retires the checkpoint but
+  leaves the manual slots alone.
 - Alert-network stats: a confirmed sighting propagates to networked guards within
   the spotter's `AlertNetworkRadius` (default 7 tiles), and a top-left **NETWORK**
   panel (`src/systems/AlertNetwork.ts` + `src/ui/AlertNetworkHud.ts`) reports the
@@ -398,13 +437,19 @@ in real seconds so the balance they encode keeps its meaning.
 5. **The game loop & the fiction** — done: title / EIRA-7 codec / pause /
    outcome scenes, a win (deliver EIRA-7's logs to the Lattice uplink) and a
    lose (Alignment / capture), player bio-integrity, the SRP-framed HUD,
-   checkpoint save + continue, synthesised adaptive audio, and the **Shared
-   Field (WX-9)** capstone. Vitest unit tests cover the pure systems and CI runs
-   build + tests. See *The mission — Article Zero: Era 1* above.
+   multi-slot saves + continue, synthesised adaptive audio, the **Shared
+   Field (WX-9)** capstone, and the nine-tab **pause menu** — with the journal
+   and index that give the run's vocabulary and its argument somewhere to live.
+   Vitest unit tests cover the pure systems and CI runs build + tests. See
+   *The mission — Article Zero: Era 1* above.
 
 ## Project layout
 
 ```
+public/favicon*         tab icons + site.webmanifest (referenced relatively — vite
+                        sets base: "./", so root-absolute hrefs would break off-root).
+                        favicon.svg is hand-drawn vector, ~5 KB; see its header
+                        comment for the measurements it was traced from
 public/assets/          edplay.json + spritesheet_{0,1,2}.png (extracted from the zip)
 public/assets/player/   player character frames (see below)
 public/assets/enforcer/ enforcer sentry frames (see below)
@@ -412,13 +457,17 @@ public/assets/drone/    patrol drone frames (see below)
 public/assets/orderly/  orderly bystander frames (see below)
 src/main.ts         boot: load assets, parse map, start scenes
 src/map/            format types, loader, sprite atlas
-src/scenes/         GameScene, UIScene
+src/scenes/         GameScene, UIScene, PauseScene, CodecScene, TitleScene
 src/entities/       Player, Enforcer, Drone, Orderly, Sensor, Door, Terminal,
                     Laser, Chest, GuardSkin, PlayerAnimations,
                     EnforcerAnimations, DroneAnimations, OrderlyAnimations
 src/systems/        CollisionGrid, DetectionSystem, Visibility, AlertState,
-                    Conduct, TransitionGraph, Radar, AlertNetwork, EntityStats
-src/ui/             Hud, Radar, InventoryHud, AlertNetworkHud, Lighting
+                    Conduct, TransitionGraph, Radar, AlertNetwork, EntityStats,
+                    Journal, Lexicon, ItemCatalog, Explored, SaveGame, Settings,
+                    PauseState
+src/ui/             Hud, Radar, InventoryHud, AlertNetworkHud, Lighting,
+                    PauseMenuView, MiniMapCanvas, SelectList, Controls
+src/testing/        test-only helpers (an in-memory localStorage)
 ```
 
 ## Character & enemy art

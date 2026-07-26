@@ -5,15 +5,28 @@
  * mood, and short enveloped tones cover the gameplay SFX. EIRA-7's presence is
  * felt as a faint 37 Hz sub under the calm layer (her carrier-wave signature).
  *
+ * Volume and mute come from {@link ./Settings} — loaded at construction and
+ * written back whenever the pause menu's SETTINGS tab changes them.
+ *
  * Browsers gate audio behind a user gesture, so the context starts suspended
  * and is resumed on the first key/pointer input (and defensively before each
  * SFX). A single instance lives for the app's lifetime — use {@link getAudio}.
  */
+import { DEFAULT_SETTINGS, loadSettings, normalizeSettings, saveSettings, type Settings } from "./Settings";
+
 export type MusicMood = "calm" | "search" | "alert" | "none";
+
+/**
+ * The mixer's own headroom. Every voice routes through the master gain at this
+ * level; the player's volume preference scales it, so a setting of 1.0 is the
+ * mix as tuned rather than a boost into clipping.
+ */
+const HEADROOM = 0.22;
 
 class AudioDirector {
   private readonly ctx?: AudioContext;
   private readonly master?: GainNode;
+  private settings: Settings = { ...DEFAULT_SETTINGS };
   private calmGain?: GainNode;
   private alertGain?: GainNode;
   private started = false;
@@ -34,13 +47,34 @@ class AudioDirector {
     try {
       this.ctx = new Ctor();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.22;
       this.master.connect(this.ctx.destination);
+      // Adopt the stored preference before the first sound plays, so a muted
+      // player never gets one frame of audio on reload.
+      this.applySettings(loadSettings());
       const resume = (): void => void this.ctx?.resume();
       window.addEventListener("keydown", resume);
       window.addEventListener("pointerdown", resume);
     } catch {
       this.ctx = undefined;
+    }
+  }
+
+  /** The player's current audio preference. */
+  getSettings(): Settings {
+    return { ...this.settings };
+  }
+
+  /**
+   * Applies a volume/mute preference to the master gain and persists it.
+   *
+   * Set directly rather than ramped: this is driven by a slider the player is
+   * dragging, and a 20ms ramp per input event stacks into audible zipper noise.
+   */
+  applySettings(next: Settings): void {
+    this.settings = normalizeSettings(next);
+    saveSettings(this.settings);
+    if (this.master) {
+      this.master.gain.value = this.settings.muted ? 0 : HEADROOM * this.settings.masterVolume;
     }
   }
 

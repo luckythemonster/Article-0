@@ -110,6 +110,20 @@ export class TransitionGraph {
   at(levelName: string, tileX: number, tileY: number): Transition | undefined {
     return this.byLevel.get(levelName)?.get(key(tileX, tileY));
   }
+
+  /**
+   * Every transition tile on a level, with its coordinate — the reverse of
+   * {@link at}, for the pause menu's map, which needs to mark the ways out
+   * rather than test one tile.
+   */
+  exitsOn(levelName: string): { tx: number; ty: number; transition: Transition }[] {
+    const lookup = this.byLevel.get(levelName);
+    if (!lookup) return [];
+    return [...lookup].map(([coord, transition]) => {
+      const [tx, ty] = coord.split(",").map(Number);
+      return { tx, ty, transition };
+    });
+  }
 }
 
 /** The coordinate in `set` closest to (x,y); ties resolve by (y, then x). */
