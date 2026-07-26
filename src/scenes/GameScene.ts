@@ -470,6 +470,11 @@ export class GameScene extends Phaser.Scene {
 
     if (!this.scene.isActive("UIScene")) this.scene.launch("UIScene");
 
+    // A level transition is a scene.restart(), which builds a fresh Lighting.
+    // The old one owns off-display-list stamps Phaser will not reclaim on its
+    // own, so hand them back before this run of the scene goes away.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.lighting.destroy());
+
     this.saveCheckpoint();
   }
 

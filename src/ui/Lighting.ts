@@ -319,6 +319,32 @@ export class Lighting {
   }
 
   /**
+   * Releases everything this overlay owns. Call on scene shutdown.
+   *
+   * The stamps are the reason this has to exist. They are built with
+   * `scene.make.image({ add: false })` — deliberately, because they are erase
+   * brushes stamped into a RenderTexture rather than things the camera should
+   * draw — but the cost of staying off the display list is that
+   * `Scene.shutdown` never sees them, and so never destroys them. Every level
+   * transition is a `scene.restart()` that constructs a fresh `Lighting`, so
+   * without this each swap orphaned one stamp per light source (49 of them on
+   * `main1`) plus the cone and the player's pool, for the life of the session.
+   *
+   * `rt` and `shadowGfx` *are* on the display list and would be collected
+   * anyway; destroying them here too keeps the ownership in one place rather
+   * than split between this class and Phaser's bookkeeping.
+   */
+  destroy(): void {
+    for (const light of this.lights) light.stamp.destroy();
+    this.lights.length = 0;
+    this.eraseList.length = 0;
+    this.coneStamp.destroy();
+    this.playerStamp.destroy();
+    this.rt.destroy();
+    this.shadowGfx.destroy();
+  }
+
+  /**
    * Debug switch: hides the whole overlay so the level can be read at full
    * brightness. Re-enabling rebuilds both layers, since they went stale while off.
    */
