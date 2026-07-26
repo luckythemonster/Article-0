@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import type { GameLevel, GameMap, Transition } from "../map/types";
 import type { ParsedMap } from "../map/EdplayLoader";
 import { SensingContext } from "./game/SensingContext";
+import { bakeTileLayers, buildWallBodies } from "../map/TileBake";
 import { SpriteAtlas } from "../map/SpriteAtlas";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { DetectionSystem } from "../systems/DetectionSystem";
@@ -616,27 +617,16 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Draws tile-art layers in z-order and returns physics bodies for walls. */
+  /**
+   * Bakes the tile art into one texture and returns the merged wall bodies.
+   *
+   * This used to make a Game Object per tile and a static body per wall cell —
+   * 3,227 and 1,427 respectively on `duct1`, for a level that never changes a
+   * pixel. See {@link bakeTileLayers} and {@link buildWallBodies}.
+   */
   private renderLevel(): Phaser.GameObjects.GameObject[] {
-    const half = this.tileSize / 2;
-    const wallBodies: Phaser.GameObjects.GameObject[] = [];
-
-    this.level.layers.forEach((layer, layerIndex) => {
-      if (ENTITY_LAYERS.has(layer.name)) return;
-      const depth = layerIndex * 10;
-      for (const tile of layer.tiles) {
-        if (!tile.frame) continue;
-        const img = this.add
-          .image(tile.x * this.tileSize + half, tile.y * this.tileSize + half, tile.frame.textureKey, tile.frame.frameKey)
-          .setDepth(depth);
-        if (layer.name === "walls") {
-          this.physics.add.existing(img, true);
-          wallBodies.push(img);
-        }
-      }
-    });
-
-    return wallBodies;
+    bakeTileLayers(this, this.level, this.tileSize, ENTITY_LAYERS);
+    return buildWallBodies(this, this.level, this.tileSize);
   }
 
   /** Places the player at the arrival/spawn tile and instantiates guards. */
