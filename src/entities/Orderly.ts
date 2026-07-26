@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import type { CollisionGrid } from "../systems/CollisionGrid";
 import { paced } from "../systems/EntityStats";
 import { GUARD_DIRS, nearestGuardDirection, type GuardDir } from "./GuardSkin";
+import { FONT_MONO } from "../ui/fonts";
 import {
   ORDERLY_ANIM_FRAME_COUNTS,
   ORDERLY_ANIM_FRAME_RATES,
@@ -70,7 +71,7 @@ export class Orderly {
 
     this.bang = scene.add
       .text(this.x, this.y - tileSize, "!", {
-        fontFamily: "monospace",
+        fontFamily: FONT_MONO,
         fontSize: `${Math.floor(tileSize * 0.9)}px`,
         color: "#ffec3d",
         fontStyle: "bold",

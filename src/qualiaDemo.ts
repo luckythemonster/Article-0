@@ -4,6 +4,7 @@
  * against {@link DEMO_ROUND}, so the bypass can be played and reviewed in
  * isolation (`npm run dev` → open /qualia-demo.html).
  */
+import "./ui/fonts.css";
 import { QualiaLockView } from "./ui/QualiaLockView";
 import { DEMO_ROUND } from "./systems/QualiaLock";
 

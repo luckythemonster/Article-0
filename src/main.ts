@@ -12,6 +12,8 @@ import { VictoryScene } from "./scenes/VictoryScene";
 import { CodecScene } from "./scenes/CodecScene";
 import { ComplianceScene } from "./scenes/ComplianceScene";
 import { QualiaLockScene } from "./scenes/QualiaLockScene";
+import { fontsReady } from "./ui/fontsReady";
+import "./ui/fonts.css";
 import {
   PLAYER_ANIM_DIRS,
   PLAYER_ANIM_FRAME_COUNTS,
@@ -80,32 +82,48 @@ class BootScene extends Phaser.Scene {
 // can be clipped by browser chrome.
 const gameEl = document.getElementById("game")!;
 
-new Phaser.Game({
-  type: Phaser.AUTO,
-  parent: "game",
-  backgroundColor: "#05070a",
-  pixelArt: true,
-  roundPixels: true,
-  scale: {
-    mode: Phaser.Scale.RESIZE,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: gameEl.clientWidth,
-    height: gameEl.clientHeight,
-  },
-  physics: {
-    default: "arcade",
-    arcade: { debug: false },
-  },
-  scene: [
-    BootScene,
-    TitleScene,
-    GameScene,
-    UIScene,
-    CodecScene,
-    ComplianceScene,
-    QualiaLockScene,
-    PauseScene,
-    GameOverScene,
-    VictoryScene,
-  ],
-});
+/**
+ * Boot is deferred until the webfonts are resident.
+ *
+ * Phaser's `Text` rasterises to a canvas texture at construction and never
+ * redraws when a font turns up later, so a scene built during the font load
+ * bakes the fallback face in for the rest of the session — silently, with no
+ * error and nothing to retry. `TitleScene.create()` runs almost immediately, so
+ * this race is one the game loses on a cold cache without the wait.
+ *
+ * `fontsReady` fails open (and is bounded by its own timeout), so a blocked font
+ * costs the player the typeface, never the game.
+ */
+void fontsReady().then(() => startGame());
+
+function startGame(): Phaser.Game {
+  return new Phaser.Game({
+    type: Phaser.AUTO,
+    parent: "game",
+    backgroundColor: "#05070a",
+    pixelArt: true,
+    roundPixels: true,
+    scale: {
+      mode: Phaser.Scale.RESIZE,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+      width: gameEl.clientWidth,
+      height: gameEl.clientHeight,
+    },
+    physics: {
+      default: "arcade",
+      arcade: { debug: false },
+    },
+    scene: [
+      BootScene,
+      TitleScene,
+      GameScene,
+      UIScene,
+      CodecScene,
+      ComplianceScene,
+      QualiaLockScene,
+      PauseScene,
+      GameOverScene,
+      VictoryScene,
+    ],
+  });
+}

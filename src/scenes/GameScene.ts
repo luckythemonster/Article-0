@@ -88,6 +88,7 @@ import {
 } from "../systems/Conduct";
 import { DEBUG_ALLOWED } from "../systems/DebugFlag";
 import type { DebugSnapshot } from "../ui/DebugHud";
+import { FONT_MONO } from "../ui/fonts";
 
 /** Data passed to {@link GameScene} when (re)starting for a level swap. */
 interface GameSceneData {
@@ -412,7 +413,7 @@ export class GameScene extends Phaser.Scene {
     // camera zoom/follow keeps it legible without screen-anchor math.
     this.prompt = this.add
       .text(0, 0, "[E] Use access", {
-        fontFamily: "monospace",
+        fontFamily: FONT_MONO,
         fontSize: "11px",
         color: "#cfe8ff",
         backgroundColor: "#0a0f16cc",
@@ -425,7 +426,7 @@ export class GameScene extends Phaser.Scene {
     // "HIDDEN" marker shown over the player while concealed in cover.
     this.hidden = this.add
       .text(0, 0, "HIDDEN", {
-        fontFamily: "monospace",
+        fontFamily: FONT_MONO,
         fontSize: "10px",
         color: "#8effc0",
         fontStyle: "bold",

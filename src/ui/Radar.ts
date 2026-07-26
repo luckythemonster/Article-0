@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { RADAR_RADIUS_TILES, type RadarSnapshot } from "../systems/Radar";
+import { FONT_MONO } from "./fonts";
 
 const PANEL_BG = 0x0a0f16;
 const PANEL_BG_ALPHA = 0.85;
@@ -49,7 +50,7 @@ export class Radar {
 
     this.jamText = scene.add
       .text(0, 0, "JAMMED", {
-        fontFamily: "monospace",
+        fontFamily: FONT_MONO,
         fontSize: "10px",
         color: "#ff8a8a",
         fontStyle: "bold",

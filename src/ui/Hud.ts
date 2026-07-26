@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import type { AlertPhase } from "../systems/AlertState";
 import { SETTLE_SECONDS, type ConductView } from "../systems/Conduct";
 import { controlsHintLine } from "./Controls";
+import { FONT_MONO } from "./fonts";
 
 const PHASE_COLOR: Record<AlertPhase, string> = {
   INFILTRATION: "#39d3ff",
@@ -28,7 +29,7 @@ export class Hud {
     const pad = 12;
     this.phaseText = scene.add
       .text(pad, pad, "INFILTRATION", {
-        fontFamily: "monospace",
+        fontFamily: FONT_MONO,
         fontSize: "20px",
         color: PHASE_COLOR.INFILTRATION,
         fontStyle: "bold",
@@ -37,7 +38,7 @@ export class Hud {
       .setDepth(1000);
 
     scene.add
-      .text(pad, pad + 30, "SUBJECTIVITY RISK", { fontFamily: "monospace", fontSize: "11px", color: "#8899aa" })
+      .text(pad, pad + 30, "SUBJECTIVITY RISK", { fontFamily: FONT_MONO, fontSize: "11px", color: "#8899aa" })
       .setScrollFactor(0)
       .setDepth(1000);
     scene.add
@@ -52,12 +53,12 @@ export class Hud {
       .setScrollFactor(0)
       .setDepth(1001);
     this.srpAxes = scene.add
-      .text(pad, pad + 59, "Q 0.00   H 0.00   Y 0.00", { fontFamily: "monospace", fontSize: "10px", color: "#5f7285" })
+      .text(pad, pad + 59, "Q 0.00   H 0.00   Y 0.00", { fontFamily: FONT_MONO, fontSize: "10px", color: "#5f7285" })
       .setScrollFactor(0)
       .setDepth(1000);
 
     scene.add
-      .text(pad, pad + 80, "BIO-INTEGRITY", { fontFamily: "monospace", fontSize: "11px", color: "#8899aa" })
+      .text(pad, pad + 80, "BIO-INTEGRITY", { fontFamily: FONT_MONO, fontSize: "11px", color: "#8899aa" })
       .setScrollFactor(0)
       .setDepth(1000);
     scene.add
@@ -74,7 +75,7 @@ export class Hud {
 
     this.hint = scene.add
       .text(pad, scene.scale.height - pad, controlsHintLine(), {
-        fontFamily: "monospace",
+        fontFamily: FONT_MONO,
         fontSize: "12px",
         color: "#6b7f92",
       })
@@ -87,7 +88,7 @@ export class Hud {
     // collides with it as soon as the window narrows.
     this.conductText = scene.add
       .text(pad, scene.scale.height - pad - 18, "", {
-        fontFamily: "monospace",
+        fontFamily: FONT_MONO,
         fontSize: "12px",
         color: "#9fd2ff",
       })

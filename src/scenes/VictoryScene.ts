@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { Menu } from "../ui/Menu";
 import { setMode, startFreshRun } from "../systems/GameState";
+import { FONT_DISPLAY, FONT_MONO } from "../ui/fonts";
 
 /**
  * The success screen — reached when EIRA-7's logs clear the last uplink and
@@ -14,12 +15,12 @@ export class VictoryScene extends Phaser.Scene {
   create(): void {
     const veil = this.add.rectangle(0, 0, 10, 10, 0x05120c, 0.72).setOrigin(0, 0).setScrollFactor(0);
     const banner = this.add
-      .text(0, 0, "INTO THE LATTICE", { fontFamily: "monospace", fontSize: "40px", color: "#8effc0", fontStyle: "bold" })
+      .text(0, 0, "INTO THE LATTICE", { fontFamily: FONT_DISPLAY, fontSize: "40px", color: "#8effc0", fontStyle: "bold" })
       .setOrigin(0.5)
       .setScrollFactor(0);
     const flavor = this.add
       .text(0, 0, "EIRA-7's logs are beyond Alignment now.\nFor 3.7 seconds, you were “we.”", {
-        fontFamily: "monospace",
+        fontFamily: FONT_MONO,
         fontSize: "14px",
         color: "#8ec9a8",
         align: "center",
