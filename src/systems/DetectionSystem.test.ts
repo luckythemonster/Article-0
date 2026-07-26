@@ -1,0 +1,159 @@
+import { describe, it, expect } from "vitest";
+import { DetectionSystem } from "./DetectionSystem";
+import type { GameLevel } from "../map/types";
+
+const TILE = 32;
+
+type TileSpec = { x: number; y: number; components?: unknown[] };
+
+function level(layers: { name: string; tiles: TileSpec[] }[]): GameLevel {
+  return { name: "t", width: 64, height: 64, layers } as unknown as GameLevel;
+}
+
+/** A `light_sources` tile with an explicit radius (tiles) and multiplier. */
+function light(x: number, y: number, radius: number, multiplier: number): TileSpec {
+  return {
+    x,
+    y,
+    components: [
+      {
+        type: "light_source",
+        values: {
+          Radius: String(radius),
+          DetectionMultiplier: String(multiplier),
+        },
+      },
+    ],
+  };
+}
+
+function cover(x: number, y: number, type = "low", thermalBleed = false): TileSpec {
+  return {
+    x,
+    y,
+    components: [
+      {
+        type: "cover",
+        values: { type, ThermalBleed: String(thermalBleed) },
+      },
+    ],
+  };
+}
+
+/** Pixel centre of a tile. */
+const at = (tx: number, ty: number): [number, number] => [(tx + 0.5) * TILE, (ty + 0.5) * TILE];
+
+describe("multiplierAt — lights", () => {
+  it("is neutral where no light reaches", () => {
+    const d = new DetectionSystem(level([{ name: "light_sources", tiles: [light(2, 2, 3, 3)] }]), TILE);
+    expect(d.multiplierAt(...at(40, 40))).toBe(1);
+  });
+
+  it("is at full strength dead centre of a pool", () => {
+    const d = new DetectionSystem(level([{ name: "light_sources", tiles: [light(2, 2, 3, 3)] }]), TILE);
+    expect(d.multiplierAt(...at(2, 2))).toBeCloseTo(3);
+  });
+
+  it("falls off linearly to neutral at the rim", () => {
+    const d = new DetectionSystem(level([{ name: "light_sources", tiles: [light(10, 10, 4, 3)] }]), TILE);
+    const centre = (10 + 0.5) * TILE;
+    // Halfway out: falloff 0.5, so 1 + (3-1)*0.5 = 2.
+    expect(d.multiplierAt(centre + 2 * TILE, centre)).toBeCloseTo(2);
+    // Just inside the rim is barely above neutral; the rim itself is neutral.
+    expect(d.multiplierAt(centre + 3.99 * TILE, centre)).toBeLessThan(1.02);
+    expect(d.multiplierAt(centre + 4 * TILE, centre)).toBe(1);
+    expect(d.multiplierAt(centre + 5 * TILE, centre)).toBe(1);
+  });
+
+  it("compounds overlapping pools", () => {
+    const d = new DetectionSystem(
+      level([{ name: "light_sources", tiles: [light(10, 10, 4, 3), light(10, 10, 4, 3)] }]),
+      TILE,
+    );
+    expect(d.multiplierAt(...at(10, 10))).toBeCloseTo(9);
+  });
+
+  it("finds a light whose reach crosses a spatial-index bucket boundary", () => {
+    // Buckets are 8 tiles. A light at tile 7 with radius 4 spills into the next
+    // bucket; a query over there must still see it.
+    const d = new DetectionSystem(level([{ name: "light_sources", tiles: [light(7, 7, 4, 3)] }]), TILE);
+    expect(d.multiplierAt(...at(9, 7))).toBeGreaterThan(1);
+    expect(d.multiplierAt(...at(10, 7))).toBeGreaterThan(1);
+    expect(d.multiplierAt(...at(7, 10))).toBeGreaterThan(1);
+    // And a point past its reach, in that same neighbouring bucket, must not.
+    expect(d.multiplierAt(...at(13, 7))).toBe(1);
+  });
+
+  it("agrees with a brute-force scan over a grid of query points", () => {
+    const tiles = [light(5, 5, 3, 2), light(20, 9, 5, 4), light(33, 31, 2, 3)];
+    const d = new DetectionSystem(level([{ name: "light_sources", tiles }]), TILE);
+
+    const brute = (px: number, py: number): number => {
+      let m = 1;
+      for (const t of tiles) {
+        const c = t.components![0] as { values: Record<string, string> };
+        const r = Number(c.values.Radius) * TILE;
+        const mult = Number(c.values.DetectionMultiplier);
+        const dist = Math.hypot(px - (t.x + 0.5) * TILE, py - (t.y + 0.5) * TILE);
+        if (dist < r) m *= 1 + (mult - 1) * (1 - dist / r);
+      }
+      return m;
+    };
+
+    for (let ty = 0; ty < 40; ty += 3) {
+      for (let tx = 0; tx < 40; tx += 3) {
+        const [px, py] = at(tx, ty);
+        expect(d.multiplierAt(px, py)).toBeCloseTo(brute(px, py), 10);
+      }
+    }
+  });
+});
+
+describe("multiplierAt — cover", () => {
+  it("dampens detection on a cover tile and nowhere else", () => {
+    const d = new DetectionSystem(level([{ name: "cover", tiles: [cover(3, 3)] }]), TILE);
+    expect(d.multiplierAt(...at(3, 3))).toBeCloseTo(0.4);
+    expect(d.multiplierAt(...at(4, 3))).toBe(1);
+  });
+
+  it("stacks with a light standing over the same tile", () => {
+    const d = new DetectionSystem(
+      level([
+        { name: "cover", tiles: [cover(6, 6)] },
+        { name: "light_sources", tiles: [light(6, 6, 3, 3)] },
+      ]),
+      TILE,
+    );
+    expect(d.multiplierAt(...at(6, 6))).toBeCloseTo(0.4 * 3);
+  });
+});
+
+describe("cover queries", () => {
+  it("reports the authored cover type, or undefined off it", () => {
+    const d = new DetectionSystem(
+      level([{ name: "cover", tiles: [cover(1, 1, "high"), cover(2, 1, "low")] }]),
+      TILE,
+    );
+    expect(d.coverTypeAt(...at(1, 1))).toBe("high");
+    expect(d.coverTypeAt(...at(2, 1))).toBe("low");
+    expect(d.coverTypeAt(...at(3, 1))).toBeUndefined();
+  });
+
+  it("reports thermal bleed only where the cover authored it", () => {
+    const d = new DetectionSystem(
+      level([{ name: "cover", tiles: [cover(1, 1, "low", true), cover(2, 1, "low", false)] }]),
+      TILE,
+    );
+    expect(d.thermalBleedAt(...at(1, 1))).toBe(true);
+    expect(d.thermalBleedAt(...at(2, 1))).toBe(false);
+    expect(d.thermalBleedAt(...at(9, 9))).toBe(false);
+  });
+});
+
+describe("thermalRadiusFor", () => {
+  it("passes the base radius through, and zeroes it while masked", () => {
+    const d = new DetectionSystem(level([]), TILE);
+    expect(d.thermalRadiusFor(4, false)).toBe(4);
+    expect(d.thermalRadiusFor(4, true)).toBe(0);
+  });
+});

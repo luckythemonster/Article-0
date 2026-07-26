@@ -1,0 +1,88 @@
+/*
+ * Chrome for the two standalone minigame harnesses (compliance-demo.html and
+ * qualia-demo.html) — the shell, the heading, the blurb and the result banner
+ * that frame the view under test.
+ *
+ * Both pages carried this identically inline, so a tweak to one silently made
+ * the two demos look different. Neither page is the game, so none of it belongs
+ * in theme.css; the harnesses import this and nothing else does.
+ *
+ * The only thing that differs between them is how wide the shell runs and how
+ * tall the mount reserves, which is what the two modifier classes below are for.
+ */
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: #05070a;
+  font-family: "Share Tech Mono", "Article Zero Symbols", "Courier New", monospace;
+  color: #bfe3ea;
+}
+
+#shell {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* The phase-lock's controls need more room than the compliance log's. */
+#shell.is-wide {
+  max-width: 800px;
+}
+
+#shell h1 {
+  font-size: 15px;
+  letter-spacing: 1px;
+  color: #39d3ff;
+  margin: 0;
+}
+
+#shell p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #6b7f92;
+}
+
+.demo-banner {
+  min-height: 16px;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.demo-banner.is-solved {
+  color: #5effa0;
+}
+
+.demo-banner.is-aborted {
+  color: #ff5c6a;
+}
+
+/*
+ * The pointer follows the click handler, not the outcome.
+ *
+ * Both pages used to hang `cursor: pointer` off `.is-aborted`, but an abort
+ * clears `onclick` and restarts on a timer — so the banner offered a pointer
+ * over something that did nothing. Only a purge (qualia) and a solve (both) are
+ * actually click-to-replay, so those are the states that set this class.
+ */
+.demo-banner.is-replayable {
+  cursor: pointer;
+}
+
+/*
+ * Reserve the mount's height up front so the banner and blurb don't jump when
+ * the view mounts, or when a re-run swaps it out.
+ */
+#app {
+  min-height: 460px;
+}
+
+#app.is-tall {
+  min-height: 520px;
+}

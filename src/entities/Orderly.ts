@@ -1,8 +1,8 @@
 import Phaser from "phaser";
 import type { CollisionGrid } from "../systems/CollisionGrid";
 import { paced } from "../systems/EntityStats";
-import { GUARD_DIRS, nearestGuardDirection, type GuardDir } from "./GuardSkin";
-import { FONT_MONO } from "../ui/fonts";
+import { DIRS_8, nearestDirection, type Dir8 } from "./directions";
+import { alertMarker } from "./markers";
 import {
   ORDERLY_ANIM_FRAME_COUNTS,
   ORDERLY_ANIM_FRAME_RATES,
@@ -10,6 +10,7 @@ import {
   orderlyFrameKey,
   type OrderlyAnimName,
 } from "./OrderlyAnimations";
+import { len } from "../systems/distance";
 
 export interface OrderlyContext {
   grid: CollisionGrid;
@@ -40,14 +41,15 @@ const DISTRACT_PAUSE = 2.5;
  * hazard to avoid being seen by, not a persistent threat like a guard.
  */
 export class Orderly {
-  private x: number;
-  private y: number;
+  /** Pixel position — public for the same reason as {@link Enforcer.x}. */
+  x: number;
+  y: number;
   private readonly spawnX: number;
   private readonly spawnY: number;
   private facing = 0;
   private moving = false;
   private wanderTimer: number;
-  private dir: GuardDir = "south";
+  private dir: Dir8 = "south";
   private alerted = false;
   /** Seconds of stun remaining; while > 0 the orderly is frozen and can't witness. */
   private stunTimer = 0;
@@ -69,16 +71,7 @@ export class Orderly {
     this.body.setScale((tileSize * 1.5) / 84);
     this.body.play(orderlyAnimKey("idle", "south"));
 
-    this.bang = scene.add
-      .text(this.x, this.y - tileSize, "!", {
-        fontFamily: FONT_MONO,
-        fontSize: `${Math.floor(tileSize * 0.9)}px`,
-        color: "#ffec3d",
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5)
-      .setDepth(600)
-      .setVisible(false);
+    this.bang = alertMarker(scene, this.x, this.y, tileSize);
   }
 
   /** Freezes the orderly for a stretch (a Stun Rounds dart) — can't witness. */
@@ -115,7 +108,7 @@ export class Orderly {
       else this.wander(dt, ctx);
     }
 
-    const dir = nearestGuardDirection(this.facing);
+    const dir = nearestDirection(this.facing);
     const anim: OrderlyAnimName = this.moving ? "walk" : "idle";
     if (dir !== this.dir || this.body.anims.currentAnim?.key !== orderlyAnimKey(anim, dir)) {
       this.dir = dir;
@@ -143,7 +136,7 @@ export class Orderly {
       if (this.moving) {
         // Head roughly back toward spawn once the leash stretches too far,
         // otherwise wander in a random direction.
-        const strayed = Math.hypot(this.x - this.spawnX, this.y - this.spawnY) > WANDER_LEASH_TILES * tileSize;
+        const strayed = len(this.x - this.spawnX, this.y - this.spawnY) > WANDER_LEASH_TILES * tileSize;
         this.facing = strayed
           ? Math.atan2(this.spawnY - this.y, this.spawnX - this.x)
           : Phaser.Math.FloatBetween(0, Math.PI * 2);
@@ -174,7 +167,7 @@ export class Orderly {
   private investigateDistraction(dt: number, ctx: OrderlyContext): void {
     const target = this.distractTarget!;
     const { grid, tileSize } = ctx;
-    const dist = Math.hypot(target.x - this.x, target.y - this.y);
+    const dist = len(target.x - this.x, target.y - this.y);
 
     if (dist > tileSize * 0.5) {
       this.moving = true;
@@ -210,14 +203,11 @@ export class Orderly {
     if (ctx.playerCompliant) return false;
     if (ctx.playerConcealed) return false;
     const { player, tileSize, grid } = ctx;
-    const dist = Math.hypot(player.x - this.x, player.y - this.y);
+    const dist = len(player.x - this.x, player.y - this.y);
     if (dist > SIGHT_RANGE_TILES * tileSize) return false;
     return grid.hasLineOfSight(this.x / tileSize, this.y / tileSize, player.x / tileSize, player.y / tileSize);
   }
 
-  get position(): { x: number; y: number } {
-    return { x: this.x, y: this.y };
-  }
 
   /** True while frozen by a Stun Rounds dart — guards treat this as an anomaly. */
   get isStunned(): boolean {
@@ -229,7 +219,7 @@ export class Orderly {
     for (const anim of Object.keys(ORDERLY_ANIM_FRAME_COUNTS) as OrderlyAnimName[]) {
       const frameCount = ORDERLY_ANIM_FRAME_COUNTS[anim];
       const frameRate = ORDERLY_ANIM_FRAME_RATES[anim];
-      for (const dir of GUARD_DIRS) {
+      for (const dir of DIRS_8) {
         const key = orderlyAnimKey(anim, dir);
         if (scene.anims.exists(key)) continue;
         scene.anims.create({

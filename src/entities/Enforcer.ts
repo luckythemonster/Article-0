@@ -6,9 +6,14 @@ import { enforcerStatsFor, type EnforcerStats } from "../systems/EntityStats";
 import { moveCirclePx } from "../systems/GridMotion";
 import { findPath, smoothPath, type PathNode } from "../systems/Pathfinder";
 import type { PatrolRoute } from "../systems/PatrolRoute";
-import { GUARD_DIRS, nearestGuardDirection, type GuardDir, type GuardSkin } from "./GuardSkin";
+import { accrueDetection, canSense, type Eye } from "../systems/Sensing";
+import { angleDiff } from "../systems/angles";
+import { drawVisionCone, GUARD_CONE } from "../ui/VisionCone";
+import { type GuardSkin } from "./GuardSkin";
+import { DIRS_8, nearestDirection, type Dir8 } from "./directions";
 import { ENFORCER_SKIN } from "./EnforcerAnimations";
-import { FONT_MONO } from "../ui/fonts";
+import { alertMarker } from "./markers";
+import { len, withinOrEqual } from "../systems/distance";
 
 /**
  * A per-guard behaviour state, layered on top of the global {@link AlertState}
@@ -148,8 +153,14 @@ export class Enforcer {
    */
   facing: number;
   state: GuardState = "PATROL";
-  private x: number;
-  private y: number;
+  /**
+   * Pixel position. Public because the scene reads it constantly — radar blips,
+   * network alerts, cornering checks, the debug overlay — and a `position`
+   * getter returning `{ x, y }` minted a throwaway object on every one of those
+   * reads, several times per guard per frame. Same convention as {@link Player}.
+   */
+  x: number;
+  y: number;
   /** Heading the body is travelling along; drives which sprite direction plays. */
   private moveDir: number;
   private scanTimer = 0;
@@ -158,11 +169,13 @@ export class Enforcer {
   private scanOffset = 0;
   private readonly skin: GuardSkin;
   private readonly radiusTiles: number;
+  /** Reused across frames — {@link canSense} only reads it. */
+  private readonly eye: Eye;
 
   private readonly cone: Phaser.GameObjects.Graphics;
   private readonly body: Phaser.GameObjects.Sprite;
   private readonly bang: Phaser.GameObjects.Text;
-  private dir: GuardDir = "south";
+  private dir: Dir8 = "south";
 
   private prevPhase: AlertPhase = "INFILTRATION";
   private cautiousTimer = 0;
@@ -218,20 +231,20 @@ export class Enforcer {
 
     Enforcer.ensureAnimations(scene, skin);
 
+    this.eye = {
+      x: this.x,
+      y: this.y,
+      facing: this.facing,
+      rangeTiles: this.stats.sightRange,
+      coneDegrees: this.stats.sightAngle,
+      thermalTiles: this.stats.thermalRadius,
+    };
+
     this.cone = scene.add.graphics().setDepth(400);
     this.body = scene.add.sprite(this.x, this.y, skin.frameKey("south", 0)).setDepth(450);
     this.body.setScale((tileSize * skin.displayTiles) / skin.sourceSize);
     this.body.play(skin.animKey("south"));
-    this.bang = scene.add
-      .text(this.x, this.y - tileSize, "!", {
-        fontFamily: FONT_MONO,
-        fontSize: `${Math.floor(tileSize * 0.9)}px`,
-        color: "#ffec3d",
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5)
-      .setDepth(600)
-      .setVisible(false);
+    this.bang = alertMarker(scene, this.x, this.y, tileSize);
   }
 
   update(dt: number, ctx: EnforcerContext): void {
@@ -264,7 +277,7 @@ export class Enforcer {
     // Driving the sprite off `facing` would flip it between neighbouring
     // 8-direction frames every time the cone swept past a 45° boundary, which
     // reads as the whole chassis twitching rather than the arms panning.
-    const dir = nearestGuardDirection(this.isMoving() ? this.moveDir : this.facing);
+    const dir = nearestDirection(this.isMoving() ? this.moveDir : this.facing);
     if (dir !== this.dir) {
       this.dir = dir;
       this.body.play(this.skin.animKey(dir), true);
@@ -404,7 +417,7 @@ export class Enforcer {
   private canSeeAnomaly(a: GuardAnomaly, ctx: EnforcerContext): boolean {
     const dx = a.x - this.x;
     const dy = a.y - this.y;
-    const dist = Math.hypot(dx, dy);
+    const dist = len(dx, dy);
     if (dist > this.stats.sightRange * ctx.tileSize) return false;
     const angTo = Math.atan2(dy, dx);
     const half = Phaser.Math.DegToRad(this.stats.sightAngle) / 2;
@@ -438,7 +451,7 @@ export class Enforcer {
     const lkpPx = { x: (lkp.x + 0.5) * tileSize, y: (lkp.y + 0.5) * tileSize };
     const vx = ctx.playerVelocity?.x ?? 0;
     const vy = ctx.playerVelocity?.y ?? 0;
-    const vlen = Math.hypot(vx, vy);
+    const vlen = len(vx, vy);
     const targets: { x: number; y: number }[] = [];
 
     // 1. A point predicted along the player's last-known movement vector.
@@ -454,8 +467,8 @@ export class Enforcer {
     if (ctx.coverTilesNear) {
       const cover = ctx.coverTilesNear(lkp.x, lkp.y, SEARCH_RADIUS_TILES);
       cover.sort((a, b) => {
-        const da = Math.hypot(a.x - lkpPx.x, a.y - lkpPx.y) || 1;
-        const db = Math.hypot(b.x - lkpPx.x, b.y - lkpPx.y) || 1;
+        const da = len(a.x - lkpPx.x, a.y - lkpPx.y) || 1;
+        const db = len(b.x - lkpPx.x, b.y - lkpPx.y) || 1;
         if (vlen > 1) {
           const alignA = ((a.x - lkpPx.x) * vx + (a.y - lkpPx.y) * vy) / (da * vlen);
           const alignB = ((b.x - lkpPx.x) * vx + (b.y - lkpPx.y) * vy) / (db * vlen);
@@ -469,7 +482,7 @@ export class Enforcer {
     // 3. Open doorways adjacent to the last known position.
     if (ctx.anomalies) {
       for (const a of ctx.anomalies) {
-        if (a.kind === "door" && Math.hypot(a.tx - lkp.x, a.ty - lkp.y) <= SEARCH_RADIUS_TILES) {
+        if (a.kind === "door" && withinOrEqual(a.tx - lkp.x, a.ty - lkp.y, SEARCH_RADIUS_TILES)) {
           targets.push({ x: a.x, y: a.y });
         }
       }
@@ -546,7 +559,7 @@ export class Enforcer {
     let best = 0;
     let bestDist = Infinity;
     this.route.forEach((wp, i) => {
-      const d = Math.hypot(wp.x + 0.5 - tx, wp.y + 0.5 - ty);
+      const d = len(wp.x + 0.5 - tx, wp.y + 0.5 - ty);
       if (d < bestDist) {
         bestDist = d;
         best = i;
@@ -607,7 +620,7 @@ export class Enforcer {
     const { tileSize, alert } = ctx;
     this.scanOffset = 0;
 
-    if (this.canSee(ctx)) {
+    if (this.sense(ctx)) {
       this.clearPath();
       const ang = Math.atan2(ctx.player.y - this.y, ctx.player.x - this.x);
       this.faceToward(ang, dt);
@@ -659,7 +672,7 @@ export class Enforcer {
 
     const wx = (waypoint.x + 0.5) * tileSize;
     const wy = (waypoint.y + 0.5) * tileSize;
-    const dist = Math.hypot(wx - this.x, wy - this.y);
+    const dist = len(wx - this.x, wy - this.y);
     if (dist <= tileSize * ARRIVE_DIST_FACTOR) {
       this.pathIndex++;
       if (this.pathIndex >= this.path.length) {
@@ -728,7 +741,7 @@ export class Enforcer {
     if (this.heldDoor) {
       const dx = this.heldDoor.x + 0.5 - this.x / tileSize;
       const dy = this.heldDoor.y + 0.5 - this.y / tileSize;
-      if (Math.hypot(dx, dy) > DOOR_CLOSE_TILES) {
+      if (!withinOrEqual(dx, dy, DOOR_CLOSE_TILES)) {
         ctx.setDoorOpen(this.heldDoor.x, this.heldDoor.y, false);
         this.heldDoor = null;
       }
@@ -789,110 +802,51 @@ export class Enforcer {
     return this.path.length > 0 && this.pathIndex < this.path.length;
   }
 
-  private updateDetection(dt: number, ctx: EnforcerContext): void {
-    const seen = this.canSee(ctx);
-    if (seen) {
-      const light = ctx.lightMultiplierAt(ctx.player.x, ctx.player.y);
-      const cautiousBoost = this.state === "CAUTIOUS" ? CAUTIOUS_DETECTION_MULTIPLIER : 1;
-      const rate = (1 / this.stats.auditDelay) * light * cautiousBoost;
-      this.detection = Math.min(1, this.detection + rate * dt);
-      if (this.detection >= 1) {
-        this.detection = 1;
-        ctx.alert.reportSighting(
-          Math.floor(ctx.player.x / ctx.tileSize),
-          Math.floor(ctx.player.y / ctx.tileSize),
-        );
-      }
-    } else {
-      // Decay when the player is out of sight.
-      this.detection = Math.max(0, this.detection - dt * 0.6);
-    }
+  /**
+   * Whether the guard senses the player *right now*, from where it currently
+   * stands and looks.
+   *
+   * Deliberately re-asked rather than cached for the frame: {@link pursue} runs
+   * before {@link updateDetection} and moves the guard in between, so a cached
+   * answer would be one step stale exactly during a chase.
+   */
+  private sense(ctx: EnforcerContext): boolean {
+    this.eye.x = this.x;
+    this.eye.y = this.y;
+    this.eye.facing = this.facing;
+    return canSense(this.eye, ctx);
   }
 
-  /**
-   * True when the guard senses the player this frame, by either of two paths:
-   *  - **thermal** — a short 360° heat sense within {@link EnforcerStats.thermalRadius},
-   *    ignoring the cone angle, as long as the player isn't hidden in heat-blocking
-   *    cover and there's clear line of sight;
-   *  - **cone** — inside the vision cone, within {@link EnforcerStats.sightRange},
-   *    with clear LOS, and not crouched behind cover.
-   *
-   * Compliance short-circuits both, at any range. That is the point of it: the guard
-   * looks straight at Rowan, reads him as staff going about his business, and returns
-   * to the sweep. Distance is not the limiter — conduct is.
-   */
-  private canSee(ctx: EnforcerContext): boolean {
-    const { player, tileSize, grid } = ctx;
-
-    if (ctx.playerCompliant) return false;
-
-    // A live Chaff Pack EMP zone blinds any guard caught inside it outright.
-    if (ctx.chaffZone) {
-      const dz = Math.hypot(this.x - ctx.chaffZone.x, this.y - ctx.chaffZone.y);
-      if (dz <= ctx.chaffZone.radiusPx) return false;
-    }
-
-    const dx = player.x - this.x;
-    const dy = player.y - this.y;
-    const dist = Math.hypot(dx, dy);
-    const hasLos = (): boolean =>
-      grid.hasLineOfSight(
-        this.x / tileSize,
-        this.y / tileSize,
-        player.x / tileSize,
-        player.y / tileSize,
-      );
-
-    // Thermal: close-range body heat betrays the player even outside the cone.
-    const thermalPx = ctx.thermalRadiusMultiplier(this.stats.thermalRadius) * tileSize;
-    if (!ctx.playerThermalConcealed && thermalPx > 0 && dist <= thermalPx && hasLos()) return true;
-
-    // Cone: crouched behind cover hides the player from the visible cone.
-    if (ctx.playerConcealed) return false;
-    if (dist > this.stats.sightRange * tileSize) return false;
-    const angTo = Math.atan2(dy, dx);
-    const half = Phaser.Math.DegToRad(this.stats.sightAngle) / 2;
-    if (Math.abs(angleDiff(this.facing, angTo)) > half) return false;
-    return hasLos();
+  private updateDetection(dt: number, ctx: EnforcerContext): void {
+    this.detection = accrueDetection(
+      this.detection,
+      this.sense(ctx),
+      dt,
+      this.stats.auditDelay,
+      ctx,
+      // A guard that has just finished a search is quicker to be sure of what
+      // it is looking at.
+      this.state === "CAUTIOUS" ? CAUTIOUS_DETECTION_MULTIPLIER : 1,
+    );
   }
 
   /** Draws the wall-clipped vision cone as a fan of rays. */
   private drawCone(grid: CollisionGrid, tileSize: number): void {
-    const half = Phaser.Math.DegToRad(this.stats.sightAngle) / 2;
-    const rangePx = this.stats.sightRange * tileSize;
-    const points: number[] = [this.x, this.y];
-    for (let i = 0; i <= RAY_COUNT; i++) {
-      const a = this.facing - half + (2 * half * i) / RAY_COUNT;
-      const hit = this.castRay(grid, tileSize, a, rangePx);
-      points.push(this.x + Math.cos(a) * hit, this.y + Math.sin(a) * hit);
-    }
-
-    const alerted = this.detection > 0.66;
-    this.cone.clear();
-    this.cone.fillStyle(alerted ? 0xff3b3b : 0xffe14d, alerted ? 0.28 : 0.14);
-    this.cone.beginPath();
-    this.cone.moveTo(points[0], points[1]);
-    for (let i = 2; i < points.length; i += 2) this.cone.lineTo(points[i], points[i + 1]);
-    this.cone.closePath();
-    this.cone.fillPath();
+    drawVisionCone(
+      this.cone,
+      grid,
+      this.x,
+      this.y,
+      this.facing,
+      this.stats.sightAngle,
+      this.stats.sightRange,
+      tileSize,
+      this.detection,
+      GUARD_CONE,
+      RAY_COUNT,
+    );
   }
 
-  /** Returns the distance a ray travels before hitting a wall (or maxDist). */
-  private castRay(grid: CollisionGrid, tileSize: number, angle: number, maxDist: number): number {
-    const step = tileSize * 0.25;
-    const cx = Math.cos(angle);
-    const cy = Math.sin(angle);
-    for (let d = step; d <= maxDist; d += step) {
-      const tx = Math.floor((this.x + cx * d) / tileSize);
-      const ty = Math.floor((this.y + cy * d) / tileSize);
-      if (grid.blocksSight(tx, ty)) return d - step;
-    }
-    return maxDist;
-  }
-
-  get position(): { x: number; y: number } {
-    return { x: this.x, y: this.y };
-  }
 
   /** Collision radius in tiles — read by the debug overlay. */
   get collisionRadiusTiles(): number {
@@ -926,7 +880,7 @@ export class Enforcer {
 
   /** Registers a skin's patrol-scan animation for each direction once per scene. */
   private static ensureAnimations(scene: Phaser.Scene, skin: GuardSkin): void {
-    for (const dir of GUARD_DIRS) {
+    for (const dir of DIRS_8) {
       const key = skin.animKey(dir);
       if (scene.anims.exists(key)) continue;
       scene.anims.create({
@@ -939,14 +893,6 @@ export class Enforcer {
       });
     }
   }
-}
-
-/** Smallest signed angle from a to b, in (-pi, pi]. */
-function angleDiff(a: number, b: number): number {
-  let d = b - a;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
-  return d;
 }
 
 /** Rotates `from` toward `to` by at most `maxStep` radians. */

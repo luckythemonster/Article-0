@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { CollisionGrid } from "./CollisionGrid";
+import { CollisionGrid, WallBuffer } from "./CollisionGrid";
 import type { GameLevel } from "../map/types";
 
 /** A 5×5 level with a wall column at x=2 for y=0..2. */
@@ -73,6 +73,72 @@ describe("CollisionGrid", () => {
       const g = new CollisionGrid(level());
       expect(g.blocksSight(-1, 0)).toBe(true);
       expect(g.blocksSight(99, 0)).toBe(true);
+    });
+  });
+
+  describe("wallsNear", () => {
+    /** Every blocked cell in a radius, brute-forced, as sorted "dx,dy" strings. */
+    function brute(g: CollisionGrid, cx: number, cy: number, r: number): string[] {
+      const out: string[] = [];
+      for (let y = 0; y < 5; y++) {
+        for (let x = 0; x < 5; x++) {
+          const dx = x - cx;
+          const dy = y - cy;
+          if (dx * dx + dy * dy > r * r) continue;
+          if (g.isBlocked(x, y)) out.push(`${dx},${dy}`);
+        }
+      }
+      return out.sort();
+    }
+
+    function collect(buf: WallBuffer): string[] {
+      const out: string[] = [];
+      for (let i = 0; i < buf.count; i++) out.push(`${buf.dx(i)},${buf.dy(i)}`);
+      return out.sort();
+    }
+
+    it("reports exactly the blocked cells inside the radius", () => {
+      const g = new CollisionGrid(level());
+      const buf = new WallBuffer();
+      g.wallsNear(2.5, 1.5, 3, buf);
+      expect(collect(buf)).toEqual(brute(g, 2.5, 1.5, 3));
+      expect(buf.count).toBe(3);
+    });
+
+    it("excludes walls outside the radius", () => {
+      const g = new CollisionGrid(level());
+      const buf = new WallBuffer();
+      // Far corner: the wall column at x=2 is more than one tile away.
+      g.wallsNear(0.5, 4.5, 1, buf);
+      expect(buf.count).toBe(0);
+    });
+
+    it("picks up a door that closed since the last sweep", () => {
+      const g = new CollisionGrid(level());
+      const buf = new WallBuffer();
+      g.wallsNear(0.5, 0.5, 2, buf);
+      const before = buf.count;
+      g.setBlocked(1, 1, true);
+      buf.clear();
+      g.wallsNear(0.5, 0.5, 2, buf);
+      expect(buf.count).toBe(before + 1);
+    });
+
+    it("appends across calls until cleared, so the caller owns the reset", () => {
+      const g = new CollisionGrid(level());
+      const buf = new WallBuffer();
+      g.wallsNear(2.5, 1.5, 3, buf);
+      g.wallsNear(2.5, 1.5, 3, buf);
+      expect(buf.count).toBe(6);
+      buf.clear();
+      expect(buf.count).toBe(0);
+    });
+
+    it("grows past its initial capacity without losing points", () => {
+      const g = new CollisionGrid(level());
+      const buf = new WallBuffer(1); // room for a single point
+      g.wallsNear(2.5, 1.5, 3, buf);
+      expect(collect(buf)).toEqual(brute(g, 2.5, 1.5, 3));
     });
   });
 });

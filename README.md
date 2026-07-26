@@ -2,7 +2,7 @@
 
 An SNES-style, top-down **stealth RPG engine** — Metal Gear / Metal Gear 2 as
 the north star — that parses and runs the level map shipped in this repo
-(`Article Zero test map 1.zip`).
+(`public/assets/edplay.json` plus its three spritesheets).
 
 The map was authored in a tile editor and exported as `edplay.json`: 4 connected
 levels (`main1`, `duct1`, `duct2`, `main2`) built from layered "boards" (floor,
@@ -450,7 +450,9 @@ public/favicon*         tab icons + site.webmanifest (referenced relatively — 
                         sets base: "./", so root-absolute hrefs would break off-root).
                         favicon.svg is hand-drawn vector, ~5 KB; see its header
                         comment for the measurements it was traced from
-public/assets/          edplay.json + spritesheet_{0,1,2}.png (extracted from the zip)
+public/assets/          edplay.json + spritesheet_{0,1,2}.png — the tile editor's
+                        export, committed verbatim and served as-is; this is the
+                        map's source of truth
 public/assets/player/   player character frames (see below)
 public/assets/enforcer/ enforcer sentry frames (see below)
 public/assets/drone/    patrol drone frames (see below)
@@ -470,7 +472,15 @@ src/ui/             Hud, Radar, InventoryHud, AlertNetworkHud, Lighting,
                     fonts (the type stack), fontsReady (the boot gate)
 src/ui/fonts/       Share Tech + Share Tech Mono woff2 + OFL licence
 src/testing/        test-only helpers (an in-memory localStorage)
+tools/font/         build_symbols.py — regenerates the symbol woff2
 ```
+
+`7:25:26 VFX uploads.zip` at the repo root is **staged art, not a build input**:
+explosion and smoke-plume frame sequences waiting on an effects system to use
+them. Nothing loads it. Leave it be until those effects land.
+
+`motion` is listed in `dependencies` but never imported directly — it is a
+required `peerDependency` of `@arwes/frames`. Removing it breaks the install.
 
 ## Typography
 

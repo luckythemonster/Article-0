@@ -1,6 +1,7 @@
-import Phaser from "phaser";
+import type Phaser from "phaser";
 import type { GameTile } from "../map/types";
 import { VENT4_DEFAULTS, type Vent4Stats } from "../systems/EntityStats";
+import { HoldTarget, HOLD_BAR_CYAN } from "./HoldTarget";
 
 /**
  * A pressure relief terminal on the VENT-4 arena perimeter. Hold the interact
@@ -10,7 +11,8 @@ import { VENT4_DEFAULTS, type Vent4Stats } from "../systems/EntityStats";
  * phase — shown as an amber tint and a resisting prompt.
  *
  * Renders its own sprite from the arena tile's frame (the `substations` board
- * is in GameScene's ENTITY_LAYERS so the static renderer skips it).
+ * is in GameScene's ENTITY_LAYERS so the static renderer skips it). The sprite,
+ * bar and hold timer are a {@link HoldTarget}, shared with {@link Terminal}.
  */
 export class PressureSubStation {
   readonly index: number;
@@ -21,32 +23,21 @@ export class PressureSubStation {
 
   private patched = false;
   private locked = false;
-  private progress = 0; // seconds accumulated
-  private readonly image?: Phaser.GameObjects.Image;
-  private readonly bar: Phaser.GameObjects.Graphics;
-  private readonly tileSize: number;
+  private readonly hold: HoldTarget;
 
   constructor(
     scene: Phaser.Scene,
     tile: GameTile,
     tileSize: number,
     index: number,
-    private readonly stats: Vent4Stats = VENT4_DEFAULTS,
+    stats: Vent4Stats = VENT4_DEFAULTS,
   ) {
     this.index = index;
     this.tileX = tile.x;
     this.tileY = tile.y;
-    this.tileSize = tileSize;
-    this.x = (tile.x + 0.5) * tileSize + tile.offsetX;
-    this.y = (tile.y + 0.5) * tileSize + tile.offsetY;
-
-    if (tile.frame) {
-      this.image = scene.add
-        .image(this.x, this.y, tile.frame.textureKey, tile.frame.frameKey)
-        .setDisplaySize(tile.colSpan * tileSize, tile.rowSpan * tileSize)
-        .setDepth(120);
-    }
-    this.bar = scene.add.graphics().setDepth(1000).setVisible(false);
+    this.hold = new HoldTarget(scene, tile, tileSize, stats.patchTime, HOLD_BAR_CYAN);
+    this.x = this.hold.x;
+    this.y = this.hold.y;
   }
 
   get isPatched(): boolean {
@@ -63,30 +54,23 @@ export class PressureSubStation {
    */
   patch(dt: number): boolean {
     if (this.patched || this.locked) return false;
-    this.progress = Math.min(this.stats.patchTime, this.progress + dt);
-    this.drawBar(true);
-    if (this.progress >= this.stats.patchTime) {
-      this.finish();
-      return true;
-    }
-    return false;
+    if (!this.hold.advance(dt)) return false;
+    this.finish();
+    return true;
   }
 
   /** Called when the player isn't patching this frame — decays partial progress. */
   idle(dt: number): void {
     if (this.patched) return;
-    if (this.progress > 0) {
-      this.progress = Math.max(0, this.progress - dt * 1.5);
-      this.drawBar(this.progress > 0);
-    }
+    this.hold.decay(dt);
   }
 
   /** The machine resists the finisher station until the purge phase. */
   setLocked(locked: boolean): void {
     if (this.patched || locked === this.locked) return;
     this.locked = locked;
-    if (locked) this.image?.setTint(0xffb03b);
-    else this.image?.clearTint();
+    if (locked) this.hold.setTint(0xffb03b);
+    else this.hold.clearTint();
   }
 
   /** Restores a patched state on arena re-entry (no bar, no completion event). */
@@ -97,22 +81,6 @@ export class PressureSubStation {
   private finish(): void {
     this.patched = true;
     this.locked = false;
-    this.bar.setVisible(false);
-    this.image?.setTint(0x5effa0); // patched = green
-  }
-
-  private drawBar(visible: boolean): void {
-    this.bar.setVisible(visible);
-    if (!visible) return;
-    const w = this.tileSize * 0.9;
-    const h = 5;
-    const x = this.x - w / 2;
-    const y = this.y - this.tileSize * 0.8;
-    const frac = this.stats.patchTime > 0 ? this.progress / this.stats.patchTime : 1;
-    this.bar.clear();
-    this.bar.fillStyle(0x0a0f16, 0.85);
-    this.bar.fillRect(x - 1, y - 1, w + 2, h + 2);
-    this.bar.fillStyle(0x39d3ff, 1);
-    this.bar.fillRect(x, y, w * frac, h);
+    this.hold.settle(0x5effa0); // patched = green
   }
 }

@@ -62,9 +62,15 @@ export function rayDirections(rayCount: number = SIGHT_RAYS): RayDirections {
  * direction `(dirX, dirY)`, capped at `maxTiles`.
  *
  * An Amanatides–Woo grid walk: step boundary to boundary, stopping at the first
- * blocked cell, then carrying {@link WALL_REVEAL_TILES} further so the wall itself
- * is lit. The origin cell is never tested, so standing inside a wall (debug
- * no-clip) still sees out.
+ * blocked cell, then carrying `reveal` further so the wall itself is lit. The
+ * origin cell is never tested, so standing inside a wall (debug no-clip) still
+ * sees out.
+ *
+ * @param reveal how far past the blocking face the ray carries, in tiles.
+ *   Defaults to {@link WALL_REVEAL_TILES} for the darkness overlay, which wants
+ *   the near half of the wall lit. Guard vision cones pass `0`: a cone is a
+ *   readout of what the guard can see, and painting it over the wall face reads
+ *   as the cone leaking through.
  */
 export function rayDistance(
   grid: CollisionGrid,
@@ -73,6 +79,7 @@ export function rayDistance(
   dirX: number,
   dirY: number,
   maxTiles: number,
+  reveal: number = WALL_REVEAL_TILES,
 ): number {
   let ix = Math.floor(originX);
   let iy = Math.floor(originY);
@@ -107,7 +114,7 @@ export function rayDistance(
     if (grid.blocksSight(ix, iy)) {
       // Half a tile past the face we just crossed — the wall's mid-depth, never its
       // far face. See WALL_REVEAL_TILES for why that distinction is the whole ballgame.
-      return Math.min(enter + WALL_REVEAL_TILES, maxTiles);
+      return Math.min(enter + reveal, maxTiles);
     }
   }
   return maxTiles;

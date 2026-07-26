@@ -15,12 +15,12 @@ import { QualiaLockScene } from "./scenes/QualiaLockScene";
 import { fontsReady } from "./ui/fontsReady";
 import "./ui/fonts.css";
 import {
-  PLAYER_ANIM_DIRS,
   PLAYER_ANIM_FRAME_COUNTS,
   playerFrameKey,
   playerFramePath,
   type PlayerAnimName,
 } from "./entities/PlayerAnimations";
+import { DIRS_8 } from "./entities/directions";
 import { ENFORCER_SKIN } from "./entities/EnforcerAnimations";
 import { DRONE_SKIN } from "./entities/DroneAnimations";
 import { preloadGuardSkin } from "./entities/GuardSkin";
@@ -45,7 +45,7 @@ class BootScene extends Phaser.Scene {
     this.load.image("spritesheet_2.png", "assets/spritesheet_2.png");
 
     for (const anim of Object.keys(PLAYER_ANIM_FRAME_COUNTS) as PlayerAnimName[]) {
-      for (const dir of PLAYER_ANIM_DIRS) {
+      for (const dir of DIRS_8) {
         const count = PLAYER_ANIM_FRAME_COUNTS[anim];
         for (let i = 0; i < count; i++) {
           this.load.image(playerFrameKey(anim, dir, i), playerFramePath(anim, dir, i));

@@ -1,16 +1,15 @@
 import Phaser from "phaser";
 import {
-  PLAYER_ANIM_DIRS,
   PLAYER_ANIM_FRAME_COUNTS,
   PLAYER_ANIM_FRAME_RATES,
-  nearestDirection,
   playerAnimKey,
   playerFrameKey,
-  type PlayerAnimDir,
   type PlayerAnimName,
 } from "./PlayerAnimations";
+import { DIRS_8, directionOf, type Dir8 } from "./directions";
 import { PLAYER_DEFAULTS, paced } from "../systems/EntityStats";
 import { PLAYER_IDLE_SOUTH_COLLIDER } from "./generated/playerCollider";
+import { len } from "../systems/distance";
 
 /**
  * The player-controlled infiltrator, rendered with the PixelLab-generated
@@ -36,7 +35,7 @@ export class Player {
   facing = -Math.PI / 2; // start facing "up"
   private readonly walkSpeed: number;
   private readonly baseScale: number;
-  private dir: PlayerAnimDir = "south";
+  private dir: Dir8 = "south";
   private currentAnim: PlayerAnimName = "idle";
   private stance: Stance = "standing";
 
@@ -159,13 +158,13 @@ export class Player {
     const speed = this.walkSpeed * stanceMul;
 
     if (moving) {
-      const len = Math.hypot(vx, vy);
-      vx = (vx / len) * speed;
-      vy = (vy / len) * speed;
+      const mag = len(vx, vy);
+      vx = (vx / mag) * speed;
+      vy = (vy / mag) * speed;
       this.facing = Math.atan2(vy, vx);
       // Lock the facing direction while a transition clip plays so turning
       // mid-lower/rise doesn't restart it in a new direction.
-      if (!transitioning) this.dir = nearestDirection(vx, vy);
+      if (!transitioning) this.dir = directionOf(vx, vy);
     }
     this.sprite.setVelocity(vx, vy);
 
@@ -235,7 +234,7 @@ export class Player {
     this.sprite.play(playerAnimKey(anim, this.dir), true);
   }
 
-  private setAnimation(anim: PlayerAnimName, dir: PlayerAnimDir): void {
+  private setAnimation(anim: PlayerAnimName, dir: Dir8): void {
     if (anim === this.currentAnim && this.sprite.anims.currentAnim?.key === playerAnimKey(anim, dir)) {
       return;
     }
@@ -257,7 +256,7 @@ export class Player {
       const frameRate = PLAYER_ANIM_FRAME_RATES[anim];
       // The lower/rise transitions are one-shots; everything else loops.
       const repeat = anim === "crouch-down" || anim === "crouch-up" ? 0 : -1;
-      for (const dir of PLAYER_ANIM_DIRS) {
+      for (const dir of DIRS_8) {
         const key = playerAnimKey(anim, dir);
         if (scene.anims.exists(key)) continue;
         scene.anims.create({

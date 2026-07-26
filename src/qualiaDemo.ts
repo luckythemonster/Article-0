@@ -5,6 +5,7 @@
  * isolation (`npm run dev` → open /qualia-demo.html).
  */
 import "./ui/fonts.css";
+import "./ui/demo.css";
 import { QualiaLockView } from "./ui/QualiaLockView";
 import { DEMO_ROUND } from "./systems/QualiaLock";
 
@@ -21,12 +22,12 @@ function start(): void {
   view = new QualiaLockView(mount, DEMO_ROUND, {
     onSolved: () => {
       banner.textContent = "✔ PHASE LOCK — Q0 baseline masked, rack compliant. (click to replay)";
-      banner.className = "demo-banner is-solved";
+      banner.className = "demo-banner is-solved is-replayable";
       banner.onclick = start;
     },
     onPurged: () => {
       banner.textContent = "✖ PURGE — instability tripped the environmental purge. (click to retry)";
-      banner.className = "demo-banner is-aborted";
+      banner.className = "demo-banner is-aborted is-replayable";
       banner.onclick = start;
     },
     onClose: () => {

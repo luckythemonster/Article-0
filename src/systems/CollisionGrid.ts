@@ -1,6 +1,52 @@
 import type { GameLevel } from "../map/types";
 
 /**
+ * A growable list of (dx, dy) point pairs, backed by one `Float32Array`.
+ *
+ * Exists so {@link CollisionGrid.wallsNear} can report a few hundred points per
+ * frame without allocating a few hundred objects. Hold one and hand it back in
+ * each frame; it keeps whatever capacity it reached, so after the first second
+ * of play it stops allocating entirely.
+ */
+export class WallBuffer {
+  /** Flat pairs: `[dx0, dy0, dx1, dy1, …]`. Only the first `2 * count` are live. */
+  private data: Float32Array;
+  /** Number of *points* held (so `2 * count` live entries in {@link data}). */
+  count = 0;
+
+  constructor(capacityPoints = 256) {
+    this.data = new Float32Array(capacityPoints * 2);
+  }
+
+  /** Drops every point but keeps the capacity. */
+  clear(): void {
+    this.count = 0;
+  }
+
+  push(dx: number, dy: number): void {
+    const i = this.count * 2;
+    if (i + 2 > this.data.length) {
+      const grown = new Float32Array(this.data.length * 2);
+      grown.set(this.data);
+      this.data = grown;
+    }
+    this.data[i] = dx;
+    this.data[i + 1] = dy;
+    this.count++;
+  }
+
+  /** X offset of point `i` (`i < count`). */
+  dx(i: number): number {
+    return this.data[i * 2];
+  }
+
+  /** Y offset of point `i` (`i < count`). */
+  dy(i: number): number {
+    return this.data[i * 2 + 1];
+  }
+}
+
+/**
  * A grid of blocked tiles for a level, plus helpers used by both player movement and
  * line of sight. Built from the `walls` layer (and any other layers marked as
  * blocking, e.g. closed doors in later phases).
@@ -81,22 +127,30 @@ export class CollisionGrid {
 
   /**
    * Blocked-tile offsets within a circular radius (in tiles) of a centre point,
-   * as (dx, dy) relative to that centre. Used by the radar to sample nearby
-   * terrain without scanning the whole level each frame.
+   * as (dx, dy) relative to that centre, appended to `out`. Used by the radar
+   * to sample nearby terrain without scanning the whole level each frame.
+   *
+   * Fills a caller-owned {@link WallBuffer} rather than returning a fresh array
+   * because this runs every frame: a 10-tile radar radius sweeps 441 cells and
+   * can report a few hundred of them, and one `{ dx, dy }` per report at 60fps
+   * is a steady stream of short-lived objects for something that is only ever
+   * read and thrown away within the frame.
    */
-  wallsNear(cx: number, cy: number, radius: number): { dx: number; dy: number }[] {
-    const out: { dx: number; dy: number }[] = [];
+  wallsNear(cx: number, cy: number, radius: number, out: WallBuffer): WallBuffer {
     const r2 = radius * radius;
     const minX = Math.max(0, Math.floor(cx - radius));
     const maxX = Math.min(this.width - 1, Math.ceil(cx + radius));
     const minY = Math.max(0, Math.floor(cy - radius));
     const maxY = Math.min(this.height - 1, Math.ceil(cy + radius));
     for (let y = minY; y <= maxY; y++) {
+      const row = y * this.width;
+      const dy = y - cy;
+      const dy2 = dy * dy;
       for (let x = minX; x <= maxX; x++) {
+        if (this.blocked[row + x] !== 1) continue;
         const dx = x - cx;
-        const dy = y - cy;
-        if (dx * dx + dy * dy > r2) continue;
-        if (this.blocked[y * this.width + x] === 1) out.push({ dx, dy });
+        if (dx * dx + dy2 > r2) continue;
+        out.push(dx, dy);
       }
     }
     return out;
