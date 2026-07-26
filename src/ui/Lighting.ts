@@ -8,6 +8,7 @@ import {
   SIGHT_RAYS,
   type RayDirections,
 } from "../systems/Visibility";
+import { len } from "../systems/distance";
 
 /**
  * Size of the generated soft light-pool stamp texture, in px. Comfortably larger
@@ -201,7 +202,7 @@ export class Lighting {
     this.grid = grid;
     this.tileSize = tileSize;
     this.camera = scene.cameras.main;
-    this.maxFarPx = Math.hypot(worldW, worldH);
+    this.maxFarPx = len(worldW, worldH);
     this.dirs = rayDirections(SIGHT_RAYS);
     this.dist = new Float64Array(SIGHT_RAYS);
 
@@ -434,7 +435,7 @@ export class Lighting {
     const v = this.camera.worldView;
     const dx = Math.max(Math.abs(viewX - v.x), Math.abs(v.right - viewX));
     const dy = Math.max(Math.abs(viewY - v.y), Math.abs(v.bottom - viewY));
-    return Math.hypot(dx, dy) + this.tileSize;
+    return len(dx, dy) + this.tileSize;
   }
 
   /**
@@ -481,7 +482,7 @@ export class Lighting {
   private static ensureGradientTexture(scene: Phaser.Scene): void {
     const c = GRADIENT_SIZE / 2;
     Lighting.ensureStampTexture(scene, "light-gradient", GRADIENT_SIZE, (x, y) =>
-      falloff(Math.hypot(x - c, y - c) / c, POOL_CORE),
+      falloff(len(x - c, y - c) / c, POOL_CORE),
     );
   }
 
@@ -496,7 +497,7 @@ export class Lighting {
     Lighting.ensureStampTexture(scene, "flashlight-cone", CONE_SIZE, (x, y) => {
       const dx = x;
       const dy = y - apexY;
-      const reach = falloff(Math.hypot(dx, dy) / CONE_SIZE, CONE_RANGE_CORE);
+      const reach = falloff(len(dx, dy) / CONE_SIZE, CONE_RANGE_CORE);
       if (reach <= 0) return 0;
       const offAxis = Math.atan2(Math.abs(dy), dx);
       return reach * falloff(offAxis / CONE_HALF_ANGLE, CONE_ANGLE_CORE);

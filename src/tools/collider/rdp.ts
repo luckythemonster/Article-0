@@ -1,3 +1,4 @@
+import { len } from "../../systems/distance";
 /**
  * Ramer–Douglas–Peucker polyline simplification.
  *
@@ -20,7 +21,7 @@ function perpendicularDistance(p: Point, a: Point, b: Point): number {
   const lenSq = dx * dx + dy * dy;
   if (lenSq === 0) {
     // Degenerate segment: fall back to plain point-to-point distance.
-    return Math.hypot(p.x - a.x, p.y - a.y);
+    return len(p.x - a.x, p.y - a.y);
   }
   // |(b - a) × (p - a)| / |b - a|
   const cross = dx * (p.y - a.y) - dy * (p.x - a.x);

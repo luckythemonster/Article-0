@@ -1,3 +1,4 @@
+import { withinOrEqual } from "./distance";
 /**
  * Global Metal Gear-style alert FSM.
  *
@@ -45,7 +46,7 @@ export class AlertState {
   /** True when a tile lies within a still-live caution sector. */
   isCautious(tileX: number, tileY: number, radiusTiles: number = SECTOR_CAUTION_RADIUS): boolean {
     return this.cautionSectors.some(
-      (s) => Math.hypot(s.x - tileX, s.y - tileY) <= radiusTiles,
+      (s) => withinOrEqual(s.x - tileX, s.y - tileY, radiusTiles),
     );
   }
 

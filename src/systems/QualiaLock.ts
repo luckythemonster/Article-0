@@ -1,3 +1,4 @@
+import { len } from "./distance";
 /**
  * The Qualia Phase-Lock minigame — the diagnostic bypass a silicate server rack
  * demands when its internal processing stress spikes into Q>0 qualia feedback.
@@ -297,9 +298,9 @@ export function pickQualiaRackIndex(
   }
 
   let best = pool[0];
-  let bestD = Math.hypot(best.t.x - spawn.x, best.t.y - spawn.y);
+  let bestD = len(best.t.x - spawn.x, best.t.y - spawn.y);
   for (const e of pool) {
-    const d = Math.hypot(e.t.x - spawn.x, e.t.y - spawn.y);
+    const d = len(e.t.x - spawn.x, e.t.y - spawn.y);
     if (d < bestD) {
       bestD = d;
       best = e;

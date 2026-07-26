@@ -9,6 +9,7 @@ import {
 import { DIRS_8, directionOf, type Dir8 } from "./directions";
 import { PLAYER_DEFAULTS, paced } from "../systems/EntityStats";
 import { PLAYER_IDLE_SOUTH_COLLIDER } from "./generated/playerCollider";
+import { len } from "../systems/distance";
 
 /**
  * The player-controlled infiltrator, rendered with the PixelLab-generated
@@ -157,9 +158,9 @@ export class Player {
     const speed = this.walkSpeed * stanceMul;
 
     if (moving) {
-      const len = Math.hypot(vx, vy);
-      vx = (vx / len) * speed;
-      vy = (vy / len) * speed;
+      const mag = len(vx, vy);
+      vx = (vx / mag) * speed;
+      vy = (vy / mag) * speed;
       this.facing = Math.atan2(vy, vx);
       // Lock the facing direction while a transition clip plays so turning
       // mid-lower/rise doesn't restart it in a new direction.

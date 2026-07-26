@@ -10,6 +10,7 @@ import {
   orderlyFrameKey,
   type OrderlyAnimName,
 } from "./OrderlyAnimations";
+import { len } from "../systems/distance";
 
 export interface OrderlyContext {
   grid: CollisionGrid;
@@ -40,8 +41,9 @@ const DISTRACT_PAUSE = 2.5;
  * hazard to avoid being seen by, not a persistent threat like a guard.
  */
 export class Orderly {
-  private x: number;
-  private y: number;
+  /** Pixel position — public for the same reason as {@link Enforcer.x}. */
+  x: number;
+  y: number;
   private readonly spawnX: number;
   private readonly spawnY: number;
   private facing = 0;
@@ -134,7 +136,7 @@ export class Orderly {
       if (this.moving) {
         // Head roughly back toward spawn once the leash stretches too far,
         // otherwise wander in a random direction.
-        const strayed = Math.hypot(this.x - this.spawnX, this.y - this.spawnY) > WANDER_LEASH_TILES * tileSize;
+        const strayed = len(this.x - this.spawnX, this.y - this.spawnY) > WANDER_LEASH_TILES * tileSize;
         this.facing = strayed
           ? Math.atan2(this.spawnY - this.y, this.spawnX - this.x)
           : Phaser.Math.FloatBetween(0, Math.PI * 2);
@@ -165,7 +167,7 @@ export class Orderly {
   private investigateDistraction(dt: number, ctx: OrderlyContext): void {
     const target = this.distractTarget!;
     const { grid, tileSize } = ctx;
-    const dist = Math.hypot(target.x - this.x, target.y - this.y);
+    const dist = len(target.x - this.x, target.y - this.y);
 
     if (dist > tileSize * 0.5) {
       this.moving = true;
@@ -201,14 +203,11 @@ export class Orderly {
     if (ctx.playerCompliant) return false;
     if (ctx.playerConcealed) return false;
     const { player, tileSize, grid } = ctx;
-    const dist = Math.hypot(player.x - this.x, player.y - this.y);
+    const dist = len(player.x - this.x, player.y - this.y);
     if (dist > SIGHT_RANGE_TILES * tileSize) return false;
     return grid.hasLineOfSight(this.x / tileSize, this.y / tileSize, player.x / tileSize, player.y / tileSize);
   }
 
-  get position(): { x: number; y: number } {
-    return { x: this.x, y: this.y };
-  }
 
   /** True while frozen by a Stun Rounds dart — guards treat this as an anomaly. */
   get isStunned(): boolean {

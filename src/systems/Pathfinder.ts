@@ -1,5 +1,6 @@
 import type { CollisionGrid } from "./CollisionGrid";
 import { circleFits, type OpenablePredicate } from "./GridMotion";
+import { len } from "./distance";
 
 /**
  * Grid pathfinding for the guards.
@@ -219,7 +220,7 @@ export function clearCorridor(
   const ay = a.y + 0.5;
   const bx = b.x + 0.5;
   const by = b.y + 0.5;
-  const dist = Math.hypot(bx - ax, by - ay);
+  const dist = len(bx - ax, by - ay);
   const steps = Math.max(1, Math.ceil(dist / Math.max(0.05, radiusTiles * 0.5)));
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;

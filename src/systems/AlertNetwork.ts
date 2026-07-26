@@ -1,11 +1,10 @@
 import type { AlertState } from "./AlertState";
+import { withinOrEqual } from "./distance";
 
 /** One detector's contribution to the network readout. */
 export interface NetworkUnit {
   /** 0..1 suspicion meter. */
   detection: number;
-  /** True for units that physically converge on a sighting (guards, not cameras). */
-  mobile: boolean;
 }
 
 /** Everything the alert-network HUD needs to draw one frame. */
@@ -33,26 +32,37 @@ const ALERTED = 0.66;
  * Aggregates every detector plus the alert FSM into one readout. Pure — never
  * touches Phaser — mirroring {@link buildRadarSnapshot}, so it's cheap per frame
  * and easy to unit-check.
+ *
+ * Mobile and fixed detectors arrive as two arrays rather than one list of
+ * tagged units: "mobile" was only ever "is this a guard rather than a camera",
+ * which the caller already knows, and merging the two cost a pair of mapped
+ * arrays plus an object per detector on every frame.
+ *
+ * @param mobile units that physically converge on a sighting — guards.
+ * @param fixed units that only watch — cameras.
  */
 export function buildAlertNetworkSnapshot(
-  units: NetworkUnit[],
+  mobile: readonly NetworkUnit[],
+  fixed: readonly NetworkUnit[],
   alert: AlertState,
 ): AlertNetworkSnapshot {
   let alerted = 0;
   let suspicious = 0;
-  let mobile = 0;
-  for (const u of units) {
-    if (u.mobile) mobile++;
+  for (const u of mobile) {
+    if (u.detection > ALERTED) alerted++;
+    else if (u.detection > 0) suspicious++;
+  }
+  for (const u of fixed) {
     if (u.detection > ALERTED) alerted++;
     else if (u.detection > 0) suspicious++;
   }
 
   return {
     status: alert.phase,
-    total: units.length,
+    total: mobile.length + fixed.length,
     alerted,
     suspicious,
-    converging: alert.isCombatAware ? mobile : 0,
+    converging: alert.isCombatAware ? mobile.length : 0,
     target: alert.lastKnownTile,
     countdown: alert.remaining,
   };
@@ -78,7 +88,7 @@ export class NoiseSpamTracker {
   record(tileX: number, tileY: number, now: number): boolean {
     this.pings = this.pings.filter((p) => now - p.time <= this.windowSec);
     const nearby = this.pings.filter(
-      (p) => Math.hypot(p.x - tileX, p.y - tileY) <= this.radiusTiles,
+      (p) => withinOrEqual(p.x - tileX, p.y - tileY, this.radiusTiles),
     ).length;
     this.pings.push({ x: tileX, y: tileY, time: now });
     // Include the ping just recorded: > threshold pings (e.g. a 3rd within a

@@ -24,6 +24,7 @@ import {
   VENT_CORE_WINCHES,
 } from "../map/VentCoreLevel";
 import { getAudio } from "../systems/AudioDirector";
+import { len, withinOrEqual } from "../systems/distance";
 
 /** Matches GameScene's INTERACT_RANGE for the hold-E verbs. */
 const INTERACT_RANGE_TILES = 1.4;
@@ -319,25 +320,25 @@ export class Vent4Boss {
     for (const sub of this.subs) {
       if (sub.isPatched) continue;
       sub.setLocked(!this.core.canPatch(sub.index));
-      const d = Math.hypot(sub.x / ts - ptx, sub.y / ts - pty);
+      const d = len(sub.x / ts - ptx, sub.y / ts - pty);
       consider(sub.isLocked ? "subLocked" : "sub", sub.index, d, INTERACT_RANGE_TILES);
     }
     if (state === Vent4State.PHASE_2_VACUUM) {
       this.winches.forEach((w, i) => {
         if (!this.core.canWinch(i)) return;
-        consider("winch", i, Math.hypot(w.x / ts - ptx, w.y / ts - pty), INTERACT_RANGE_TILES);
+        consider("winch", i, len(w.x / ts - ptx, w.y / ts - pty), INTERACT_RANGE_TILES);
       });
       const piton = this.physics.nearestPiton(ptx * ts, pty * ts, PITON_RANGE_TILES);
       if (piton !== null) {
         const p = VENT_CORE_PITONS[piton];
-        consider("piton", piton, Math.hypot(p.x + 0.5 - ptx, p.y + 0.5 - pty), PITON_RANGE_TILES);
+        consider("piton", piton, len(p.x + 0.5 - ptx, p.y + 0.5 - pty), PITON_RANGE_TILES);
       }
     }
     if (state === Vent4State.JAMMED && inventory.includes(STAPLER_ITEM)) {
       const cap = this.staplerTarget(ptx * ts, pty * ts);
       if (cap !== -1) {
         const c = this.caps[cap];
-        consider("stapler", cap, Math.hypot(c.x / ts - ptx, c.y / ts - pty), this.stats.staplerRange);
+        consider("stapler", cap, len(c.x / ts - ptx, c.y / ts - pty), this.stats.staplerRange);
       }
     }
 
@@ -433,7 +434,7 @@ export class Vent4Boss {
       if (this.sweepLockout <= 0 && !ctx.playerConcealed) {
         const dx = ctx.player.x - this.hub.x;
         const dy = ctx.player.y - this.hub.y;
-        const dist = Math.hypot(dx, dy);
+        const dist = len(dx, dy);
         if (dist >= s.hubRadius * ts * 0.9 && dist <= s.sweepRange * ts) {
           const angTo = Math.atan2(dy, dx);
           const half = Phaser.Math.DegToRad(s.sweepAngle) / 2;
@@ -470,7 +471,7 @@ export class Vent4Boss {
         this.core.noteCorrectionBurst();
         const dx = ctx.player.x - this.hub.x;
         const dy = ctx.player.y - this.hub.y;
-        const d = Math.hypot(dx, dy) || 1;
+        const d = len(dx, dy) || 1;
         res.burst = { dirX: dx / d, dirY: dy / d };
         this.physics.addImpulse(
           (dx / d) * this.stats.burstImpulse * ts,
@@ -506,7 +507,7 @@ export class Vent4Boss {
     // A localized air jet kicks the player back off the grate line.
     const dx = ctx.player.x - this.hub.x;
     const dy = ctx.player.y - this.hub.y;
-    const d = Math.hypot(dx, dy) || 1;
+    const d = len(dx, dy) || 1;
     this.physics.addImpulse(
       (dx / d) * this.stats.burstImpulse * 0.7 * ts,
       (dy / d) * this.stats.burstImpulse * 0.7 * ts,
@@ -541,7 +542,7 @@ export class Vent4Boss {
     this.steamGfx.clear();
     for (const jet of this.jets) {
       const near =
-        Math.hypot(ctx.player.x - jet.x, ctx.player.y - jet.y) <= STEAM_ARM_TILES * ts;
+        withinOrEqual(ctx.player.x - jet.x, ctx.player.y - jet.y, STEAM_ARM_TILES * ts);
       const armed = band === "CRITICAL" || (band === "TURBULENT" && near);
       if (!armed) {
         jet.active = false;
@@ -585,7 +586,7 @@ export class Vent4Boss {
     let bestDist = this.stats.staplerRange * ts;
     this.caps.forEach((c, i) => {
       if (this.capHits[i] >= this.stats.capacitorHits) return;
-      const d = Math.hypot(c.x - px, c.y - py);
+      const d = len(c.x - px, c.y - py);
       if (d > bestDist) return;
       if (!this.grid.hasLineOfSight(px / ts, py / ts, c.x / ts, c.y / ts)) return;
       bestDist = d;
@@ -648,7 +649,7 @@ export class Vent4Boss {
     for (let d = step; d <= maxDist; d += step) {
       const x = ox + cx * d;
       const y = oy + cy * d;
-      if (Math.hypot(x - this.hub.x, y - this.hub.y) <= hubClear) continue;
+      if (withinOrEqual(x - this.hub.x, y - this.hub.y, hubClear)) continue;
       if (this.grid.blocksSight(Math.floor(x / ts), Math.floor(y / ts))) return d - step;
     }
     return maxDist;

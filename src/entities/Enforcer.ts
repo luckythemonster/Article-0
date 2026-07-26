@@ -13,6 +13,7 @@ import { type GuardSkin } from "./GuardSkin";
 import { DIRS_8, nearestDirection, type Dir8 } from "./directions";
 import { ENFORCER_SKIN } from "./EnforcerAnimations";
 import { alertMarker } from "./markers";
+import { len, withinOrEqual } from "../systems/distance";
 
 /**
  * A per-guard behaviour state, layered on top of the global {@link AlertState}
@@ -152,8 +153,14 @@ export class Enforcer {
    */
   facing: number;
   state: GuardState = "PATROL";
-  private x: number;
-  private y: number;
+  /**
+   * Pixel position. Public because the scene reads it constantly — radar blips,
+   * network alerts, cornering checks, the debug overlay — and a `position`
+   * getter returning `{ x, y }` minted a throwaway object on every one of those
+   * reads, several times per guard per frame. Same convention as {@link Player}.
+   */
+  x: number;
+  y: number;
   /** Heading the body is travelling along; drives which sprite direction plays. */
   private moveDir: number;
   private scanTimer = 0;
@@ -410,7 +417,7 @@ export class Enforcer {
   private canSeeAnomaly(a: GuardAnomaly, ctx: EnforcerContext): boolean {
     const dx = a.x - this.x;
     const dy = a.y - this.y;
-    const dist = Math.hypot(dx, dy);
+    const dist = len(dx, dy);
     if (dist > this.stats.sightRange * ctx.tileSize) return false;
     const angTo = Math.atan2(dy, dx);
     const half = Phaser.Math.DegToRad(this.stats.sightAngle) / 2;
@@ -444,7 +451,7 @@ export class Enforcer {
     const lkpPx = { x: (lkp.x + 0.5) * tileSize, y: (lkp.y + 0.5) * tileSize };
     const vx = ctx.playerVelocity?.x ?? 0;
     const vy = ctx.playerVelocity?.y ?? 0;
-    const vlen = Math.hypot(vx, vy);
+    const vlen = len(vx, vy);
     const targets: { x: number; y: number }[] = [];
 
     // 1. A point predicted along the player's last-known movement vector.
@@ -460,8 +467,8 @@ export class Enforcer {
     if (ctx.coverTilesNear) {
       const cover = ctx.coverTilesNear(lkp.x, lkp.y, SEARCH_RADIUS_TILES);
       cover.sort((a, b) => {
-        const da = Math.hypot(a.x - lkpPx.x, a.y - lkpPx.y) || 1;
-        const db = Math.hypot(b.x - lkpPx.x, b.y - lkpPx.y) || 1;
+        const da = len(a.x - lkpPx.x, a.y - lkpPx.y) || 1;
+        const db = len(b.x - lkpPx.x, b.y - lkpPx.y) || 1;
         if (vlen > 1) {
           const alignA = ((a.x - lkpPx.x) * vx + (a.y - lkpPx.y) * vy) / (da * vlen);
           const alignB = ((b.x - lkpPx.x) * vx + (b.y - lkpPx.y) * vy) / (db * vlen);
@@ -475,7 +482,7 @@ export class Enforcer {
     // 3. Open doorways adjacent to the last known position.
     if (ctx.anomalies) {
       for (const a of ctx.anomalies) {
-        if (a.kind === "door" && Math.hypot(a.tx - lkp.x, a.ty - lkp.y) <= SEARCH_RADIUS_TILES) {
+        if (a.kind === "door" && withinOrEqual(a.tx - lkp.x, a.ty - lkp.y, SEARCH_RADIUS_TILES)) {
           targets.push({ x: a.x, y: a.y });
         }
       }
@@ -552,7 +559,7 @@ export class Enforcer {
     let best = 0;
     let bestDist = Infinity;
     this.route.forEach((wp, i) => {
-      const d = Math.hypot(wp.x + 0.5 - tx, wp.y + 0.5 - ty);
+      const d = len(wp.x + 0.5 - tx, wp.y + 0.5 - ty);
       if (d < bestDist) {
         bestDist = d;
         best = i;
@@ -665,7 +672,7 @@ export class Enforcer {
 
     const wx = (waypoint.x + 0.5) * tileSize;
     const wy = (waypoint.y + 0.5) * tileSize;
-    const dist = Math.hypot(wx - this.x, wy - this.y);
+    const dist = len(wx - this.x, wy - this.y);
     if (dist <= tileSize * ARRIVE_DIST_FACTOR) {
       this.pathIndex++;
       if (this.pathIndex >= this.path.length) {
@@ -734,7 +741,7 @@ export class Enforcer {
     if (this.heldDoor) {
       const dx = this.heldDoor.x + 0.5 - this.x / tileSize;
       const dy = this.heldDoor.y + 0.5 - this.y / tileSize;
-      if (Math.hypot(dx, dy) > DOOR_CLOSE_TILES) {
+      if (!withinOrEqual(dx, dy, DOOR_CLOSE_TILES)) {
         ctx.setDoorOpen(this.heldDoor.x, this.heldDoor.y, false);
         this.heldDoor = null;
       }
@@ -840,9 +847,6 @@ export class Enforcer {
     );
   }
 
-  get position(): { x: number; y: number } {
-    return { x: this.x, y: this.y };
-  }
 
   /** Collision radius in tiles — read by the debug overlay. */
   get collisionRadiusTiles(): number {

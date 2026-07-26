@@ -110,8 +110,14 @@ export class Radar {
     this.content.lineBetween(cx, cy - this.radius, cx, cy + this.radius);
 
     this.content.fillStyle(WALL_COLOR, 1);
-    for (const w of snapshot.walls) {
-      this.content.fillRect(cx + w.dx * pxPerTile - 1, cy + w.dy * pxPerTile - 1, 2, 2);
+    const walls = snapshot.walls;
+    for (let i = 0; i < walls.count; i++) {
+      this.content.fillRect(
+        cx + walls.dx(i) * pxPerTile - 1,
+        cy + walls.dy(i) * pxPerTile - 1,
+        2,
+        2,
+      );
     }
 
     for (const b of snapshot.blips) {

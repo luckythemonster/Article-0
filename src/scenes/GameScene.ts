@@ -1,12 +1,13 @@
 import Phaser from "phaser";
 import type { GameLevel, GameMap, Transition } from "../map/types";
 import type { ParsedMap } from "../map/EdplayLoader";
+import { SensingContext } from "./game/SensingContext";
 import { SpriteAtlas } from "../map/SpriteAtlas";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { DetectionSystem } from "../systems/DetectionSystem";
 import { AlertState } from "../systems/AlertState";
 import { TransitionGraph } from "../systems/TransitionGraph";
-import { buildRadarSnapshot } from "../systems/Radar";
+import { buildRadarSnapshot, emptyRadarSnapshot } from "../systems/Radar";
 import { Player, type InputState } from "../entities/Player";
 import { Enforcer, type GuardAnomaly } from "../entities/Enforcer";
 import { ENFORCER_SKIN } from "../entities/EnforcerAnimations";
@@ -89,6 +90,7 @@ import {
 import { DEBUG_ALLOWED } from "../systems/DebugFlag";
 import type { DebugSnapshot } from "../ui/DebugHud";
 import { FONT_MONO } from "../ui/fonts";
+import { len, within, withinOrEqual } from "../systems/distance";
 
 /** Data passed to {@link GameScene} when (re)starting for a level swap. */
 interface GameSceneData {
@@ -158,8 +160,14 @@ export class GameScene extends Phaser.Scene {
   private tileSize = 32;
 
   private player!: Player;
-  private enforcers: Enforcer[] = [];
-  private drones: Drone[] = [];
+  /**
+   * Every guard-type unit on the level — enforcers and drones both, since a
+   * drone *is* an Enforcer with a different skin and the two were never read
+   * apart. One array rather than two merged on demand: `update()` walks the
+   * guards four times a frame, and a spread per walk is four throwaway arrays
+   * every frame for the life of the run.
+   */
+  private guards: Enforcer[] = [];
   private orderlies: Orderly[] = [];
   private doors: Door[] = [];
   private terminals: Terminal[] = [];
@@ -168,6 +176,13 @@ export class GameScene extends Phaser.Scene {
   private chests: Chest[] = [];
   /** VENT-4, present only on the vent_core level. */
   private vent4?: Vent4Boss;
+  /** The reused per-frame guard/camera sensing context. Rebuilt per level. */
+  private sensing!: SensingContext;
+  /** This frame's anomaly list, and the entry objects it recycles. */
+  private readonly anomalyBuf: GuardAnomaly[] = [];
+  private readonly anomalyPool: GuardAnomaly[] = [];
+  /** Refilled each frame and republished; see {@link RadarSnapshot}. */
+  private readonly radarSnapshot = emptyRadarSnapshot();
   private lighting!: Lighting;
   private grid!: CollisionGrid;
   private detection!: DetectionSystem;
@@ -292,8 +307,7 @@ export class GameScene extends Phaser.Scene {
     this.tileSize = this.map.tileWidth;
 
     // Reset per-run state: class-field initializers don't re-run on restart.
-    this.enforcers = [];
-    this.drones = [];
+    this.guards = [];
     this.orderlies = [];
     this.doors = [];
     this.terminals = [];
@@ -352,6 +366,20 @@ export class GameScene extends Phaser.Scene {
     this.grid = new CollisionGrid(this.level, ["walls"]);
     this.registerGlazing();
     this.detection = new DetectionSystem(this.level, this.tileSize);
+    this.sensing = new SensingContext({
+      grid: this.grid,
+      tileSize: this.tileSize,
+      detection: this.detection,
+      alert: this.alert,
+      flashlightOn: () => this.activeItems.flashlightBeamActive,
+      thermalMasked: () => this.activeItems.thermalMasked,
+      flashlightMultiplier: FLASHLIGHT_DETECTION_MULTIPLIER,
+      coverTilesNear: (tx, ty, r) => this.coverTilesNear(tx, ty, r),
+      isGuardDoor: (tx, ty) => this.guardOperableDoorAt(tx, ty) !== null,
+      // Silent on purpose: the operation-noise ping is there to give away the
+      // player working a door, not staff using one on their own beat.
+      setDoorOpen: (tx, ty, open) => void this.guardOperableDoorAt(tx, ty)?.setOpen(open),
+    });
 
     const wallBodies = this.renderLevel();
     this.spawnEntities();
@@ -629,7 +657,7 @@ export class GameScene extends Phaser.Scene {
     const enforcerRoute = routeFromLayer(enforcerLayer);
     if (enforcerLayer && enforcerRoute.length > 0) {
       const start = enforcerRoute[0];
-      this.enforcers.push(
+      this.guards.push(
         new Enforcer(
           this,
           start.x,
@@ -646,7 +674,7 @@ export class GameScene extends Phaser.Scene {
     const droneRoute = routeFromLayer(droneLayer);
     if (droneLayer && droneRoute.length > 0) {
       const start = droneRoute[0];
-      this.drones.push(
+      this.guards.push(
         new Drone(this, start.x, start.y, this.tileSize, droneLayer.tiles[0].components, droneRoute),
       );
     }
@@ -960,11 +988,11 @@ export class GameScene extends Phaser.Scene {
 
   /** True when a guard is close enough, with clear sight, to seize the player. */
   private isCornering(e: Enforcer): boolean {
-    const d = Math.hypot(e.position.x - this.player.x, e.position.y - this.player.y);
+    const d = len(e.x - this.player.x, e.y - this.player.y);
     if (d > PLAYER_DEFAULTS.captureRadius * this.tileSize) return false;
     return this.grid.hasLineOfSight(
-      e.position.x / this.tileSize,
-      e.position.y / this.tileSize,
+      e.x / this.tileSize,
+      e.y / this.tileSize,
       this.player.x / this.tileSize,
       this.player.y / this.tileSize,
     );
@@ -1008,11 +1036,11 @@ export class GameScene extends Phaser.Scene {
     const ts = this.tileSize;
     const px = this.player.x;
     const py = this.player.y;
-    const witnessing = this.guards().some((e) => {
-      const d = Math.hypot(e.position.x - px, e.position.y - py);
+    const witnessing = this.guards.some((e) => {
+      const d = len(e.x - px, e.y - py);
       return (
         d <= WITNESS_RADIUS_TILES * ts &&
-        this.grid.hasLineOfSight(e.position.x / ts, e.position.y / ts, px / ts, py / ts)
+        this.grid.hasLineOfSight(e.x / ts, e.y / ts, px / ts, py / ts)
       );
     });
     this.sharedField.witness(dt, witnessing);
@@ -1091,7 +1119,7 @@ export class GameScene extends Phaser.Scene {
     this.alert.forceEvasion();
     const radiusPx = CHAFF_PACK_RADIUS_TILES * this.tileSize;
     for (const laser of this.lasers) {
-      if (Math.hypot(laser.x - this.player.x, laser.y - this.player.y) <= radiusPx) {
+      if (withinOrEqual(laser.x - this.player.x, laser.y - this.player.y, radiusPx)) {
         laser.emp(CHAFF_PACK_DURATION);
       }
     }
@@ -1109,10 +1137,10 @@ export class GameScene extends Phaser.Scene {
     let target: Orderly | undefined;
     let bestDist = Infinity;
     for (const orderly of this.orderlies) {
-      const p = orderly.position;
+      const p = orderly;
       const dx = p.x - this.player.x;
       const dy = p.y - this.player.y;
-      const dist = Math.hypot(dx, dy);
+      const dist = len(dx, dy);
       if (dist > reachPx || dist === 0) continue;
       // Only orderlies roughly in front of Rowan (within the forward half-plane).
       if ((dx * fx + dy * fy) / dist < 0.5) continue;
@@ -1256,58 +1284,47 @@ export class GameScene extends Phaser.Scene {
 
     const phaseBefore = this.alert.phase;
     let maxDetection = 0;
-    const chaffZone =
-      this.activeItems.chaffActive && this.activeItems.chaffOrigin
-        ? { ...this.activeItems.chaffOrigin, radiusPx: CHAFF_PACK_RADIUS_TILES * this.tileSize }
-        : null;
+    // The sensing context is built once per level and refreshed in place — see
+    // SensingContext for why this isn't an object literal.
     const playerBody = this.player.sprite.body as Phaser.Physics.Arcade.Body;
-    const ctx = {
-      grid: this.grid,
-      tileSize: this.tileSize,
-      player: { x: this.player.x, y: this.player.y },
-      // Emitting the flashlight beam makes Rowan far easier to spot in LOS.
-      lightMultiplierAt: (x: number, y: number) =>
-        this.detection.multiplierAt(x, y) *
-        (this.activeItems.flashlightBeamActive ? FLASHLIGHT_DETECTION_MULTIPLIER : 1),
-      playerNoise: this.player.noise,
-      playerConcealed: concealed,
-      playerCompliant: compliant,
-      playerThermalConcealed: thermalConcealed,
-      thermalRadiusMultiplier: (base: number) =>
-        this.detection.thermalRadiusFor(base, this.activeItems.thermalMasked),
-      chaffZone,
-      alert: this.alert,
-      // Opened doors/chests, EMP'd devices and stunned orderlies, for anomaly scanning.
-      anomalies: this.buildAnomalies(chaffZone),
-      playerVelocity: { x: playerBody.velocity.x, y: playerBody.velocity.y },
-      coverTilesNear: (tx: number, ty: number, r: number) => this.coverTilesNear(tx, ty, r),
-      isGuardDoor: (tx: number, ty: number) => this.guardOperableDoorAt(tx, ty) !== null,
-      setDoorOpen: (tx: number, ty: number, open: boolean) => {
-        // Silent on purpose: the operation-noise ping is there to give away the
-        // player working a door, not staff using one on their own beat.
-        this.guardOperableDoorAt(tx, ty)?.setOpen(open);
-      },
-    };
+    const chaffOrigin = this.activeItems.chaffOrigin;
+    this.sensing.setChaff(
+      this.activeItems.chaffActive && !!chaffOrigin,
+      chaffOrigin?.x ?? 0,
+      chaffOrigin?.y ?? 0,
+      CHAFF_PACK_RADIUS_TILES * this.tileSize,
+    );
+    this.sensing.setPlayer(
+      this.player.x,
+      this.player.y,
+      this.player.noise,
+      playerBody.velocity.x,
+      playerBody.velocity.y,
+    );
+    this.sensing.setConcealment(concealed, compliant, thermalConcealed);
+    // Opened doors/chests, EMP'd devices and stunned orderlies, for anomaly scanning.
+    this.sensing.setAnomalies(this.buildAnomalies(this.sensing.chaffZone));
+    const ctx = this.sensing.current;
     // Debug freeze-world (H) short-circuits every AI/hazard update below by
     // iterating nothing (or ticking with 0), so patrols, cones, lasers, VENT-4,
     // alert decay and capture all hold still while the player can still move.
-    for (const e of this.frozenWorld ? [] : this.guards()) {
+    if (!this.frozenWorld) for (const e of this.guards) {
       const before = e.detection;
       e.update(dt, ctx);
       maxDetection = Math.max(maxDetection, e.detection);
       // A fresh full sighting alerts networked guards within reach.
       if (before < 1 && e.detection >= 1) {
-        this.emitNetworkAlert(e.position, e.stats.alertNetworkRadius);
+        this.emitNetworkAlert(e.x, e.y, e.stats.alertNetworkRadius);
       }
     }
 
     // Sensor cameras run on the same context, reporting sightings themselves.
-    for (const s of this.frozenWorld ? [] : this.sensors) {
+    if (!this.frozenWorld) for (const s of this.sensors) {
       const before = s.detection;
       s.update(dt, ctx);
       maxDetection = Math.max(maxDetection, s.detection);
       if (before < 1 && s.detection >= 1) {
-        this.emitNetworkAlert(s.position, s.stats.alertNetworkRadius);
+        this.emitNetworkAlert(s.x, s.y, s.stats.alertNetworkRadius);
       }
     }
 
@@ -1339,23 +1356,16 @@ export class GameScene extends Phaser.Scene {
 
     // Orderlies: bystanders, not guards — a clear sighting is a one-shot
     // "witness" event that raises nearby guards' suspicion, same as a noisy door.
-    for (const orderly of this.frozenWorld ? [] : this.orderlies) {
-      if (
-        orderly.update(dt, {
-          grid: this.grid,
-          tileSize: this.tileSize,
-          player: ctx.player,
-          playerConcealed: concealed,
-          playerCompliant: compliant,
-        })
-      ) {
-        this.emitOrderlyAlert(orderly);
-      }
+    // An OrderlyContext is a structural subset of the guards' context — same
+    // grid, tile size, player position and concealment — so hand over the one
+    // already built rather than minting a fresh literal per orderly per frame.
+    if (!this.frozenWorld) for (const orderly of this.orderlies) {
+      if (orderly.update(dt, ctx)) this.emitOrderlyAlert(orderly);
     }
 
     // Lasers: crossing an active beam/scan zone instantly trips the alarm.
     let laserTripped = false;
-    for (const laser of this.frozenWorld ? [] : this.lasers) {
+    if (!this.frozenWorld) for (const laser of this.lasers) {
       laser.update(dt);
       if (laser.checkTrip(this.player.x, this.player.y)) laserTripped = true;
     }
@@ -1383,7 +1393,7 @@ export class GameScene extends Phaser.Scene {
     // Fail-state — bio-integrity depleted, or cornered by a silicate during a
     // full alert: the mesh prunes Rowan's logs (Alignment).
     const cornered =
-      !this.frozenWorld && !fieldActive && this.alert.isCombatAware && this.guards().some((e) => this.isCornering(e));
+      !this.frozenWorld && !fieldActive && this.alert.isCombatAware && this.guards.some((e) => this.isCornering(e));
     this.captureProgress = cornered
       ? this.captureProgress + dt
       : Math.max(0, this.captureProgress - dt * 2);
@@ -1406,13 +1416,7 @@ export class GameScene extends Phaser.Scene {
 
     this.registry.set(
       "alertNetwork",
-      buildAlertNetworkSnapshot(
-        [
-          ...this.guards().map((e) => ({ detection: e.detection, mobile: true })),
-          ...this.sensors.map((s) => ({ detection: s.detection, mobile: false })),
-        ],
-        this.alert,
-      ),
+      buildAlertNetworkSnapshot(this.guards, this.sensors, this.alert),
     );
 
     this.registry.set(
@@ -1420,20 +1424,11 @@ export class GameScene extends Phaser.Scene {
       buildRadarSnapshot(
         this.grid,
         this.tileSize,
-        { x: this.player.x, y: this.player.y, facing: this.player.facing },
-        [
-          ...this.guards().map((e) => ({
-            position: e.position,
-            facing: e.facing,
-            detection: e.detection,
-          })),
-          ...this.sensors.map((s) => ({
-            position: s.position,
-            facing: s.facing,
-            detection: s.detection,
-          })),
-        ],
+        this.player,
+        this.guards,
+        this.sensors,
         this.alert.phase === "ALERT",
+        this.radarSnapshot,
       ),
     );
 
@@ -1489,7 +1484,7 @@ export class GameScene extends Phaser.Scene {
     let nearestTerminalDist = Infinity;
     for (const term of this.terminals) {
       if (term.isHacked) continue;
-      const d = Math.hypot(term.x / ts - ptx, term.y / ts - pty);
+      const d = len(term.x / ts - ptx, term.y / ts - pty);
       if (d <= INTERACT_RANGE && d < nearestTerminalDist) {
         nearestTerminalDist = d;
         nearestTerminal = term;
@@ -1511,7 +1506,7 @@ export class GameScene extends Phaser.Scene {
     let nearestChestDist = Infinity;
     for (const chest of this.chests) {
       if (chest.isOpen) continue;
-      const d = Math.hypot(chest.tileX + 0.5 - ptx, chest.tileY + 0.5 - pty);
+      const d = len(chest.tileX + 0.5 - ptx, chest.tileY + 0.5 - pty);
       if (d <= INTERACT_RANGE && d < nearestChestDist) {
         nearestChestDist = d;
         nearestChest = chest;
@@ -1529,7 +1524,7 @@ export class GameScene extends Phaser.Scene {
     let nearestDoorDist = Infinity;
     for (const door of this.doors) {
       if (!door.isManual) continue;
-      const d = Math.hypot(door.tileX + 0.5 - ptx, door.tileY + 0.5 - pty);
+      const d = len(door.tileX + 0.5 - ptx, door.tileY + 0.5 - pty);
       if (d <= INTERACT_RANGE && d < nearestDoorDist) {
         nearestDoorDist = d;
         nearestDoor = door;
@@ -1672,7 +1667,7 @@ export class GameScene extends Phaser.Scene {
     const tx = terminal.x / this.tileSize;
     const ty = terminal.y / this.tileSize;
     for (const door of this.doors) {
-      const d = Math.hypot(door.tileX + 0.5 - tx, door.tileY + 0.5 - ty);
+      const d = len(door.tileX + 0.5 - tx, door.tileY + 0.5 - ty);
       if (d <= HACK_UNLOCK_RADIUS && door.setOpen(true)) this.emitDoorNoise(door);
     }
     getAudio().hack();
@@ -1726,11 +1721,6 @@ export class GameScene extends Phaser.Scene {
         break;
       }
     }
-  }
-
-  /** Every guard-type unit — enforcers and drones share identical AI/hearNoise. */
-  private guards(): Enforcer[] {
-    return [...this.enforcers, ...this.drones];
   }
 
   // ------------------------------------------------------------------ debug --
@@ -1856,11 +1846,10 @@ export class GameScene extends Phaser.Scene {
     // Line of sight from the player to each guard (green = clear, red = blocked).
     const ptx = this.player.x / ts;
     const pty = this.player.y / ts;
-    for (const e of this.guards()) {
-      const pos = e.position;
-      const clear = this.grid.hasLineOfSight(ptx, pty, pos.x / ts, pos.y / ts);
+    for (const e of this.guards) {
+      const clear = this.grid.hasLineOfSight(ptx, pty, e.x / ts, e.y / ts);
       g.lineStyle(1, clear ? 0x59d98e : 0xff3b3b, 0.6);
-      g.lineBetween(this.player.x, this.player.y, pos.x, pos.y);
+      g.lineBetween(this.player.x, this.player.y, e.x, e.y);
     }
 
     this.drawGuardNavigation(g, ts);
@@ -1880,7 +1869,7 @@ export class GameScene extends Phaser.Scene {
       y: (p.y + 0.5) * ts,
     });
 
-    for (const e of this.guards()) {
+    for (const e of this.guards) {
       const route = e.patrolRoute;
       // The route loop, dimmed — it's context, not the live state.
       if (route.length > 1) {
@@ -1900,20 +1889,20 @@ export class GameScene extends Phaser.Scene {
       // The path being walked right now, from the guard to its current goal.
       const path = e.plannedPath;
       if (path.length > 0) {
-        const pos = e.position;
         g.lineStyle(2, 0xffe14d, 0.8);
-        let prev = pos;
+        let prevX = e.x;
+        let prevY = e.y;
         for (const node of path) {
           const c = centre(node);
-          g.lineBetween(prev.x, prev.y, c.x, c.y);
-          prev = c;
+          g.lineBetween(prevX, prevY, c.x, c.y);
+          prevX = c.x;
+          prevY = c.y;
         }
       }
 
       // The circle the guard actually collides with.
-      const pos = e.position;
       g.lineStyle(1, 0x59d98e, 0.7);
-      g.strokeCircle(pos.x, pos.y, e.collisionRadiusTiles * ts);
+      g.strokeCircle(e.x, e.y, e.collisionRadiusTiles * ts);
     }
   }
 
@@ -1946,7 +1935,7 @@ export class GameScene extends Phaser.Scene {
       level: this.level.name,
       alertPhase: this.alert.phase,
       units: [
-        ...this.guards().map((e, i) => ({ label: `G${i}`, detection: e.detection })),
+        ...this.guards.map((e, i) => ({ label: `G${i}`, detection: e.detection })),
         ...this.sensors.map((s, i) => ({ label: `S${i}`, detection: s.detection })),
       ],
     };
@@ -1959,7 +1948,7 @@ export class GameScene extends Phaser.Scene {
 
   /** A spotted orderly raises the alarm: nearby guards turn to look and grow wary. */
   private emitOrderlyAlert(orderly: Orderly): void {
-    this.emitNoiseAt(orderly.position.x, orderly.position.y, ORDERLY_ALERT_RADIUS_TILES * this.tileSize);
+    this.emitNoiseAt(orderly.x, orderly.y, ORDERLY_ALERT_RADIUS_TILES * this.tileSize);
   }
 
   /**
@@ -2009,8 +1998,8 @@ export class GameScene extends Phaser.Scene {
         const ty = pty + dy;
         if (!this.isKnockable(tx, ty)) continue;
         // Prefer neighbours that lie in the direction the player is facing.
-        const len = Math.hypot(dx, dy);
-        const score = (dx * fx + dy * fy) / len;
+        const mag = len(dx, dy);
+        const score = (dx * fx + dy * fy) / mag;
         if (score > bestScore) {
           bestScore = score;
           best = { tx, ty };
@@ -2035,8 +2024,8 @@ export class GameScene extends Phaser.Scene {
   private emitKnockDistraction(cx: number, cy: number, radiusPx: number): void {
     if (radiusPx <= 0) return;
     for (const orderly of this.orderlies) {
-      const p = orderly.position;
-      if (Math.hypot(p.x - cx, p.y - cy) < radiusPx) orderly.distract(cx, cy);
+      const p = orderly;
+      if (within(p.x - cx, p.y - cy, radiusPx)) orderly.distract(cx, cy);
     }
   }
 
@@ -2053,11 +2042,11 @@ export class GameScene extends Phaser.Scene {
     const ty = Math.floor(cy / this.tileSize);
     if (this.noiseSpam.record(tx, ty, this.time.now / 1000)) {
       this.alert.reportSighting(tx, ty);
-      this.emitNetworkAlert({ x: cx, y: cy }, SPAM_ESCALATION_RADIUS_TILES);
+      this.emitNetworkAlert(cx, cy, SPAM_ESCALATION_RADIUS_TILES);
       return;
     }
-    for (const e of this.guards()) {
-      const d = Math.hypot(e.position.x - cx, e.position.y - cy);
+    for (const e of this.guards) {
+      const d = len(e.x - cx, e.y - cy);
       if (d < radiusPx) e.hearNoise(1 - d / radiusPx, cx, cy);
     }
   }
@@ -2073,59 +2062,113 @@ export class GameScene extends Phaser.Scene {
     return this.doors.find((d) => d.isManual && d.covers(tileX, tileY)) ?? null;
   }
 
+  /**
+   * Everything a guard's cone could notice as out of place this frame.
+   *
+   * Fills a pooled array rather than building one: this runs every frame, and
+   * each entry used to be a fresh object carrying a freshly interpolated `key`
+   * string. Entries are recycled in place and only their fields rewritten, so
+   * the steady state allocates nothing. The list is borrowed by the sensing
+   * context for the frame and must not be retained past it — guards copy the
+   * `key` and the coordinates they care about, which is what makes that safe.
+   */
   private buildAnomalies(chaffZone: { x: number; y: number; radiusPx: number } | null): GuardAnomaly[] {
-    const anomalies: GuardAnomaly[] = [];
+    const anomalies = this.anomalyBuf;
+    anomalies.length = 0;
+
+    const ts = this.tileSize;
 
     for (const door of this.doors) {
       if (!door.isOpen) continue;
-      anomalies.push({
-        x: (door.tileX + 0.5) * this.tileSize,
-        y: (door.tileY + 0.5) * this.tileSize,
-        tx: door.tileX,
-        ty: door.tileY,
-        kind: "door",
-        key: `door:${door.tileX}:${door.tileY}`,
-      });
+      this.pushAnomaly(
+        (door.tileX + 0.5) * ts,
+        (door.tileY + 0.5) * ts,
+        door.tileX,
+        door.tileY,
+        "door",
+        "door",
+      );
     }
 
     for (const chest of this.chests) {
       if (!chest.isOpen) continue;
-      anomalies.push({
-        x: chest.x,
-        y: chest.y,
-        tx: chest.tileX,
-        ty: chest.tileY,
-        kind: "chest",
-        key: `chest:${chest.tileX}:${chest.tileY}`,
-      });
+      this.pushAnomaly(chest.x, chest.y, chest.tileX, chest.tileY, "chest", "chest");
     }
 
     for (const laser of this.lasers) {
       if (!laser.isEmped) continue;
-      const tx = Math.floor(laser.x / this.tileSize);
-      const ty = Math.floor(laser.y / this.tileSize);
-      anomalies.push({ x: laser.x, y: laser.y, tx, ty, kind: "device", key: `device:laser:${tx}:${ty}` });
+      this.pushAnomaly(
+        laser.x,
+        laser.y,
+        Math.floor(laser.x / ts),
+        Math.floor(laser.y / ts),
+        "device",
+        "device:laser",
+      );
     }
 
     if (chaffZone) {
+      const r2 = chaffZone.radiusPx * chaffZone.radiusPx;
       for (const sensor of this.sensors) {
-        const p = sensor.position;
-        if (Math.hypot(p.x - chaffZone.x, p.y - chaffZone.y) > chaffZone.radiusPx) continue;
-        const tx = Math.floor(p.x / this.tileSize);
-        const ty = Math.floor(p.y / this.tileSize);
-        anomalies.push({ x: p.x, y: p.y, tx, ty, kind: "device", key: `device:camera:${tx}:${ty}` });
+        const dx = sensor.x - chaffZone.x;
+        const dy = sensor.y - chaffZone.y;
+        if (dx * dx + dy * dy > r2) continue;
+        this.pushAnomaly(
+          sensor.x,
+          sensor.y,
+          Math.floor(sensor.x / ts),
+          Math.floor(sensor.y / ts),
+          "device",
+          "device:camera",
+        );
       }
     }
 
     for (const orderly of this.orderlies) {
       if (!orderly.isStunned) continue;
-      const p = orderly.position;
-      const tx = Math.floor(p.x / this.tileSize);
-      const ty = Math.floor(p.y / this.tileSize);
-      anomalies.push({ x: p.x, y: p.y, tx, ty, kind: "stunnedOrderly", key: `orderly:${tx}:${ty}` });
+      this.pushAnomaly(
+        orderly.x,
+        orderly.y,
+        Math.floor(orderly.x / ts),
+        Math.floor(orderly.y / ts),
+        "stunnedOrderly",
+        "orderly",
+      );
     }
 
     return anomalies;
+  }
+
+  /**
+   * Appends one anomaly, recycling the pool entry at that index when there is
+   * one. The `key` is `<prefix>:<tx>:<ty>` and only re-interpolated when the
+   * tile it names actually moves — a door never does, so a level's worth of
+   * open doors costs no string building after the first frame.
+   */
+  private pushAnomaly(
+    x: number,
+    y: number,
+    tx: number,
+    ty: number,
+    kind: GuardAnomaly["kind"],
+    keyPrefix: string,
+  ): void {
+    const i = this.anomalyBuf.length;
+    const slot = this.anomalyPool[i];
+    if (!slot) {
+      this.anomalyPool[i] = { x, y, tx, ty, kind, key: `${keyPrefix}:${tx}:${ty}` };
+      this.anomalyBuf.push(this.anomalyPool[i]);
+      return;
+    }
+    if (slot.tx !== tx || slot.ty !== ty || slot.kind !== kind) {
+      slot.key = `${keyPrefix}:${tx}:${ty}`;
+    }
+    slot.x = x;
+    slot.y = y;
+    slot.tx = tx;
+    slot.ty = ty;
+    slot.kind = kind;
+    this.anomalyBuf.push(slot);
   }
 
   /** Cover tile centers (pixels) within `radiusTiles` of a tile position — used for smart search points. */
@@ -2137,7 +2180,7 @@ export class GameScene extends Phaser.Scene {
     const maxY = Math.min(this.level.height - 1, Math.ceil(tileY + radiusTiles));
     for (let ty = minY; ty <= maxY; ty++) {
       for (let tx = minX; tx <= maxX; tx++) {
-        if (Math.hypot(tx - tileX, ty - tileY) > radiusTiles) continue;
+        if (!withinOrEqual(tx - tileX, ty - tileY, radiusTiles)) continue;
         if (this.grid.isBlocked(tx, ty)) continue;
         const px = (tx + 0.5) * this.tileSize;
         const py = (ty + 0.5) * this.tileSize;
@@ -2154,13 +2197,15 @@ export class GameScene extends Phaser.Scene {
    * toward the player and grows wary, so a camera or a distant guard tripping
    * the alarm immediately rallies the ones nearby.
    */
-  private emitNetworkAlert(origin: { x: number; y: number }, radiusTiles: number): void {
+  private emitNetworkAlert(originX: number, originY: number, radiusTiles: number): void {
     const radiusPx = radiusTiles * this.tileSize;
     if (radiusPx <= 0) return;
-    for (const e of this.guards()) {
-      const ep = e.position;
-      if (ep.x === origin.x && ep.y === origin.y) continue; // skip the spotter itself
-      if (Math.hypot(ep.x - origin.x, ep.y - origin.y) < radiusPx) {
+    const r2 = radiusPx * radiusPx;
+    for (const e of this.guards) {
+      if (e.x === originX && e.y === originY) continue; // skip the spotter itself
+      const dx = e.x - originX;
+      const dy = e.y - originY;
+      if (dx * dx + dy * dy < r2) {
         e.hearNoise(1, this.player.x, this.player.y);
       }
     }

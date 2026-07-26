@@ -1,4 +1,5 @@
 import { VENT4_DEFAULTS, type Vent4Stats } from "./EntityStats";
+import { len, withinOrEqual } from "./distance";
 
 /**
  * VENT-4's environmental forces on the player: radial intake suction, grip
@@ -50,7 +51,7 @@ export function suctionVelocity(
 ): Vec2 {
   const dx = hub.x - px;
   const dy = hub.y - py;
-  const d = Math.hypot(dx, dy);
+  const d = len(dx, dy);
   const outer = stats.suctionRadius * tileSize;
   const inner = stats.hubRadius * tileSize;
   if (d >= outer || d < 1e-6) return { x: 0, y: 0 };
@@ -86,7 +87,7 @@ export class Vent4PhysicsSystem {
     let best: number | null = null;
     let bestDist = maxDistTiles * this.tileSize;
     this.layout.pitons.forEach((p, i) => {
-      const d = Math.hypot(p.x - px, p.y - py);
+      const d = len(p.x - px, p.y - py);
       if (d <= bestDist) {
         bestDist = d;
         best = i;
@@ -98,7 +99,7 @@ export class Vent4PhysicsSystem {
   /** Standing under a condensate drip tile. */
   onDrip(px: number, py: number): boolean {
     return this.layout.drips.some(
-      (d) => Math.hypot(d.x - px, d.y - py) <= this.tileSize * 0.75,
+      (d) => withinOrEqual(d.x - px, d.y - py, this.tileSize * 0.75),
     );
   }
 
@@ -123,7 +124,7 @@ export class Vent4PhysicsSystem {
 
     const anchored =
       opts.holdingPiton ||
-      this.layout.columns.some((c) => Math.hypot(c.x - px, c.y - py) <= s.gripRadius * ts);
+      this.layout.columns.some((c) => withinOrEqual(c.x - px, c.y - py, s.gripRadius * ts));
 
     let pull: Vec2 = { x: 0, y: 0 };
     if (opts.suction && !anchored) {
@@ -152,7 +153,7 @@ export class Vent4PhysicsSystem {
       this.heat = Math.max(0, this.heat - (2 * dt) / s.heatTime);
     }
 
-    const hubDist = Math.hypot(this.layout.hub.x - px, this.layout.hub.y - py);
+    const hubDist = len(this.layout.hub.x - px, this.layout.hub.y - py);
     return {
       vx: pull.x + this.impulseX,
       vy: pull.y + this.impulseY,

@@ -28,8 +28,9 @@ export class Sensor {
   detection = 0; // 0..1
   facing: number;
 
-  private readonly x: number;
-  private readonly y: number;
+  /** Pixel position — public for the same reason as {@link Enforcer.x}. */
+  readonly x: number;
+  readonly y: number;
   private readonly baseFacing: number;
   private sweepPhase = Phaser.Math.FloatBetween(0, Math.PI * 2);
 
@@ -106,9 +107,6 @@ export class Sensor {
     g.fillCircle(this.x + Math.cos(this.baseFacing) * r, this.y + Math.sin(this.baseFacing) * r, r * 0.4);
   }
 
-  get position(): { x: number; y: number } {
-    return { x: this.x, y: this.y };
-  }
 }
 
 /** Faces the camera toward the most open side (sum of clear-neighbour vectors). */
