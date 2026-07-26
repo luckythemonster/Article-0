@@ -105,10 +105,15 @@ export class Menu {
       const selected = i === this.index && !disabled;
       t.setColor(disabled ? "#3a4654" : selected ? "#39d3ff" : "#8899aa");
       // The label text never changes, so its centred position can't shift. The
-      // caret used to be prefixed to it ("▸ " against two spaces) — fine while
-      // everything was one font, but ▸ (U+25B8) is not in Share Tech Mono and
-      // falls back to a face with a different advance, so the swap resized the
-      // string and slid the label sideways every time the selection moved.
+      // caret used to be prefixed to it ("▸ " against two spaces), which slid the
+      // label sideways on every selection change: ▸ (U+25B8) is not in Share Tech
+      // Mono, so it fell back to a face with a different advance and the swap
+      // resized the string.
+      //
+      // Article Zero Symbols now supplies ▸ at the right 540 cell, so a prefix
+      // would line up again — but keeping the caret separate is still better. It
+      // removes the dependency on glyph width entirely, so a font that fails to
+      // load costs a missing caret rather than a menu that jitters.
       t.setText(it.label);
       this.carets[i].setVisible(selected);
     });

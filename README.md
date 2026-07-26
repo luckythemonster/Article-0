@@ -487,7 +487,31 @@ menu's indented rows all line up by character cell. Share Tech is proportional
 and must never be used where columns line up — hence the two constants in
 `src/ui/fonts.ts` rather than a string at each call site.
 
-Two things worth knowing before changing any of this:
+Alongside them sits a third face, **Article Zero Symbols** — the fourteen
+geometric marks the UI is built out of that Share Tech Mono has no glyphs for:
+
+```
+← ↑ → ↓ ⏸ ⓿ ▸ ◈ ○ ◎ ⚠ ✓ ✔ ✖
+```
+
+Without it those render in whatever the browser falls back to, at a width that
+isn't 540, which is exactly what the column alignment rests on. It is a *separate*
+font rather than those glyphs added to Share Tech Mono because that file carries
+Reserved Font Name 'Share' and OFL 1.1 clause 3 bars a modified version from
+keeping the name — patching it would mean renaming the family and forking off
+upstream for good. Listing it *after* the base face is what makes it work: CSS and
+canvas both match fonts per glyph, so Share Tech Mono serves all the text and this
+supplies only what it lacks.
+
+It is generated, not hand-authored — `python3 tools/font/build_symbols.py`
+(needs `fonttools` and `brotli`), which draws each mark from Share Tech Mono's own
+measured metrics and prints a table asserting every advance is 540 and every glyph
+sits centred in the cell. Same arrangement as `npm run gen:colliders`: run by
+hand, output committed. The generator also emits `src/ui/fonts/coverage.json`,
+which `src/ui/fonts.test.ts` uses to fail the build if any shipped string grows a
+character the stack has no glyph for.
+
+Three things worth knowing before changing any of this:
 
 - **Boot waits for the fonts** (`src/ui/fontsReady.ts`). Phaser rasterises a
   `Text` to a canvas texture at construction and never redraws it, so a label
@@ -496,11 +520,15 @@ Two things worth knowing before changing any of this:
   so a blocked font costs the typeface and never the game. It is also why the
   `@font-face` rules use `font-display: block`: a face that swaps in late never
   reaches the canvas at all.
-- **Neither cut carries `✓ ○ ▸ ◎ ← → ↑ ↓`**, so those fall back per glyph. That
-  is fine for centred one-off lines and for the objective list (every line starts
-  with a fallback glyph, so they shift together), but not where a glyph's width
-  has to match a space's — which is why `Menu` draws its selection caret as a
-  separately positioned object instead of prefixing it to the label.
+- **Symbols are sized for 11px, not for the specimen sheet.** The first pass drew
+  the arrows with a geometrically correct but small head; at the 12px the pause
+  hint and the alert-network readout actually render at, the head anti-aliased
+  away and `CONVERGING 3 → (14,22)` read as a dash. The head is now ~40% of the
+  arrow's length. Anything added here needs looking at *at HUD size*, not at 64px.
+- **`Menu` still draws its caret as a separate object**, even though `▸` now has a
+  correct advance and could go back to being a prefix. Keeping it separate removes
+  the dependency on glyph width altogether, so a font that fails to load costs a
+  missing caret rather than labels that slide sideways on every selection change.
 
 ## Character & enemy art
 

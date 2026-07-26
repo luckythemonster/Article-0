@@ -43,3 +43,22 @@
   font-display: block;
   src: url("./fonts/ShareTech-Regular.woff2") format("woff2");
 }
+
+/*
+ * The fourteen geometric marks the UI uses that Share Tech Mono has no glyphs
+ * for — ← ↑ → ↓ ⏸ ⓿ ▸ ◈ ○ ◎ ⚠ ✓ ✔ ✖ — drawn to its 540 cell and stroke weight
+ * by `tools/font/build_symbols.py`. A separate family rather than glyphs added to
+ * Share Tech Mono, because that file carries Reserved Font Name 'Share' and OFL
+ * 1.1 clause 3 bars a modified version from keeping the name.
+ *
+ * It only ever resolves as a fallback: it is listed after Share Tech Mono in the
+ * stack, and CSS matches fonts per glyph, so the base face keeps serving all the
+ * text and this supplies exactly the codepoints it is missing.
+ */
+@font-face {
+  font-family: "Article Zero Symbols";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("./fonts/ArticleZeroSymbols-Regular.woff2") format("woff2");
+}

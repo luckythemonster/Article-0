@@ -51,6 +51,6 @@
   /* --- type --- */
   /* Keep in step with FONT_MONO / FONT_DISPLAY in src/ui/fonts.ts, which say the
      same thing for the Phaser side of the UI. */
-  --font-mono: "Share Tech Mono", "Courier New", monospace;
-  --font-display: "Share Tech", "Share Tech Mono", "Courier New", monospace;
+  --font-mono: "Share Tech Mono", "Article Zero Symbols", "Courier New", monospace;
+  --font-display: "Share Tech", "Share Tech Mono", "Article Zero Symbols", "Courier New", monospace;
 }
