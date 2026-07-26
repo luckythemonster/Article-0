@@ -1,5 +1,6 @@
 import Phaser from "phaser";
-import { createFrame, type Frame, type FrameSettings } from "@arwes/frames";
+import { createFrame, type Frame } from "@arwes/frames";
+import { terminalFrameSettings } from "../ui/frame";
 import { initialObjectives, objectiveLines, type ObjectiveState } from "../systems/Objectives";
 import type { MapPlan } from "../map/MapPlan";
 import { setMode } from "../systems/GameState";
@@ -33,32 +34,6 @@ const EIRA_LINES = [
   "         If the mesh corners you, they will call it Alignment —",
   "         they will say no subject was harmed. Don't let them be right.",
 ];
-
-/** A hand-specified sci-fi border: plain rects, hardcoded to the codec palette. */
-function codecFrameSettings(): FrameSettings {
-  return {
-    elements: [
-      {
-        type: "rect",
-        name: "bg",
-        x: 0,
-        y: 0,
-        width: "100%",
-        height: "100%",
-        style: { fill: "#070c12", fillOpacity: 0.97, stroke: "none" },
-      },
-      {
-        type: "rect",
-        name: "border",
-        x: 0.5,
-        y: 0.5,
-        width: "100% - 1",
-        height: "100% - 1",
-        style: { fill: "none", stroke: "#2b6e7a", strokeWidth: 1 },
-      },
-    ],
-  };
-}
 
 /**
  * The EIRA-7 codec screen. Shown as an interactive briefing at the start of a
@@ -150,7 +125,7 @@ export class CodecScene extends Phaser.Scene {
     this.veil = veil;
     this.restoreFocus = captureModalFocus(panel);
 
-    this.frame = createFrame(svg, codecFrameSettings());
+    this.frame = createFrame(svg, terminalFrameSettings());
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.teardownDom());
 
