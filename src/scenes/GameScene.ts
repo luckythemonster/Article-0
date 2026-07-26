@@ -20,7 +20,22 @@ import { Sensor } from "../entities/Sensor";
 import { Chest } from "../entities/Chest";
 import { buildAlertNetworkSnapshot, NoiseSpamTracker } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
-import { setMode, type GameMode } from "../systems/GameState";
+import { resumeFromSave, setMode, SUSPENDED_KEY, type GameMode } from "../systems/GameState";
+import {
+  initialJournal,
+  journalIdForLevel,
+  noteJournal,
+  type JournalEntryId,
+  type JournalState,
+} from "../systems/Journal";
+import { ExploredMap, initialExplored, type ExploredState } from "../systems/Explored";
+import {
+  MAP_SNAPSHOT_KEY,
+  PAUSE_REQUEST_KEY,
+  SAVE_WRITTEN_KEY,
+  type MapSnapshot,
+  type PauseRequest,
+} from "../systems/PauseState";
 import {
   BATTERY_ITEM,
   CERT_ITEM,
@@ -62,7 +77,7 @@ import { Vent4State, type Vent4Snapshot, type Vent4Transition } from "../systems
 import { VENT_CORE_LEVEL } from "../map/VentCoreLevel";
 import { planFor, type MapPlan } from "../map/MapPlan";
 import { getAudio } from "../systems/AudioDirector";
-import { saveGame, clearSave } from "../systems/SaveGame";
+import { saveGame, clearSave, loadGame, type SlotId } from "../systems/SaveGame";
 import { SharedField, WITNESS_RADIUS_TILES } from "../systems/SharedField";
 import {
   ConductState,
@@ -80,6 +95,14 @@ interface GameSceneData {
   arriveX?: number;
   arriveY?: number;
 }
+
+/**
+ * Explored-tile sweep cadence and reach, for the pause menu's map. A quarter
+ * second at walking pace reveals nothing a full sweep would have missed, and the
+ * radius is a little beyond the lit halo so a corridor fills in as you walk it.
+ */
+const EXPLORE_INTERVAL = 0.25;
+const EXPLORE_RADIUS_TILES = 9;
 
 /** Screen-fade duration for a level transition, in ms. */
 const FADE_MS = 320;
@@ -178,6 +201,14 @@ export class GameScene extends Phaser.Scene {
   private qualiaRack?: Terminal;
   /** Mission progress (kept in the registry so it survives level swaps). */
   private objectives!: ObjectiveState;
+  /** Rowan's journal — the run's counter-archive, also registry-backed. */
+  private journal!: JournalState;
+  /** Seen-tile mask for *this* level; the other levels' stay in the registry. */
+  private explored!: ExploredMap;
+  /** Seconds until the next explored-tile sweep (they're throttled, not per-frame). */
+  private exploredCooldown = 0;
+  /** Milliseconds of play in this run, for the pause menu's STATUS clock. */
+  private playTimeMs = 0;
   /** The Shared Field (WX-9) charge / active state. */
   private sharedField = new SharedField();
   /** Whether Rowan currently reads to the facility as compliant staff. */
@@ -236,7 +267,6 @@ export class GameScene extends Phaser.Scene {
     run: Phaser.Input.Keyboard.Key;
     interact: Phaser.Input.Keyboard.Key;
     pause: Phaser.Input.Keyboard.Key;
-    abort: Phaser.Input.Keyboard.Key;
     codec: Phaser.Input.Keyboard.Key;
     field: Phaser.Input.Keyboard.Key;
     flashlight: Phaser.Input.Keyboard.Key;
@@ -274,6 +304,7 @@ export class GameScene extends Phaser.Scene {
     this.noiseSpam = new NoiseSpamTracker();
     this.transitioning = false;
     this.paused = false;
+    this.exploredCooldown = 0;
     this.captureProgress = 0;
     this.knockCooldown = 0;
     this.codecOpen = false;
@@ -282,6 +313,9 @@ export class GameScene extends Phaser.Scene {
     this.qualiaOpen = false;
     this.pendingQualia = undefined;
     this.qualiaRack = undefined;
+    // Flags above just reset; republish so a restart out of an overlay (a load
+    // from the pause menu) can't leave UIScene's input gate stuck closed.
+    this.syncSuspended();
     this.sharedField = new SharedField();
     this.conduct = new ConductState();
     this.activeItems = new ActiveItemState();
@@ -422,9 +456,106 @@ export class GameScene extends Phaser.Scene {
     this.registry.set("currentLevel", this.level.name);
     // Inventory persists across level transitions (registry survives restarts).
     if (!this.registry.has("inventory")) this.registry.set("inventory", []);
+
+    // Journal, explored map and run clock ride the registry across the
+    // scene.restart() a level transition performs, exactly as objectives do.
+    this.journal = (this.registry.get("journal") as JournalState | undefined) ?? initialJournal();
+    this.registry.set("journal", this.journal);
+    this.playTimeMs = (this.registry.get("playTimeMs") as number | undefined) ?? 0;
+    this.explored = this.loadExplored();
+    this.note("orders");
+    const arrival = journalIdForLevel(this.level.name);
+    if (arrival) this.note(arrival);
+
     if (!this.scene.isActive("UIScene")) this.scene.launch("UIScene");
 
     this.saveCheckpoint();
+  }
+
+  // --- Journal / map bookkeeping -----------------------------------------
+
+  /**
+   * Writes a journal entry, if this is the first time it has come up.
+   *
+   * The unlock sites are ordinary gameplay events that re-fire constantly
+   * (arriving on a level, being spotted, searching a chest), so the "was it
+   * new?" answer has to come from the journal itself rather than the caller.
+   */
+  private note(id: JournalEntryId): void {
+    if (!noteJournal(this.journal, id)) return;
+    this.registry.set("journal", this.journal);
+    getAudio().pickup();
+  }
+
+  /** This level's seen-tile mask, restored from the registry if we've been here. */
+  private loadExplored(): ExploredMap {
+    const state = (this.registry.get("explored") as ExploredState | undefined) ?? initialExplored();
+    this.registry.set("explored", state);
+    const stored = state[this.level.name];
+    const { width, height } = this.level;
+    return stored ? ExploredMap.fromBase64(stored, width, height) : new ExploredMap(width, height);
+  }
+
+  /** Folds this level's mask back into the registry-held per-level record. */
+  private flushExplored(): void {
+    const state = (this.registry.get("explored") as ExploredState | undefined) ?? initialExplored();
+    state[this.level.name] = this.explored.toBase64();
+    this.registry.set("explored", state);
+  }
+
+  /**
+   * Marks everything currently in the player's line of sight as seen.
+   *
+   * Throttled rather than run per frame: it is a radius-squared raycast sweep,
+   * and at walking pace a quarter-second of movement reveals no tile a full
+   * sweep wouldn't have. Uses the same `hasLineOfSight` the guards' vision and
+   * the darkness overlay use, so the map reveals exactly what Rowan could
+   * actually see — walk a corridor and the rooms off it stay dark.
+   */
+  private markExplored(dt: number): void {
+    this.exploredCooldown -= dt;
+    if (this.exploredCooldown > 0) return;
+    this.exploredCooldown = EXPLORE_INTERVAL;
+
+    const px = this.player.x / this.tileSize;
+    const py = this.player.y / this.tileSize;
+    const cx = Math.floor(px);
+    const cy = Math.floor(py);
+    const r = EXPLORE_RADIUS_TILES;
+    for (let ty = cy - r; ty <= cy + r; ty++) {
+      for (let tx = cx - r; tx <= cx + r; tx++) {
+        if ((tx - cx) ** 2 + (ty - cy) ** 2 > r * r) continue;
+        if (this.explored.has(tx, ty)) continue;
+        if (!this.grid.hasLineOfSight(px, py, tx + 0.5, ty + 0.5)) continue;
+        this.explored.mark(tx, ty);
+      }
+    }
+  }
+
+  /** Hands the pause menu everything its MAP tab needs to draw this level. */
+  private publishMapSnapshot(): void {
+    this.flushExplored();
+    const { width, height } = this.level;
+    const walls = new Uint8Array(width * height);
+    for (let ty = 0; ty < height; ty++) {
+      for (let tx = 0; tx < width; tx++) {
+        if (this.grid.isBlocked(tx, ty)) walls[ty * width + tx] = 1;
+      }
+    }
+    this.registry.set(MAP_SNAPSHOT_KEY, {
+      level: this.level.name,
+      width,
+      height,
+      walls,
+      explored: this.explored,
+      player: {
+        tx: Math.floor(this.player.x / this.tileSize),
+        ty: Math.floor(this.player.y / this.tileSize),
+      },
+      exits: this.transitions
+        .exitsOn(this.level.name)
+        .map((e) => ({ tx: e.tx, ty: e.ty, label: e.transition.toLevel })),
+    } satisfies MapSnapshot);
   }
 
   /**
@@ -607,8 +738,10 @@ export class GameScene extends Phaser.Scene {
       sneak: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT),
       run: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
       interact: kb.addKey(Phaser.Input.Keyboard.KeyCodes.E),
+      // Q used to abort the run straight from the pause screen. The pause menu
+      // owns quitting now, behind a confirmation — a stray keystroke while
+      // reading the journal must not throw the infiltration away.
       pause: kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC),
-      abort: kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
       codec: kb.addKey(Phaser.Input.Keyboard.KeyCodes.C),
       field: kb.addKey(Phaser.Input.Keyboard.KeyCodes.F),
       flashlight: kb.addKey(Phaser.Input.Keyboard.KeyCodes.L),
@@ -630,16 +763,71 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Toggles the pause overlay and freezes/thaws the arcade sim. */
+  /**
+   * Publishes whether an overlay currently owns the screen.
+   *
+   * `UIScene` runs in parallel and keeps updating behind every overlay, so it
+   * needs to know when *not* to read gameplay input — see the hotkey gate there.
+   * Computed from all four flags in one place rather than set by each toggle, so
+   * closing one overlay while another is open can't clear it.
+   */
+  private syncSuspended(): void {
+    const suspended = this.paused || this.codecOpen || this.complianceOpen || this.qualiaOpen;
+    this.registry.set(SUSPENDED_KEY, suspended);
+  }
+
+  /** Toggles the pause menu and freezes/thaws the arcade sim. */
   private setPaused(p: boolean): void {
     if (p === this.paused) return;
     this.paused = p;
+    this.syncSuspended();
     if (p) {
       this.physics.pause();
+      setMode(this.registry, "PAUSED");
+      // The menu's MAP tab needs the collision grid, which only this scene has.
+      // Published on the way in rather than per frame: it's a whole-level walk,
+      // and nothing behind a frozen sim can change it.
+      this.publishMapSnapshot();
+      this.registry.remove(PAUSE_REQUEST_KEY);
       this.scene.launch("PauseScene");
     } else {
       this.scene.stop("PauseScene");
+      this.registry.remove(PAUSE_REQUEST_KEY);
+      setMode(this.registry, "PLAYING");
       this.physics.resume();
+    }
+  }
+
+  /**
+   * Acts on what the player chose in the pause menu.
+   *
+   * The menu is a DOM overlay with no access to the player's position or the
+   * scene stack, so it posts a request to the registry and this consumes it —
+   * the same handshake the codec's transmit finisher and both minigames use.
+   */
+  private consumePauseRequest(): void {
+    const request = this.registry.get(PAUSE_REQUEST_KEY) as PauseRequest | undefined;
+    if (!request) return;
+    this.registry.remove(PAUSE_REQUEST_KEY);
+    switch (request.kind) {
+      case "resume":
+        this.setPaused(false);
+        return;
+      case "save":
+        this.writeSave(request.slot);
+        // Echo the written slot back so the menu can re-render its listing.
+        this.registry.set(SAVE_WRITTEN_KEY, { slot: request.slot, at: Date.now() });
+        return;
+      case "load": {
+        const save = loadGame(request.slot);
+        if (!save) return; // Empty slot: the menu stays open, nothing happens.
+        this.setPaused(false);
+        resumeFromSave(this, save);
+        return;
+      }
+      case "quit":
+        this.abortToTitle();
+        return;
     }
   }
 
@@ -647,6 +835,7 @@ export class GameScene extends Phaser.Scene {
   private setCodecOpen(open: boolean): void {
     if (open === this.codecOpen) return;
     this.codecOpen = open;
+    this.syncSuspended();
     if (open) {
       this.physics.pause();
       this.scene.launch("CodecScene", {
@@ -663,6 +852,7 @@ export class GameScene extends Phaser.Scene {
   private setComplianceOpen(open: boolean): void {
     if (open === this.complianceOpen) return;
     this.complianceOpen = open;
+    this.syncSuspended();
     if (open) {
       this.physics.pause();
       this.registry.remove("complianceSolved");
@@ -700,6 +890,7 @@ export class GameScene extends Phaser.Scene {
   private setQualiaOpen(open: boolean): void {
     if (open === this.qualiaOpen) return;
     this.qualiaOpen = open;
+    this.syncSuspended();
     if (open) {
       this.physics.pause();
       this.registry.remove("qualiaSolved");
@@ -749,7 +940,10 @@ export class GameScene extends Phaser.Scene {
     if (mode === "ALIGNED") getAudio().capture();
     else if (mode === "LATTICE") {
       getAudio().victory();
-      clearSave();
+      // Retire the checkpoint so "Continue" can't resume a finished run — but
+      // leave the manual slots alone. Those are the player's, and wiping saves
+      // they wrote themselves as a reward for winning would be a strange thanks.
+      clearSave("auto");
     }
     this.player.sprite.setVelocity(0, 0);
     this.physics.pause();
@@ -770,16 +964,33 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
-  /** Writes a resume checkpoint on entry to this level. */
-  private saveCheckpoint(): void {
-    saveGame({
+  /**
+   * Writes the run to a save slot.
+   *
+   * Shared by the automatic checkpoint and the pause menu's manual saves, because
+   * a save that captured less than the checkpoint does — or more — would be a
+   * quietly different kind of save. The player's position comes from the live
+   * sprite, which is why the menu has to route through here rather than writing
+   * the file itself.
+   */
+  private writeSave(slot: SlotId): void {
+    this.flushExplored();
+    saveGame(slot, {
       level: this.level.name,
       tileX: Math.floor(this.player.x / this.tileSize),
       tileY: Math.floor(this.player.y / this.tileSize),
       hp: this.player.hp,
       inventory: (this.registry.get("inventory") as string[] | undefined) ?? [],
       objectives: this.objectives,
+      journal: this.journal,
+      explored: (this.registry.get("explored") as ExploredState | undefined) ?? initialExplored(),
+      playTimeMs: this.playTimeMs,
     });
+  }
+
+  /** Writes a resume checkpoint on entry to this level. */
+  private saveCheckpoint(): void {
+    this.writeSave("auto");
   }
 
   /**
@@ -802,6 +1013,7 @@ export class GameScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.keys.field) && this.sharedField.activate()) {
       getAudio().merge();
       this.cameras.main.flash(300, 60, 200, 220);
+      this.note("we");
     }
     this.sharedField.update(dt);
     this.registry.set("sharedField", {
@@ -951,7 +1163,9 @@ export class GameScene extends Phaser.Scene {
     }
     if (this.paused || this.codecOpen || this.complianceOpen || this.qualiaOpen) {
       this.player.sprite.setVelocity(0, 0);
-      if (this.paused && Phaser.Input.Keyboard.JustDown(this.keys.abort)) this.abortToTitle();
+      // Save / load / quit chosen in the pause menu. Consumed here for the same
+      // reason as the codec flag below: the sim update never runs behind an overlay.
+      if (this.paused) this.consumePauseRequest();
       // The codec's 140.85 transmit finisher: CodecScene raises the flag, and
       // it must be consumed here — the sim update below never runs while the
       // overlay is open.
@@ -986,6 +1200,13 @@ export class GameScene extends Phaser.Scene {
         ? { x: this.player.x, y: this.player.y, facing: this.player.facing }
         : null,
     );
+    // The run clock and the map only advance during live play — everything above
+    // this point returns early while an overlay or a fade owns the frame, so time
+    // spent reading the journal is not time spent infiltrating.
+    this.playTimeMs += delta;
+    this.registry.set("playTimeMs", this.playTimeMs);
+    this.markExplored(dt);
+
     this.updateInteractions(dt);
     this.updateSharedField(dt);
     this.updateActiveItems(dt);
@@ -1142,7 +1363,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.alert.update(this.frozenWorld ? 0 : dt);
-    if (this.alert.phase === "ALERT" && phaseBefore !== "ALERT") getAudio().ping();
+    if (this.alert.phase === "ALERT" && phaseBefore !== "ALERT") {
+      getAudio().ping();
+      this.note("flagged");
+    }
     getAudio().setMood(
       this.alert.phase === "ALERT" ? "alert" : this.alert.phase === "EVASION" ? "search" : "calm",
     );
@@ -1169,6 +1393,7 @@ export class GameScene extends Phaser.Scene {
     }
     // Win — logs recovered and Rowan has reached the Lattice uplink deck.
     if (isRunWon(this.objectives, this.level.name, this.mapPlan().extractionLevel)) {
+      this.note("the-uplink");
       this.endRun("LATTICE", "VictoryScene");
       return;
     }
@@ -1446,8 +1671,10 @@ export class GameScene extends Phaser.Scene {
     }
     getAudio().hack();
     // Breaching a log-cache terminal recovers EIRA-7's logs (mission objective).
+    const hadLogs = this.objectives.logsRecovered;
     noteTerminalHacked(this.objectives, terminal.stats.type);
     this.registry.set("objectives", this.objectives);
+    if (!hadLogs && this.objectives.logsRecovered) this.note("the-cache");
   }
 
   /**
@@ -1487,6 +1714,8 @@ export class GameScene extends Phaser.Scene {
         }
         noteVent4Defeated(this.objectives);
         this.registry.set("objectives", this.objectives);
+        this.note("vent4");
+        this.note("certified");
         this.cameras.main.flash(400, 60, 200, 220);
         break;
       }
@@ -1939,6 +2168,7 @@ export class GameScene extends Phaser.Scene {
    * is left inside the chest, which re-arms so it can be searched again later.
    */
   private collectChest(chest: Chest): void {
+    this.note("supply");
     const inv = (this.registry.get("inventory") as string[] | undefined) ?? [];
     const leftover: string[] = [];
     let held = countConsumables(inv);

@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import type { AlertPhase } from "../systems/AlertState";
 import { SETTLE_SECONDS, type ConductView } from "../systems/Conduct";
+import { controlsHintLine } from "./Controls";
 
 const PHASE_COLOR: Record<AlertPhase, string> = {
   INFILTRATION: "#39d3ff",
@@ -72,7 +73,7 @@ export class Hud {
       .setDepth(1001);
 
     this.hint = scene.add
-      .text(pad, scene.scale.height - pad, "WASD move  Shift sneak  Space run  E interact  F shared-field  C codec  Esc pause", {
+      .text(pad, scene.scale.height - pad, controlsHintLine(), {
         fontFamily: "monospace",
         fontSize: "12px",
         color: "#6b7f92",

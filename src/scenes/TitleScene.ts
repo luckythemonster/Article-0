@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { Menu, type MenuItem } from "../ui/Menu";
-import { resetRun, setMode, startFreshRun } from "../systems/GameState";
-import { hasSave, loadGame } from "../systems/SaveGame";
+import { resumeFromSave, setMode, startFreshRun } from "../systems/GameState";
+import { hasAnySave, newestSave } from "../systems/SaveGame";
 
 /**
  * The title screen. Boots first after the map has parsed and offers the entry
@@ -36,7 +36,7 @@ export class TitleScene extends Phaser.Scene {
       .setScrollFactor(0);
 
     const items: MenuItem[] = [{ label: "New infiltration", onSelect: () => startFreshRun(this) }];
-    if (hasSave()) items.push({ label: "Continue", onSelect: () => this.continueRun() });
+    if (hasAnySave()) items.push({ label: "Continue", onSelect: () => this.continueRun() });
     const menu = new Menu(this, items);
 
     const footer = this.add
@@ -58,18 +58,16 @@ export class TitleScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", onResize));
   }
 
-  /** Resumes the saved checkpoint: restore run state to the registry, then start. */
+  /**
+   * Resumes the most recent save — which may be the engine's level checkpoint or
+   * a slot the player wrote from the pause menu, whichever was written last.
+   */
   private continueRun(): void {
-    const save = loadGame();
-    if (!save) {
+    const newest = newestSave();
+    if (!newest) {
       startFreshRun(this);
       return;
     }
-    resetRun(this.registry);
-    this.registry.set("inventory", save.inventory);
-    this.registry.set("objectives", save.objectives);
-    this.registry.set("playerHp", save.hp);
-    setMode(this.registry, "PLAYING");
-    this.scene.start("GameScene", { level: save.level, arriveX: save.tileX, arriveY: save.tileY });
+    resumeFromSave(this, newest.data);
   }
 }

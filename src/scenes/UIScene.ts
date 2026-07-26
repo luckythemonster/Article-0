@@ -17,6 +17,7 @@ import type { Vent4View } from "../systems/Vent4Core";
 import type { ActiveItemsView } from "../systems/ActiveItems";
 import type { ConductView } from "../systems/Conduct";
 import { consumableSlots } from "../systems/EntityStats";
+import { isSuspended } from "../systems/GameState";
 
 /**
  * A parallel overlay scene for the HUD.
@@ -78,11 +79,19 @@ export class UIScene extends Phaser.Scene {
 
     const items = (this.registry.get("inventory") as string[] | undefined) ?? [];
     // Hotkeys [1]–[4] map to the held consumables in canonical slot order.
-    const slots = consumableSlots(items);
-    for (let i = 0; i < this.itemKeys.length; i++) {
-      if (!Phaser.Input.Keyboard.JustDown(this.itemKeys[i])) continue;
-      const slot = slots.find((s) => s.slot === i + 1);
-      if (slot) this.registry.set("itemUseRequest", slot.name);
+    //
+    // Skipped while an overlay owns the screen. This scene keeps updating behind
+    // the pause menu, the codec and both minigames, so without the gate a number
+    // key pressed there queues an itemUseRequest that GameScene spends the moment
+    // play resumes — a consumable vanishing for no reason several seconds later.
+    // The pause menu uses 1–9 for its tabs, which would make that constant.
+    if (!isSuspended(this.registry)) {
+      const slots = consumableSlots(items);
+      for (let i = 0; i < this.itemKeys.length; i++) {
+        if (!Phaser.Input.Keyboard.JustDown(this.itemKeys[i])) continue;
+        const slot = slots.find((s) => s.slot === i + 1);
+        if (slot) this.registry.set("itemUseRequest", slot.name);
+      }
     }
     const activeItems = (this.registry.get("activeItems") as ActiveItemsView | undefined) ?? {
       chaffRemaining: 0,
