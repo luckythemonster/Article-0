@@ -1,0 +1,45 @@
+/*
+ * The @font-face declarations, kept apart from theme.css on purpose.
+ *
+ * Four stylesheets @import theme.css for the palette tokens, and Vite inlines an
+ * @import into every chunk that pulls it — so declaring the faces there put five
+ * copies of these rules into the built CSS. The tokens are cheap to duplicate;
+ * a font declaration repeated five times is just noise in the CSSOM.
+ *
+ * So this file is imported once per *page entry* instead: `main.ts` for the game,
+ * and the two standalone minigame harnesses. Anything that adds a new entry point
+ * needs to import it too, or that page silently falls back to Courier New.
+ *
+ * Self-hosted rather than linked from a Google Fonts CDN: the game otherwise
+ * makes no third-party requests, and a CDN would put the typeface — and so every
+ * Phaser `Text` object's metrics — behind a network the player may not have.
+ *
+ * The files sit in `src/ui/fonts/` rather than `public/` so Vite resolves and
+ * fingerprints them. A `public/` font would have to be referenced as
+ * `/fonts/...`, and `vite.config.ts` sets `base: "./"` — a root-absolute URL
+ * breaks the moment the game is served from anywhere but a domain root.
+ *
+ * Licence: SIL Open Font License 1.1 — see `src/ui/fonts/OFL.txt`.
+ *
+ * `font-display: block` on purpose, against the usual advice. The swap period
+ * exists to avoid invisible text — but Phaser rasterises `Text` at construction
+ * and never redraws, so a face that swaps in late never reaches the canvas at
+ * all; it just leaves the HUD in the fallback for the rest of the session. Boot
+ * waits on these anyway (see `fontsReady.ts`), so blocking is the shorter wait.
+ */
+
+@font-face {
+  font-family: "Share Tech Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("./fonts/ShareTechMono-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Share Tech";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("./fonts/ShareTech-Regular.woff2") format("woff2");
+}

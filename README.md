@@ -466,9 +466,41 @@ src/systems/        CollisionGrid, DetectionSystem, Visibility, AlertState,
                     Journal, Lexicon, ItemCatalog, Explored, SaveGame, Settings,
                     PauseState
 src/ui/             Hud, Radar, InventoryHud, AlertNetworkHud, Lighting,
-                    PauseMenuView, MiniMapCanvas, SelectList, Controls
+                    PauseMenuView, MiniMapCanvas, SelectList, Controls,
+                    fonts (the type stack), fontsReady (the boot gate)
+src/ui/fonts/       Share Tech + Share Tech Mono woff2 + OFL licence
 src/testing/        test-only helpers (an in-memory localStorage)
 ```
+
+## Typography
+
+**Share Tech Mono** for everything, **Share Tech** for the three big scene titles
+(`ARTICLE ZERO`, `ALIGNED`, `INTO THE LATTICE`) — two cuts of one family by
+Carrois Type Design, self-hosted from `src/ui/fonts/` under the SIL Open Font
+License 1.1. Self-hosted rather than linked from a CDN because the game otherwise
+makes no third-party requests, and because the typeface decides every `Text`
+object's metrics.
+
+Share Tech Mono is a true monospace (every advance is 540/1000), which the HUD
+depends on: the SRP axes, the inventory's right-aligned counts and the pause
+menu's indented rows all line up by character cell. Share Tech is proportional
+and must never be used where columns line up — hence the two constants in
+`src/ui/fonts.ts` rather than a string at each call site.
+
+Two things worth knowing before changing any of this:
+
+- **Boot waits for the fonts** (`src/ui/fontsReady.ts`). Phaser rasterises a
+  `Text` to a canvas texture at construction and never redraws it, so a label
+  built while the font is still loading keeps the fallback face for the whole
+  session — silently, with nothing to retry. The wait is bounded and fails open,
+  so a blocked font costs the typeface and never the game. It is also why the
+  `@font-face` rules use `font-display: block`: a face that swaps in late never
+  reaches the canvas at all.
+- **Neither cut carries `✓ ○ ▸ ◎ ← → ↑ ↓`**, so those fall back per glyph. That
+  is fine for centred one-off lines and for the objective list (every line starts
+  with a fallback glyph, so they shift together), but not where a glyph's width
+  has to match a space's — which is why `Menu` draws its selection caret as a
+  separately positioned object instead of prefixing it to the label.
 
 ## Character & enemy art
 

@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import type { AlertPhase } from "../systems/AlertState";
+import { FONT_MONO } from "./fonts";
 
 /** A named unit and its current detection level (0..1). */
 export interface DebugUnitView {
@@ -56,7 +57,7 @@ export class DebugHud {
 
     this.panel = scene.add
       .text(x, this.pad, "", {
-        fontFamily: "monospace",
+        fontFamily: FONT_MONO,
         fontSize: "12px",
         color: "#cfe8ff",
         align: "left",
@@ -71,7 +72,7 @@ export class DebugHud {
 
     this.legend = scene.add
       .text(x, this.pad, "`=debug  G=god  N=no-clip  V=world  H=halt  O=dark  1-5=warp", {
-        fontFamily: "monospace",
+        fontFamily: FONT_MONO,
         fontSize: "11px",
         color: "#6b7f92",
         backgroundColor: "#0a0f16cc",

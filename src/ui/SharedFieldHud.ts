@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { SHARED_FIELD_DURATION } from "../systems/SharedField";
+import { FONT_MONO } from "./fonts";
 
 export interface SharedFieldView {
   charge: number;
@@ -39,7 +40,7 @@ export class SharedFieldHud {
       .setScrollFactor(0)
       .setDepth(1001);
     this.label = scene.add
-      .text(0, 0, "SHARED FIELD", { fontFamily: "monospace", fontSize: "11px", color: "#8899aa" })
+      .text(0, 0, "SHARED FIELD", { fontFamily: FONT_MONO, fontSize: "11px", color: "#8899aa" })
       .setOrigin(0.5, 1)
       .setScrollFactor(0)
       .setDepth(1000);

@@ -4,6 +4,7 @@
  * against {@link DEMO_PUZZLE}, so the puzzle can be played and reviewed in
  * isolation (`npm run dev` → open /compliance-demo.html).
  */
+import "./ui/fonts.css";
 import { ComplianceView } from "./ui/ComplianceView";
 import { DEMO_PUZZLE, renderCompliantText } from "./systems/Compliance";
 

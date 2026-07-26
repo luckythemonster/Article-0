@@ -8,6 +8,7 @@ import {
   THERMAL_GEL_ITEM,
 } from "../systems/EntityStats";
 import type { ActiveItemsView } from "../systems/ActiveItems";
+import { FONT_MONO } from "./fonts";
 
 /**
  * A compact inventory readout pinned to the bottom-right of the screen, in three
@@ -24,7 +25,7 @@ export class InventoryHud {
     const pad = 12;
     this.text = scene.add
       .text(scene.scale.width - pad, scene.scale.height - pad, "", {
-        fontFamily: "monospace",
+        fontFamily: FONT_MONO,
         fontSize: "12px",
         color: "#cfe0f0",
         align: "right",

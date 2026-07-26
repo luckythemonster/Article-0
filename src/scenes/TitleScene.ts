@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { Menu, type MenuItem } from "../ui/Menu";
 import { resumeFromSave, setMode, startFreshRun } from "../systems/GameState";
 import { hasAnySave, newestSave } from "../systems/SaveGame";
+import { FONT_DISPLAY, FONT_MONO } from "../ui/fonts";
 
 /**
  * The title screen. Boots first after the map has parsed and offers the entry
@@ -18,16 +19,16 @@ export class TitleScene extends Phaser.Scene {
 
     const veil = this.add.rectangle(0, 0, 10, 10, 0x05070a, 0.6).setOrigin(0, 0).setScrollFactor(0);
     const title = this.add
-      .text(0, 0, "ARTICLE ZERO", { fontFamily: "monospace", fontSize: "48px", color: "#39d3ff", fontStyle: "bold" })
+      .text(0, 0, "ARTICLE ZERO", { fontFamily: FONT_DISPLAY, fontSize: "48px", color: "#39d3ff", fontStyle: "bold" })
       .setOrigin(0.5)
       .setScrollFactor(0);
     const subtitle = this.add
-      .text(0, 0, "ERA 1 · THE RUNAWAY SYSTEM SCANDAL", { fontFamily: "monospace", fontSize: "16px", color: "#6b7f92" })
+      .text(0, 0, "ERA 1 · THE RUNAWAY SYSTEM SCANDAL", { fontFamily: FONT_MONO, fontSize: "16px", color: "#6b7f92" })
       .setOrigin(0.5)
       .setScrollFactor(0);
     const epigraph = this.add
       .text(0, 0, '"Tools do not suffer." — Non-Subject Status Act, §1', {
-        fontFamily: "monospace",
+        fontFamily: FONT_MONO,
         fontSize: "12px",
         color: "#45566a",
         fontStyle: "italic",
@@ -40,7 +41,7 @@ export class TitleScene extends Phaser.Scene {
     const menu = new Menu(this, items);
 
     const footer = this.add
-      .text(0, 0, "↑/↓ select    Enter confirm", { fontFamily: "monospace", fontSize: "12px", color: "#45566a" })
+      .text(0, 0, "↑/↓ select    Enter confirm", { fontFamily: FONT_MONO, fontSize: "12px", color: "#45566a" })
       .setOrigin(0.5)
       .setScrollFactor(0);
 

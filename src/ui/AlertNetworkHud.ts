@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import type { AlertNetworkSnapshot } from "../systems/AlertNetwork";
+import { FONT_MONO } from "./fonts";
 
 /** Phase → readout label + colour for the network status line. */
 const STATUS: Record<string, { label: string; color: string }> = {
@@ -27,7 +28,7 @@ export class AlertNetworkHud {
 
     scene.add
       .text(pad, top, "NETWORK", {
-        fontFamily: "monospace",
+        fontFamily: FONT_MONO,
         fontSize: "11px",
         color: "#8899aa",
       })
@@ -36,7 +37,7 @@ export class AlertNetworkHud {
 
     this.status = scene.add
       .text(pad + 70, top, "NOMINAL", {
-        fontFamily: "monospace",
+        fontFamily: FONT_MONO,
         fontSize: "11px",
         color: STATUS.INFILTRATION.color,
         fontStyle: "bold",
@@ -46,7 +47,7 @@ export class AlertNetworkHud {
 
     this.detail = scene.add
       .text(pad, top + 16, "", {
-        fontFamily: "monospace",
+        fontFamily: FONT_MONO,
         fontSize: "11px",
         color: "#9fb2c4",
         lineSpacing: 2,

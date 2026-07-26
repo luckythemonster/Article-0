@@ -1,12 +1,16 @@
 /*
  * Shared design tokens for the "Alignment apparatus" overlay UI — the single
- * source of truth for the retro terminal palette and font. The three overlay
- * stylesheets (ComplianceView.css, QualiaLockView.css, CodecScene.css) @import
- * this file and reference the variables instead of repeating hex literals.
+ * source of truth for the retro terminal palette. The overlay stylesheets
+ * (ComplianceView.css, QualiaLockView.css, CodecScene.css, PauseMenuView.css)
+ * @import this file and reference the variables instead of repeating hex
+ * literals.
  *
- * Only the opaque identity colours and the font live here. Decorative rgba()
- * alpha variants (glows, translucent fills) stay inline in each stylesheet —
- * they are local tints of these bases, not palette entries.
+ * Only the opaque identity colours and the type stack live here. The @font-face
+ * rules are deliberately *not* — they live in fonts.css, imported once per page
+ * entry, because Vite inlines an @import into every chunk that pulls it and this
+ * file is pulled by four. Decorative rgba() alpha variants (glows, translucent
+ * fills) stay inline in each stylesheet — they are local tints of these bases,
+ * not palette entries.
  *
  * The page-shell inline <style> blocks in index.html / *-demo.html keep their
  * own literals: they paint before this bundled CSS loads, so referencing these
@@ -45,5 +49,8 @@
   --c-text-debug: #45566a;
 
   /* --- type --- */
-  --font-mono: "Courier New", monospace;
+  /* Keep in step with FONT_MONO / FONT_DISPLAY in src/ui/fonts.ts, which say the
+     same thing for the Phaser side of the UI. */
+  --font-mono: "Share Tech Mono", "Courier New", monospace;
+  --font-display: "Share Tech", "Share Tech Mono", "Courier New", monospace;
 }

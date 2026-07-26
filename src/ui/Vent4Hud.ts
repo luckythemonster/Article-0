@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { Vent4State, type Vent4View } from "../systems/Vent4Core";
+import { FONT_MONO } from "./fonts";
 
 /** Fill/status colors per compliance band. */
 const BAND_STYLE: Record<string, { hex: number; css: string; label: string }> = {
@@ -36,7 +37,7 @@ export class Vent4Hud {
   constructor(scene: Phaser.Scene) {
     // Stacked below the ObjectiveHud's directive block (y ≈ 10–70).
     this.title = scene.add
-      .text(0, 76, "", { fontFamily: "monospace", fontSize: "12px", color: "#cfe0f0", fontStyle: "bold" })
+      .text(0, 76, "", { fontFamily: FONT_MONO, fontSize: "12px", color: "#cfe0f0", fontStyle: "bold" })
       .setOrigin(0.5, 0)
       .setScrollFactor(0)
       .setDepth(1000)
@@ -55,14 +56,14 @@ export class Vent4Hud {
       .setDepth(1001)
       .setVisible(false);
     this.status = scene.add
-      .text(0, 106, "", { fontFamily: "monospace", fontSize: "10px", color: "#8899aa" })
+      .text(0, 106, "", { fontFamily: FONT_MONO, fontSize: "10px", color: "#8899aa" })
       .setOrigin(0.5, 0)
       .setScrollFactor(0)
       .setDepth(1000)
       .setVisible(false);
     this.banner = scene.add
       .text(0, 122, "", {
-        fontFamily: "monospace",
+        fontFamily: FONT_MONO,
         fontSize: "12px",
         color: "#ffb03b",
         fontStyle: "bold",
