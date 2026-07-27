@@ -113,7 +113,7 @@ export class Player {
     return true;
   }
 
-  /** Restores bio-integrity, capped at {@link maxHp} (Ration Pack). */
+  /** Restores bio-integrity, capped at {@link maxHp} (Medkit). */
   heal(amount: number): void {
     this.hp = Math.min(this.maxHp, this.hp + amount);
   }

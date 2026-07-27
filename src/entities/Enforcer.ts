@@ -67,7 +67,7 @@ export interface EnforcerContext {
    * them to the short-range heat sense while breaking the visible cone.
    */
   playerThermalConcealed: boolean;
-  /** Non-null while a Chaff Pack's EMP zone is live; guards inside it can't see. */
+  /** Non-null while an EMP Grenade's EMP zone is live; guards inside it can't see. */
   chaffZone: { x: number; y: number; radiusPx: number } | null;
   /** Scales a guard's thermalRadius stat (in tiles) — 0 while Thermal Gel is active. */
   thermalRadiusMultiplier: (baseTiles: number) => number;

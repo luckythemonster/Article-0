@@ -227,11 +227,31 @@
   margin-top: 0;
 }
 
+.pause-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.pause-detail-icon {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  object-fit: contain;
+  /* Icons are pixel art; keep the browser from smoothing them. */
+  image-rendering: pixelated;
+}
+
 .pause-detail-title {
   font-size: 13px;
   font-weight: bold;
   color: var(--c-cyan);
   margin-bottom: 8px;
+}
+
+.pause-detail-header .pause-detail-title {
+  margin-bottom: 0;
 }
 
 /* Paragraphs are built by the view from the authored text; the source's own hard

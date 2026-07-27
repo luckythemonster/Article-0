@@ -22,7 +22,7 @@ const sample: SavePayload = {
   tileX: 3,
   tileY: 7,
   hp: 80,
-  inventory: ["Ration Pack"],
+  inventory: ["Medkit"],
   objectives: initialObjectives(),
   ...emptyProgress(),
 };
@@ -52,7 +52,7 @@ describe("SaveGame", () => {
     const loaded = loadGame("auto");
     expect(loaded?.level).toBe("main1");
     expect(loaded?.hp).toBe(80);
-    expect(loaded?.inventory).toEqual(["Ration Pack"]);
+    expect(loaded?.inventory).toEqual(["Medkit"]);
     expect(loaded?.objectives.logsRecovered).toBe(false);
   });
 

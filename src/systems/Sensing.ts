@@ -94,7 +94,7 @@ export const DETECTION_DECAY_PER_SECOND = 0.6;
 export function canSense(eye: Eye, ctx: SensingWorld): boolean {
   if (ctx.playerCompliant && eye.readsConduct !== false) return false;
 
-  // A live Chaff Pack EMP zone blinds anything caught inside it outright.
+  // A live EMP Grenade EMP zone blinds anything caught inside it outright.
   const chaff = ctx.chaffZone;
   if (chaff) {
     const cdx = eye.x - chaff.x;

@@ -249,9 +249,9 @@ export class GameScene extends Phaser.Scene {
   private sharedField = new SharedField();
   /** Whether Rowan currently reads to the facility as compliant staff. */
   private conduct = new ConductState();
-  /** Chaff Pack / Thermal Gel consumable timers. */
+  /** EMP Grenade / Thermal Gel consumable timers. */
   private activeItems = new ActiveItemState();
-  /** Draws the Chaff Pack's EMP zone while it's live. */
+  /** Draws the EMP Grenade's EMP zone while it's live. */
   private empGfx!: Phaser.GameObjects.Graphics;
   /**
    * A walk-over transition can only fire once the player has stepped off every
@@ -473,7 +473,7 @@ export class GameScene extends Phaser.Scene {
    * over the player without any anchor maths.
    */
   private createWorldMarkers(): void {
-    // Chaff Pack EMP zone: drawn between the guard cones (400) and bodies (450).
+    // EMP Grenade EMP zone: drawn between the guard cones (400) and bodies (450).
     this.empGfx = this.add.graphics().setDepth(410);
 
     // Interact prompt for hatches and ladders.
@@ -1021,7 +1021,7 @@ export class GameScene extends Phaser.Scene {
     this.noise.emitAt(this.player.x, this.player.y, STUN_ROUND_NOISE * this.tileSize);
   }
 
-  /** Draws the Chaff Pack's EMP zone while it's live. */
+  /** Draws the EMP Grenade's EMP zone while it's live. */
   private drawChaffZone(): void {
     const g = this.empGfx;
     g.clear();
@@ -2068,7 +2068,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Searches a chest with smart auto-use: a Ration Pack heals immediately if
+   * Searches a chest with smart auto-use: a Medkit heals immediately if
    * Rowan is hurt, a Battery tops the flashlight if it's low, and everything
    * else is stored — but only while under the 4-consumable cap. Key items and
    * equipment never count against the cap. Anything that can't be used or stored

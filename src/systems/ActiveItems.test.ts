@@ -14,7 +14,7 @@ describe("ActiveItemState", () => {
     expect(s.thermalMasked).toBe(false);
   });
 
-  it("activates the Chaff Pack at the given origin and decays it to inactive", () => {
+  it("activates the EMP Grenade at the given origin and decays it to inactive", () => {
     const s = new ActiveItemState();
     s.activateChaff(10, 20);
     expect(s.chaffActive).toBe(true);

@@ -48,7 +48,7 @@ const CATALOG: Record<string, ItemInfo> = {
   [CHAFF_PACK_ITEM]: {
     name: CHAFF_PACK_ITEM,
     blurb:
-      "Maintenance-issue interference charge, for clearing sensor ghosts out of a bad duct. " +
+      "Maintenance-issue EMP charge, for clearing sensor ghosts out of a bad duct. " +
       "It works just as well on sensors that are working correctly.",
     effect: `EMP burst, ${CHAFF_EMP_RADIUS_TILES} tiles: blinds cameras and guards for ${CHAFF_EMP_DURATION}s.`,
   },
@@ -62,8 +62,8 @@ const CATALOG: Record<string, ItemInfo> = {
   [RATION_PACK_ITEM]: {
     name: RATION_PACK_ITEM,
     blurb:
-      "Staff sugar. The facility budgets real money to keep the bodies on its payroll " +
-      "comfortable, while arguing on paper that the thing in the next room has no inside at all.",
+      "Staff-grade trauma kit. The facility spends real money patching the bodies on its " +
+      "payroll, while arguing on paper that the thing in the next room has no body worth patching.",
     effect: `Restores ${RATION_HEAL} bio-integrity.`,
   },
   [BATTERY_ITEM]: {

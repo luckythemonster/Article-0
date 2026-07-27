@@ -1,5 +1,5 @@
 /**
- * Active-item state: the Chaff Pack (EMP burst) and Thermal Gel (thermal mask)
+ * Active-item state: the EMP Grenade (EMP burst) and Thermal Gel (thermal mask)
  * consumable timers, plus the flashlight equipment (owned / on / battery
  * charge). Pure dt-driven state — GameScene owns the instance, ticks it every
  * frame, and applies the effects through the detection context / lighting.
@@ -12,16 +12,16 @@ import {
   THERMAL_GEL_SECONDS,
 } from "./EntityStats";
 
-/** Seconds a Chaff Pack's EMP burst blinds guards / disables electronics. */
+/** Seconds an EMP Grenade's EMP burst blinds guards / disables electronics. */
 export const CHAFF_PACK_DURATION = CHAFF_EMP_DURATION;
-/** Radius (tiles) of a Chaff Pack's EMP burst, centred on the player. */
+/** Radius (tiles) of an EMP Grenade's EMP burst, centred on the player. */
 export const CHAFF_PACK_RADIUS_TILES = CHAFF_EMP_RADIUS_TILES;
 /** Seconds a Thermal Gel dose zeroes thermal detection. */
 export const THERMAL_GEL_DURATION = THERMAL_GEL_SECONDS;
 
 export class ActiveItemState {
   private chaffTimer = 0;
-  /** World position the Chaff Pack was used at; null while inactive. */
+  /** World position the EMP Grenade was used at; null while inactive. */
   chaffOrigin: { x: number; y: number } | null = null;
   private thermalTimer = 0;
 

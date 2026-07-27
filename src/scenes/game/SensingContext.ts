@@ -85,7 +85,7 @@ export class SensingContext {
     this.ctx.playerThermalConcealed = thermalConcealed;
   }
 
-  /** The live Chaff Pack EMP zone, or `active: false` when none is running. */
+  /** The live EMP Grenade EMP zone, or `active: false` when none is running. */
   setChaff(active: boolean, x: number, y: number, radiusPx: number): void {
     if (!active) {
       this.ctx.chaffZone = null;
