@@ -72,7 +72,7 @@ export class DebugHud {
       .setVisible(false);
 
     this.legend = scene.add
-      .text(x, this.pad, "`=debug  G=god  N=no-clip  V=world  H=halt  O=dark  1-5=warp", {
+      .text(x, this.pad, "`=debug  G=god  N=no-clip  V=world  H=halt  O=dark  1-6=warp", {
         fontFamily: FONT_MONO,
         fontSize: "11px",
         color: "#6b7f92",

@@ -25,8 +25,14 @@ import type { Lighting } from "../../ui/Lighting";
  * than carrying six booleans it mostly ignores.
  */
 
-/** How many number keys are wired for level warps. */
-const WARP_SLOTS = 5;
+/**
+ * How many number keys are wired for level warps.
+ *
+ * One per level the shipped map ends up with: four authored decks plus the two the
+ * engine generates (`vent_core`, `roof_array`). The key list below is sliced to this,
+ * so the two can't drift apart and quietly leave a level unreachable.
+ */
+const WARP_SLOTS = 6;
 
 /** What the overlay needs from the scene, supplied fresh each frame. */
 export interface DebugWorld {
@@ -121,7 +127,9 @@ export class DebugOverlay {
       world: kb.addKey(K.V),
       freeze: kb.addKey(K.H),
       darkness: kb.addKey(K.O),
-      warp: [K.ONE, K.TWO, K.THREE, K.FOUR, K.FIVE].slice(0, WARP_SLOTS).map((c) => kb.addKey(c)),
+      warp: [K.ONE, K.TWO, K.THREE, K.FOUR, K.FIVE, K.SIX]
+        .slice(0, WARP_SLOTS)
+        .map((c) => kb.addKey(c)),
     };
   }
 

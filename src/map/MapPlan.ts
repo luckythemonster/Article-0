@@ -1,5 +1,4 @@
-import type { GameMap } from "./types";
-import { VENT_CORE_LEVEL } from "./VentCoreLevel";
+import { isGeneratedLevel, type GameMap } from "./types";
 
 /**
  * What shape a map is: where a run starts, where it ends, and whether the engine can graft
@@ -32,10 +31,12 @@ export interface MapPlan {
 
 /** Levels a plan may point at: anything the map itself authored. */
 function candidates(map: GameMap): GameMap["levels"] {
-  // The vent core is engine-generated, so it must never be picked as a start, an
-  // extraction point, or its own host — that also keeps planFor stable if it is re-run
-  // after generation.
-  return map.levels.filter((l) => l.name !== VENT_CORE_LEVEL);
+  // Generated levels (the vent core, the rooftop relay) must never be picked as a start,
+  // an extraction point, or a host — they are grafted *onto* authored levels, so routing a
+  // run into one would be circular. Filtering them here also keeps planFor stable if it is
+  // re-run after generation, which `GameScene.mapPlan()` does whenever the registry key is
+  // missing.
+  return map.levels.filter((l) => !isGeneratedLevel(l.name));
 }
 
 /** True when a level carries a board of this name with at least one tile on it. */

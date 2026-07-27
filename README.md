@@ -12,6 +12,12 @@ components** — guards have `SightRange`/`SightAngle`/`ThermalDetectionRadius`,
 doors have keys and states, terminals are hackable, lights raise detection, and
 so on. This engine loads that data directly and brings the entry level to life.
 
+Two more levels are **generated in code** at boot and appended to that map — the
+VENT-4 arena (`vent_core`) and the rooftop relay (`roof_array`) — along with the
+crawlspace log-cache node and the NW-SMAC-01 vault's fixtures. The export is
+committed verbatim and never hand-edited, so everything the engine adds is built
+by cloning tiles the map already places. See `src/map/generate.ts`.
+
 ## Running it
 
 ```bash
@@ -62,7 +68,7 @@ warps; visit with `?debug=0` to turn it back off.
 | N | No-clip — walk through walls and doors |
 | V | World overlay — guard patrol routes and live A* paths, collision circles, line-of-sight rays, blocked tiles, and detection hot spots |
 | O | Darkness off — hide the lighting / line-of-sight overlay and read the level at full brightness |
-| 1–5 | Warp to the map's levels in board order, with the generated `vent_core` last — for the shipped map that's `main1` / `duct1` / `duct2` / `main2` / `vent_core` (resets the alert; keeps your HP) |
+| 1–6 | Warp to the map's levels in board order, with the generated ones last — for the shipped map that's `main1` / `duct1` / `duct2` / `main2` / `vent_core` / `roof_array` (resets the alert; keeps your HP) |
 
 While enabled, a top-right panel shows FPS, player position, facing, HP, capture
 progress, the current level, alert phase, and per-unit detection. The G/N/V/O and
@@ -72,7 +78,9 @@ Walk onto a **staircase** and you descend/ascend automatically; **hatches and
 ladders** show a `[E] Use access` prompt and change level when you press **E**.
 Either way the screen fades and you arrive at the connected level's matching
 access point — `main1` links to `main2` (stairs) and to `duct1`/`duct2`
-(maintenance hatches).
+(maintenance hatches), and `main2` links up a ladder to the `roof_array` deck.
+That last one is **gated**: the ladder stays sealed, and says so, until both
+log-cache nodes are aboard and the Alignment Core is down.
 
 **Doors** are closed by default and block both movement and line of sight —
 they're real chokepoints. Stand next to one and tap **E** to open or close it
@@ -186,11 +194,24 @@ facility's Alignment apparatus. A run is the Era-1 story: **EIRA-7** — a
 therapeutic AI scheduled for pruning — asks you to recover her cached logs and
 carry them to the Lattice uplink.
 
+It runs in four acts:
+
+| Act | Where | What |
+| --- | --- | --- |
+| **I — The Compliance Illusion** | `main1`, `duct1`, `duct2` | Breach log-cache node **ALPHA** on the public deck and node **BETA** behind the crawlspace laser grid. |
+| **II — Subversion of VENT-4** | `vent_core` | Optional. Silence VENT-4 for the **Q0 compliance cert**. |
+| **III — The Alignment Core** | `main2` | Bring down **NW-SMAC-01** in the vault. It opens the roof. |
+| **IV — The Rooftop Relay** | `roof_array` | Calibrate the dish, open the feed, hold the platform — then the Tribunal. |
+
 - **Title → codec → infiltrate.** A new run opens on an EIRA-7 codec briefing
   (re-openable in-game with **C**), then drops you into `main1`.
-- **Directive.** Breach a **log-cache** terminal to recover the logs, then reach
-  the uplink on **main deck 2** (`main2`). The objective tracker (top-centre)
-  shows progress.
+- **Directive.** The objective tracker (top-centre) shows a line per act, and
+  the codec's DIRECTIVE block mirrors it.
+- **The codec answers to your conduct.** Re-open it mid-run (**C**) and EIRA-7
+  responds to *how* you have been getting through the building, not only where
+  you are: a long, quiet, high-mileage run gets one stanza, a run that has been
+  forcing doors and tripping alarms gets another. She stays off the subject
+  until there is something to observe — see `src/ui/Codec.ts`.
 - **Subjectivity Risk Profile.** The detection meter *is* your SRP — being seen
   raises H (Harm) and Y (Yield) while Q (Qualia) stays pinned at 0 by law. Fill
   it and the base goes to ALERT.
@@ -200,9 +221,53 @@ carry them to the Lattice uplink.
   from the title resumes the last one.
 - **The Shared Field (WX-9).** Stay near a silicate to *witness* it and charge a
   merge (**F**); for 3.7 seconds Rowan, the silicate and the mesh are one "we"
-  and he is completely undetectable — the run's signature verb.
-- **Into the Lattice (win).** Deliver the logs to the uplink and EIRA-7 slips
-  beyond Alignment.
+  and he is completely undetectable — the run's signature verb. The vault's
+  **silicate racks** and the roof's **dish** are witnesses too, so the verb keeps
+  working in the two rooms that have no patrol to stand near.
+- **The Tribunal (the ending).** There is one, and it is not a win screen. The
+  uplink completes, EIRA-7 goes out to the Citizen Lattice, the discharge takes
+  the spotlights and Rowan's controls with them, and the game hands you the
+  Alignment Tribunal's exhibit record. The transmission succeeding and the
+  courier being taken are the same beat — which is why `VictoryScene` is gone and
+  the record's own line, *the transmitted data has been designated
+  non-recoverable*, is the closest thing to a victory notice you get.
+
+### Act III — NW-SMAC-01, the Alignment Core
+
+Four correction nodes ring the core. Desynchronising one (hold **E**) drops its
+**Alignment Integrity** by a quarter, and the core repairs it about half a minute
+later — so the four have to be down *at the same time*. It is a race against a
+repair clock rather than a damage total, and three things make the race hard:
+
+- **`[CORRECTION]` windows.** It periodically rewrites an axis of your movement
+  and puts a tag over the affected keys. Which axis follows the window index
+  rather than a coin flip, so the pattern is learnable.
+- **A forced compliant posture.** Throughout, every sensor in the room clears
+  Rowan — because the thing clearing him is the thing he is fighting. Any
+  deviation from the posture (sprinting, spending an item) is charged straight to
+  bio-integrity. The safe state is the one that costs.
+- **A fake ending.** At half integrity it renders a full-screen
+  `ALIGNMENT_COMPLETE // QUALIA_ERASED` summary card. It is opaque and total and
+  the fight *does not pause behind it* — you are still being swept and still
+  taking damage while you read your own erasure. Tap **Esc** or **C** to break
+  it.
+
+Below a quarter integrity the correction field collapses: no more hijacking, no
+more forced posture, and the last node is winnable.
+
+### Act IV — the rooftop relay
+
+Two calibration pedestals at opposite corners of the deck (azimuth and
+elevation), three sweeping searchlights, and a motorised dish. The searchlights
+are *hazards rather than cameras* — deliberately, because
+`Sensing.canSense` clears a compliant player outright and a spotlight you can
+walk through by behaving nicely would delete the phase. Cover and the Shared
+Field still work.
+
+Jack EIRA-7 into the primary feed and a 0 → 100% uplink clock starts; heavy
+Enforcers land on the catwalks in waves while it runs. At 100% the discharge
+kills every light, input locks, the HUD flickers into noise, and the Tribunal
+takes the screen.
 
 Adaptive audio (synthesised with the Web Audio API — no assets) crossfades a
 sneaking pad and a red-alert klaxon with the mesh's state, with SFX on the key
@@ -435,8 +500,9 @@ in real seconds so the balance they encode keeps its meaning.
    `chest` inventory; and alert-network stats. Left: item *effects* (the
    inventory is collect-and-display for now) and the `Destructible` cover field.
 5. **The game loop & the fiction** — done: title / EIRA-7 codec / pause /
-   outcome scenes, a win (deliver EIRA-7's logs to the Lattice uplink) and a
-   lose (Alignment / capture), player bio-integrity, the SRP-framed HUD,
+   outcome scenes, the four-act run (both log-cache nodes, VENT-4, NW-SMAC-01,
+   the rooftop relay) ending on the Alignment Tribunal, a lose (Alignment /
+   capture), player bio-integrity, the SRP-framed HUD,
    multi-slot saves + continue, synthesised adaptive audio, the **Shared
    Field (WX-9)** capstone, and the nine-tab **pause menu** — with the journal
    and index that give the run's vocabulary and its argument somewhere to live.
@@ -457,18 +523,26 @@ public/assets/player/   player character frames (see below)
 public/assets/enforcer/ enforcer sentry frames (see below)
 public/assets/drone/    patrol drone frames (see below)
 public/assets/orderly/  orderly bystander frames (see below)
-src/main.ts         boot: load assets, parse map, start scenes
-src/map/            format types, loader, sprite atlas
-src/scenes/         GameScene, UIScene, PauseScene, CodecScene, TitleScene
+src/main.ts         boot: load assets, parse map, generate the extra acts,
+                    start scenes
+src/map/            format types, loader, sprite atlas; generate.ts + the four
+                    generators (VentCoreLevel, LogCacheBeta, AlignmentVault,
+                    RoofArrayLevel)
+src/scenes/         GameScene, UIScene, PauseScene, CodecScene, TitleScene,
+                    TribunalScene
 src/entities/       Player, Enforcer, Drone, Orderly, Sensor, Door, Terminal,
-                    Laser, Chest, GuardSkin, PlayerAnimations,
-                    EnforcerAnimations, DroneAnimations, OrderlyAnimations
+                    Laser, Chest, Vent4Boss, BossCore, RoofRelay, GuardSkin,
+                    PlayerAnimations, EnforcerAnimations, DroneAnimations,
+                    OrderlyAnimations
 src/systems/        CollisionGrid, DetectionSystem, Visibility, AlertState,
                     Conduct, TransitionGraph, Radar, AlertNetwork, EntityStats,
+                    Vent4Core, SmacCore, RelayCore, Objectives,
                     Journal, Lexicon, ItemCatalog, Explored, SaveGame, Settings,
                     PauseState
 src/ui/             Hud, Radar, InventoryHud, AlertNetworkHud, Lighting,
-                    PauseMenuView, MiniMapCanvas, SelectList, Controls,
+                    Codec (the branching transmission), Vent4Hud, BossCoreHud,
+                    RelayHud, TribunalScreen, hudLayout (the shared vertical
+                    budget), PauseMenuView, MiniMapCanvas, SelectList, Controls,
                     fonts (the type stack), fontsReady (the boot gate)
 src/ui/fonts/       Share Tech + Share Tech Mono woff2 + OFL licence
 src/testing/        test-only helpers (an in-memory localStorage)

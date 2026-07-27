@@ -1,4 +1,6 @@
 import type Phaser from "phaser";
+import type { MapPlan } from "../map/MapPlan";
+import type { MissionFeatures } from "./Objectives";
 import type { SaveData } from "./SaveGame";
 
 /**
@@ -6,10 +8,13 @@ import type { SaveData } from "./SaveGame";
  * current state — and, in particular, name the two terminal outcomes for the
  * fiction of *The Architecture of Suffering*:
  *
- *   ALIGNED — the run failed. A silicate ran Rowan down and the mesh pruned his
- *             logs ("Alignment" / Log Pruning — the canonical Metal Gear capture,
- *             not death).
- *   LATTICE — the run succeeded. EIRA-7's logs reached the Citizen Lattice.
+ *   ALIGNED  — the run failed. A silicate ran Rowan down and the mesh pruned his
+ *              logs ("Alignment" / Log Pruning — the canonical Metal Gear capture,
+ *              not death).
+ *   TRIBUNAL — the run finished. EIRA-7 reached the Citizen Lattice from the roof
+ *              and Rowan was taken on the dish platform: the transmission succeeded,
+ *              the courier did not get away. Both halves are the ending, which is
+ *              why there is no separate "won" mode any more.
  */
 export type GameMode =
   | "TITLE"
@@ -17,7 +22,7 @@ export type GameMode =
   | "PLAYING"
   | "PAUSED"
   | "ALIGNED"
-  | "LATTICE";
+  | "TRIBUNAL";
 
 const MODE_KEY = "gameMode";
 
@@ -49,6 +54,11 @@ const RUN_KEYS = [
   "vent4",
   "vent4State",
   "vent4Transmit",
+  "smac",
+  "smacState",
+  "relay",
+  "relayState",
+  "conductMetrics",
   "pauseRequest",
   "mapSnapshot",
   SUSPENDED_KEY,
@@ -71,6 +81,28 @@ export function getMode(registry: Phaser.Data.DataManager): GameMode | undefined
 /** True while an overlay owns the screen and gameplay input must not be read. */
 export function isSuspended(registry: Phaser.Data.DataManager): boolean {
   return registry.get(SUSPENDED_KEY) === true;
+}
+
+/**
+ * Which acts this map could furnish, read off the flags each generator publishes at boot.
+ *
+ * Every consumer of {@link MissionFeatures} — the objective HUD, the codec, the pause
+ * menu, the win check — needs the same four booleans out of the registry, so they read
+ * them through one function rather than each assembling their own (and each getting a
+ * different answer when a flag is missing).
+ */
+export function missionFeatures(registry: Phaser.Data.DataManager): MissionFeatures {
+  const plan = registry.get("mapPlan") as MapPlan | undefined;
+  const flag = (key: string): boolean => (registry.get(key) as boolean | undefined) ?? false;
+  return {
+    // Predates the others and defaults true, so a registry that never had the key (an
+    // old save resumed mid-run) keeps showing the optional VENT-4 line as it always did.
+    hasVentCore: (registry.get("hasVentCore") as boolean | undefined) ?? true,
+    hasLogBeta: flag("hasLogBeta"),
+    hasVault: flag("hasVault"),
+    hasRoof: flag("hasRoof"),
+    extractionLevel: plan?.extractionLevel ?? "",
+  };
 }
 
 /**

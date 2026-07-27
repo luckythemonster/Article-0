@@ -199,6 +199,47 @@ export interface GameMap {
   sheetTextureKeys: string[];
 }
 
+// ---------------------------------------------------------------------------
+// Level names
+//
+// Level names are plain strings everywhere in the engine — that is the whole
+// point of `MapPlan`, which derives "where does a run start / end / host the
+// arena" from the map's own shape so a new map isn't obliged to reuse the
+// shipped one's names. What follows is the *shipped* map's vocabulary plus the
+// levels the engine builds itself, recorded in one place because a handful of
+// call sites legitimately need to know them: `journalIdForLevel` picks an
+// arrival entry per deck, the debug warp keys order the level list, and
+// `MapPlan` must never route a run into a level it generated.
+// ---------------------------------------------------------------------------
+
+/**
+ * Levels the engine appends to the parsed map at boot rather than reading out of
+ * `edplay.json`. Kept as one list so {@link isGeneratedLevel} — and therefore
+ * `MapPlan` — can't fall behind when another one is added.
+ *
+ * The names are duplicated as exported constants next to each generator
+ * (`VENT_CORE_LEVEL`, `ROOF_ARRAY_LEVEL`) so those modules stay self-describing;
+ * a unit test asserts the two agree.
+ */
+export const GENERATED_LEVELS = ["vent_core", "roof_array"] as const;
+
+/**
+ * The level keys the shipped map and its generated additions use, in play order.
+ * Documentation and a spell-check for the few switches that key off a deck — not
+ * a constraint on what a map may name its levels.
+ */
+export type KnownLevel =
+  | "main1"
+  | "duct1"
+  | "duct2"
+  | "main2"
+  | (typeof GENERATED_LEVELS)[number];
+
+/** True for a level the engine builds itself, so a plan must never route into it. */
+export function isGeneratedLevel(name: string): boolean {
+  return (GENERATED_LEVELS as readonly string[]).includes(name);
+}
+
 /**
  * Which board a transition tile lives on, which also decides how it triggers:
  * `stairs` are walked over, `maintenance_access` (hatches/ladders) is entered

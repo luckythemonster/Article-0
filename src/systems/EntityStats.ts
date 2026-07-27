@@ -319,6 +319,12 @@ export const ACCESS_CHIT_ITEM = "Access Chit";
 /** Key item: a recovered EIRA-7 mission log (does not count against the consumable cap). */
 export const EIRA7_LOG_ITEM = "EIRA-7 Cached Log";
 
+/** Key item: the first half of EIRA-7's cache, breached on the public decks. */
+export const LOG_ALPHA_ITEM = "LOG_CACHE_ALPHA";
+
+/** Key item: the second half, breached behind the crawlspace laser grid. */
+export const LOG_BETA_ITEM = "LOG_CACHE_BETA";
+
 // --- Item tuning ---------------------------------------------------------
 
 /** Seconds of continuous flashlight use to drain from 100% to 0%. */
@@ -530,4 +536,123 @@ export const VENT4_DEFAULTS: Vent4Stats = {
   grateNoiseThreshold: 0.2,
   burstImpulse: paced(9),
   burstDamage: 15,
+};
+
+// --- NW-SMAC-01, the Alignment Core ---------------------------------------
+
+export interface SmacStats {
+  /** Alignment Integrity at the start of the encounter (the boss "health", 100→0). */
+  integrityStart: number;
+  /**
+   * Integrity dropped per desynchronised node.
+   *
+   * `nodeCount * nodeIntegrity === integrityStart`, deliberately: integrity is not a
+   * separate pool that nodes chip at, it *is* the node state expressed as a number. All
+   * four down is zero is defeated, with nothing to round off or tune apart.
+   */
+  nodeIntegrity: number;
+  /** Number of correction nodes ringing the core. */
+  nodeCount: number;
+  /** Seconds of held interact to desynchronise one node. */
+  nodeTime: number;
+  /**
+   * Seconds before the core re-synchronises a node it has lost.
+   *
+   * The whole fight is this number: nodes have to be down *simultaneously*, so the
+   * encounter is a race against the repair clock, and the correction windows are what
+   * make the race hard.
+   */
+  resyncSeconds: number;
+  /** Integrity at or below which the core fakes the run's completion. */
+  falseSummaryAt: number;
+  /** Integrity at or below which its correction field fails and it is finishable. */
+  exposedAt: number;
+  /** Seconds one input-hijack window lasts. */
+  correctionPeriod: number;
+  /** Seconds between hijack windows. */
+  correctionGap: number;
+  /** Bio-integrity charged per second for deviating inside the forced-compliant lock. */
+  deviationDamage: number;
+  /** Auditing spotlight reach (tiles) and full cone width (degrees). */
+  auditRange: number;
+  auditAngle: number;
+  /** Spotlight rotation, radians of phase per second ({@link paced}). */
+  auditSpeed: number;
+  /** Seconds in an auditing beam before it reports a sighting. */
+  auditDetectTime: number;
+  /** Damage per audit strike once a beam confirms. */
+  auditDamage: number;
+  /** Radius (tiles) around a silicate rack that charges the Shared Field. */
+  rackWitnessRadius: number;
+}
+
+/**
+ * NW-SMAC-01 tuning. Engine-generated like VENT-4's, so used directly rather than
+ * read off a map component. `auditSpeed` is {@link paced} here for the same reason
+ * VENT-4's sweep speeds are: the value is asserted against by the pure core's tests.
+ */
+export const SMAC_DEFAULTS: SmacStats = {
+  integrityStart: 100,
+  nodeIntegrity: 25,
+  nodeCount: 4,
+  nodeTime: 2.6,
+  resyncSeconds: 34,
+  falseSummaryAt: 50,
+  exposedAt: 25,
+  correctionPeriod: 5.5,
+  correctionGap: 4.0,
+  deviationDamage: 18,
+  auditRange: 10,
+  auditAngle: 34,
+  auditSpeed: paced(0.5),
+  auditDetectTime: 1.3,
+  auditDamage: 12,
+  rackWitnessRadius: 3,
+};
+
+// --- The rooftop relay ----------------------------------------------------
+
+export interface RelayStats {
+  /** Calibration pedestals that must be set before the dish will take a feed. */
+  pedestalCount: number;
+  /** Seconds of held interact per pedestal. */
+  pedestalTime: number;
+  /** Seconds the uplink takes to run 0 → 100%. */
+  uplinkSeconds: number;
+  /** Searchlights sweeping the roof, their reach (tiles) and full cone width (degrees). */
+  searchlightCount: number;
+  searchlightRange: number;
+  searchlightAngle: number;
+  /** Searchlight rotation, radians of phase per second ({@link paced}). */
+  searchlightSpeed: number;
+  /** Seconds held in a searchlight before it confirms, and the damage it then deals. */
+  searchlightDetectTime: number;
+  searchlightDamage: number;
+  /** Seconds between Enforcer waves during the siege, and how many each wave lands. */
+  waveInterval: number;
+  waveSize: number;
+  /** Cap on simultaneous siege Enforcers, so a slow uplink can't flood the roof. */
+  maxSiegeGuards: number;
+  /** Radius (tiles) around the dish that charges the Shared Field. */
+  dishWitnessRadius: number;
+  /** Seconds the capture sequence plays before the tribunal takes the screen. */
+  captureSeconds: number;
+}
+
+/** Rooftop relay tuning — engine-generated level, so used directly. */
+export const RELAY_DEFAULTS: RelayStats = {
+  pedestalCount: 2,
+  pedestalTime: 2.8,
+  uplinkSeconds: 75,
+  searchlightCount: 3,
+  searchlightRange: 11,
+  searchlightAngle: 30,
+  searchlightSpeed: paced(0.55),
+  searchlightDetectTime: 0.9,
+  searchlightDamage: 14,
+  waveInterval: 13,
+  waveSize: 2,
+  maxSiegeGuards: 6,
+  dishWitnessRadius: 4,
+  captureSeconds: 4.5,
 };

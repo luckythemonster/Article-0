@@ -1,6 +1,9 @@
 import Phaser from "phaser";
 import { EdplayLoader } from "./map/EdplayLoader";
 import { appendVentCore } from "./map/VentCoreLevel";
+import { appendLogCacheBeta } from "./map/LogCacheBeta";
+import { appendAlignmentVault } from "./map/AlignmentVault";
+import { appendRoofArray } from "./map/RoofArrayLevel";
 import { planFor } from "./map/MapPlan";
 import type { EdPlayFile } from "./map/types";
 import { GameScene } from "./scenes/GameScene";
@@ -8,7 +11,7 @@ import { UIScene } from "./scenes/UIScene";
 import { TitleScene } from "./scenes/TitleScene";
 import { PauseScene } from "./scenes/PauseScene";
 import { GameOverScene } from "./scenes/GameOverScene";
-import { VictoryScene } from "./scenes/VictoryScene";
+import { TribunalScene } from "./scenes/TribunalScene";
 import { CodecScene } from "./scenes/CodecScene";
 import { ComplianceScene } from "./scenes/ComplianceScene";
 import { QualiaLockScene } from "./scenes/QualiaLockScene";
@@ -68,9 +71,24 @@ class BootScene extends Phaser.Scene {
     // The VENT-4 arena is engine-generated; it must join the map before the
     // first GameScene builds (and registry-caches) the TransitionGraph. Optional: a map
     // with no suitable host simply has no VENT-4.
+    // Everything the engine grafts on has to join the map before the first GameScene
+    // builds (and registry-caches) the TransitionGraph. Each one is optional and says so
+    // by returning false — a map that can't host an act simply doesn't have it, and the
+    // objectives, the codec and the win condition all read these flags rather than
+    // assuming the shipped map's shape.
     const hasVentCore = appendVentCore(parsed.map, plan.ventCoreHost);
+    // BETA shares the crawlspace the arena grafts onto: it is the maintenance deck that
+    // is neither the start nor the destination, which is exactly what both want.
+    const hasLogBeta = appendLogCacheBeta(parsed.map, plan.ventCoreHost);
+    // The vault and the roof both hang off the extraction level — the Core stands in it,
+    // and the roof is up a ladder from it.
+    const hasVault = appendAlignmentVault(parsed.map, plan.extractionLevel);
+    const hasRoof = appendRoofArray(parsed.map, plan.extractionLevel);
     this.registry.set("mapPlan", plan);
     this.registry.set("hasVentCore", hasVentCore);
+    this.registry.set("hasLogBeta", hasLogBeta);
+    this.registry.set("hasVault", hasVault);
+    this.registry.set("hasRoof", hasRoof);
     this.registry.set("parsedMap", parsed);
     this.scene.start("TitleScene");
   }
@@ -123,7 +141,7 @@ function startGame(): Phaser.Game {
       QualiaLockScene,
       PauseScene,
       GameOverScene,
-      VictoryScene,
+      TribunalScene,
     ],
   });
 }

@@ -7,7 +7,11 @@ import { formatAgo, formatClock } from "./format";
 import { JOURNAL_ENTRIES, type JournalState } from "../systems/Journal";
 import { lexiconByCategory, lexiconEntry, type LexiconContext } from "../systems/Lexicon";
 import { itemInfo } from "../systems/ItemCatalog";
-import { objectiveLines, type ObjectiveState } from "../systems/Objectives";
+import {
+  objectiveLines,
+  type MissionFeatures,
+  type ObjectiveState,
+} from "../systems/Objectives";
 import {
   CHAFF_PACK_ITEM,
   consumableSlots,
@@ -32,8 +36,8 @@ import "./PauseMenuView.css";
 export interface PauseSnapshot {
   objectives: ObjectiveState;
   currentLevel: string;
-  extractionLevel: string;
-  hasVentCore: boolean;
+  /** Which acts this map furnished — see `missionFeatures`. */
+  features: MissionFeatures;
   inventory: string[];
   active: ActiveItemsView;
   journal: JournalState;
@@ -259,12 +263,7 @@ export class PauseMenuView {
     const node = el("div", "pause-pane pause-pane--prose");
     node.appendChild(el("div", "pause-section", "DIRECTIVE · SMUGGLE EIRA-7"));
 
-    const lines = objectiveLines(
-      this.snap.objectives,
-      this.snap.currentLevel,
-      this.snap.extractionLevel,
-      this.snap.hasVentCore,
-    );
+    const lines = objectiveLines(this.snap.objectives, this.snap.currentLevel, this.snap.features);
     const list = el("div", "pause-objectives");
     for (const line of lines) {
       const row = el("div", line.done ? "pause-objective pause-objective--done" : "pause-objective");
@@ -277,7 +276,12 @@ export class PauseMenuView {
     node.appendChild(
       defList([
         ["Current deck", this.snap.currentLevel || "—"],
-        ["Extraction", this.snap.extractionLevel || "—"],
+        // The roof is the destination when the map has one; otherwise the plan's
+        // extraction deck, as before.
+        [
+          "Extraction",
+          (this.snap.features.hasRoof ? "roof_array" : this.snap.features.extractionLevel) || "—",
+        ],
         ["Elapsed", formatClock(this.snap.playTimeMs)],
       ]),
     );
