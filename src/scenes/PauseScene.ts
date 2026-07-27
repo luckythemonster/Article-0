@@ -5,7 +5,7 @@ import { initialObjectives, type ObjectiveState } from "../systems/Objectives";
 import { initialJournal, type JournalState } from "../systems/Journal";
 import { listSaves, type SlotId } from "../systems/SaveGame";
 import { getAudio } from "../systems/AudioDirector";
-import type { MapPlan } from "../map/MapPlan";
+import { missionFeatures } from "../systems/GameState";
 import type { ActiveItemsView } from "../systems/ActiveItems";
 import type { ConductView } from "../systems/Conduct";
 import type { AlertPhase } from "../systems/AlertState";
@@ -78,12 +78,10 @@ export class PauseScene extends Phaser.Scene {
   /** Reads the frozen run out of the registry into what the view renders. */
   private snapshot(): PauseSnapshot {
     const r = this.registry;
-    const plan = r.get("mapPlan") as MapPlan | undefined;
     return {
       objectives: (r.get("objectives") as ObjectiveState | undefined) ?? initialObjectives(),
       currentLevel: (r.get("currentLevel") as string | undefined) ?? "",
-      extractionLevel: plan?.extractionLevel ?? "",
-      hasVentCore: (r.get("hasVentCore") as boolean | undefined) ?? true,
+      features: missionFeatures(r),
       inventory: (r.get("inventory") as string[] | undefined) ?? [],
       active: (r.get("activeItems") as ActiveItemsView | undefined) ?? {
         chaffRemaining: 0,

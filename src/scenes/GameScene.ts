@@ -21,7 +21,13 @@ import { Sensor } from "../entities/Sensor";
 import { Chest } from "../entities/Chest";
 import { buildAlertNetworkSnapshot, NoiseSpamTracker } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
-import { resumeFromSave, setMode, SUSPENDED_KEY, type GameMode } from "../systems/GameState";
+import {
+  missionFeatures,
+  resumeFromSave,
+  setMode,
+  SUSPENDED_KEY,
+  type GameMode,
+} from "../systems/GameState";
 import {
   initialJournal,
   journalIdForLevel,
@@ -42,6 +48,10 @@ import {
   CERT_ITEM,
   CHAFF_PACK_ITEM,
   countConsumables,
+  LOG_ALPHA_ITEM,
+  LOG_BETA_ITEM,
+  SMAC_DEFAULTS,
+  RELAY_DEFAULTS,
   FLASHLIGHT_DETECTION_MULTIPLIER,
   GAME_SPEED,
   glassStatsFor,
@@ -66,16 +76,29 @@ import {
 } from "../systems/ActiveItems";
 import { pickQualiaRackIndex, QUALIA_RACK_TERMINAL_TYPE } from "../systems/QualiaLock";
 import {
+  canReachRoof,
   initialObjectives,
+  isLogCacheType,
   isRunWon,
+  LOG_CACHE_ALPHA_TYPE,
+  LOG_CACHE_BETA_TYPE,
   LOG_CACHE_TYPE,
+  noteCoreSilenced,
   noteTerminalHacked,
+  noteUplinkComplete,
   noteVent4Defeated,
+  type MissionFeatures,
   type ObjectiveState,
 } from "../systems/Objectives";
 import { Vent4Boss, type Vent4InteractResult } from "../entities/Vent4Boss";
 import { Vent4State, type Vent4Snapshot, type Vent4Transition } from "../systems/Vent4Core";
+import { BossCore, type SmacInteractResult } from "../entities/BossCore";
+import { SmacState, type SmacSnapshot, type SmacTransition } from "../systems/SmacCore";
+import { RoofRelay, type RelayInteractResult } from "../entities/RoofRelay";
+import { RelayState, type RelaySnapshot, type RelayTransition } from "../systems/RelayCore";
 import { VENT_CORE_LEVEL } from "../map/VentCoreLevel";
+import { ROOF_ARRAY_LEVEL } from "../map/RoofArrayLevel";
+import { isGeneratedLevel } from "../map/types";
 import { planFor, type MapPlan } from "../map/MapPlan";
 import { getAudio } from "../systems/AudioDirector";
 import { saveGame, clearSave, loadGame, type SlotId } from "../systems/SaveGame";
@@ -85,6 +108,7 @@ import {
   FLAG_HOSTILE,
   FLAG_TAMPERING,
   FLAG_UNAUTHORIZED,
+  type ConductMetrics,
   type ConductView,
 } from "../systems/Conduct";
 import { DEBUG_ALLOWED } from "../systems/DebugFlag";
@@ -122,6 +146,13 @@ const ENTITY_LAYERS = new Set([
   "terminals",
   "lasers",
   "substations",
+  // NW-SMAC-01's correction nodes and the roof's pedestals/feed all become
+  // HoldTargets, which render the tile's own sprite themselves — leaving these off
+  // would draw every one of them twice. The vault's core and racks are *not* here:
+  // they are static art the boss draws over.
+  "vault_nodes",
+  "relay_pedestals",
+  "relay_feed",
 ]);
 
 /** How close (in tiles) the player must be to interact with a door/terminal. */
@@ -147,7 +178,7 @@ const KNOCK_COOLDOWN = 0.6;
  * the map's own level list (see `debugWarpLevels`) rather than hardcoded names, so the
  * warps keep working on a map that doesn't reuse the shipped level names.
  */
-const DEBUG_WARP_SLOTS = 5;
+const DEBUG_WARP_SLOTS = 6;
 
 /**
  * The playable scene. Renders one level's tile art in board z-order, builds the
@@ -176,6 +207,17 @@ export class GameScene extends Phaser.Scene {
   private chests: Chest[] = [];
   /** VENT-4, present only on the vent_core level. */
   private vent4?: Vent4Boss;
+  /** NW-SMAC-01, present only on the level carrying the vault boards. */
+  private smac?: BossCore;
+  /** The rooftop relay, present only on the roof_array level. */
+  private relay?: RoofRelay;
+  /** Enforcers landed by the rooftop siege, counted against `maxSiegeGuards`. */
+  private siegeGuards = 0;
+  /** Previous frame's player position, for the conduct system's distance metric. */
+  private lastPlayerX = 0;
+  private lastPlayerY = 0;
+  /** Set when the player spends an item — a deviation inside NW-SMAC-01's held posture. */
+  private deviatedThisFrame = false;
   /** The reused per-frame guard/camera sensing context. Rebuilt per level. */
   private sensing!: SensingContext;
   /** This frame's anomaly list, and the entry objects it recycles. */
@@ -315,6 +357,9 @@ export class GameScene extends Phaser.Scene {
     this.sensors = [];
     this.chests = [];
     this.vent4 = undefined;
+    this.smac = undefined;
+    this.relay = undefined;
+    this.siegeGuards = 0;
     this.alert = new AlertState();
     this.noiseSpam = new NoiseSpamTracker();
     this.transitioning = false;
@@ -332,7 +377,11 @@ export class GameScene extends Phaser.Scene {
     // from the pause menu) can't leave UIScene's input gate stuck closed.
     this.syncSuspended();
     this.sharedField = new SharedField();
-    this.conduct = new ConductState();
+    // Conduct metrics are per *run*, not per level, and a level change is a
+    // scene.restart() — so they ride the registry rather than resetting here.
+    this.conduct = new ConductState(
+      this.registry.get("conductMetrics") as ConductMetrics | undefined,
+    );
     this.activeItems = new ActiveItemState();
     // Arm only after stepping off the arrival tile (see update()).
     this.transitionArmed = false;
@@ -385,6 +434,7 @@ export class GameScene extends Phaser.Scene {
     this.spawnEntities();
     const doorBodies = this.spawnInteractables();
     this.designateQualiaRack();
+    this.designateLogCacheNodes();
 
     this.wallCollider = this.physics.add.collider(this.player.sprite, wallBodies);
     this.doorCollider = this.physics.add.collider(this.player.sprite, doorBodies);
@@ -413,6 +463,33 @@ export class GameScene extends Phaser.Scene {
       else if (this.vent4.state === Vent4State.PHASE_3_PURGE) getAudio().setPurge(true);
     }
     this.registry.set("vent4", this.vent4 ? this.vent4.hudView() : null);
+
+    // NW-SMAC-01 is keyed off the vault boards rather than a level name, so the act
+    // travels with the generated fixtures instead of with `main2` specifically. It stays
+    // down once beaten — re-entering the vault should not restage a fight you have won.
+    if (this.level.layers.some((l) => l.name === "vault_core") && !this.objectives.coreSilenced) {
+      this.smac = new BossCore(
+        this,
+        this.level,
+        this.tileSize,
+        this.grid,
+        this.registry.get("smacState") as SmacSnapshot | undefined,
+        SMAC_DEFAULTS,
+      );
+    }
+    this.registry.set("smac", this.smac ? this.smac.hudView() : null);
+
+    if (this.level.name === ROOF_ARRAY_LEVEL) {
+      this.relay = new RoofRelay(
+        this,
+        this.level,
+        this.tileSize,
+        this.grid,
+        this.registry.get("relayState") as RelaySnapshot | undefined,
+        RELAY_DEFAULTS,
+      );
+    }
+    this.registry.set("relay", this.relay ? this.relay.hudView() : null);
 
     this.cameras.main.startFollow(this.player.sprite, true, 0.15, 0.15);
     this.cameras.main.setZoom(2);
@@ -792,7 +869,11 @@ export class GameScene extends Phaser.Scene {
         world: kb.addKey(K.V),
         freeze: kb.addKey(K.H),
         darkness: kb.addKey(K.O),
-        warp: [K.ONE, K.TWO, K.THREE, K.FOUR, K.FIVE].map((c) => kb.addKey(c)),
+        // One key per DEBUG_WARP_SLOTS. The list used to stop at FIVE, which quietly
+        // made the sixth level unreachable by warp the moment one was added.
+        warp: [K.ONE, K.TWO, K.THREE, K.FOUR, K.FIVE, K.SIX]
+          .slice(0, DEBUG_WARP_SLOTS)
+          .map((c) => kb.addKey(c)),
       };
     }
   }
@@ -972,11 +1053,11 @@ export class GameScene extends Phaser.Scene {
     setMode(this.registry, mode);
     getAudio().setMood("none");
     if (mode === "ALIGNED") getAudio().capture();
-    else if (mode === "LATTICE") {
-      getAudio().victory();
+    else if (mode === "TRIBUNAL") {
+      // The sting belongs to TribunalScene, which plays it as the record comes up.
       // Retire the checkpoint so "Continue" can't resume a finished run — but
       // leave the manual slots alone. Those are the player's, and wiping saves
-      // they wrote themselves as a reward for winning would be a strange thanks.
+      // they wrote themselves as a reward for finishing would be a strange thanks.
       clearSave("auto");
     }
     this.player.sprite.setVelocity(0, 0);
@@ -1031,18 +1112,26 @@ export class GameScene extends Phaser.Scene {
    * Charges the Shared Field by witnessing a nearby silicate (within range, with
    * line of sight), activates it on F, and publishes its state for the HUD. The
    * undetectable effect is applied in update() via the concealment path.
+   *
+   * Guards are the usual witnesses, but the last two acts have their own: the vault's
+   * silicate racks and the roof's dish. Both rooms need the merge to be survivable and
+   * neither is patrolled, so without them the run's signature verb would simply stop
+   * working for the whole endgame. Mechanically they are the same thing anyway — a
+   * silicate close enough to be witnessed.
    */
   private updateSharedField(dt: number): void {
     const ts = this.tileSize;
     const px = this.player.x;
     const py = this.player.y;
-    const witnessing = this.guards.some((e) => {
-      const d = len(e.x - px, e.y - py);
-      return (
-        d <= WITNESS_RADIUS_TILES * ts &&
-        this.grid.hasLineOfSight(e.x / ts, e.y / ts, px / ts, py / ts)
-      );
-    });
+    const sees = (x: number, y: number, radiusTiles: number): boolean =>
+      len(x - px, y - py) <= radiusTiles * ts &&
+      this.grid.hasLineOfSight(x / ts, y / ts, px / ts, py / ts);
+
+    const witnessing =
+      this.guards.some((e) => sees(e.x, e.y, WITNESS_RADIUS_TILES)) ||
+      (this.smac?.racks.some((r) => sees(r.x, r.y, SMAC_DEFAULTS.rackWitnessRadius)) ?? false) ||
+      (this.relay !== undefined &&
+        sees(this.relay.dish.x, this.relay.dish.y, RELAY_DEFAULTS.dishWitnessRadius));
     this.sharedField.witness(dt, witnessing);
     if (Phaser.Input.Keyboard.JustDown(this.keys.field) && this.sharedField.activate()) {
       getAudio().merge();
@@ -1072,6 +1161,9 @@ export class GameScene extends Phaser.Scene {
         inv.splice(idx, 1);
         this.registry.set("inventory", inv);
         this.applyConsumable(request);
+        // Spending anything counts as deviating from the posture NW-SMAC-01 holds
+        // Rowan in; the charge is applied where the rest of the conduct tick happens.
+        this.deviatedThisFrame = true;
       }
     }
     this.activeItems.update(dt);
@@ -1167,13 +1259,35 @@ export class GameScene extends Phaser.Scene {
     g.strokeCircle(x, y, radiusPx);
   }
 
+  /**
+   * The one funnel every scrap of movement input passes through — which is exactly why
+   * the two encounters that interfere with movement do it here.
+   *
+   * `NW-SMAC-01` rewrites axes during a correction window and the rooftop's capture
+   * sequence locks input outright. Both land as edits to this return value rather than
+   * anywhere near `Player`, because facing, the animation direction and the stance noise
+   * are all derived downstream from the resulting velocity vector — so inverting here
+   * inverts the whole chain consistently, and nothing else has to know it happened.
+   */
   private readInput(): InputState {
     const k = this.keys;
+    const up = k.up.isDown || k.w.isDown;
+    const down = k.down.isDown || k.s.isDown;
+    const left = k.left.isDown || k.a.isDown;
+    const right = k.right.isDown || k.d.isDown;
+
+    // The discharge on the roof: Rowan stops being able to act before the tribunal
+    // takes the screen, so the last seconds are watched rather than played.
+    if (this.relay?.isCaptured) {
+      return { up: false, down: false, left: false, right: false, sneak: false, run: false };
+    }
+
+    const correction = this.smac?.correction;
     return {
-      up: k.up.isDown || k.w.isDown,
-      down: k.down.isDown || k.s.isDown,
-      left: k.left.isDown || k.a.isDown,
-      right: k.right.isDown || k.d.isDown,
+      up: correction?.invertY ? down : up,
+      down: correction?.invertY ? up : down,
+      left: correction?.invertX ? right : left,
+      right: correction?.invertX ? left : right,
       sneak: k.sneak.isDown,
       run: k.run.isDown,
     };
@@ -1185,6 +1299,24 @@ export class GameScene extends Phaser.Scene {
     if (this.transitioning) {
       this.player.sprite.setVelocity(0, 0);
       return;
+    }
+
+    // NW-SMAC-01's false completion card. It looks like an end-of-run screen and is
+    // dismissed with the keys that would normally open one — but it is *not* an overlay
+    // scene and does not freeze anything, so this claims Esc/C for the frame and then
+    // falls through to the ordinary sim update. The fight continues behind it, which is
+    // the entire trick; see `SmacState.FALSE_SUMMARY`.
+    if (this.smac?.summaryUp) {
+      if (
+        Phaser.Input.Keyboard.JustDown(this.keys.pause) ||
+        Phaser.Input.Keyboard.JustDown(this.keys.codec)
+      ) {
+        const tr = this.smac.dismissSummary();
+        this.cameras.main.shake(180, 0.006);
+        getAudio().jamClunk();
+        if (tr) this.onSmacTransition(tr);
+      }
+      return this.updateWorld(dt, delta);
     }
 
     // Pause (Esc), the codec (C) and the two minigames each freeze the sim behind
@@ -1214,6 +1346,17 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    this.updateWorld(dt, delta);
+  }
+
+  /**
+   * One frame of live simulation.
+   *
+   * Split out of {@link update} so NW-SMAC-01's false completion card can run it while
+   * an opaque, screen-filling overlay is up. Every other overlay in the game freezes the
+   * sim; that one has to not, or the lie doesn't cost anything.
+   */
+  private updateWorld(dt: number, delta: number): void {
     // Debug hotkeys. A warp restarts the scene, so bail this frame.
     if (DEBUG_ALLOWED && this.handleDebugInput()) return;
 
@@ -1256,19 +1399,46 @@ export class GameScene extends Phaser.Scene {
     const certified = ((this.registry.get("inventory") as string[] | undefined) ?? []).includes(
       CERT_ITEM,
     );
+    // Distance is sampled from the frame's actual displacement rather than from speed ×
+    // dt, so being shoved by VENT-4 or held against a wall reports honestly.
+    const movedTiles =
+      len(this.player.x - this.lastPlayerX, this.player.y - this.lastPlayerY) / this.tileSize;
+    this.lastPlayerX = this.player.x;
+    this.lastPlayerY = this.player.y;
+
     this.conduct.update(dt, {
       alertPhase: this.alert.phase,
       running: this.player.running,
       sneaking: this.player.crouched,
       certified,
+      movedTiles,
+      forced: this.smac?.forcesCompliance ?? false,
     });
     const compliant = this.conduct.compliant;
+    this.registry.set("conductMetrics", this.conduct.metrics());
     this.registry.set("conduct", {
       compliant,
       breach: this.conduct.breach,
       flaggedRemaining: this.conduct.flaggedRemaining,
       certified,
+      sabotageActions: this.conduct.sabotageActions,
+      complianceDistanceWalked: this.conduct.complianceDistanceWalked,
+      highCompliance: this.conduct.isHighCompliance(),
+      forced: this.smac?.forcesCompliance ?? false,
     } satisfies ConductView);
+
+    // The corrected posture is not a gift: while NW-SMAC-01 holds it, deviating from it
+    // — sprinting, or spending an item — is charged straight to bio-integrity. The mesh
+    // is not watching Rowan so much as driving him.
+    // Unscaled and called every frame: `Player.takeDamage` carries its own hit cooldown
+    // and ignores repeats inside it, which is exactly the once-a-second tick wanted here
+    // — the same way VENT-4 charges its overheat.
+    if (this.smac?.forcesCompliance && (this.player.running || this.deviatedThisFrame)) {
+      if (this.player.takeDamage(SMAC_DEFAULTS.deviationDamage)) {
+        this.cameras.main.flash(140, 150, 60, 200);
+      }
+    }
+    this.deviatedThisFrame = false;
 
     // Cover concealment: crouched on LOW cover (or on any HIGH cover) hides the
     // player from vision cones. The Shared Field (WX-9) hides Rowan from
@@ -1354,6 +1524,32 @@ export class GameScene extends Phaser.Scene {
       this.registry.set("vent4State", this.vent4.snapshot());
     }
 
+    // NW-SMAC-01: auditing beams and the correction/audit clock. Its input rewriting is
+    // applied up in `readInput`, not here.
+    if (this.smac && !this.frozenWorld) {
+      const tick = this.smac.update(dt, ctx);
+      maxDetection = Math.max(maxDetection, this.smac.detection);
+      if (tick.transition) this.onSmacTransition(tick.transition);
+      if (tick.auditHit && this.player.takeDamage(SMAC_DEFAULTS.auditDamage)) {
+        this.cameras.main.flash(180, 200, 60, 180);
+      }
+      this.registry.set("smac", this.smac.hudView());
+      this.registry.set("smacState", this.smac.snapshot());
+    }
+
+    // The rooftop relay: searchlights, the uplink clock, and the siege's waves.
+    if (this.relay && !this.frozenWorld) {
+      const tick = this.relay.update(dt, ctx);
+      maxDetection = Math.max(maxDetection, this.relay.detection);
+      if (tick.transition) this.onRelayTransition(tick.transition);
+      if (tick.searchlightHit && this.player.takeDamage(RELAY_DEFAULTS.searchlightDamage)) {
+        this.cameras.main.flash(160, 255, 240, 180);
+      }
+      if (tick.spawnAt) for (const at of tick.spawnAt) this.landSiegeEnforcer(at);
+      this.registry.set("relay", this.relay.hudView());
+      this.registry.set("relayState", this.relay.snapshot());
+    }
+
     // Orderlies: bystanders, not guards — a clear sighting is a one-shot
     // "witness" event that raises nearby guards' suspicion, same as a noisy door.
     // An OrderlyContext is a structural subset of the guards' context — same
@@ -1392,8 +1588,17 @@ export class GameScene extends Phaser.Scene {
 
     // Fail-state — bio-integrity depleted, or cornered by a silicate during a
     // full alert: the mesh prunes Rowan's logs (Alignment).
+    //
+    // Suspended through the rooftop capture sequence. Rowan is *supposed* to be
+    // surrounded there — being cornered is the scripted ending, not a failure — and
+    // without this the Enforcers closing in would race the tribunal and usually win,
+    // turning the run's one authored ending into a generic game over.
     const cornered =
-      !this.frozenWorld && !fieldActive && this.alert.isCombatAware && this.guards.some((e) => this.isCornering(e));
+      !this.frozenWorld &&
+      !fieldActive &&
+      !this.relay?.isCaptured &&
+      this.alert.isCombatAware &&
+      this.guards.some((e) => this.isCornering(e));
     this.captureProgress = cornered
       ? this.captureProgress + dt
       : Math.max(0, this.captureProgress - dt * 2);
@@ -1403,14 +1608,19 @@ export class GameScene extends Phaser.Scene {
       this.player.hp = this.player.maxHp;
       this.captureProgress = 0;
     }
-    if (!this.player.alive || this.captureProgress >= PLAYER_DEFAULTS.captureTime) {
+    if (
+      !this.relay?.isCaptured &&
+      (!this.player.alive || this.captureProgress >= PLAYER_DEFAULTS.captureTime)
+    ) {
       this.endRun("ALIGNED", "GameOverScene");
       return;
     }
-    // Win — logs recovered and Rowan has reached the Lattice uplink deck.
-    if (isRunWon(this.objectives, this.level.name, this.mapPlan().extractionLevel)) {
+    // End of run. EIRA-7 is through to the Lattice and Rowan is not going anywhere —
+    // the transmission succeeding and the courier being taken are the same beat, so
+    // there is one ending rather than a win screen and a loss screen.
+    if (isRunWon(this.objectives, this.level.name, this.features())) {
       this.note("the-uplink");
-      this.endRun("LATTICE", "VictoryScene");
+      this.endRun("TRIBUNAL", "TribunalScene");
       return;
     }
 
@@ -1452,8 +1662,15 @@ export class GameScene extends Phaser.Scene {
     const pty = this.player.y / ts;
 
     // --- Transitions ---
-    const tr = this.transitions.at(this.level.name, Math.floor(ptx), Math.floor(pty));
-    if (!tr) this.transitionArmed = true;
+    const raw = this.transitions.at(this.level.name, Math.floor(ptx), Math.floor(pty));
+    // The roof is Act IV's reward, not a shortcut past Act III: the ladder is inert
+    // until both cache halves are aboard and the Alignment Core is down. Blocked here
+    // rather than by withholding the tile, so the ladder is visibly *there* — the player
+    // should know where they are going before they are allowed to go.
+    const roofLocked =
+      raw?.toLevel === ROOF_ARRAY_LEVEL && !canReachRoof(this.objectives, this.features());
+    const tr = roofLocked ? undefined : raw;
+    if (!raw) this.transitionArmed = true;
     if (tr && tr.kind === "stairs" && this.transitionArmed) {
       this.beginTransition(tr);
       return;
@@ -1477,7 +1694,26 @@ export class GameScene extends Phaser.Scene {
       );
       if (vent.transition) this.onVent4Transition(vent.transition);
     }
-    const ventHold = vent?.consumedHold ?? false;
+
+    // --- NW-SMAC-01's correction nodes (hold E) ---
+    let smacI: SmacInteractResult | undefined;
+    if (this.smac) {
+      smacI = this.smac.handleInteract(dt, ptx, pty, interactDown);
+      if (smacI.consumedHold) this.conduct.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED);
+      if (smacI.transition) this.onSmacTransition(smacI.transition);
+    }
+
+    // --- The roof's pedestals and primary feed (hold E) ---
+    let relayI: RelayInteractResult | undefined;
+    if (this.relay && !this.relay.isCaptured) {
+      relayI = this.relay.handleInteract(dt, ptx, pty, interactDown);
+      if (relayI.transition) this.onRelayTransition(relayI.transition);
+    }
+
+    const ventHold =
+      (vent?.consumedHold ?? false) ||
+      (smacI?.consumedHold ?? false) ||
+      (relayI?.consumedHold ?? false);
 
     // --- Terminals (hold E) ---
     let nearestTerminal: Terminal | undefined;
@@ -1546,6 +1782,11 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // Only ever one encounter on a level, so the three share the prompt's boss slot.
+    const encounter = [vent, smacI, relayI].reduce<
+      { label?: string; dist: number } | undefined
+    >((best, r) => (r?.label && (!best || r.dist < best.dist) ? r : best), undefined);
+
     this.showPrompt(
       nearestTerminal,
       nearestTerminalDist,
@@ -1554,8 +1795,11 @@ export class GameScene extends Phaser.Scene {
       hatch !== undefined,
       nearestChest,
       nearestChestDist,
-      vent?.label,
-      vent?.dist ?? Infinity,
+      encounter?.label,
+      encounter?.dist ?? Infinity,
+      // Standing on a ladder that won't take you anywhere yet needs to say so, or it
+      // reads as a bug rather than a lock.
+      roofLocked ? "[ROOF SEALED — ALIGNMENT CORE STILL ACTIVE]" : undefined,
     );
   }
 
@@ -1588,6 +1832,7 @@ export class GameScene extends Phaser.Scene {
     chestDist: number,
     ventLabel?: string,
     ventDist = Infinity,
+    lockedLabel?: string,
   ): void {
     let label: string | undefined;
     let best = Infinity;
@@ -1610,6 +1855,9 @@ export class GameScene extends Phaser.Scene {
     if (hatch && 0.2 < best) {
       label = "[E] Use access";
     }
+    // A gated transition wins outright: the player is standing on it, and telling them
+    // why it won't open matters more than any verb they could reach from there.
+    if (lockedLabel) label = lockedLabel;
 
     if (label) {
       this.prompt.setText(label);
@@ -1626,7 +1874,7 @@ export class GameScene extends Phaser.Scene {
    * fires its effect immediately as before.
    */
   private onHackComplete(terminal: Terminal): void {
-    if (terminal.stats.type === LOG_CACHE_TYPE) {
+    if (isLogCacheType(terminal.stats.type)) {
       this.pendingCompliance = terminal;
       this.setComplianceOpen(true);
     } else if (this.isQualiaRack(terminal)) {
@@ -1662,6 +1910,34 @@ export class GameScene extends Phaser.Scene {
     this.qualiaRack = rack;
   }
 
+  /**
+   * Designates one of this level's plain log-caches as node ALPHA.
+   *
+   * The shipped map types all thirteen of its terminals `LOG_CACHE` and puts every one
+   * of them on the start deck, so ALPHA cannot be authoring — it is picked here, the same
+   * way {@link designateQualiaRack} promotes a rack. BETA is not: it is a terminal the
+   * engine places in the crawlspace (`src/map/LogCacheBeta.ts`) carrying its type
+   * directly, because there is no terminal down there to promote.
+   *
+   * Runs after `designateQualiaRack` so it can never claim the terminal that one took.
+   */
+  private designateLogCacheNodes(): void {
+    if (this.terminals.some((t) => t.stats.type === LOG_CACHE_ALPHA_TYPE)) return;
+    // Nearest to the arrival point: ALPHA should be the first cache the player meets,
+    // and on this map that is whichever one they walk into.
+    let best: Terminal | undefined;
+    let bestDist = Infinity;
+    for (const t of this.terminals) {
+      if (t.stats.type !== LOG_CACHE_TYPE) continue;
+      const d = len(t.x - this.player.x, t.y - this.player.y);
+      if (d < bestDist) {
+        bestDist = d;
+        best = t;
+      }
+    }
+    if (best) best.stats.type = LOG_CACHE_ALPHA_TYPE;
+  }
+
   /** A completed hack releases every door within {@link HACK_UNLOCK_RADIUS}. */
   private applyHack(terminal: Terminal): void {
     const tx = terminal.x / this.tileSize;
@@ -1676,6 +1952,30 @@ export class GameScene extends Phaser.Scene {
     noteTerminalHacked(this.objectives, terminal.stats.type);
     this.registry.set("objectives", this.objectives);
     if (!hadLogs && this.objectives.logsRecovered) this.note("the-cache");
+
+    // A named node also hands over the half of her it holds. The item is what the
+    // player sees under KEY ITEMS — the objective flag is what the mission reads — and
+    // both matter, because the fiction's whole claim is that the cache *is* her rather
+    // than a record about her.
+    const item =
+      terminal.stats.type === LOG_CACHE_ALPHA_TYPE
+        ? LOG_ALPHA_ITEM
+        : terminal.stats.type === LOG_CACHE_BETA_TYPE
+          ? LOG_BETA_ITEM
+          : undefined;
+    if (item) {
+      const inv = (this.registry.get("inventory") as string[] | undefined) ?? [];
+      if (!inv.includes(item)) {
+        inv.push(item);
+        this.registry.set("inventory", inv);
+      }
+      this.note(item === LOG_ALPHA_ITEM ? "node-alpha" : "node-beta");
+    }
+  }
+
+  /** Which acts this map furnished — see `missionFeatures`. */
+  private features(): MissionFeatures {
+    return missionFeatures(this.registry);
   }
 
   /**
@@ -1721,6 +2021,92 @@ export class GameScene extends Phaser.Scene {
         break;
       }
     }
+  }
+
+  /**
+   * Dresses an NW-SMAC-01 state change.
+   *
+   * On defeat the vault opens: the objective flag is what un-seals the roof ladder (see
+   * `canReachRoof`), and clearing the registry snapshot is what stops the fight being
+   * restaged if the player walks back in.
+   */
+  private onSmacTransition(tr: SmacTransition): void {
+    const audio = getAudio();
+    switch (tr.to) {
+      case SmacState.CORRECTION:
+        audio.ping();
+        this.cameras.main.shake(120, 0.003);
+        break;
+      case SmacState.FALSE_SUMMARY:
+        // No sting. The card is pretending to be the end of the run, and a boss
+        // stinger under it would give the game away before the player has read a word.
+        break;
+      case SmacState.EXPOSED:
+        audio.jamClunk();
+        this.cameras.main.flash(240, 255, 90, 90);
+        break;
+      case SmacState.DEFEATED: {
+        audio.vent4Shutdown();
+        noteCoreSilenced(this.objectives);
+        this.registry.set("objectives", this.objectives);
+        this.registry.remove("smacState");
+        this.note("the-core");
+        this.cameras.main.flash(500, 150, 90, 255);
+        break;
+      }
+    }
+  }
+
+  /** Dresses a rooftop relay state change, and ends the run when Rowan is taken. */
+  private onRelayTransition(tr: RelayTransition): void {
+    const audio = getAudio();
+    switch (tr.to) {
+      case RelayState.ARMED:
+        audio.hack();
+        break;
+      case RelayState.UPLINK:
+        audio.ping();
+        this.note("the-relay");
+        break;
+      case RelayState.CAPTURE:
+        // The discharge: every spotlight and every hazard on the roof goes dark at once.
+        for (const laser of this.lasers) laser.emp(RELAY_DEFAULTS.captureSeconds + 2);
+        audio.setMood("alert");
+        this.cameras.main.flash(600, 255, 255, 255);
+        this.cameras.main.shake(900, 0.008);
+        noteUplinkComplete(this.objectives);
+        this.registry.set("objectives", this.objectives);
+        break;
+      case RelayState.SEIZED:
+        // `update` sees `uplinkComplete` and ends the run; nothing to do but stop the
+        // room making noise about it.
+        audio.setMood("calm");
+        break;
+    }
+  }
+
+  /**
+   * Lands one siege Enforcer at a catwalk mouth.
+   *
+   * They join `this.guards`, so they patrol, path, see and network exactly like every
+   * other guard in the game — the roof needs no bespoke combat AI, only somewhere for
+   * them to come from. The cap is what keeps a slow uplink from burying the deck.
+   */
+  private landSiegeEnforcer(at: { x: number; y: number }): void {
+    if (this.siegeGuards >= RELAY_DEFAULTS.maxSiegeGuards) return;
+    this.siegeGuards++;
+    const px = (at.x + 0.5) * this.tileSize;
+    const py = (at.y + 0.5) * this.tileSize;
+    // A one-waypoint route: the guard walks its post and then hunts on contact, which
+    // is what an Enforcer dropped onto a roof to find someone would do.
+    const guard = new Enforcer(this, px, py, this.tileSize, [], ENFORCER_SKIN, [{ x: px, y: py }]);
+    this.guards.push(guard);
+    // They are not a surprise — the whole roof knows Rowan is there by now.
+    this.alert.reportSighting(
+      Math.floor(this.player.x / this.tileSize),
+      Math.floor(this.player.y / this.tileSize),
+    );
+    getAudio().ping();
   }
 
   // ------------------------------------------------------------------ debug --
@@ -1772,8 +2158,11 @@ export class GameScene extends Phaser.Scene {
    */
   private debugWarpLevels(): string[] {
     const names = this.map.levels.map((l) => l.name);
-    const authored = names.filter((n) => n !== VENT_CORE_LEVEL);
-    const generated = names.filter((n) => n === VENT_CORE_LEVEL);
+    // Authored decks first, in map order, then the generated ones — so the warp keys
+    // follow the run's shape and a new generated level lands on the end rather than
+    // shuffling every key the player has already learned.
+    const authored = names.filter((n) => !isGeneratedLevel(n));
+    const generated = names.filter(isGeneratedLevel);
     return [...authored, ...generated].slice(0, DEBUG_WARP_SLOTS);
   }
 

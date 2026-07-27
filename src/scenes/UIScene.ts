@@ -6,18 +6,21 @@ import { AlertNetworkHud } from "../ui/AlertNetworkHud";
 import { ObjectiveHud } from "../ui/ObjectiveHud";
 import { SharedFieldHud, type SharedFieldView } from "../ui/SharedFieldHud";
 import { Vent4Hud } from "../ui/Vent4Hud";
+import { BossCoreHud } from "../ui/BossCoreHud";
+import { RelayHud } from "../ui/RelayHud";
 import { DebugHud, type DebugSnapshot } from "../ui/DebugHud";
 import { DEBUG_ALLOWED } from "../systems/DebugFlag";
 import type { AlertPhase } from "../systems/AlertState";
 import type { RadarSnapshot } from "../systems/Radar";
 import type { AlertNetworkSnapshot } from "../systems/AlertNetwork";
 import type { ObjectiveState } from "../systems/Objectives";
-import type { MapPlan } from "../map/MapPlan";
 import type { Vent4View } from "../systems/Vent4Core";
+import type { SmacView } from "../systems/SmacCore";
+import type { RelayView } from "../systems/RelayCore";
 import type { ActiveItemsView } from "../systems/ActiveItems";
 import type { ConductView } from "../systems/Conduct";
 import { consumableSlots } from "../systems/EntityStats";
-import { isSuspended } from "../systems/GameState";
+import { isSuspended, missionFeatures } from "../systems/GameState";
 
 /**
  * A parallel overlay scene for the HUD.
@@ -36,6 +39,8 @@ export class UIScene extends Phaser.Scene {
   private objectives!: ObjectiveHud;
   private sharedField!: SharedFieldHud;
   private vent4!: Vent4Hud;
+  private smac!: BossCoreHud;
+  private relay!: RelayHud;
   // The debug inspector is only built when DEBUG_ALLOWED (see create()).
   private debug?: DebugHud;
   // A tiny stand-in that mirrors the phase the HUD needs to colour itself.
@@ -55,6 +60,8 @@ export class UIScene extends Phaser.Scene {
     this.objectives = new ObjectiveHud(this);
     this.sharedField = new SharedFieldHud(this);
     this.vent4 = new Vent4Hud(this);
+    this.smac = new BossCoreHud(this);
+    this.relay = new RelayHud(this);
     if (DEBUG_ALLOWED) this.debug = new DebugHud(this);
 
     const K = Phaser.Input.Keyboard.KeyCodes;
@@ -107,20 +114,18 @@ export class UIScene extends Phaser.Scene {
 
     const objState = this.registry.get("objectives") as ObjectiveState | undefined;
     const level = (this.registry.get("currentLevel") as string | undefined) ?? "";
-    const plan = this.registry.get("mapPlan") as MapPlan | undefined;
     if (objState) {
-      this.objectives.update(
-        objState,
-        level,
-        plan?.extractionLevel ?? "",
-        (this.registry.get("hasVentCore") as boolean | undefined) ?? true,
-      );
+      this.objectives.update(objState, level, missionFeatures(this.registry));
     }
 
     const field = this.registry.get("sharedField") as SharedFieldView | undefined;
     if (field) this.sharedField.update(field);
 
+    // All three encounter HUDs are updated unconditionally: this scene outlives level
+    // swaps, so passing null is how each one learns to clear itself.
     this.vent4.update((this.registry.get("vent4") as Vent4View | null | undefined) ?? null);
+    this.smac.update((this.registry.get("smac") as SmacView | null | undefined) ?? null);
+    this.relay.update((this.registry.get("relay") as RelayView | null | undefined) ?? null);
 
     this.debug?.update(this.registry.get("debug") as DebugSnapshot | undefined);
   }

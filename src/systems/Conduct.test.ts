@@ -144,3 +144,121 @@ describe("ConductState", () => {
     expect(c.compliant).toBe(true);
   });
 });
+
+describe("ConductState metrics", () => {
+  /** Walks `tiles` of clean, compliant ground in one-tile steps. */
+  function walk(c: ConductState, tiles: number): void {
+    for (let i = 0; i < tiles; i++) c.update(0.1, { ...CLEAN, movedTiles: 1 });
+  }
+
+  it("counts one held action as one sabotage act, not one per frame", () => {
+    const c = new ConductState();
+    // A terminal hold re-reports itself every frame — the exact shape GameScene uses.
+    for (let i = 0; i < 30; i++) {
+      c.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED);
+      c.update(0.1, CLEAN);
+    }
+    expect(c.sabotageActions).toBe(1);
+  });
+
+  it("counts a second act once the first has settled", () => {
+    const c = new ConductState();
+    c.violate("TAMPERING", FLAG_TAMPERING);
+    settle(c, FLAG_TAMPERING + 1);
+    c.violate("TAMPERING", FLAG_TAMPERING);
+    expect(c.sabotageActions).toBe(2);
+  });
+
+  it("counts a different kind of act even while the first is still flagged", () => {
+    const c = new ConductState();
+    c.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED);
+    c.violate("HOSTILE", FLAG_HOSTILE);
+    expect(c.sabotageActions).toBe(2);
+  });
+
+  it("accrues distance only while actually passing as staff", () => {
+    const c = new ConductState();
+    walk(c, 10);
+    expect(c.complianceDistanceWalked).toBe(10);
+
+    // Sprinting is a breach, so the ground covered doing it doesn't count.
+    for (let i = 0; i < 10; i++) c.update(0.1, { ...CLEAN, running: true, movedTiles: 1 });
+    expect(c.complianceDistanceWalked).toBe(10);
+  });
+
+  it("reports high compliance only for a long quiet run", () => {
+    const c = new ConductState();
+    expect(c.isHighCompliance()).toBe(false);
+    walk(c, 400);
+    expect(c.isHighCompliance()).toBe(true);
+  });
+
+  it("withdraws high compliance once the sabotage count climbs", () => {
+    const c = new ConductState();
+    walk(c, 400);
+    expect(c.isHighCompliance()).toBe(true);
+    for (let i = 0; i < 3; i++) {
+      c.violate("TAMPERING", FLAG_TAMPERING);
+      settle(c, FLAG_TAMPERING + 1);
+    }
+    expect(c.sabotageActions).toBe(3);
+    expect(c.isHighCompliance()).toBe(false);
+  });
+
+  it("carries its totals across a level change", () => {
+    const c = new ConductState();
+    walk(c, 40);
+    c.violate("HOSTILE", FLAG_HOSTILE);
+
+    // What GameScene does on scene.restart(): rebuild from the published metrics.
+    const next = new ConductState(c.metrics());
+    expect(next.complianceDistanceWalked).toBe(40);
+    expect(next.sabotageActions).toBe(1);
+    walk(next, 10);
+    expect(next.complianceDistanceWalked).toBe(50);
+  });
+});
+
+describe("ConductState under a forced posture", () => {
+  it("reads as compliant no matter what Rowan is doing", () => {
+    const c = new ConductState();
+    c.violate("HOSTILE", FLAG_HOSTILE);
+    expect(c.compliant).toBe(false);
+    c.update(0.1, { ...CLEAN, running: true, forced: true });
+    expect(c.compliant).toBe(true);
+  });
+
+  it("keeps draining the flag underneath, so release doesn't hand back a stale one", () => {
+    const c = new ConductState();
+    c.violate("TAMPERING", FLAG_TAMPERING);
+    for (let t = 0; t < FLAG_TAMPERING + 1; t += 0.1) {
+      c.update(0.1, { ...CLEAN, forced: true });
+    }
+    // Released: the cooldown ran while the core was holding him, so he is genuinely clean.
+    c.update(0.1, CLEAN);
+    expect(c.compliant).toBe(true);
+  });
+
+  it("re-imposes an ordinary breach the moment the field drops", () => {
+    const c = new ConductState();
+    c.update(0.1, { ...CLEAN, running: true, forced: true });
+    expect(c.compliant).toBe(true);
+    c.update(0.1, { ...CLEAN, running: true });
+    expect(c.compliant).toBe(false);
+    expect(c.breach).toBe("RUNNING");
+  });
+
+  it("still accrues distance, since the mesh is reading him as staff", () => {
+    const c = new ConductState();
+    c.update(0.1, { ...CLEAN, forced: true, movedTiles: 3 });
+    expect(c.complianceDistanceWalked).toBe(3);
+  });
+});
+
+describe("SETTLE_SECONDS", () => {
+  it("is the floor a continuous breach pins the timer to", () => {
+    const c = new ConductState();
+    c.update(0.1, { ...CLEAN, running: true });
+    expect(c.flaggedRemaining).toBeGreaterThanOrEqual(SETTLE_SECONDS);
+  });
+});

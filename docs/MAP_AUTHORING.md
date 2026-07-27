@@ -167,6 +167,12 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
   - `log_cache` → opens the Doctrinal Compliance minigame. **Solving one is required to
     recover EIRA-7's logs, so a map needs at least one.** (`designateQualiaRack`
     deliberately never retypes the last one.)
+  - `log_cache_alpha` / `log_cache_beta` → the two *named* halves of the cache. Same
+    minigame, but each also grants its key item and ticks its own objective line. You do
+    not normally author these: `GameScene.designateLogCacheNodes` promotes the log-cache
+    nearest the player's arrival to ALPHA, and `src/map/LogCacheBeta.ts` places BETA in
+    the crawlspace, because the shipped map types every terminal `LOG_CACHE` and puts
+    them all on one deck. Authoring them explicitly overrides both.
   - `qualia_rack` → opens the Qualia Phase-Lock bypass. Optional; if no terminal is typed
     this way the engine promotes one per level.
   - anything else → a plain terminal whose hack releases doors within 6 tiles.
@@ -194,9 +200,25 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
 7. **Unlit levels are genuinely dark.** Darkness is opaque and clipped to line of sight, so
    a level with no `light_sources` board is navigable only by flashlight and radar. Three of
    the shipped map's five levels are in that state.
-8. **Level order matters too**, separately from board order: the debug warp keys `1`–`5` map
-   to your levels in authored order, with the generated `vent_core` last. Put the levels you
-   iterate on most near the front.
+8. **Level order matters too**, separately from board order: the debug warp keys `1`–`6` map
+   to your levels in authored order, with the generated `vent_core` and `roof_array` last.
+   Put the levels you iterate on most near the front.
+9. **The engine appends four things to your map at boot**, each of which will quietly
+   decline if your map can't host it — see `src/map/generate.ts` and the flags
+   `hasVentCore` / `hasLogBeta` / `hasVault` / `hasRoof`:
+   - `vent_core` and log-cache node BETA graft onto `MapPlan.ventCoreHost`;
+   - the NW-SMAC-01 vault's fixtures and the `roof_array` level graft onto
+     `MapPlan.extractionLevel`.
+
+   All four place tiles at **hardcoded coordinates** picked for the shipped map, and each
+   checks those coordinates are unblocked before using them. On a different map they will
+   usually be walls, the generator will decline, and the objectives, the codec and the win
+   condition all adjust to whatever did generate. A map that wants those acts needs either
+   open floor at those coordinates or its own generator.
+10. **Board names the generated acts claim**: `vault_core`, `vault_nodes`, `vault_racks`,
+   `relay_pedestals`, `relay_feed`, plus `substations` and `grates` for VENT-4. Only the
+   hold-to-interact ones (`vault_nodes`, `relay_pedestals`, `relay_feed`, `substations`)
+   are in `ENTITY_LAYERS`; the rest render as ordinary tile art.
 
 ## 6. Minimum viable map
 

@@ -1,14 +1,43 @@
 import { describe, it, expect } from "vitest";
 import {
+  allFeatures,
+  canReachRoof,
   initialObjectives,
   isRunWon,
+  logsComplete,
+  noteCoreSilenced,
   noteTerminalHacked,
+  noteUplinkComplete,
   noteVent4Defeated,
   objectiveLines,
+  type MissionFeatures,
 } from "./Objectives";
 
-/** The extraction level is a parameter now, not a constant — any name works. */
+/** The extraction level is a parameter, not a constant — any name works. */
 const EXTRACTION = "main2";
+
+/** The shipped map's shape: every act present. */
+const FULL = allFeatures(EXTRACTION);
+
+/**
+ * A map that could furnish nothing past Act I — no crawlspace node, no vault, no roof.
+ * The pre-Act-II game, and the fallback every rule here has to keep working for.
+ */
+const MINIMAL: MissionFeatures = {
+  hasVentCore: false,
+  hasLogBeta: false,
+  hasVault: false,
+  hasRoof: false,
+  extractionLevel: EXTRACTION,
+};
+
+/** Both cache halves aboard, on the full map. */
+function bothCaches() {
+  const s = initialObjectives();
+  noteTerminalHacked(s, "log_cache_alpha");
+  noteTerminalHacked(s, "log_cache_beta");
+  return s;
+}
 
 describe("Objectives", () => {
   it("recovers logs only from a log-cache terminal", () => {
@@ -19,52 +48,117 @@ describe("Objectives", () => {
     expect(s.logsRecovered).toBe(true);
   });
 
-  it("is won only with logs recovered and at the extraction level", () => {
+  it("records which node was breached, and a plain cache as neither", () => {
     const s = initialObjectives();
-    expect(isRunWon(s, "main2", EXTRACTION)).toBe(false);
-    noteTerminalHacked(s, "log_cache");
-    expect(isRunWon(s, "main1", EXTRACTION)).toBe(false);
-    expect(isRunWon(s, "main2", EXTRACTION)).toBe(true);
+    noteTerminalHacked(s, "log_cache_alpha");
+    expect(s.alphaRecovered).toBe(true);
+    expect(s.betaRecovered).toBe(false);
+    noteTerminalHacked(s, "log_cache_beta");
+    expect(s.betaRecovered).toBe(true);
+
+    const plain = initialObjectives();
+    noteTerminalHacked(plain, "log_cache");
+    expect(plain.logsRecovered).toBe(true);
+    expect(plain.alphaRecovered).toBe(false);
   });
 
-  it("marks the mandatory directive lines done once the run is won", () => {
+  it("needs both halves where the map has both, and only one where it doesn't", () => {
     const s = initialObjectives();
-    noteTerminalHacked(s, "log_cache");
-    const mandatory = objectiveLines(s, "main2", EXTRACTION).filter((l) => !l.label.startsWith("(Optional)"));
-    expect(mandatory.every((l) => l.done)).toBe(true);
+    noteTerminalHacked(s, "log_cache_alpha");
+    expect(logsComplete(s, FULL)).toBe(false);
+    expect(logsComplete(s, MINIMAL)).toBe(true);
+    noteTerminalHacked(s, "log_cache_beta");
+    expect(logsComplete(s, FULL)).toBe(true);
   });
 
-  it("tracks VENT-4 as an optional line that never gates the win", () => {
-    const s = initialObjectives();
-    const optional = () => objectiveLines(s, "main2", EXTRACTION).find((l) => l.label.startsWith("(Optional)"))!;
-    expect(optional().done).toBe(false);
-    noteVent4Defeated(s);
-    expect(optional().done).toBe(true);
-    // Still not won without the logs; won with them regardless of the boss.
-    expect(isRunWon(s, "main2", EXTRACTION)).toBe(false);
-    noteTerminalHacked(s, "log_cache");
-    expect(isRunWon(s, "main2", EXTRACTION)).toBe(true);
+  it("seals the roof until the logs are complete and the Core is down", () => {
+    const s = bothCaches();
+    expect(canReachRoof(s, FULL)).toBe(false);
+    noteCoreSilenced(s);
+    expect(canReachRoof(s, FULL)).toBe(true);
   });
 
-  it("treats a pre-boss save (no vent4 flag) as not silenced", () => {
-    const legacy = { logsRecovered: true };
-    expect(objectiveLines(legacy, "main1", EXTRACTION).find((l) => l.label.startsWith("(Optional)"))!.done).toBe(false);
+  it("lets a map with no vault straight up, rather than sealing the roof forever", () => {
+    const noVault: MissionFeatures = { ...FULL, hasVault: false };
+    const s = initialObjectives();
+    noteTerminalHacked(s, "log_cache_alpha");
+    noteTerminalHacked(s, "log_cache_beta");
+    expect(canReachRoof(s, noVault)).toBe(true);
+  });
+
+  it("is won by the uplink completing, not by standing anywhere", () => {
+    const s = bothCaches();
+    noteCoreSilenced(s);
+    expect(isRunWon(s, "roof_array", FULL)).toBe(false);
+    noteUplinkComplete(s);
+    expect(isRunWon(s, "roof_array", FULL)).toBe(true);
+    // The level no longer enters into it — the run ends where the uplink does.
+    expect(isRunWon(s, "main1", FULL)).toBe(true);
+  });
+
+  it("falls back to reaching the extraction level when the map has no roof", () => {
+    const s = initialObjectives();
+    noteTerminalHacked(s, "log_cache");
+    expect(isRunWon(s, "main1", MINIMAL)).toBe(false);
+    expect(isRunWon(s, EXTRACTION, MINIMAL)).toBe(true);
   });
 
   it("honours any extraction level, not just the shipped map's", () => {
     const s = initialObjectives();
     noteTerminalHacked(s, "log_cache");
-    expect(isRunWon(s, "rooftop", "rooftop")).toBe(true);
-    expect(isRunWon(s, "main2", "rooftop")).toBe(false);
+    const elsewhere: MissionFeatures = { ...MINIMAL, extractionLevel: "rooftop" };
+    expect(isRunWon(s, "rooftop", elsewhere)).toBe(true);
+    expect(isRunWon(s, "main2", elsewhere)).toBe(false);
   });
 
-  it("omits the VENT-4 line on a map with no vent core", () => {
-    const s = initialObjectives();
-    const lines = objectiveLines(s, "main2", EXTRACTION, false);
+  it("marks every mandatory directive line done once the run is over", () => {
+    const s = bothCaches();
+    noteCoreSilenced(s);
+    noteUplinkComplete(s);
+    const mandatory = objectiveLines(s, "roof_array", FULL).filter(
+      (l) => !l.label.startsWith("(Optional)"),
+    );
+    expect(mandatory.every((l) => l.done)).toBe(true);
+  });
+
+  it("tracks VENT-4 as an optional line that never gates the win", () => {
+    const s = bothCaches();
+    noteCoreSilenced(s);
+    const optional = () =>
+      objectiveLines(s, "roof_array", FULL).find((l) => l.label.startsWith("(Optional)"))!;
+    expect(optional().done).toBe(false);
+    noteVent4Defeated(s);
+    expect(optional().done).toBe(true);
+    expect(isRunWon(s, "roof_array", FULL)).toBe(false);
+    noteUplinkComplete(s);
+    expect(isRunWon(s, "roof_array", FULL)).toBe(true);
+  });
+
+  it("omits lines for acts the map couldn't furnish", () => {
+    const lines = objectiveLines(initialObjectives(), "main2", MINIMAL);
     expect(lines.some((l) => l.label.startsWith("(Optional)"))).toBe(false);
-    // The mandatory pair is untouched, and the win still works without the boss.
+    expect(lines.some((l) => l.label.includes("BETA"))).toBe(false);
+    expect(lines.some((l) => l.label.includes("NW-SMAC-01"))).toBe(false);
+    // Left with the original pair: recover the logs, reach the uplink.
     expect(lines).toHaveLength(2);
-    noteTerminalHacked(s, "log_cache");
-    expect(isRunWon(s, "main2", EXTRACTION)).toBe(true);
+  });
+
+  it("lists a line per act on the full map", () => {
+    const labels = objectiveLines(initialObjectives(), "main1", FULL).map((l) => l.label);
+    expect(labels.some((l) => l.includes("ALPHA"))).toBe(true);
+    expect(labels.some((l) => l.includes("BETA"))).toBe(true);
+    expect(labels.some((l) => l.includes("NW-SMAC-01"))).toBe(true);
+    expect(labels.some((l) => l.includes("rooftop relay"))).toBe(true);
+  });
+
+  it("treats a pre-split save (no new flags) as nothing done yet", () => {
+    // A v2 save written before any of this existed: only `logsRecovered`.
+    const legacy = { logsRecovered: true };
+    const lines = objectiveLines(legacy, "main1", FULL);
+    expect(lines.find((l) => l.label.startsWith("(Optional)"))!.done).toBe(false);
+    expect(lines.find((l) => l.label.includes("ALPHA"))!.done).toBe(false);
+    expect(canReachRoof(legacy, FULL)).toBe(false);
+    // …and it still completes on a map that never had the extra acts.
+    expect(isRunWon(legacy, EXTRACTION, MINIMAL)).toBe(true);
   });
 });

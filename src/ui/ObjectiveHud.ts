@@ -1,7 +1,12 @@
 import Phaser from "phaser";
-import { objectiveLines, type ObjectiveState } from "../systems/Objectives";
+import {
+  objectiveLines,
+  type MissionFeatures,
+  type ObjectiveState,
+} from "../systems/Objectives";
 import { FONT_MONO } from "./fonts";
 import { onResize } from "./resize";
+import { OBJECTIVE_BODY_TOP, OBJECTIVE_TOP } from "./hudLayout";
 
 /**
  * A compact objective tracker pinned to the top-centre of the screen. Reads the
@@ -15,7 +20,7 @@ export class ObjectiveHud {
 
   constructor(scene: Phaser.Scene) {
     this.heading = scene.add
-      .text(0, 10, "▸ DIRECTIVE · SMUGGLE EIRA-7", {
+      .text(0, OBJECTIVE_TOP, "▸ DIRECTIVE · SMUGGLE EIRA-7", {
         fontFamily: FONT_MONO,
         fontSize: "11px",
         color: "#8899aa",
@@ -24,7 +29,7 @@ export class ObjectiveHud {
       .setScrollFactor(0)
       .setDepth(1000);
     this.body = scene.add
-      .text(0, 28, "", {
+      .text(0, OBJECTIVE_BODY_TOP, "", {
         fontFamily: FONT_MONO,
         fontSize: "12px",
         color: "#cfe0f0",
@@ -36,19 +41,14 @@ export class ObjectiveHud {
       .setDepth(1000);
 
     const layout = (w: number): void => {
-      this.heading.setPosition(w / 2, 10);
-      this.body.setPosition(w / 2, 28);
+      this.heading.setPosition(w / 2, OBJECTIVE_TOP);
+      this.body.setPosition(w / 2, OBJECTIVE_BODY_TOP);
     };
     onResize(scene, (w) => layout(w), true);
   }
 
-  update(
-    state: ObjectiveState,
-    currentLevel: string,
-    extractionLevel: string,
-    hasVentCore: boolean,
-  ): void {
-    const lines = objectiveLines(state, currentLevel, extractionLevel, hasVentCore);
+  update(state: ObjectiveState, currentLevel: string, features: MissionFeatures): void {
+    const lines = objectiveLines(state, currentLevel, features);
     const text = lines.map((l) => `${l.done ? "✓" : "○"} ${l.label}`).join("\n");
     if (text === this.last) return;
     this.last = text;

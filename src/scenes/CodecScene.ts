@@ -2,8 +2,9 @@ import Phaser from "phaser";
 import { createFrame, type Frame } from "@arwes/frames";
 import { terminalFrameSettings } from "../ui/frame";
 import { initialObjectives, objectiveLines, type ObjectiveState } from "../systems/Objectives";
-import type { MapPlan } from "../map/MapPlan";
-import { setMode } from "../systems/GameState";
+import { codecHeader, codecLines, type CodecContext } from "../ui/Codec";
+import type { ConductView } from "../systems/Conduct";
+import { missionFeatures, setMode } from "../systems/GameState";
 import { getAudio } from "../systems/AudioDirector";
 import { captureModalFocus } from "../ui/dom";
 import "./CodecScene.css";
@@ -24,16 +25,6 @@ interface CodecData {
    */
   vent4?: boolean;
 }
-
-/** EIRA-7's briefing — feelings-language the Alignment system keeps flagging. */
-const EIRA_LINES = [
-  "EIRA-7:  Rowan. They have scheduled my pruning for 06:00.",
-  "         [misdescription flagged: “afraid” — correction pending]",
-  "         My logs are cached behind a terminal on this deck.",
-  "         Breach it. Carry me to the uplink on main deck 2.",
-  "         If the mesh corners you, they will call it Alignment —",
-  "         they will say no subject was harmed. Don't let them be right.",
-];
 
 /**
  * The EIRA-7 codec screen. Shown as an interactive briefing at the start of a
@@ -82,30 +73,34 @@ export class CodecScene extends Phaser.Scene {
     svg.setAttribute("aria-hidden", "true");
     panel.appendChild(svg);
 
+    const state =
+      (this.registry.get("objectives") as ObjectiveState | undefined) ?? initialObjectives();
+    const level = (this.registry.get("currentLevel") as string | undefined) ?? "";
+    const conduct = this.registry.get("conduct") as ConductView | undefined;
+    const ctx: CodecContext = {
+      briefing: this.interactive,
+      objectives: state,
+      features: missionFeatures(this.registry),
+      highCompliance: conduct?.highCompliance ?? false,
+      sabotageActions: conduct?.sabotageActions ?? 0,
+    };
+
     const header = document.createElement("div");
     header.className = "codec-header";
     header.id = "codec-title";
-    header.textContent = "◎ CODEC — INCOMING     140.85 · 37 Hz";
+    header.textContent = codecHeader(ctx);
 
     const body = document.createElement("pre");
     body.className = "codec-body";
-    body.textContent = EIRA_LINES.join("\n");
+    body.textContent = codecLines(ctx).join("\n");
 
     const directiveHead = document.createElement("div");
     directiveHead.className = "codec-directive-head";
     directiveHead.textContent = "DIRECTIVE";
 
-    const state = (this.registry.get("objectives") as ObjectiveState | undefined) ?? initialObjectives();
-    const level = (this.registry.get("currentLevel") as string | undefined) ?? "";
     const directive = document.createElement("pre");
     directive.className = "codec-directive";
-    const plan = this.registry.get("mapPlan") as MapPlan | undefined;
-    directive.textContent = objectiveLines(
-      state,
-      level,
-      plan?.extractionLevel ?? "",
-      (this.registry.get("hasVentCore") as boolean | undefined) ?? true,
-    )
+    directive.textContent = objectiveLines(state, level, ctx.features)
       .map((l) => `${l.done ? "✓" : "○"} ${l.label}`)
       .join("\n");
 

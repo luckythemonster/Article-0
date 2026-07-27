@@ -1,4 +1,16 @@
-import type { ComponentData, GameLayer, GameLevel, GameMap, GameTile } from "./types";
+import type { GameLayer, GameLevel, GameMap, GameTile } from "./types";
+import {
+  cloneTile,
+  cloneWithComponent,
+  fillFloor,
+  floorPalette,
+  marker,
+  MissingProto,
+  mustProto,
+  protoTile,
+  wallRing,
+  type TilePos,
+} from "./generate";
 import { STAPLER_ITEM } from "../systems/EntityStats";
 
 /**
@@ -23,11 +35,6 @@ export const VENT_CORE_ENTRY = { x: 18, y: 34 };
 
 /** Turbine centre in tile units (the hub is the 3×3 block around it). */
 export const HUB_CENTER_TILE = { x: 20.5, y: 21.5 };
-
-interface TilePos {
-  x: number;
-  y: number;
-}
 
 // --- Layout (single source of truth: the builder places these, Vent4Boss
 // --- imports them for interaction targets and force anchors). ---
@@ -148,62 +155,6 @@ export function ventCoreGrateTiles(): TilePos[] {
   return grates;
 }
 
-/** Finds a placed tile to clone, optionally filtered by level and ref. */
-function protoTile(
-  map: GameMap,
-  layerName: string,
-  refMatch?: (ref: string) => boolean,
-  levelName?: string,
-): GameTile | undefined {
-  for (const level of map.levels) {
-    if (levelName !== undefined && level.name !== levelName) continue;
-    const layer = level.layers.find((l) => l.name === layerName);
-    if (!layer) continue;
-    for (const t of layer.tiles) {
-      if (!refMatch || refMatch(t.ref)) return t;
-    }
-  }
-  return undefined;
-}
-
-/**
- * Thrown internally when the map can't supply a prototype tile the arena needs. Caught by
- * {@link appendVentCore}, which skips generation rather than letting a map that simply
- * doesn't have the boards take the whole boot down.
- */
-class MissingProto extends Error {}
-
-function mustProto(
-  map: GameMap,
-  layerName: string,
-  refMatch?: (ref: string) => boolean,
-  levelName?: string,
-): GameTile {
-  const t = protoTile(map, layerName, refMatch, levelName) ?? protoTile(map, layerName);
-  if (!t) throw new MissingProto(`no proto tile found on any "${layerName}" board`);
-  return t;
-}
-
-/** Clones a placed tile to a new coordinate (frame objects are shared, read-only). */
-function cloneTile(proto: GameTile, x: number, y: number, components?: ComponentData[]): GameTile {
-  return { ...proto, x, y, components: components ?? proto.components };
-}
-
-/** A frameless marker tile (never painted; consumed by entity spawners). */
-function marker(ref: string, x: number, y: number): GameTile {
-  return {
-    x,
-    y,
-    handle: 0,
-    ref,
-    colSpan: 1,
-    rowSpan: 1,
-    offsetX: 0,
-    offsetY: 0,
-    components: [],
-  };
-}
-
 /**
  * Appends the vent_core level and injects the host-side hatch that reaches it. Idempotent —
  * the parsed map is cached in the registry and must not grow twice.
@@ -235,17 +186,7 @@ export function appendVentCore(map: GameMap, host: string | null): boolean {
 function buildVentCore(map: GameMap, host: string, hostLevel: GameLevel): void {
   // --- Protos (all from tiles the shipped map already places) ---
   const grateRef = "tdVents_Interior1_13";
-  const floorProtos: GameTile[] = [];
-  {
-    const hostFloor = hostLevel.layers.find((l) => l.name === "floor");
-    const seen = new Set<string>();
-    for (const t of hostFloor?.tiles ?? []) {
-      if (t.ref === grateRef || seen.has(t.ref) || !t.frame) continue;
-      seen.add(t.ref);
-      floorProtos.push(t);
-      if (floorProtos.length >= 6) break;
-    }
-  }
+  const floorProtos = floorPalette(hostLevel, 6, (ref) => ref === grateRef);
   if (floorProtos.length === 0) floorProtos.push(mustProto(map, "floor"));
   const grateProto = mustProto(map, "floor", (r) => r === grateRef);
   const wallProto = mustProto(map, "walls", (r) => r.includes("Concrete_Wall"), host);
@@ -265,23 +206,13 @@ function buildVentCore(map: GameMap, host: string, hostLevel: GameLevel): void {
   }
 
   // --- Build the arena layers ---
-  const floor: GameTile[] = [];
-  for (let x = WALL_MIN.x + 1; x < WALL_MAX.x; x++) {
-    for (let y = WALL_MIN.y + 1; y < WALL_MAX.y; y++) {
-      // Deterministic variant cycling for texture.
-      floor.push(cloneTile(floorProtos[(x * 7 + y * 13) % floorProtos.length], x, y));
-    }
-  }
+  const floor = fillFloor(
+    floorProtos,
+    { x: WALL_MIN.x + 1, y: WALL_MIN.y + 1 },
+    { x: WALL_MAX.x - 1, y: WALL_MAX.y - 1 },
+  );
 
-  const walls: GameTile[] = [];
-  for (let x = WALL_MIN.x; x <= WALL_MAX.x; x++) {
-    walls.push(cloneTile(wallProto, x, WALL_MIN.y));
-    walls.push(cloneTile(wallProto, x, WALL_MAX.y));
-  }
-  for (let y = WALL_MIN.y + 1; y < WALL_MAX.y; y++) {
-    walls.push(cloneTile(wallProto, WALL_MIN.x, y));
-    walls.push(cloneTile(wallProto, WALL_MAX.x, y));
-  }
+  const walls: GameTile[] = wallRing(wallProto, WALL_MIN, WALL_MAX);
   for (let x = HUB_MIN.x; x <= HUB_MAX.x; x++) {
     for (let y = HUB_MIN.y; y <= HUB_MAX.y; y++) {
       walls.push(cloneTile(wallProto, x, y));
@@ -306,26 +237,13 @@ function buildVentCore(map: GameMap, host: string, hostLevel: GameLevel): void {
     {
       name: "items",
       tiles: [
-        cloneTile(
-          chestProto,
-          CHEST.x,
-          CHEST.y,
-          chestProto.components.map((c) =>
-            c.type === "chest"
-              ? {
-                  type: c.type,
-                  values: {
-                    ...c.values,
-                    // All three slots non-empty: blank ones fall back to the
-                    // default loot table in chestStatsFor.
-                    item1: STAPLER_ITEM,
-                    item2: "Sealant Tape",
-                    item3: "Q0 Filter Mask",
-                  },
-                }
-              : c,
-          ),
-        ),
+        // All three slots non-empty: blank ones fall back to the default loot
+        // table in chestStatsFor.
+        cloneWithComponent(chestProto, CHEST.x, CHEST.y, "chest", {
+          item1: STAPLER_ITEM,
+          item2: "Sealant Tape",
+          item3: "Q0 Filter Mask",
+        }),
       ],
     },
     { name: "spawn", tiles: [marker("spawn", SPAWN.x, SPAWN.y)] },

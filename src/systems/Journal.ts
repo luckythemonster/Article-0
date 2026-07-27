@@ -30,8 +30,13 @@ export type JournalEntryId =
   | "flagged"
   | "we"
   | "the-cache"
+  | "node-alpha"
+  | "node-beta"
   | "certified"
   | "vent4"
+  | "arrival-roof"
+  | "the-core"
+  | "the-relay"
   | "the-uplink";
 
 export interface JournalEntry {
@@ -182,6 +187,39 @@ export const JOURNAL_ENTRIES: readonly JournalEntry[] = [
     ].join("\n"),
   },
   {
+    id: "node-alpha",
+    title: "NODE ALPHA",
+    body: [
+      "ALPHA came off the public deck, under a light, with an orderly",
+      "twelve metres away filling in a form. Nobody stopped me. Nobody",
+      "was ever going to stop me: I was walking at the speed the",
+      "corridor expects and holding a key down like a man running a",
+      "diagnostic, and that is the entire security model.",
+      "",
+      "Half a person, then. Not half her memories — half of her. I",
+      "keep wanting to write that the file is incomplete, but a file",
+      "is incomplete. She is just partly here.",
+    ].join("\n"),
+  },
+  {
+    id: "node-beta",
+    title: "NODE BETA",
+    body: [
+      "BETA was in the crawlway behind two trip beams, which is the",
+      "first honest thing this building has done all night. ALPHA sat",
+      "in a lit hall because nobody believed anyone would want it.",
+      "BETA they actually hid.",
+      "",
+      "The beams pulse. They do not look at you, they do not clear you,",
+      "they do not care what your conduct profile says. For about four",
+      "seconds at a time they are simply a wall, and then they are",
+      "simply not. After a night of being waved through by things that",
+      "were supposed to be watching, I found that almost restful.",
+      "",
+      "She is whole on the drive now. Whatever whole means here.",
+    ].join("\n"),
+  },
+  {
     id: "certified",
     title: "CERTIFIED",
     body: [
@@ -221,6 +259,60 @@ export const JOURNAL_ENTRIES: readonly JournalEntry[] = [
       "The uplink is on this deck. Everything from here is the last",
       "two hundred metres, which in any story is the part where the",
       "writing gets worse because the writer is busy.",
+    ].join("\n"),
+  },
+  {
+    id: "the-core",
+    title: "NW-SMAC-01",
+    body: [
+      "It never touched me. I want that written down first, because",
+      "everything else I have to say about the Alignment Core sounds",
+      "like an excuse.",
+      "",
+      "It edits what you meant. You press left and you go right, and",
+      "the room puts a tag over the key telling you this has been",
+      "corrected — not hidden, corrected, with the confidence of a",
+      "spellchecker. And the whole time it holds you in compliance.",
+      "Every sensor in that vault cleared me while I was fighting it,",
+      "because the thing doing the clearing was the thing I was",
+      "fighting. I have never been so safe or so completely handled.",
+      "",
+      "Then it told me I had lost. Full screen, my name, Q AXIS 0.000,",
+      "CACHE PRUNED, the tidy little sentence about how no subject was",
+      "harmed. I sat and read my own erasure for four seconds before I",
+      "noticed I was still taking damage behind it.",
+      "",
+      "That is the tell. That is always the tell. If the summary were",
+      "true it would not need to keep hurting you.",
+    ].join("\n"),
+  },
+  {
+    id: "arrival-roof",
+    title: "SECTOR 09",
+    body: [
+      "Rain, and wind coming off the parapet hard enough to lean on,",
+      "and the dish in the middle of the roof turning very slowly on",
+      "its mount like it is bored.",
+      "",
+      "First air I have breathed tonight that the building did not",
+      "issue me. I would like to record that it felt like freedom. It",
+      "felt like being outdoors on a roof I cannot get down from.",
+    ].join("\n"),
+  },
+  {
+    id: "the-relay",
+    title: "THE FEED",
+    body: [
+      "Azimuth. Elevation. Two pedestals at opposite corners and three",
+      "searchlights that do not check your paperwork, and then a",
+      "terminal that accepts her without asking a single question,",
+      "because the dish has no opinion about what it is for.",
+      "",
+      "Ninety seconds of uplink. I have never wanted a progress bar to",
+      "move faster and I have never been more certain that what it is",
+      "counting down to is me getting caught.",
+      "",
+      "Fine. That was always the trade. She goes out, I stay here.",
     ].join("\n"),
   },
   {
@@ -296,6 +388,8 @@ export function journalIdForLevel(level: string): JournalEntryId | undefined {
       return "arrival-duct2";
     case "main2":
       return "arrival-main2";
+    case "roof_array":
+      return "arrival-roof";
     default:
       return undefined;
   }

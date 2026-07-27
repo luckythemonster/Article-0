@@ -56,6 +56,45 @@ export interface ConductInput {
    * the way to the uplink. It buys nothing during an active ALERT.
    */
   certified: boolean;
+  /**
+   * Tiles walked since the last sample. Accrues into
+   * {@link ConductState.complianceDistanceWalked} only while compliant, which is what
+   * makes that counter mean "distance covered *passing as staff*" rather than
+   * "distance covered".
+   */
+  movedTiles?: number;
+  /**
+   * NW-SMAC-01 is holding Rowan in a corrected posture: the mesh reads him as
+   * compliant whatever he does, because it is the thing doing the reading. Pins
+   * compliance on rather than off — the fight's cost lands as bio-integrity damage in
+   * `GameScene`, not as exposure.
+   */
+  forced?: boolean;
+}
+
+/**
+ * Tiles of compliant walking before the facility stops treating Rowan as a novelty.
+ *
+ * The brief specified `500` with no unit; in engine terms that would be pixels, and at
+ * 32px tiles it is fifteen tiles — reached before the first corridor ends. Tiles are the
+ * unit every other distance in the codebase uses, and 220 of them is most of a deck.
+ */
+export const HIGH_COMPLIANCE_TILES = 220;
+
+/** Sabotage actions tolerated before conduct stops reading as "quiet". */
+export const HIGH_COMPLIANCE_MAX_SABOTAGE = 3;
+
+/**
+ * The two running totals, split out so they can survive a level change.
+ *
+ * A level transition is a `scene.restart()`, which rebuilds every `GameScene` field —
+ * including the `ConductState`. Without an explicit snapshot the counters would reset
+ * every time Rowan used a hatch, and "has behaved well *this run*" would silently mean
+ * "has behaved well since the last doorway".
+ */
+export interface ConductMetrics {
+  sabotageActions: number;
+  complianceDistanceWalked: number;
 }
 
 /**
@@ -77,10 +116,49 @@ export class ConductState {
   private live: ConductBreach | null = null;
   /** What a discrete {@link violate} attributed the current timer to. */
   private discrete: ConductBreach | null = null;
+  /** Distinct sabotage acts committed this run — see {@link violate}. */
+  private sabotage = 0;
+  /** Tiles walked while reading as staff. */
+  private walked = 0;
+  /** Compliance pinned on by NW-SMAC-01's correction field. */
+  private forced = false;
+
+  constructor(restore?: ConductMetrics) {
+    if (restore) {
+      this.sabotage = Math.max(0, restore.sabotageActions);
+      this.walked = Math.max(0, restore.complianceDistanceWalked);
+    }
+  }
 
   /** True when the facility reads Rowan as staff and every sensor clears him. */
   get compliant(): boolean {
-    return this.flagged <= 0;
+    return this.forced || this.flagged <= 0;
+  }
+
+  /** Distinct sabotage acts committed this run. */
+  get sabotageActions(): number {
+    return this.sabotage;
+  }
+
+  /** Tiles walked while reading as staff. */
+  get complianceDistanceWalked(): number {
+    return this.walked;
+  }
+
+  /**
+   * True when Rowan has been quietly passing for long enough that EIRA-7 has something
+   * to say about it: a lot of ground covered as staff, and very little friction.
+   *
+   * Both halves matter. Distance alone is just play time; a low sabotage count alone is
+   * just a player who hasn't done anything yet.
+   */
+  isHighCompliance(): boolean {
+    return this.walked > HIGH_COMPLIANCE_TILES && this.sabotage < HIGH_COMPLIANCE_MAX_SABOTAGE;
+  }
+
+  /** The running totals, for carrying across a level change. */
+  metrics(): ConductMetrics {
+    return { sabotageActions: this.sabotage, complianceDistanceWalked: this.walked };
   }
 
   /** Seconds until compliance returns, assuming behaviour stays clean. */
@@ -100,6 +178,17 @@ export class ConductState {
   }
 
   update(dt: number, input: ConductInput): void {
+    this.forced = !!input.forced;
+    if (this.forced) {
+      // The correction field holds the posture for Rowan. Let the timer keep draining
+      // underneath so releasing him doesn't hand back a stale flag.
+      this.live = null;
+      this.flagged = Math.max(0, this.flagged - dt);
+      if (this.flagged <= 0) this.discrete = null;
+      this.accrue(input);
+      return;
+    }
+
     // A live pursuit always blocks; a search only blocks without the credential.
     const alertBreach: ConductBreach | null =
       input.alertPhase === "ALERT"
@@ -119,6 +208,18 @@ export class ConductState {
 
     this.flagged = Math.max(0, this.flagged - dt);
     if (this.flagged <= 0) this.discrete = null;
+    this.accrue(input);
+  }
+
+  /**
+   * Banks this frame's distance, if it was walked while passing as staff.
+   *
+   * Called *after* the frame's breach has been resolved, never before: reading
+   * `compliant` at the top of {@link update} would still be answering for the previous
+   * frame, so the first stride of a sprint would be credited as compliant walking.
+   */
+  private accrue(input: ConductInput): void {
+    if (this.compliant) this.walked += Math.max(0, input.movedTiles ?? 0);
   }
 
   /**
@@ -128,19 +229,32 @@ export class ConductState {
    * an action is held down — a terminal hack, a chest search — reads as "flagged
    * throughout, then a cooldown once you stop", with no extra bookkeeping at the call
    * site and no way for a long flag to be cut short by a lesser one.
+   *
+   * {@link sabotageActions} counts **rising edges only** for the same reason: a held
+   * hack calls this on every frame, and a metric that counted each of those would be
+   * measuring frame rate. One hold is one act.
    */
   violate(reason: ConductBreach, seconds: number): void {
     if (seconds <= 0) return;
+    if (this.flagged <= 0 || this.discrete !== reason) this.sabotage++;
     if (seconds >= this.flagged) this.discrete = reason;
     this.flagged = Math.max(this.flagged, seconds);
   }
 }
 
-/** Snapshot published to the registry for the HUD. */
+/** Snapshot published to the registry for the HUD and the codec. */
 export interface ConductView {
   compliant: boolean;
   breach: ConductBreach | null;
   flaggedRemaining: number;
   /** Carrying the Q0 cert — surfaced so the HUD can show the credential doing work. */
   certified: boolean;
+  /** Distinct sabotage acts this run — drives EIRA-7's codec branch. */
+  sabotageActions: number;
+  /** Tiles walked while reading as staff. */
+  complianceDistanceWalked: number;
+  /** {@link ConductState.isHighCompliance}, resolved once so readers agree. */
+  highCompliance: boolean;
+  /** Held in NW-SMAC-01's correction field. */
+  forced: boolean;
 }
