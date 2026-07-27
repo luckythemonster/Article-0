@@ -250,7 +250,7 @@ export const CHEST_DEFAULTS = {
    * a Battery outranks Stun Rounds — light is load-bearing, stunning an Orderly
    * bystander is a convenience.
    */
-  items: ["Ration Pack", "Battery", "Access Chit"],
+  items: ["Medkit", "Battery", "Access Chit"],
 } as const;
 
 export function chestStatsFor(components: ComponentData[]): ChestStats {
@@ -296,13 +296,13 @@ export const STAPLER_ITEM = "Pneumatic Rail-Stapler";
 export const CERT_ITEM = "Q0_COMPLIANCE_CERT";
 
 /** Consumable: EMP charge that jams nearby cameras/guards (hotkey 1). */
-export const CHAFF_PACK_ITEM = "Chaff Pack";
+export const CHAFF_PACK_ITEM = "EMP Grenade";
 
 /** Consumable: thermal-masking buff (hotkey 2). */
 export const THERMAL_GEL_ITEM = "Thermal Gel";
 
 /** Consumable: restores bio-integrity (heals Rowan). */
-export const RATION_PACK_ITEM = "Ration Pack";
+export const RATION_PACK_ITEM = "Medkit";
 
 /** Consumable: recharges the flashlight battery to full. */
 export const BATTERY_ITEM = "Battery";
@@ -331,13 +331,13 @@ export const LOG_BETA_ITEM = "LOG_CACHE_BETA";
 export const FLASHLIGHT_DRAIN_SECONDS = 45;
 /** Detection-rate multiplier applied while the flashlight beam is emitting. */
 export const FLASHLIGHT_DETECTION_MULTIPLIER = 1.8;
-/** Radius (tiles) of a Chaff Pack's EMP burst, centred on the player. */
+/** Radius (tiles) of an EMP Grenade's burst, centred on the player. */
 export const CHAFF_EMP_RADIUS_TILES = 4;
-/** Seconds a Chaff Pack's EMP burst disables electronics / blinds guards. */
+/** Seconds an EMP Grenade's burst disables electronics / blinds guards. */
 export const CHAFF_EMP_DURATION = 6;
 /** Seconds a Thermal Gel dose grants thermal immunity. */
 export const THERMAL_GEL_SECONDS = 12;
-/** Bio-integrity restored by a manually-used Ration Pack. */
+/** Bio-integrity restored by a manually-used Medkit. */
 export const RATION_HEAL = 35;
 /** Reach (tiles) of a Stun Rounds dart. */
 export const STUN_ROUND_REACH_TILES = 5;
@@ -351,7 +351,7 @@ export const STUN_ROUND_NOISE = 0.2;
 /**
  * The consumables that map to hotkeys [1]–[4], in canonical slot order. Held
  * consumables fill slots dynamically (unheld names are skipped), so e.g. a
- * player holding only Thermal Gel + Ration Pack sees them as [1] and [2].
+ * player holding only Thermal Gel + Medkit sees them as [1] and [2].
  */
 export const CONSUMABLE_ORDER = [
   CHAFF_PACK_ITEM,

@@ -7,6 +7,7 @@ import { formatAgo, formatClock } from "./format";
 import { JOURNAL_ENTRIES, type JournalState } from "../systems/Journal";
 import { lexiconByCategory, lexiconEntry, type LexiconContext } from "../systems/Lexicon";
 import { itemInfo } from "../systems/ItemCatalog";
+import { flashlightIconPath, ITEM_ICON_PATHS } from "../systems/ItemIcons";
 import {
   objectiveLines,
   type MissionFeatures,
@@ -378,7 +379,18 @@ export class PauseMenuView {
         detail.appendChild(el("p", "pause-note", "Nothing selected."));
         return;
       }
-      detail.appendChild(el("div", "pause-detail-title", info.name));
+      const header = el("div", "pause-detail-header");
+      const iconPath =
+        name === FLASHLIGHT_ITEM ? flashlightIconPath(this.snap.active.flashlightOn) : ITEM_ICON_PATHS[name!];
+      if (iconPath) {
+        const icon = document.createElement("img");
+        icon.className = "pause-detail-icon";
+        icon.src = iconPath;
+        icon.alt = "";
+        header.appendChild(icon);
+      }
+      header.appendChild(el("div", "pause-detail-title", info.name));
+      detail.appendChild(header);
       detail.appendChild(prose(info.blurb));
       detail.appendChild(el("div", "pause-section", "EFFECT"));
       detail.appendChild(el("p", "pause-effect", info.effect));

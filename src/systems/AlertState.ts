@@ -71,7 +71,7 @@ export class AlertState {
     }
   }
 
-  /** An EMP jam (Chaff Pack) breaks an active pursuit into a search. No-op outside ALERT. */
+  /** An EMP jam (EMP Grenade) breaks an active pursuit into a search. No-op outside ALERT. */
   forceEvasion(seconds: number = EVASION_DURATION): void {
     if (this.phase !== "ALERT") return;
     this.phase = "EVASION";

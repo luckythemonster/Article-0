@@ -66,7 +66,7 @@ export class Laser {
     this.draw();
   }
 
-  /** Suppresses this hazard for a stretch (a Chaff Pack EMP burst). */
+  /** Suppresses this hazard for a stretch (an EMP Grenade burst). */
   emp(seconds: number): void {
     this.empTimer = Math.max(this.empTimer, seconds);
   }
@@ -100,7 +100,7 @@ export class Laser {
     return this.cy;
   }
 
-  /** True while suppressed by a Chaff Pack EMP burst — guards treat this as an anomaly. */
+  /** True while suppressed by an EMP Grenade burst — guards treat this as an anomaly. */
   get isEmped(): boolean {
     return this.empTimer > 0;
   }
