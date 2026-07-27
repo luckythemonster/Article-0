@@ -1,8 +1,9 @@
-import type { GameLayer, GameMap, GameTile } from "./types";
+import type { GameLayer, GameMap } from "./types";
 import {
   cloneTile,
   ensureLayer,
   fillFloor,
+  floorPalette,
   hasTileAt,
   marker,
   MissingProto,
@@ -92,28 +93,18 @@ const ROOF_COVER: TilePos[] = [
   { x: 24, y: 36 },
 ];
 
-/** Deck lighting: the pedestals, the feed, and the ladder head. */
+/**
+ * Deck lighting: the pedestals, the feed, and the ladder head.
+ *
+ * Derived rather than re-typed, so moving a pedestal takes its light with it — on a
+ * level whose whole pitch is that the searchlights make the calibration walk, a lamp
+ * silently left behind would be a quiet lie about where it is safe to stand.
+ */
 const ROOF_LIGHTS: TilePos[] = [
-  { x: 8, y: 34 },
-  { x: 32, y: 10 },
-  { x: 20, y: 26 },
-  { x: 20, y: 40 },
+  ...ROOF_PEDESTALS,
+  FEED_TERMINAL,
+  { x: ROOF_ACCESS.x, y: ROOF_ACCESS.y - 1 },
 ];
-
-/** Distinct sidewalk floor tiles, for a deck that reads as outdoors. */
-function sidewalkPalette(map: GameMap): GameTile[] {
-  const out: GameTile[] = [];
-  const seen = new Set<string>();
-  for (const level of map.levels) {
-    for (const t of level.layers.find((l) => l.name === "floor")?.tiles ?? []) {
-      if (!t.frame || seen.has(t.ref) || !t.ref.includes("Sidewalk")) continue;
-      seen.add(t.ref);
-      out.push(t);
-      if (out.length >= 6) return out;
-    }
-  }
-  return out;
-}
 
 /**
  * Appends the rooftop level and injects the host-side ladder that reaches it.
@@ -139,7 +130,8 @@ export function appendRoofArray(map: GameMap, host: string | null): boolean {
 }
 
 function buildRoofArray(map: GameMap, hostLevel: GameMap["levels"][number]): void {
-  const floorProtos = sidewalkPalette(map);
+  // The pavement family, wherever it was placed — the only outdoor-reading floor art.
+  const floorProtos = floorPalette(map.levels, 6, (ref) => ref.includes("Sidewalk"));
   if (floorProtos.length === 0) floorProtos.push(mustProto(map, "floor"));
 
   const wallProto = mustProto(map, "walls", (r) => r.includes("Concrete_Wall"));

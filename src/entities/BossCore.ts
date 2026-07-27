@@ -10,7 +10,8 @@ import {
   type SmacView,
 } from "../systems/SmacCore";
 import { rayDistance } from "../systems/Visibility";
-import { HoldTarget, HOLD_BAR_CYAN } from "./HoldTarget";
+import { accrueDetection, canSense, type Eye } from "../systems/Sensing";
+import { HoldFixture, nearestFixture } from "./HoldFixture";
 import type { EnforcerContext } from "./Enforcer";
 
 /**
@@ -28,19 +29,22 @@ import type { EnforcerContext } from "./Enforcer";
  * ### It deliberately ignores compliance
  *
  * `Sensing.canSense` short-circuits the moment the player reads as compliant staff, at
- * any range. That is the right rule for a guard reading conduct off a mesh, and exactly
- * the wrong one here: NW-SMAC-01 *is* the mesh. So its auditing beams run their own cone
- * test rather than going through `canSense`, and the forced-compliant posture it holds
- * Rowan in buys him nothing against the thing imposing it. Concealment still works —
- * crouching in cover, or a Shared Field merge — which is what makes the silicate racks
- * around the room the answer to the beams.
+ * any range. That is the right rule for a guard reading conduct off the mesh, and exactly
+ * the wrong one here: NW-SMAC-01 *is* the mesh, so the forced-compliant posture it holds
+ * Rowan in buys him nothing against the thing imposing it.
+ *
+ * That exemption is declared as `readsConduct: false` on its {@link Eye} rather than by
+ * hand-rolling a private cone test — which is what this used to do, and how it ended up
+ * with its own decay constant and no light sensitivity. Concealment still works, crouched
+ * in cover or merged into the Shared Field, which is what makes the silicate racks around
+ * the room the answer to the beams.
  */
+
+/** Reach (tiles) at which a node's verb is offered — matches GameScene's INTERACT_RANGE. */
+const INTERACT_TILES = 1.4;
 
 /** Beams sweeping out of the core, evenly spaced around it. */
 const AUDIT_BEAMS = 3;
-
-/** How fast an audit meter drains once the beam is off you. */
-const AUDIT_DECAY = 0.7;
 
 /** Seconds of enforced pause after a beam confirms, so one crossing costs once. */
 const AUDIT_LOCKOUT = 1.6;
@@ -61,62 +65,9 @@ export interface SmacInteractResult {
   transition: SmacTransition | null;
 }
 
-/**
- * One correction node: a hold-to-desynchronise fixture that the core repairs on a timer.
- *
- * Distinct from `PressureSubStation` in the one way that matters — a patched substation
- * stays patched, whereas a desynchronised node comes *back*. That round trip is the
- * whole encounter, so the fixture has to be able to un-finish itself.
- */
-class CorrectionNode {
-  readonly index: number;
-  readonly x: number;
-  readonly y: number;
-  private down = false;
-  private readonly hold: HoldTarget;
-
-  constructor(scene: Phaser.Scene, tile: GameTile, tileSize: number, index: number, holdTime: number) {
-    this.index = index;
-    this.hold = new HoldTarget(scene, tile, tileSize, holdTime, HOLD_BAR_CYAN);
-    this.x = this.hold.x;
-    this.y = this.hold.y;
-  }
-
-  get isDown(): boolean {
-    return this.down;
-  }
-
-  /** Advances the hold. True on the exact completion frame, so the core counts it once. */
-  desync(dt: number): boolean {
-    if (this.down) return false;
-    if (!this.hold.advance(dt)) return false;
-    this.down = true;
-    this.hold.settle(0x5effa0);
-    return true;
-  }
-
-  idle(dt: number): void {
-    if (!this.down) this.hold.decay(dt);
-  }
-
-  /** The core got it back. Returns the fixture to untouched. */
-  resync(): void {
-    if (!this.down) return;
-    this.down = false;
-    this.hold.reset();
-  }
-
-  /** Restores a down state on level re-entry — no bar, no completion event. */
-  restoreDown(): void {
-    if (this.down) return;
-    this.down = true;
-    this.hold.settle(0x5effa0);
-  }
-}
-
 export class BossCore {
   private readonly core: SmacCore;
-  private readonly nodes: CorrectionNode[] = [];
+  private readonly nodes: HoldFixture[] = [];
   /** Silicate racks — Shared Field witness anchors, in pixel space. */
   readonly racks: { x: number; y: number }[] = [];
 
@@ -129,6 +80,8 @@ export class BossCore {
 
   private sweep = Phaser.Math.FloatBetween(0, Math.PI * 2);
   private lockout = 0;
+  /** Reused across beams and frames — {@link canSense} only reads it. */
+  private readonly eye: Eye;
 
   private readonly beamGfx: Phaser.GameObjects.Graphics;
   private readonly coreGfx: Phaser.GameObjects.Graphics;
@@ -157,11 +110,23 @@ export class BossCore {
     this.y = centre.y;
 
     board("vault_nodes").forEach((tile, i) => {
-      const node = new CorrectionNode(scene, tile, tileSize, i, stats.nodeTime);
-      if (this.core.nodesDown[i]) node.restoreDown();
+      const node = new HoldFixture(scene, tile, tileSize, i, stats.nodeTime);
+      if (this.core.isNodeDown(i)) node.restoreDone();
       this.nodes.push(node);
     });
     for (const tile of board("vault_racks")) this.racks.push(toPx(tile));
+
+    this.eye = {
+      x: this.x,
+      y: this.y,
+      facing: 0,
+      rangeTiles: stats.auditRange,
+      coneDegrees: stats.auditAngle,
+      // The core has no heat sense; it is looking, not feeling.
+      thermalTiles: 0,
+      // It *is* the Alignment mesh, so being read as compliant by it buys nothing.
+      readsConduct: false,
+    };
 
     this.markerGfx = scene.add.graphics().setDepth(120);
     this.beamGfx = scene.add.graphics().setDepth(400);
@@ -210,9 +175,8 @@ export class BossCore {
 
     // Keep the fixtures honest with the state machine: a node the core repaired has to
     // visibly come back, or the room would lie about how the fight is going.
-    const down = this.core.nodesDown;
     for (const node of this.nodes) {
-      if (node.isDown && !down[node.index]) node.resync();
+      if (node.isDone && !this.core.isNodeDown(node.index)) node.reset();
     }
 
     if (this.core.state === SmacState.DEFEATED) {
@@ -246,83 +210,64 @@ export class BossCore {
     interactDown: boolean,
   ): SmacInteractResult {
     const res: SmacInteractResult = { dist: Infinity, consumedHold: false, transition: null };
+    const idleAll = (except?: HoldFixture): void => {
+      for (const node of this.nodes) if (node !== except) node.idle(dt);
+    };
+
     if (this.core.state === SmacState.DEFEATED) {
-      for (const node of this.nodes) node.idle(dt);
+      idleAll();
       return res;
     }
 
-    let nearest: CorrectionNode | undefined;
-    let nearestDist = Infinity;
-    for (const node of this.nodes) {
-      const d = Phaser.Math.Distance.Between(ptx * this.tileSize, pty * this.tileSize, node.x, node.y);
-      const tiles = d / this.tileSize;
-      if (tiles < nearestDist) {
-        nearestDist = tiles;
-        nearest = node;
-      }
-    }
-    if (!nearest || nearestDist > 1.4) {
-      for (const node of this.nodes) node.idle(dt);
+    const near = nearestFixture(this.nodes, ptx * this.tileSize, pty * this.tileSize, this.tileSize);
+    if (!near || near.tiles > INTERACT_TILES) {
+      idleAll();
       return res;
     }
+    const nearest = near.item;
 
-    res.dist = nearestDist;
-    if (nearest.isDown) {
+    res.dist = near.tiles;
+    if (nearest.isDone) {
       const left = Math.ceil(this.core.nextResync);
       res.label = `[NODE ${nearest.index + 1} DESYNCHRONISED — RESYNC ${left}s]`;
     } else {
       res.label = `[E] Desynchronise correction node ${nearest.index + 1}`;
       if (interactDown) {
         res.consumedHold = true;
-        if (nearest.desync(dt)) res.transition = this.core.noteNodeDesynced(nearest.index);
+        if (nearest.advance(dt)) res.transition = this.core.noteNodeDesynced(nearest.index);
       }
     }
-    for (const node of this.nodes) if (node !== nearest || !interactDown) node.idle(dt);
+    idleAll(interactDown ? nearest : undefined);
     return res;
   }
 
   /**
-   * The auditing beams: the room's own sight, run without going through `canSense`.
+   * The auditing beams.
    *
-   * See the class comment for why. Concealment is still honoured, so cover and the
-   * Shared Field both work — the racks exist to make the second one reachable.
+   * Runs through the shared {@link canSense} / {@link accrueDetection} pair like every
+   * other eye in the game. The one thing that makes this eye different is declared as
+   * data — `readsConduct: false` on {@link eye} — rather than as a hand-rolled copy of
+   * the cone test, which is what it used to be. Concealment still counts, so cover and
+   * the Shared Field both work; the racks exist to make the second one reachable.
+   *
+   * One `Eye` is reused across the beams and across frames: only the facing differs.
    */
   private updateAudit(dt: number, ctx: EnforcerContext, res: SmacTickResult): void {
-    const px = ctx.player.x;
-    const py = ctx.player.y;
-    const rangePx = this.stats.auditRange * this.tileSize;
-    const half = (this.stats.auditAngle * Math.PI) / 360;
-
     let lit = false;
-    if (!ctx.playerConcealed && this.lockout <= 0) {
-      const dx = px - this.x;
-      const dy = py - this.y;
-      if (dx * dx + dy * dy <= rangePx * rangePx) {
-        const toPlayer = Math.atan2(dy, dx);
-        for (let i = 0; i < AUDIT_BEAMS && !lit; i++) {
-          const facing = this.beamFacing(i);
-          if (Math.abs(Phaser.Math.Angle.Wrap(facing - toPlayer)) > half) continue;
-          lit = this.grid.hasLineOfSight(
-            this.x / this.tileSize,
-            this.y / this.tileSize,
-            px / this.tileSize,
-            py / this.tileSize,
-          );
-        }
+    if (this.lockout <= 0) {
+      for (let i = 0; i < AUDIT_BEAMS && !lit; i++) {
+        this.eye.facing = this.beamFacing(i);
+        lit = canSense(this.eye, ctx);
       }
     }
-
-    if (!lit) {
-      this.detection = Math.max(0, this.detection - dt * AUDIT_DECAY);
-      return;
-    }
-    this.detection = Math.min(1, this.detection + dt / this.stats.auditDetectTime);
+    this.detection = accrueDetection(this.detection, lit, dt, this.stats.auditDetectTime, ctx);
     if (this.detection < 1) return;
 
+    // accrueDetection has already reported the sighting; the lockout is what keeps one
+    // crossing from being charged every frame it lasts.
     this.detection = 0;
     this.lockout = AUDIT_LOCKOUT;
     res.auditHit = true;
-    ctx.alert.reportSighting(Math.floor(px / this.tileSize), Math.floor(py / this.tileSize));
   }
 
   private beamFacing(i: number): number {

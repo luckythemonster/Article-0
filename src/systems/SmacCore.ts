@@ -80,17 +80,27 @@ export interface SmacCorrection {
   invertY: boolean;
 }
 
+/**
+ * The HUD's view of the fight.
+ *
+ * Scalars only, and mutated in place rather than rebuilt — see {@link SmacCore.view}.
+ * The node state is a count and a total rather than a `boolean[]` because that is all
+ * the readout ever wanted: it used to be handed an array and immediately reduce it with
+ * `.filter(Boolean).length`, so two allocations a frame carried one integer.
+ *
+ * There is deliberately no `summaryUp` here either — it is exactly `state ===
+ * FALSE_SUMMARY`, and two fields that must agree are one field and a bug waiting.
+ */
 export interface SmacView {
   /** 0..100. */
   integrity: number;
   state: SmacState;
-  /** Per-node: true while desynchronised. */
-  nodesDown: boolean[];
+  /** How many nodes are currently desynchronised, of how many. */
+  nodesDown: number;
+  nodeCount: number;
   /** Seconds until the core repairs the node closest to being repaired. */
   nextResync: number;
   correction: SmacCorrection;
-  /** True while the fake completion card should be on screen. */
-  summaryUp: boolean;
   msg?: SmacMsg;
 }
 
@@ -116,6 +126,16 @@ export class SmacCore {
   private window: number;
   private msgId = 0;
   private msg?: SmacMsg;
+  /** Reused every frame — see {@link view}. */
+  private readonly viewOut: SmacView = {
+    integrity: 0,
+    state: SmacState.AUDIT,
+    nodesDown: 0,
+    nodeCount: 0,
+    nextResync: 0,
+    correction: NO_CORRECTION,
+    msg: undefined,
+  };
 
   constructor(
     private stats: SmacStats = SMAC_DEFAULTS,
@@ -133,9 +153,9 @@ export class SmacCore {
     return this.st;
   }
 
-  /** Nodes currently desynchronised. */
-  get nodesDown(): boolean[] {
-    return this.resync.map((r) => r > 0);
+  /** True while node `i` is desynchronised. Allocation-free: called every frame. */
+  isNodeDown(i: number): boolean {
+    return (this.resync[i] ?? 0) > 0;
   }
 
   get downCount(): number {
@@ -154,8 +174,11 @@ export class SmacCore {
 
   /** Seconds until the next node the core repairs comes back. */
   get nextResync(): number {
-    const live = this.resync.filter((r) => r > 0);
-    return live.length ? Math.min(...live) : 0;
+    let soonest = 0;
+    for (const r of this.resync) {
+      if (r > 0 && (soonest === 0 || r < soonest)) soonest = r;
+    }
+    return soonest;
   }
 
   /** True while the fake completion card owns the screen. */
@@ -252,16 +275,24 @@ export class SmacCore {
     };
   }
 
+  /**
+   * The HUD view, refreshed in place.
+   *
+   * One object for the life of the encounter rather than a fresh one every frame:
+   * `GameScene` publishes the same reference to the registry each tick and `UIScene`
+   * reads it the same tick, so nothing retains it across frames. Same reason
+   * `radarSnapshot` and the sensing context are reused.
+   */
   view(): SmacView {
-    return {
-      integrity: this.integrity,
-      state: this.st,
-      nodesDown: this.nodesDown,
-      nextResync: this.nextResync,
-      correction: this.correction,
-      summaryUp: this.summaryUp,
-      msg: this.msg,
-    };
+    const v = this.viewOut;
+    v.integrity = this.integrity;
+    v.state = this.st;
+    v.nodesDown = this.downCount;
+    v.nodeCount = this.resync.length;
+    v.nextResync = this.nextResync;
+    v.correction = this.correction;
+    v.msg = this.msg;
+    return v;
   }
 
   /**

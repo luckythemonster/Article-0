@@ -118,23 +118,29 @@ export interface TilePos {
 }
 
 /**
- * Up to `limit` distinct framed floor tiles from one level, for texture variety.
+ * Up to `limit` distinct framed floor tiles, for texture variety.
  *
- * Generated floors cycle through these deterministically rather than picking at
- * random, so a level looks the same on every boot and its test can assert positions.
+ * Generated floors cycle through these deterministically rather than picking at random,
+ * so a level looks the same on every boot and its test can assert positions.
+ *
+ * Takes a list of levels and a `keep` predicate because the two callers want opposite
+ * things from the same walk: the vent core wants "this level's floor, minus the grate",
+ * the roof wants "the pavement family, wherever in the map it was placed".
  */
 export function floorPalette(
-  level: GameLevel | undefined,
+  levels: readonly (GameLevel | undefined)[],
   limit = 6,
-  exclude?: (ref: string) => boolean,
+  keep?: (ref: string) => boolean,
 ): GameTile[] {
   const out: GameTile[] = [];
   const seen = new Set<string>();
-  for (const t of level?.layers.find((l) => l.name === "floor")?.tiles ?? []) {
-    if (!t.frame || seen.has(t.ref) || exclude?.(t.ref)) continue;
-    seen.add(t.ref);
-    out.push(t);
-    if (out.length >= limit) break;
+  for (const level of levels) {
+    for (const t of level?.layers.find((l) => l.name === "floor")?.tiles ?? []) {
+      if (!t.frame || seen.has(t.ref) || keep?.(t.ref) === false) continue;
+      seen.add(t.ref);
+      out.push(t);
+      if (out.length >= limit) return out;
+    }
   }
   return out;
 }
@@ -186,11 +192,30 @@ export function hasTileAt(layer: GameLayer, x: number, y: number): boolean {
 }
 
 /**
+ * Asserts every one of `at` is standable on `level`, declining generation if not.
+ *
+ * The coordinates each generator uses are hand-verified against the shipped map. On
+ * someone else's map they may well be solid, and placing a mission-critical terminal
+ * inside a wall is worse than not placing it — so this throws {@link MissingProto},
+ * which the entry point turns into "this map doesn't get that act".
+ */
+// (declared above blockedTiles, which it uses)
+
+/**
  * Every tile coordinate a level treats as solid, for placement assertions.
  *
  * Generators use this to keep fixtures off walls; the shipped map's crawlspaces are
  * mazes, so "somewhere in the middle of the room" is not a safe assumption.
  */
+export function requireClear(level: GameLevel, host: string, at: readonly TilePos[]): void {
+  const blocked = blockedTiles(level);
+  for (const p of at) {
+    if (blocked.has(`${p.x},${p.y}`)) {
+      throw new MissingProto(`(${p.x},${p.y}) is blocked on "${host}"`);
+    }
+  }
+}
+
 export function blockedTiles(level: GameLevel, boards = ["walls"]): Set<string> {
   const out = new Set<string>();
   for (const name of boards) {

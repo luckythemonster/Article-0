@@ -186,7 +186,7 @@ export function appendVentCore(map: GameMap, host: string | null): boolean {
 function buildVentCore(map: GameMap, host: string, hostLevel: GameLevel): void {
   // --- Protos (all from tiles the shipped map already places) ---
   const grateRef = "tdVents_Interior1_13";
-  const floorProtos = floorPalette(hostLevel, 6, (ref) => ref === grateRef);
+  const floorProtos = floorPalette([hostLevel], 6, (ref) => ref !== grateRef);
   if (floorProtos.length === 0) floorProtos.push(mustProto(map, "floor"));
   const grateProto = mustProto(map, "floor", (r) => r === grateRef);
   const wallProto = mustProto(map, "walls", (r) => r.includes("Concrete_Wall"), host);

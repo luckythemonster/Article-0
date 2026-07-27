@@ -1,12 +1,12 @@
 import type { GameMap } from "./types";
 import {
-  blockedTiles,
   cloneTile,
   ensureLayer,
   hasTileAt,
   MissingProto,
   mustProto,
   protoTile,
+  requireClear,
   type TilePos,
 } from "./generate";
 
@@ -86,15 +86,12 @@ export function appendAlignmentVault(map: GameMap, host: string | null): boolean
   if (!hostLevel) return false;
 
   const core = ensureLayer(hostLevel, "vault_core");
-  if (hasTileAt(core, VAULT_CORE.x, VAULT_CORE.y)) return true;
+  // Keyed on the board having anything at all rather than on our coordinate: a map that
+  // placed its own core elsewhere has declared its intent, and shouldn't get a second.
+  if (core.tiles.length > 0) return true;
 
   try {
-    const blocked = blockedTiles(hostLevel);
-    for (const p of [VAULT_CORE, ...VAULT_NODES, ...VAULT_RACKS, ...VAULT_COVER]) {
-      if (blocked.has(`${p.x},${p.y}`)) {
-        throw new MissingProto(`(${p.x},${p.y}) is blocked on "${host}"`);
-      }
-    }
+    requireClear(hostLevel, host, [VAULT_CORE, ...VAULT_NODES, ...VAULT_RACKS, ...VAULT_COVER]);
 
     // `alignment_terminal` is a six-keyframe fixture the map places on main1's
     // light_sources board and the engine has never used for anything. It is the one

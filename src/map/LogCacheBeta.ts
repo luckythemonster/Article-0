@@ -6,7 +6,7 @@ import {
   hasTileAt,
   MissingProto,
   mustProto,
-  blockedTiles,
+  requireClear,
   type TilePos,
 } from "./generate";
 
@@ -53,6 +53,11 @@ export const BETA_BEAMS: TilePos[] = [
 /** The edplay `TerminalType` value that marks this terminal as node BETA. */
 const BETA_TYPE = "LOG_CACHE_BETA";
 
+/** True for a terminal already typed as node BETA, wherever it sits. */
+function isBetaTerminal(t: GameTile): boolean {
+  return t.components.some((c) => c.type === "terminal" && c.values.type === BETA_TYPE);
+}
+
 /**
  * Injects node BETA into `host`. Idempotent, and silent when it can't run.
  *
@@ -67,18 +72,12 @@ export function appendLogCacheBeta(map: GameMap, host: string | null): boolean {
   if (!hostLevel) return false;
 
   const terminals = ensureLayer(hostLevel, "terminals");
-  if (hasTileAt(terminals, BETA_TERMINAL.x, BETA_TERMINAL.y)) return true;
+  // Keyed on the *concept*, not the coordinate: a map that authored its own BETA node
+  // somewhere else has already declared its intent, and shouldn't get a second one.
+  if (terminals.tiles.some(isBetaTerminal)) return true;
 
   try {
-    // Every fixture has to land on floor the player can stand on. On the shipped map
-    // these coordinates are the crawlway; on someone else's map they may well be solid,
-    // and placing a mission-critical terminal inside a wall is worse than not placing it.
-    const blocked = blockedTiles(hostLevel);
-    for (const p of [BETA_TERMINAL, ...BETA_BEAMS]) {
-      if (blocked.has(`${p.x},${p.y}`)) {
-        throw new MissingProto(`(${p.x},${p.y}) is blocked on "${host}"`);
-      }
-    }
+    requireClear(hostLevel, host, [BETA_TERMINAL, ...BETA_BEAMS]);
 
     const terminalProto = mustProto(map, "terminals", (r) => r === "terminal0");
     const beamProto = mustProto(map, "doors", (r) => r.toLowerCase().includes("laser"));
@@ -91,7 +90,7 @@ export function appendLogCacheBeta(map: GameMap, host: string | null): boolean {
 
     const lasers = ensureLayer(hostLevel, "lasers");
     for (const b of BETA_BEAMS) {
-      if (!hasTileAt(lasers, b.x, b.y)) lasers.tiles.push(cloneTile(beamProto, b.x, b.y) as GameTile);
+      if (!hasTileAt(lasers, b.x, b.y)) lasers.tiles.push(cloneTile(beamProto, b.x, b.y));
     }
     return true;
   } catch (e) {

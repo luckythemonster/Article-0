@@ -203,6 +203,8 @@ export class GameScene extends Phaser.Scene {
   private relay?: RoofRelay;
   /** Enforcers landed by the rooftop siege, counted against `maxSiegeGuards`. */
   private siegeGuards = 0;
+  /** Lazily-resolved {@link features}; cleared per run so a fresh map re-reads it. */
+  private runFeatures?: MissionFeatures;
   /** Previous frame's player position, for the conduct system's distance metric. */
   private lastPlayerX = 0;
   private lastPlayerY = 0;
@@ -472,7 +474,10 @@ export class GameScene extends Phaser.Scene {
     // A level transition is a scene.restart(), which builds a fresh Lighting.
     // The old one owns off-display-list stamps Phaser will not reclaim on its
     // own, so hand them back before this run of the scene goes away.
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.lighting.destroy());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.persistRunState();
+      this.lighting.destroy();
+    });
 
     this.saveCheckpoint();
   }
@@ -596,6 +601,7 @@ export class GameScene extends Phaser.Scene {
     this.smac = undefined;
     this.relay = undefined;
     this.siegeGuards = 0;
+    this.runFeatures = undefined;
     this.alert = new AlertState();
     this.noiseSpam = new NoiseSpamTracker();
     this.sharedField = new SharedField();
@@ -1194,7 +1200,6 @@ export class GameScene extends Phaser.Scene {
       forced: this.smac?.forcesCompliance ?? false,
     });
     const compliant = this.conduct.compliant;
-    this.registry.set("conductMetrics", this.conduct.metrics());
     this.registry.set("conduct", {
       compliant,
       breach: this.conduct.breach,
@@ -1433,7 +1438,6 @@ export class GameScene extends Phaser.Scene {
       body.velocity.y += forces.vy;
       if (forces.inIntake) this.player.takeDamage(VENT4_DEFAULTS.intakeDamage);
       this.registry.set("vent4", this.vent4.hudView());
-      this.registry.set("vent4State", this.vent4.snapshot());
     }
 
     // NW-SMAC-01: auditing beams and the correction/audit clock. Its input rewriting is
@@ -1446,7 +1450,6 @@ export class GameScene extends Phaser.Scene {
         this.cameras.main.flash(180, 200, 60, 180);
       }
       this.registry.set("smac", this.smac.hudView());
-      this.registry.set("smacState", this.smac.snapshot());
     }
 
     // The rooftop relay: searchlights, the uplink clock, and the siege's waves.
@@ -1459,7 +1462,6 @@ export class GameScene extends Phaser.Scene {
       }
       if (tick.spawnAt) for (const at of tick.spawnAt) this.landSiegeEnforcer(at);
       this.registry.set("relay", this.relay.hudView());
-      this.registry.set("relayState", this.relay.snapshot());
     }
 
     // Orderlies: bystanders, not guards — a clear sighting is a one-shot
@@ -1575,10 +1577,11 @@ export class GameScene extends Phaser.Scene {
       if (relayI.transition) this.onRelayTransition(relayI.transition);
     }
 
-    const ventHold =
-      (vent?.consumedHold ?? false) ||
-      (smacI?.consumedHold ?? false) ||
-      (relayI?.consumedHold ?? false);
+    // Named for what it gates — chests and knocks — rather than for VENT-4, which was
+    // only the first encounter to claim a hold.
+    const encounterHold = Boolean(
+      vent?.consumedHold || smacI?.consumedHold || relayI?.consumedHold,
+    );
 
     // --- Terminals (hold E) ---
     let nearestTerminal: Terminal | undefined;
@@ -1613,11 +1616,11 @@ export class GameScene extends Phaser.Scene {
         nearestChest = chest;
       }
     }
-    const searching = !!nearestChest && interactDown && !hacking && !ventHold;
+    const searching = !!nearestChest && interactDown && !hacking && !encounterHold;
     if (searching) this.conduct.violate("TAMPERING", FLAG_TAMPERING);
     if (searching && nearestChest!.open(dt)) this.collectChest(nearestChest!);
     for (const chest of this.chests) {
-      if (chest !== nearestChest || !interactDown || hacking || ventHold) chest.idle(dt);
+      if (chest !== nearestChest || !interactDown || hacking || encounterHold) chest.idle(dt);
     }
 
     // --- Doors (tap E) ---
@@ -1634,7 +1637,7 @@ export class GameScene extends Phaser.Scene {
 
     // A tap not consumed by a hack opens/closes a door, or uses a hatch —
     // whichever is nearer (a hatch you're standing on always wins).
-    if (!hacking && !ventHold && interactJust) {
+    if (!hacking && !encounterHold && interactJust) {
       const hatchDist = hatch ? 0.2 : Infinity;
       if (nearestDoor && nearestDoorDist <= hatchDist) {
         if (nearestDoor.toggle()) {
@@ -1647,10 +1650,10 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Only ever one encounter on a level, so the three share the prompt's boss slot.
-    const encounter = [vent, smacI, relayI].reduce<
-      { label?: string; dist: number } | undefined
-    >((best, r) => (r?.label && (!best || r.dist < best.dist) ? r : best), undefined);
+    // At most one encounter is ever live: vent4 only on the vent core, smac only on the
+    // level carrying the vault boards, relay only on the roof. So this is a pick, not an
+    // arbitration — a fold implied the three could be on screen together.
+    const encounter = vent ?? smacI ?? relayI;
 
     this.showPrompt(
       nearestTerminal,
@@ -1838,9 +1841,17 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Which acts this map furnished — see `missionFeatures`. */
+  /**
+   * Which acts this map furnished — see `missionFeatures`.
+   *
+   * Resolved once per scene rather than per call. The four flags behind it are written
+   * by `BootScene` before the first frame and never change during a run, so reading
+   * them out of the registry every frame was five lookups and two allocations (the
+   * object, plus the closure inside `missionFeatures`) to re-derive a constant — on
+   * every level, including the ones with none of these acts on them.
+   */
   private features(): MissionFeatures {
-    return missionFeatures(this.registry);
+    return (this.runFeatures ??= missionFeatures(this.registry));
   }
 
   /**
@@ -1939,13 +1950,18 @@ export class GameScene extends Phaser.Scene {
         audio.setMood("alert");
         this.cameras.main.flash(600, 255, 255, 255);
         this.cameras.main.shake(900, 0.008);
-        noteUplinkComplete(this.objectives);
-        this.registry.set("objectives", this.objectives);
         break;
       case RelayState.SEIZED:
-        // `update` sees `uplinkComplete` and ends the run; nothing to do but stop the
-        // room making noise about it.
+        // The run ends *here*, not on CAPTURE.
+        //
+        // `tickWorld` runs before the win check in the same frame, so setting this on the
+        // CAPTURE transition meant `endRun` fired that same frame and the authored
+        // capture beat — lights out, input locked, HUD collapsing into noise — never got
+        // a single frame on screen. `RelayCore` already holds CAPTURE for
+        // `captureSeconds`; this lets it.
         audio.setMood("calm");
+        noteUplinkComplete(this.objectives);
+        this.registry.set("objectives", this.objectives);
         break;
     }
   }
@@ -2213,6 +2229,23 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Fades to black, then restarts this scene on the destination level/tile. */
+  /**
+   * Writes the state a `scene.restart()` has to carry across, at the one moment it
+   * matters.
+   *
+   * These used to be published every frame, which meant 60 objects a second to serve a
+   * reader that only ever runs in `create()`. Hung off SHUTDOWN rather than off
+   * `beginTransition`, because that fires for *every* way this scene ends — a hatch, a
+   * debug warp, a load from the pause menu — and Phaser emits it before the restart's
+   * `create()`, so the values are always there to be read back.
+   */
+  private persistRunState(): void {
+    this.registry.set("conductMetrics", this.conduct.metrics());
+    if (this.vent4) this.registry.set("vent4State", this.vent4.snapshot());
+    if (this.smac) this.registry.set("smacState", this.smac.snapshot());
+    if (this.relay) this.registry.set("relayState", this.relay.snapshot());
+  }
+
   private beginTransition(tr: Transition): void {
     this.transitioning = true;
     this.prompt.setVisible(false);

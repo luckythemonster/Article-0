@@ -13,7 +13,7 @@ import { DEBUG_ALLOWED } from "../systems/DebugFlag";
 import type { AlertPhase } from "../systems/AlertState";
 import type { RadarSnapshot } from "../systems/Radar";
 import type { AlertNetworkSnapshot } from "../systems/AlertNetwork";
-import type { ObjectiveState } from "../systems/Objectives";
+import type { MissionFeatures, ObjectiveState } from "../systems/Objectives";
 import type { Vent4View } from "../systems/Vent4Core";
 import type { SmacView } from "../systems/SmacCore";
 import type { RelayView } from "../systems/RelayCore";
@@ -45,6 +45,8 @@ export class UIScene extends Phaser.Scene {
   private debug?: DebugHud;
   // A tiny stand-in that mirrors the phase the HUD needs to colour itself.
   private readonly alertView = { phase: "INFILTRATION" as AlertPhase };
+  /** Which acts this map furnished; see `missionFeatures`. Constant for the run. */
+  private features?: MissionFeatures;
   /** Hotkeys [1]–[4], mapped dynamically to the held consumables each frame. */
   private itemKeys!: Phaser.Input.Keyboard.Key[];
 
@@ -115,7 +117,11 @@ export class UIScene extends Phaser.Scene {
     const objState = this.registry.get("objectives") as ObjectiveState | undefined;
     const level = (this.registry.get("currentLevel") as string | undefined) ?? "";
     if (objState) {
-      this.objectives.update(objState, level, missionFeatures(this.registry));
+      // Resolved once: the flags behind it are written by BootScene before the first
+      // frame and never move, so rebuilding it here was an object and a closure per
+      // frame to re-derive a constant — in a second 60fps loop, on every level.
+      this.features ??= missionFeatures(this.registry);
+      this.objectives.update(objState, level, this.features);
     }
 
     const field = this.registry.get("sharedField") as SharedFieldView | undefined;

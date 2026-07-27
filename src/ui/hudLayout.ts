@@ -30,9 +30,11 @@ const OBJECTIVE_LINE_HEIGHT = 14;
  * The most lines the directive can run to.
  *
  * One per act the map furnished — ALPHA, BETA, the vault, the uplink — plus the optional
- * VENT-4 line. See `objectiveLines`.
+ * VENT-4 line. Exported so `Objectives.test.ts` can assert `objectiveLines` never exceeds
+ * it: a sixth act would otherwise silently reintroduce the exact overlap this file was
+ * written to prevent, with the comment above still claiming it can't happen.
  */
-const OBJECTIVE_MAX_LINES = 5;
+export const OBJECTIVE_MAX_LINES = 5;
 
 /** First y an encounter HUD may claim without ever overlapping the directive. */
 export const ENCOUNTER_TOP =

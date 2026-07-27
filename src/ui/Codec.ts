@@ -48,10 +48,11 @@ const CONT = " ".repeat(GUTTER.length);
 /**
  * Columns of prose after the gutter.
  *
- * The panel is a `<pre>` in Share Tech Mono, so this is a real column count rather
- * than an approximation — and it has to be a wrap rather than hand-broken literals,
- * because the authored stanzas below are quoted verbatim from the script and must not
- * be silently re-edited to fit.
+ * The panel is a `<pre>` in Share Tech Mono, so this is a real column count rather than
+ * an approximation. The beat and conduct stanzas below carry no authored line breaks —
+ * they are sentences — so the wrapper makes them, and editing the prose doesn't mean
+ * re-flowing it by hand. {@link BRIEFING} is hand-broken instead, because *its* breaks
+ * are dramatic ("they will call it Alignment —") and belong to the writing.
  */
 const WIDTH = 62;
 
