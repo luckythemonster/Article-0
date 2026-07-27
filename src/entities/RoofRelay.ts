@@ -15,7 +15,8 @@ import {
   ROOF_SEARCHLIGHTS,
 } from "../map/RoofArrayLevel";
 import { drawVisionCone, type ConeStyle } from "../ui/VisionCone";
-import { HoldTarget, HOLD_BAR_CYAN } from "./HoldTarget";
+import { accrueDetection, canSense, type Eye } from "../systems/Sensing";
+import { HoldFixture, nearestFixture } from "./HoldFixture";
 import type { EnforcerContext } from "./Enforcer";
 
 /**
@@ -28,15 +29,14 @@ import type { EnforcerContext } from "./Enforcer";
  *
  * ### The searchlights are hazards, not cameras
  *
- * They could have been `security`-board `Sensor`s and got the sweeping-cone behaviour
- * for free. They aren't, and the reason is `Sensing.canSense`, which clears the player
- * outright the moment they read as compliant staff — at any range, before any geometry.
- * That is correct for a guard reading conduct and wrong for a searchlight, which is a
- * lamp. A compliant Rowan strolling untouched through a spotlight would gut the phase
- * the calibration walk is built on, so these run their own cone test, exactly as VENT-4's
- * sweeps do.
+ * They could have been `security`-board `Sensor`s. They aren't, because `Sensing.canSense`
+ * clears the player outright the moment they read as compliant staff — correct for a guard
+ * reading conduct, wrong for a searchlight, which is a lamp. A compliant Rowan strolling
+ * untouched through a spotlight would gut the phase the calibration walk is built on.
  *
- * Concealment still counts — cover, and the Shared Field the dish itself charges.
+ * So the lamps carry `readsConduct: false` on their {@link Eye} and go through the same
+ * shared sensing path as everything else, rather than keeping a private copy of the cone
+ * test. Concealment still counts — cover, and the Shared Field the dish itself charges.
  */
 
 const SEARCHLIGHT_CONE: ConeStyle = {
@@ -46,11 +46,11 @@ const SEARCHLIGHT_CONE: ConeStyle = {
   hotAlpha: 0.3,
 };
 
-/** How fast a searchlight meter drains once the beam is off you. */
-const LIGHT_DECAY = 0.8;
-
 /** Seconds of enforced pause after a beam confirms, so one crossing costs once. */
 const LIGHT_LOCKOUT = 1.4;
+
+/** Reach (tiles) at which a fixture's verb is offered — matches GameScene's INTERACT_RANGE. */
+const INTERACT_TILES = 1.4;
 
 export interface RelayTickResult {
   transition: RelayTransition | null;
@@ -71,55 +71,10 @@ export interface RelayInteractResult {
   transition: RelayTransition | null;
 }
 
-/** A hold-to-activate roof fixture: the two pedestals and the feed terminal. */
-class RoofFixture {
-  readonly x: number;
-  readonly y: number;
-  private done = false;
-  private readonly hold: HoldTarget;
-
-  constructor(
-    scene: Phaser.Scene,
-    tile: GameTile,
-    tileSize: number,
-    readonly index: number,
-    holdTime: number,
-  ) {
-    this.hold = new HoldTarget(scene, tile, tileSize, holdTime, HOLD_BAR_CYAN);
-    this.x = this.hold.x;
-    this.y = this.hold.y;
-  }
-
-  get isDone(): boolean {
-    return this.done;
-  }
-
-  advance(dt: number): boolean {
-    if (this.done) return false;
-    if (!this.hold.advance(dt)) return false;
-    this.finish();
-    return true;
-  }
-
-  idle(dt: number): void {
-    if (!this.done) this.hold.decay(dt);
-  }
-
-  /** Restores a completed state on level re-entry — no bar, no completion event. */
-  restoreDone(): void {
-    if (!this.done) this.finish();
-  }
-
-  private finish(): void {
-    this.done = true;
-    this.hold.settle(0x5effa0);
-  }
-}
-
 export class RoofRelay {
   private readonly core: RelayCore;
-  private readonly pedestals: RoofFixture[] = [];
-  private readonly feed?: RoofFixture;
+  private readonly pedestals: HoldFixture[] = [];
+  private readonly feed?: HoldFixture;
 
   /** Pixel centre of the dish — the Shared Field witness anchor up here. */
   readonly dish: { x: number; y: number };
@@ -129,6 +84,10 @@ export class RoofRelay {
 
   private sweep = 0;
   private lockout = 0;
+  /** Reused across lamps and frames — {@link canSense} only reads it. */
+  private readonly eye: Eye;
+  /** Which catwalk the next wave lands at; rotated so pressure comes from all sides. */
+  private waveIndex = 0;
   private readonly lights: { x: number; y: number; gfx: Phaser.GameObjects.Graphics }[] = [];
   private readonly dishGfx: Phaser.GameObjects.Graphics;
 
@@ -150,13 +109,13 @@ export class RoofRelay {
     });
 
     board("relay_pedestals").forEach((tile, i) => {
-      const fixture = new RoofFixture(scene, tile, tileSize, i, stats.pedestalTime);
-      if (this.core.pedestalsSet[i]) fixture.restoreDone();
+      const fixture = new HoldFixture(scene, tile, tileSize, i, stats.pedestalTime);
+      if (this.core.isPedestalSet(i)) fixture.restoreDone();
       this.pedestals.push(fixture);
     });
     const feedTile = board("relay_feed")[0];
     if (feedTile) {
-      this.feed = new RoofFixture(scene, feedTile, tileSize, 0, stats.pedestalTime);
+      this.feed = new HoldFixture(scene, feedTile, tileSize, 0, stats.pedestalTime);
       if (this.core.state !== RelayState.CALIBRATE && this.core.state !== RelayState.ARMED) {
         this.feed.restoreDone();
       }
@@ -166,6 +125,17 @@ export class RoofRelay {
     for (const mount of ROOF_SEARCHLIGHTS.slice(0, stats.searchlightCount)) {
       this.lights.push({ ...px(mount), gfx: scene.add.graphics().setDepth(400) });
     }
+    this.eye = {
+      x: 0,
+      y: 0,
+      facing: 0,
+      rangeTiles: stats.searchlightRange,
+      coneDegrees: stats.searchlightAngle,
+      // A lamp has no heat sense.
+      thermalTiles: 0,
+      // A searchlight is not making a judgement about conduct — it is a lamp.
+      readsConduct: false,
+    };
     this.dishGfx = scene.add.graphics().setDepth(456).setBlendMode(Phaser.BlendModes.ADD);
   }
 
@@ -210,7 +180,7 @@ export class RoofRelay {
         at.push(ROOF_CATWALKS[(this.waveIndex + i) % ROOF_CATWALKS.length]);
       }
       this.waveIndex += this.stats.waveSize;
-      res.spawnAt = [...(res.spawnAt ?? []), ...at];
+      (res.spawnAt ??= []).push(...at);
     }
 
     if (this.core.isCaptured) {
@@ -229,8 +199,6 @@ export class RoofRelay {
     return res;
   }
 
-  private waveIndex = 0;
-
   /**
    * Pedestals while calibrating, the feed once armed.
    *
@@ -248,34 +216,27 @@ export class RoofRelay {
     const px = ptx * this.tileSize;
     const py = pty * this.tileSize;
 
-    const idleAll = (except?: RoofFixture): void => {
+    const idleAll = (except?: HoldFixture): void => {
       for (const p of this.pedestals) if (p !== except) p.idle(dt);
       if (this.feed && this.feed !== except) this.feed.idle(dt);
     };
 
     // Only one verb is live at a time, which keeps the roof's two phases legible.
-    const live: RoofFixture[] =
+    const live: HoldFixture[] =
       this.core.state === RelayState.CALIBRATE
         ? this.pedestals.filter((p) => !p.isDone)
         : this.core.isArmed && this.feed
           ? [this.feed]
           : [];
 
-    let nearest: RoofFixture | undefined;
-    let nearestDist = Infinity;
-    for (const f of live) {
-      const tiles = Phaser.Math.Distance.Between(px, py, f.x, f.y) / this.tileSize;
-      if (tiles < nearestDist) {
-        nearestDist = tiles;
-        nearest = f;
-      }
-    }
-    if (!nearest || nearestDist > 1.4) {
+    const near = nearestFixture(live, px, py, this.tileSize);
+    if (!near || near.tiles > INTERACT_TILES) {
       idleAll();
       return res;
     }
+    const nearest = near.item;
 
-    res.dist = nearestDist;
+    res.dist = near.tiles;
     const calibrating = this.core.state === RelayState.CALIBRATE;
     res.label = calibrating
       ? `[E] Set ${nearest.index === 0 ? "azimuth" : "elevation"} pedestal`
@@ -292,43 +253,37 @@ export class RoofRelay {
     return res;
   }
 
-  /** The lamps' own sight — see the class comment for why it isn't `canSense`. */
+  /**
+   * The lamps' sight.
+   *
+   * Shared {@link canSense} / {@link accrueDetection}, with the one genuine difference
+   * declared as data — `readsConduct: false` on {@link eye}, see the class comment. One
+   * `Eye` is reused across the lamps and across frames; only its position and facing move.
+   */
   private updateSearchlights(dt: number, ctx: EnforcerContext, res: RelayTickResult): void {
-    const px = ctx.player.x;
-    const py = ctx.player.y;
-    const rangePx = this.stats.searchlightRange * this.tileSize;
-    const half = (this.stats.searchlightAngle * Math.PI) / 360;
-
     let lit = false;
-    if (!ctx.playerConcealed && this.lockout <= 0) {
+    if (this.lockout <= 0) {
       for (let i = 0; i < this.lights.length && !lit; i++) {
-        const l = this.lights[i];
-        const dx = px - l.x;
-        const dy = py - l.y;
-        if (dx * dx + dy * dy > rangePx * rangePx) continue;
-        if (Math.abs(Phaser.Math.Angle.Wrap(this.lightFacing(i) - Math.atan2(dy, dx))) > half) {
-          continue;
-        }
-        lit = this.grid.hasLineOfSight(
-          l.x / this.tileSize,
-          l.y / this.tileSize,
-          px / this.tileSize,
-          py / this.tileSize,
-        );
+        this.eye.x = this.lights[i].x;
+        this.eye.y = this.lights[i].y;
+        this.eye.facing = this.lightFacing(i);
+        lit = canSense(this.eye, ctx);
       }
     }
-
-    if (!lit) {
-      this.detection = Math.max(0, this.detection - dt * LIGHT_DECAY);
-      return;
-    }
-    this.detection = Math.min(1, this.detection + dt / this.stats.searchlightDetectTime);
+    this.detection = accrueDetection(
+      this.detection,
+      lit,
+      dt,
+      this.stats.searchlightDetectTime,
+      ctx,
+    );
     if (this.detection < 1) return;
 
+    // accrueDetection has already reported the sighting; the lockout is what keeps one
+    // crossing from being charged every frame it lasts.
     this.detection = 0;
     this.lockout = LIGHT_LOCKOUT;
     res.searchlightHit = true;
-    ctx.alert.reportSighting(Math.floor(px / this.tileSize), Math.floor(py / this.tileSize));
   }
 
   /** Staggered so the three lamps never sweep as one wall with no gap to cross. */

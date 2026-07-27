@@ -48,12 +48,17 @@ export interface RelayMsg {
   text: string;
 }
 
+/**
+ * The HUD's view. Scalars only, mutated in place — see {@link RelayCore.view}, and the
+ * note on `SmacView` for why the pedestal state is a count rather than an array.
+ */
 export interface RelayView {
   state: RelayState;
   /** Uplink completion, 0..1. */
   progress: number;
-  /** Per-pedestal: true once calibrated. */
-  pedestalsSet: boolean[];
+  /** How many pedestals are calibrated, of how many. */
+  pedestalsSet: number;
+  pedestalCount: number;
   /** Seconds left of the capture sequence, while it is playing. */
   captureLeft: number;
   msg?: RelayMsg;
@@ -78,6 +83,15 @@ export class RelayCore {
   private captureTimer = 0;
   private msgId = 0;
   private msg?: RelayMsg;
+  /** Reused every frame — see {@link view}. */
+  private readonly viewOut: RelayView = {
+    state: RelayState.CALIBRATE,
+    progress: 0,
+    pedestalsSet: 0,
+    pedestalCount: 0,
+    captureLeft: 0,
+    msg: undefined,
+  };
 
   constructor(
     private stats: RelayStats = RELAY_DEFAULTS,
@@ -99,8 +113,20 @@ export class RelayCore {
     return Math.min(1, this.uplink / this.stats.uplinkSeconds);
   }
 
-  get pedestalsSet(): boolean[] {
-    return this.pedestals.slice();
+  /** True once pedestal `i` is calibrated. Allocation-free: called every frame. */
+  isPedestalSet(i: number): boolean {
+    return this.pedestals[i] === true;
+  }
+
+  /** How many pedestals are set, of how many. */
+  get setCount(): number {
+    let n = 0;
+    for (const p of this.pedestals) if (p) n++;
+    return n;
+  }
+
+  get pedestalCount(): number {
+    return this.pedestals.length;
   }
 
   /** True once the dish is aligned and the feed terminal will accept EIRA-7. */
@@ -186,14 +212,16 @@ export class RelayCore {
     return { state: this.st, pedestals: this.pedestals.slice(), uplink: this.uplink };
   }
 
+  /** The HUD view, refreshed in place — one object for the encounter's lifetime. */
   view(): RelayView {
-    return {
-      state: this.st,
-      progress: this.progress,
-      pedestalsSet: this.pedestalsSet,
-      captureLeft: this.captureTimer,
-      msg: this.msg,
-    };
+    const v = this.viewOut;
+    v.state = this.st;
+    v.progress = this.progress;
+    v.pedestalsSet = this.setCount;
+    v.pedestalCount = this.pedestals.length;
+    v.captureLeft = this.captureTimer;
+    v.msg = this.msg;
+    return v;
   }
 
   private transition(to: RelayState): RelayTransition | null {

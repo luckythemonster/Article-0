@@ -108,7 +108,7 @@ describe("RelayCore", () => {
     const copy = new RelayCore(RELAY_DEFAULTS, relay.snapshot());
     expect(copy.state).toBe(relay.state);
     expect(copy.progress).toBeCloseTo(relay.progress, 5);
-    expect(copy.pedestalsSet).toEqual(relay.pedestalsSet);
+    expect(copy.setCount).toBe(relay.setCount);
 
     run(relay, 6);
     run(copy, 6);

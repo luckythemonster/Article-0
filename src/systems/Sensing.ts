@@ -29,6 +29,20 @@ export interface Eye {
   coneDegrees: number;
   /** 360° heat-sense reach, in tiles, before Thermal Gel scaling. */
   thermalTiles: number;
+  /**
+   * Whether this eye's answer depends on the player's *conduct*.
+   *
+   * Defaults to true, which is the guard's and the camera's case: they route through
+   * the Alignment apparatus, so a compliant Rowan is cleared on sight at any range.
+   *
+   * Set false for the things that are not making a judgement. NW-SMAC-01's auditing
+   * beams *are* the mesh, so being read as compliant by it buys nothing; a rooftop
+   * searchlight is a lamp, and a spotlight you could walk through by behaving nicely
+   * would gut the phase built around avoiding it. Both used to hand-roll their own
+   * cone test to escape the short-circuit below, which is how they quietly ended up
+   * with three different decay rates and no light sensitivity between them.
+   */
+  readsConduct?: boolean;
 }
 
 /**
@@ -74,9 +88,11 @@ export const DETECTION_DECAY_PER_SECOND = 0.6;
  * and returns to the sweep. Distance is not the limiter — conduct is. A camera
  * clears him the same way, because the feed goes to the same Alignment
  * apparatus and it is judging conduct, not faces.
+ *
+ * Unless the eye says otherwise — see {@link Eye.readsConduct}.
  */
 export function canSense(eye: Eye, ctx: SensingWorld): boolean {
-  if (ctx.playerCompliant) return false;
+  if (ctx.playerCompliant && eye.readsConduct !== false) return false;
 
   // A live Chaff Pack EMP zone blinds anything caught inside it outright.
   const chaff = ctx.chaffZone;

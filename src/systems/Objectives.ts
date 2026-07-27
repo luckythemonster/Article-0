@@ -179,34 +179,29 @@ export function objectiveLines(
   currentLevel: string,
   features: MissionFeatures,
 ): ObjectiveLine[] {
-  const lines: ObjectiveLine[] = [
-    {
-      label: features.hasLogBeta
-        ? "Breach log-cache node ALPHA (main deck)"
-        : "Recover EIRA-7's logs (breach a log-cache)",
-      done: features.hasLogBeta ? !!state.alphaRecovered : state.logsRecovered,
-    },
-  ];
-  if (features.hasLogBeta) {
-    lines.push({
-      label: "Breach log-cache node BETA (crawlspace)",
-      done: !!state.betaRecovered,
-    });
-  }
+  // One branch on one flag producing both shapes: the split cache where the map could
+  // furnish a second node, and the original single line where it couldn't.
+  const lines: ObjectiveLine[] = features.hasLogBeta
+    ? [
+        { label: "Breach log-cache node ALPHA (main deck)", done: !!state.alphaRecovered },
+        { label: "Breach log-cache node BETA (crawlspace)", done: !!state.betaRecovered },
+      ]
+    : [{ label: "Recover EIRA-7's logs (breach a log-cache)", done: state.logsRecovered }];
   if (features.hasVault) {
     lines.push({
       label: "Silence the Alignment Core NW-SMAC-01",
       done: !!state.coreSilenced,
     });
   }
-  lines.push(
-    features.hasRoof
-      ? { label: "Transmit EIRA-7 from the rooftop relay", done: !!state.uplinkComplete }
-      : {
-          label: "Reach the Lattice uplink",
-          done: logsComplete(state, features) && currentLevel === features.extractionLevel,
-        },
-  );
+  // `done` comes from `isRunWon` rather than restating it: this line *is* the win
+  // condition, and the two drifting apart would show up as the HUD calling an objective
+  // incomplete on a run that had just ended.
+  lines.push({
+    label: features.hasRoof
+      ? "Transmit EIRA-7 from the rooftop relay"
+      : "Reach the Lattice uplink",
+    done: isRunWon(state, currentLevel, features),
+  });
   if (features.hasVentCore) {
     lines.push({ label: "(Optional) Silence VENT-4 (vent core)", done: !!state.vent4Silenced });
   }

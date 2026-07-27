@@ -12,6 +12,7 @@ import {
   objectiveLines,
   type MissionFeatures,
 } from "./Objectives";
+import { OBJECTIVE_MAX_LINES } from "../ui/hudLayout";
 
 /** The extraction level is a parameter, not a constant — any name works. */
 const EXTRACTION = "main2";
@@ -141,6 +142,15 @@ describe("Objectives", () => {
     expect(lines.some((l) => l.label.includes("NW-SMAC-01"))).toBe(false);
     // Left with the original pair: recover the logs, reach the uplink.
     expect(lines).toHaveLength(2);
+  });
+
+  it("never emits more lines than the HUD's vertical budget reserves", () => {
+    // `ui/hudLayout.ts` sizes the gap between the directive and the encounter HUDs from
+    // this number. They collided once already, when the directive grew from three lines
+    // to five; this is what stops a sixth act doing it again silently.
+    expect(objectiveLines(initialObjectives(), "main1", FULL).length).toBeLessThanOrEqual(
+      OBJECTIVE_MAX_LINES,
+    );
   });
 
   it("lists a line per act on the full map", () => {
