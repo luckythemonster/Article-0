@@ -13,6 +13,7 @@ import { rayDistance } from "../systems/Visibility";
 import { accrueDetection, canSense, type Eye } from "../systems/Sensing";
 import { HoldFixture, nearestFixture } from "./HoldFixture";
 import type { EnforcerContext } from "./Enforcer";
+import type { EncounterInteractResult } from "./EncounterTypes";
 
 /**
  * NW-SMAC-01 — the Alignment Core. The Phaser shell around {@link SmacCore}.
@@ -58,12 +59,7 @@ export interface SmacTickResult {
   auditHit: boolean;
 }
 
-export interface SmacInteractResult {
-  label?: string;
-  dist: number;
-  consumedHold: boolean;
-  transition: SmacTransition | null;
-}
+export type SmacInteractResult = EncounterInteractResult<SmacTransition>;
 
 export class BossCore {
   private readonly core: SmacCore;

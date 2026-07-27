@@ -18,6 +18,7 @@ import { drawVisionCone, type ConeStyle } from "../ui/VisionCone";
 import { accrueDetection, canSense, type Eye } from "../systems/Sensing";
 import { HoldFixture, nearestFixture } from "./HoldFixture";
 import type { EnforcerContext } from "./Enforcer";
+import type { EncounterInteractResult } from "./EncounterTypes";
 
 /**
  * The rooftop relay — Act IV's Phaser shell around {@link RelayCore}.
@@ -64,12 +65,7 @@ export interface RelayTickResult {
   spawnAt: { x: number; y: number }[] | null;
 }
 
-export interface RelayInteractResult {
-  label?: string;
-  dist: number;
-  consumedHold: boolean;
-  transition: RelayTransition | null;
-}
+export type RelayInteractResult = EncounterInteractResult<RelayTransition>;
 
 export class RoofRelay {
   private readonly core: RelayCore;

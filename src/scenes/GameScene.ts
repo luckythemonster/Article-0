@@ -65,7 +65,6 @@ import {
   STUN_ROUND_REACH_TILES,
   STUN_ROUNDS_ITEM,
   THERMAL_GEL_ITEM,
-  VENT4_DEFAULTS,
 } from "../systems/EntityStats";
 import {
   ActiveItemState,
@@ -89,15 +88,12 @@ import {
   type MissionFeatures,
   type ObjectiveState,
 } from "../systems/Objectives";
-import { Vent4Boss, type Vent4InteractResult } from "../entities/Vent4Boss";
-import { Vent4State, type Vent4Snapshot, type Vent4Transition } from "../systems/Vent4Core";
-import { BossCore, type SmacInteractResult } from "../entities/BossCore";
-import { SmacState, type SmacSnapshot, type SmacTransition } from "../systems/SmacCore";
-import { RoofRelay, type RelayInteractResult } from "../entities/RoofRelay";
+import { Vent4State, type Vent4Transition } from "../systems/Vent4Core";
+import { SmacState, type SmacTransition } from "../systems/SmacCore";
 import { ENFORCER_SKIN } from "../entities/EnforcerAnimations";
-import { RelayState, type RelaySnapshot, type RelayTransition } from "../systems/RelayCore";
-import { VENT_CORE_LEVEL } from "../map/VentCoreLevel";
+import { RelayState, type RelayTransition } from "../systems/RelayCore";
 import { ROOF_ARRAY_LEVEL } from "../map/RoofArrayLevel";
+import { Encounters } from "./game/Encounters";
 import { isGeneratedLevel } from "../map/types";
 import { planFor, type MapPlan } from "../map/MapPlan";
 import { getAudio } from "../systems/AudioDirector";
@@ -195,14 +191,8 @@ export class GameScene extends Phaser.Scene {
   private lasers: Laser[] = [];
   private sensors: Sensor[] = [];
   private chests: Chest[] = [];
-  /** VENT-4, present only on the vent_core level. */
-  private vent4?: Vent4Boss;
-  /** NW-SMAC-01, present only on the level carrying the vault boards. */
-  private smac?: BossCore;
-  /** The rooftop relay, present only on the roof_array level. */
-  private relay?: RoofRelay;
-  /** Enforcers landed by the rooftop siege, counted against `maxSiegeGuards`. */
-  private siegeGuards = 0;
+  /** The vent-core/vault/roof set-piece encounters, and their mechanical wiring. */
+  private encounters!: Encounters;
   /** Lazily-resolved {@link features}; cleared per run so a fresh map re-reads it. */
   private runFeatures?: MissionFeatures;
   /** Previous frame's player position, for the conduct system's distance metric. */
@@ -393,45 +383,15 @@ export class GameScene extends Phaser.Scene {
     // registry; resetRun clears it).
     getAudio().setSuction(false);
     getAudio().setPurge(false);
-    if (this.level.name === VENT_CORE_LEVEL) {
-      this.vent4 = new Vent4Boss(
-        this,
-        this.level,
-        this.tileSize,
-        this.grid,
-        this.registry.get("vent4State") as Vent4Snapshot | undefined,
-      );
-      if (this.vent4.state === Vent4State.PHASE_2_VACUUM) getAudio().setSuction(true);
-      else if (this.vent4.state === Vent4State.PHASE_3_PURGE) getAudio().setPurge(true);
-    }
-    this.registry.set("vent4", this.vent4 ? this.vent4.hudView() : null);
-
-    // NW-SMAC-01 is keyed off the vault boards rather than a level name, so the act
-    // travels with the generated fixtures instead of with `main2` specifically. It stays
-    // down once beaten — re-entering the vault should not restage a fight you have won.
-    if (this.level.layers.some((l) => l.name === "vault_core") && !this.objectives.coreSilenced) {
-      this.smac = new BossCore(
-        this,
-        this.level,
-        this.tileSize,
-        this.grid,
-        this.registry.get("smacState") as SmacSnapshot | undefined,
-        SMAC_DEFAULTS,
-      );
-    }
-    this.registry.set("smac", this.smac ? this.smac.hudView() : null);
-
-    if (this.level.name === ROOF_ARRAY_LEVEL) {
-      this.relay = new RoofRelay(
-        this,
-        this.level,
-        this.tileSize,
-        this.grid,
-        this.registry.get("relayState") as RelaySnapshot | undefined,
-        RELAY_DEFAULTS,
-      );
-    }
-    this.registry.set("relay", this.relay ? this.relay.hudView() : null);
+    this.encounters = new Encounters(this, this.player, {
+      onVent4Transition: (tr) => this.onVent4Transition(tr),
+      onSmacTransition: (tr) => this.onSmacTransition(tr),
+      onRelayTransition: (tr) => this.onRelayTransition(tr),
+      onSiegeSpawn: (at) => this.onSiegeSpawn(at),
+    });
+    this.encounters.build(this.level, this.tileSize, this.grid, !!this.objectives?.coreSilenced);
+    if (this.encounters.vent4State === Vent4State.PHASE_2_VACUUM) getAudio().setSuction(true);
+    else if (this.encounters.vent4State === Vent4State.PHASE_3_PURGE) getAudio().setPurge(true);
 
     this.cameras.main.startFollow(this.player.sprite, true, 0.15, 0.15);
     this.cameras.main.setZoom(2);
@@ -597,10 +557,6 @@ export class GameScene extends Phaser.Scene {
     this.lasers = [];
     this.sensors = [];
     this.chests = [];
-    this.vent4 = undefined;
-    this.smac = undefined;
-    this.relay = undefined;
-    this.siegeGuards = 0;
     this.runFeatures = undefined;
     this.alert = new AlertState();
     this.noiseSpam = new NoiseSpamTracker();
@@ -767,7 +723,7 @@ export class GameScene extends Phaser.Scene {
           sceneKey: "CodecScene",
           launchData: () => ({
             interactive: false,
-            vent4: this.vent4?.canTransmit ?? false,
+            vent4: this.encounters.vent4CanTransmit,
           }),
         },
         compliance: {
@@ -950,9 +906,7 @@ export class GameScene extends Phaser.Scene {
 
     const witnessing =
       this.guards.some((e) => sees(e.x, e.y, WITNESS_RADIUS_TILES)) ||
-      (this.smac?.racks.some((r) => sees(r.x, r.y, SMAC_DEFAULTS.rackWitnessRadius)) ?? false) ||
-      (this.relay !== undefined &&
-        sees(this.relay.dish.x, this.relay.dish.y, RELAY_DEFAULTS.dishWitnessRadius));
+      this.encounters.witnessAnchors().some((a) => sees(a.x, a.y, a.radiusTiles));
     this.sharedField.witness(dt, witnessing);
     if (Phaser.Input.Keyboard.JustDown(this.keys.field) && this.sharedField.activate()) {
       getAudio().merge();
@@ -1099,11 +1053,11 @@ export class GameScene extends Phaser.Scene {
 
     // The discharge on the roof: Rowan stops being able to act before the tribunal
     // takes the screen, so the last seconds are watched rather than played.
-    if (this.relay?.isCaptured) {
+    if (this.encounters.inputLocked) {
       return { up: false, down: false, left: false, right: false, sneak: false, run: false };
     }
 
-    const correction = this.smac?.correction;
+    const correction = this.encounters.correction;
     return {
       up: correction?.invertY ? down : up,
       down: correction?.invertY ? up : down,
@@ -1127,15 +1081,14 @@ export class GameScene extends Phaser.Scene {
     // scene and does not freeze anything, so this claims Esc/C for the frame and then
     // falls through to the ordinary sim update. The fight continues behind it, which is
     // the entire trick; see `SmacState.FALSE_SUMMARY`.
-    if (this.smac?.summaryUp) {
+    if (this.encounters.summaryUp) {
       if (
         Phaser.Input.Keyboard.JustDown(this.keys.pause) ||
         Phaser.Input.Keyboard.JustDown(this.keys.codec)
       ) {
-        const tr = this.smac.dismissSummary();
         this.cameras.main.shake(180, 0.006);
         getAudio().jamClunk();
-        if (tr) this.onSmacTransition(tr);
+        this.encounters.dismissSmacSummary();
       }
       return this.updateWorld(dt, delta);
     }
@@ -1197,7 +1150,7 @@ export class GameScene extends Phaser.Scene {
       sneaking: this.player.crouched,
       certified,
       movedTiles,
-      forced: this.smac?.forcesCompliance ?? false,
+      forced: this.encounters.forcesCompliance,
     });
     const compliant = this.conduct.compliant;
     this.registry.set("conduct", {
@@ -1208,7 +1161,7 @@ export class GameScene extends Phaser.Scene {
       sabotageActions: this.conduct.sabotageActions,
       complianceDistanceWalked: this.conduct.complianceDistanceWalked,
       highCompliance: this.conduct.isHighCompliance(),
-      forced: this.smac?.forcesCompliance ?? false,
+      forced: this.encounters.forcesCompliance,
     } satisfies ConductView);
 
     // The corrected posture is not a gift: while NW-SMAC-01 holds it, deviating from it
@@ -1217,7 +1170,7 @@ export class GameScene extends Phaser.Scene {
     // Unscaled and called every frame: `Player.takeDamage` carries its own hit cooldown
     // and ignores repeats inside it, which is exactly the once-a-second tick wanted here
     // — the same way VENT-4 charges its overheat.
-    if (this.smac?.forcesCompliance && (this.player.running || this.deviatedThisFrame)) {
+    if (this.encounters.forcesCompliance && (this.player.running || this.deviatedThisFrame)) {
       if (this.player.takeDamage(SMAC_DEFAULTS.deviationDamage)) {
         this.cameras.main.flash(140, 150, 60, 200);
       }
@@ -1262,7 +1215,7 @@ export class GameScene extends Phaser.Scene {
     // surrounded there — being cornered is the scripted ending, not a failure — and
     // without this the Enforcers closing in would race the tribunal and usually win,
     // turning the run's one authored ending into a generic game over.
-    const captured = this.relay?.isCaptured ?? false;
+    const captured = this.encounters.inputLocked;
     const cornered =
       !frozen &&
       !fieldActive &&
@@ -1340,9 +1293,8 @@ export class GameScene extends Phaser.Scene {
     if (ov.isOpen("pause")) this.consumePauseRequest();
     if (ov.isOpen("codec") && this.registry.get("vent4Transmit") === true) {
       this.registry.remove("vent4Transmit");
-      const tr = this.vent4?.transmitFinisher() ?? null;
       ov.set("codec", false);
-      if (tr) this.onVent4Transition(tr);
+      this.encounters.transmitVent4();
     }
     if (ov.isOpen("compliance")) this.updateComplianceOverlay();
     if (ov.isOpen("qualia")) this.updateQualiaOverlay();
@@ -1415,54 +1367,12 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // VENT-4: sweeps/steam/jam clock, then its environmental forces — added
-    // AFTER Player.update's setVelocity so suction and air jets survive the
-    // frame (the player re-sets velocity from input every tick).
-    if (this.vent4) {
-      const tick = this.vent4.update(dt, ctx);
-      maxDetection = Math.max(maxDetection, this.vent4.detection);
-      if (tick.transition) this.onVent4Transition(tick.transition);
-      if (tick.burst) {
-        this.cameras.main.flash(220, 150, 40, 10);
-        this.player.takeDamage(VENT4_DEFAULTS.burstDamage);
-      }
-      if (tick.steamHit && this.player.takeDamage(VENT4_DEFAULTS.steamDamage)) {
-        this.cameras.main.shake(120, 0.004);
-      }
-      if (tick.overheating && this.player.takeDamage(VENT4_DEFAULTS.overheatDamage)) {
-        this.cameras.main.flash(160, 120, 30, 10);
-      }
-      const forces = this.vent4.computeForces(dt, this.player.x, this.player.y);
-      const body = this.player.sprite.body as Phaser.Physics.Arcade.Body;
-      body.velocity.x += forces.vx;
-      body.velocity.y += forces.vy;
-      if (forces.inIntake) this.player.takeDamage(VENT4_DEFAULTS.intakeDamage);
-      this.registry.set("vent4", this.vent4.hudView());
-    }
-
-    // NW-SMAC-01: auditing beams and the correction/audit clock. Its input rewriting is
-    // applied up in `readInput`, not here.
-    if (this.smac && !frozen) {
-      const tick = this.smac.update(dt, ctx);
-      maxDetection = Math.max(maxDetection, this.smac.detection);
-      if (tick.transition) this.onSmacTransition(tick.transition);
-      if (tick.auditHit && this.player.takeDamage(SMAC_DEFAULTS.auditDamage)) {
-        this.cameras.main.flash(180, 200, 60, 180);
-      }
-      this.registry.set("smac", this.smac.hudView());
-    }
-
-    // The rooftop relay: searchlights, the uplink clock, and the siege's waves.
-    if (this.relay && !frozen) {
-      const tick = this.relay.update(dt, ctx);
-      maxDetection = Math.max(maxDetection, this.relay.detection);
-      if (tick.transition) this.onRelayTransition(tick.transition);
-      if (tick.searchlightHit && this.player.takeDamage(RELAY_DEFAULTS.searchlightDamage)) {
-        this.cameras.main.flash(160, 255, 240, 180);
-      }
-      if (tick.spawnAt) for (const at of tick.spawnAt) this.landSiegeEnforcer(at);
-      this.registry.set("relay", this.relay.hudView());
-    }
+    // VENT-4's sweeps/steam/jam clock and environmental forces, NW-SMAC-01's auditing
+    // beams and correction/audit clock (its input rewriting is applied up in
+    // `readInput`, not here), and the rooftop's searchlights/uplink clock/siege waves —
+    // whichever of the three this level carries. See `Encounters` for why these don't
+    // share one interface despite the near-identical wiring around them.
+    maxDetection = Math.max(maxDetection, this.encounters.tick(dt, ctx));
 
     // Orderlies: bystanders, not guards — a clear sighting is a one-shot
     // "witness" event that raises nearby guards' suspicion, same as a noisy door.
@@ -1548,40 +1458,20 @@ export class GameScene extends Phaser.Scene {
     const interactDown = this.keys.interact.isDown;
     const interactJust = Phaser.Input.Keyboard.JustDown(this.keys.interact);
 
-    // --- VENT-4 verbs (sub-stations / winches / pitons / stapler) ---
-    let vent: Vent4InteractResult | undefined;
-    if (this.vent4) {
-      vent = this.vent4.handleInteract(
-        dt,
-        ptx,
-        pty,
-        interactDown,
-        interactJust,
-        (this.registry.get("inventory") as string[] | undefined) ?? [],
-      );
-      if (vent.transition) this.onVent4Transition(vent.transition);
-    }
-
-    // --- NW-SMAC-01's correction nodes (hold E) ---
-    let smacI: SmacInteractResult | undefined;
-    if (this.smac) {
-      smacI = this.smac.handleInteract(dt, ptx, pty, interactDown);
-      if (smacI.consumedHold) this.conduct.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED);
-      if (smacI.transition) this.onSmacTransition(smacI.transition);
-    }
-
-    // --- The roof's pedestals and primary feed (hold E) ---
-    let relayI: RelayInteractResult | undefined;
-    if (this.relay && !this.relay.isCaptured) {
-      relayI = this.relay.handleInteract(dt, ptx, pty, interactDown);
-      if (relayI.transition) this.onRelayTransition(relayI.transition);
-    }
+    // --- The vent-core/vault/roof encounter, whichever is live (hold E) ---
+    const encounter = this.encounters.handleInteract(
+      dt,
+      ptx,
+      pty,
+      interactDown,
+      interactJust,
+      (this.registry.get("inventory") as string[] | undefined) ?? [],
+    );
+    if (encounter.unauthorized) this.conduct.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED);
 
     // Named for what it gates — chests and knocks — rather than for VENT-4, which was
     // only the first encounter to claim a hold.
-    const encounterHold = Boolean(
-      vent?.consumedHold || smacI?.consumedHold || relayI?.consumedHold,
-    );
+    const encounterHold = encounter.consumedHold;
 
     // --- Terminals (hold E) ---
     let nearestTerminal: Terminal | undefined;
@@ -1650,11 +1540,6 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // At most one encounter is ever live: vent4 only on the vent core, smac only on the
-    // level carrying the vault boards, relay only on the roof. So this is a pick, not an
-    // arbitration — a fold implied the three could be on screen together.
-    const encounter = vent ?? smacI ?? relayI;
-
     this.showPrompt(
       nearestTerminal,
       nearestTerminalDist,
@@ -1663,8 +1548,8 @@ export class GameScene extends Phaser.Scene {
       hatch !== undefined,
       nearestChest,
       nearestChestDist,
-      encounter?.label,
-      encounter?.dist ?? Infinity,
+      encounter.label,
+      encounter.dist,
       // Standing on a ladder that won't take you anywhere yet needs to say so, or it
       // reads as a bug rather than a lock.
       roofLocked ? "[ROOF SEALED — ALIGNMENT CORE STILL ACTIVE]" : undefined,
@@ -1967,15 +1852,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Lands one siege Enforcer at a catwalk mouth.
+   * Dresses one siege Enforcer landing at a catwalk mouth — the wave itself and the cap
+   * on concurrent siege guards are decided inside `Encounters.tick` before this is ever
+   * called; this only ever creates the entity.
    *
    * They join `this.guards`, so they patrol, path, see and network exactly like every
    * other guard in the game — the roof needs no bespoke combat AI, only somewhere for
-   * them to come from. The cap is what keeps a slow uplink from burying the deck.
+   * them to come from.
    */
-  private landSiegeEnforcer(at: { x: number; y: number }): void {
-    if (this.siegeGuards >= RELAY_DEFAULTS.maxSiegeGuards) return;
-    this.siegeGuards++;
+  private onSiegeSpawn(at: { x: number; y: number }): void {
     const px = (at.x + 0.5) * this.tileSize;
     const py = (at.y + 0.5) * this.tileSize;
     // A one-waypoint route: the guard walks its post and then hunts on contact, which
@@ -2241,9 +2126,7 @@ export class GameScene extends Phaser.Scene {
    */
   private persistRunState(): void {
     this.registry.set("conductMetrics", this.conduct.metrics());
-    if (this.vent4) this.registry.set("vent4State", this.vent4.snapshot());
-    if (this.smac) this.registry.set("smacState", this.smac.snapshot());
-    if (this.relay) this.registry.set("relayState", this.relay.snapshot());
+    this.encounters.persist();
   }
 
   private beginTransition(tr: Transition): void {

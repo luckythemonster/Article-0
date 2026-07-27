@@ -3,6 +3,7 @@ import type { GameLevel } from "../map/types";
 import type { CollisionGrid } from "../systems/CollisionGrid";
 import { angleDiff } from "../systems/angles";
 import type { EnforcerContext } from "./Enforcer";
+import type { EncounterInteractResult } from "./EncounterTypes";
 import {
   Vent4Core,
   Vent4State,
@@ -53,15 +54,7 @@ export interface Vent4TickResult {
 }
 
 /** The boss's claim on this frame's interact key, for the scene's dispatcher. */
-export interface Vent4InteractResult {
-  /** Prompt to show if this is the nearest interactable (undefined = none). */
-  label?: string;
-  /** Distance to the boss's target, in tiles (for prompt arbitration). */
-  dist: number;
-  /** True while a boss hold is consuming E — the chest search must not run. */
-  consumedHold: boolean;
-  transition: Vent4Transition | null;
-}
+export type Vent4InteractResult = EncounterInteractResult<Vent4Transition>;
 
 interface SteamJet {
   x: number;
