@@ -149,6 +149,11 @@
   min-height: 0;
 }
 
+.pause-list:focus-visible {
+  outline: 1px solid var(--c-cyan);
+  outline-offset: 1px;
+}
+
 .pause-list {
   flex: 1 1 auto;
   min-height: 0;
@@ -192,6 +197,11 @@
 
 .pause-row:hover:not(.pause-row--disabled) {
   color: var(--c-text-strong);
+}
+
+.pause-row:hover:not(.pause-row--disabled):not(.pause-row--selected) {
+  background: rgba(57, 211, 255, 0.03);
+  border-left-color: rgba(57, 211, 255, 0.15);
 }
 
 .pause-row--selected {

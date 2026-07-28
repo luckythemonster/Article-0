@@ -31,6 +31,7 @@ import type { MapSnapshot } from "../systems/PauseState";
 import type { SaveData, SlotId } from "../systems/SaveGame";
 import type { Settings } from "../systems/Settings";
 import type { Frame } from "@arwes/frames";
+import { getAudio } from "../systems/AudioDirector";
 import "./PauseMenuView.css";
 
 /** Everything the menu renders, read off the registry when the game freezes. */
@@ -201,6 +202,9 @@ export class PauseMenuView {
 
   private showTab(i: number): void {
     if (i < 0 || i >= this.panes.length) return;
+    if (this.active !== i) {
+      getAudio().ping();
+    }
     this.active = i;
     this.tabNodes.forEach((node, j) => {
       const on = j === i;
