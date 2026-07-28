@@ -1,0 +1,3 @@
+## 2024-07-28 - [Accessible Listbox Navigation and Deferred Modal Focus]
+**Learning:** In highly customized game DOM overlays, standard browser focus-management is often bypassed in favor of outer-panel key delegation. For screen readers, this renders listboxes silent unless they have `tabIndex="0"` and an active `aria-activedescendant` pointing to the selected option ID. Additionally, programmatic focus to modal panels should be deferred with `requestAnimationFrame` to ensure the elements are fully connected and laid out in the DOM before focus is requested.
+**Action:** Always make custom listboxes focusable and track active descendants using unique option IDs. Defer programmatic modal focus calls using `requestAnimationFrame`.

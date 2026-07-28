@@ -46,7 +46,9 @@ export function asButton<T extends HTMLElement>(node: T, activate: () => void): 
 export function captureModalFocus(panel: HTMLElement): () => void {
   const previouslyFocused = document.activeElement as HTMLElement | null;
   // Defer one frame so the panel is laid out before it takes focus.
-  panel.focus({ preventScroll: true });
+  requestAnimationFrame(() => {
+    panel.focus({ preventScroll: true });
+  });
   return () => {
     if (previouslyFocused && document.contains(previouslyFocused)) {
       previouslyFocused.focus({ preventScroll: true });
