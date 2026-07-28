@@ -40,6 +40,12 @@ export const WALL_REVEAL_TILES = 0.5;
 export interface RayDirections {
   readonly cos: Float64Array;
   readonly sin: Float64Array;
+  readonly invCos?: Float64Array;
+  readonly invSin?: Float64Array;
+  readonly deltaX?: Float64Array;
+  readonly deltaY?: Float64Array;
+  readonly stepX?: Float64Array;
+  readonly stepY?: Float64Array;
 }
 
 /**
@@ -49,12 +55,27 @@ export interface RayDirections {
 export function rayDirections(rayCount: number = SIGHT_RAYS): RayDirections {
   const cos = new Float64Array(rayCount);
   const sin = new Float64Array(rayCount);
+  const invCos = new Float64Array(rayCount);
+  const invSin = new Float64Array(rayCount);
+  const deltaX = new Float64Array(rayCount);
+  const deltaY = new Float64Array(rayCount);
+  const stepX = new Float64Array(rayCount);
+  const stepY = new Float64Array(rayCount);
+
   for (let i = 0; i < rayCount; i++) {
     const a = (i / rayCount) * Math.PI * 2;
-    cos[i] = Math.cos(a);
-    sin[i] = Math.sin(a);
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    cos[i] = c;
+    sin[i] = s;
+    invCos[i] = c === 0 ? Infinity : 1 / c;
+    invSin[i] = s === 0 ? Infinity : 1 / s;
+    deltaX[i] = c === 0 ? Infinity : Math.abs(1 / c);
+    deltaY[i] = s === 0 ? Infinity : Math.abs(1 / s);
+    stepX[i] = c > 0 ? 1 : -1;
+    stepY[i] = s > 0 ? 1 : -1;
   }
-  return { cos, sin };
+  return { cos, sin, invCos, invSin, deltaX, deltaY, stepX, stepY };
 }
 
 /**
@@ -132,9 +153,57 @@ export function sightDistances(
   dirs: RayDirections,
   out: Float64Array,
 ): Float64Array {
-  const { cos, sin } = dirs;
-  for (let i = 0; i < cos.length; i++) {
-    out[i] = rayDistance(grid, originX, originY, cos[i], sin[i], maxTiles);
+  const { cos, sin, invCos, invSin, deltaX, deltaY, stepX, stepY } = dirs;
+  if (invCos && invSin && deltaX && deltaY && stepX && stepY) {
+    const maxStepsBase = Math.ceil(maxTiles) * 2 + 4;
+    for (let i = 0; i < cos.length; i++) {
+      const c = cos[i];
+      const s = sin[i];
+      const sX = stepX[i];
+      const sY = stepY[i];
+      const dX = deltaX[i];
+      const dY = deltaY[i];
+      const invC = invCos[i];
+      const invS = invSin[i];
+
+      let ix = Math.floor(originX);
+      let iy = Math.floor(originY);
+
+      let nextX =
+        c === 0 ? Infinity : c > 0 ? (ix + 1 - originX) * invC : (ix - originX) * invC;
+      let nextY =
+        s === 0 ? Infinity : s > 0 ? (iy + 1 - originY) * invS : (iy - originY) * invS;
+
+      let steps = maxStepsBase;
+      let dist = maxTiles;
+
+      while (steps-- > 0) {
+        let enter: number;
+        if (nextX < nextY) {
+          enter = nextX;
+          ix += sX;
+          nextX += dX;
+        } else {
+          enter = nextY;
+          iy += sY;
+          nextY += dY;
+        }
+        if (enter >= maxTiles) {
+          dist = maxTiles;
+          break;
+        }
+        if (grid.blocksSight(ix, iy)) {
+          const val = enter + WALL_REVEAL_TILES;
+          dist = val < maxTiles ? val : maxTiles;
+          break;
+        }
+      }
+      out[i] = dist;
+    }
+  } else {
+    for (let i = 0; i < cos.length; i++) {
+      out[i] = rayDistance(grid, originX, originY, cos[i], sin[i], maxTiles);
+    }
   }
   return out;
 }
