@@ -120,6 +120,36 @@ export function clearSave(slot?: SlotId): void {
 
 // --- parsing / validation ------------------------------------------------
 
+function sanitizeObjectives(o: unknown): ObjectiveState {
+  const src = (typeof o === "object" && o !== null ? o : {}) as Partial<ObjectiveState>;
+  return {
+    logsRecovered: typeof src.logsRecovered === "boolean" ? src.logsRecovered : false,
+    alphaRecovered: typeof src.alphaRecovered === "boolean" ? src.alphaRecovered : undefined,
+    betaRecovered: typeof src.betaRecovered === "boolean" ? src.betaRecovered : undefined,
+    vent4Silenced: typeof src.vent4Silenced === "boolean" ? src.vent4Silenced : undefined,
+    coreSilenced: typeof src.coreSilenced === "boolean" ? src.coreSilenced : undefined,
+    uplinkComplete: typeof src.uplinkComplete === "boolean" ? src.uplinkComplete : undefined,
+  };
+}
+
+function sanitizeExplored(e: unknown): ExploredState {
+  const clean: ExploredState = {};
+  if (typeof e === "object" && e !== null && !Array.isArray(e)) {
+    for (const [lvl, mask] of Object.entries(e as Record<string, unknown>)) {
+      if (
+        typeof lvl === "string" &&
+        lvl.length < 100 &&
+        /^[a-zA-Z0-9_-]+$/.test(lvl) &&
+        typeof mask === "string" &&
+        mask.length < 100000
+      ) {
+        clean[lvl] = mask;
+      }
+    }
+  }
+  return clean;
+}
+
 function parseSave(raw: string | null): SaveData | null {
   if (!raw) return null;
   let parsed: unknown;
@@ -137,10 +167,20 @@ function parseSave(raw: string | null): SaveData | null {
   if (!Number.isFinite(v.playTimeMs) || (v.playTimeMs as number) < 0) return null;
   if (!Number.isFinite(v.savedAt)) return null;
 
+  // Fully sanitize and reconstruct the object to prevent prototype/property pollution.
   return {
-    ...(v as SaveData),
+    version: VERSION,
+    level: v.level as string,
+    tileX: v.tileX as number,
+    tileY: v.tileY as number,
+    hp: v.hp as number,
+    inventory: v.inventory as string[],
+    objectives: sanitizeObjectives(v.objectives),
     // Drop entries authored by a build that isn't this one.
     journal: sanitizeJournal(v.journal),
+    explored: sanitizeExplored(v.explored),
+    playTimeMs: v.playTimeMs as number,
+    savedAt: v.savedAt as number,
   };
 }
 
@@ -158,7 +198,7 @@ function upgradeV1(v: Partial<SaveData>): SaveData {
     tileY: v.tileY as number,
     hp: v.hp as number,
     inventory: v.inventory as string[],
-    objectives: v.objectives as ObjectiveState,
+    objectives: sanitizeObjectives(v.objectives),
     journal: initialJournal(),
     explored: initialExplored(),
     playTimeMs: 0,
@@ -179,6 +219,8 @@ function isValidSave(v: unknown): boolean {
     (s.version === 1 || s.version === VERSION) &&
     typeof s.level === "string" &&
     s.level.length > 0 &&
+    s.level.length < 100 &&
+    /^[a-zA-Z0-9_-]+$/.test(s.level) && // strictly validate level name format to avoid path injection/manipulation
     Number.isInteger(s.tileX) &&
     (s.tileX as number) >= 0 &&
     Number.isInteger(s.tileY) &&
@@ -186,7 +228,8 @@ function isValidSave(v: unknown): boolean {
     Number.isFinite(s.hp) &&
     (s.hp as number) >= 0 &&
     Array.isArray(s.inventory) &&
-    s.inventory.every((i) => typeof i === "string") &&
+    s.inventory.length < 100 && // restrict maximum inventory size to prevent DoS
+    s.inventory.every((i) => typeof i === "string" && i.length < 100) && // limit item name length
     isObjectiveState(s.objectives)
   );
 }
