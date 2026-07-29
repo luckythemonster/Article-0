@@ -114,7 +114,7 @@ Glass tiles are doors with an additional glass component. Only `VisionBlock` is 
 |------|-------|------|-------|
 | `interactionTime` | 1.4 | seconds | Hold-E duration to search/open |
 | `noiseOnOpen` | 3 | tiles | Noise ping radius when opened |
-| `items` | ["Ration Pack", "Battery", "Access Chit"] | array | Default loot when map leaves slots blank |
+| `items` | ["Medkit", "Battery", "Access Chit"] | array | Default loot when map leaves slots blank |
 
 ---
 
@@ -231,11 +231,11 @@ The arena is engine-generated, so these defaults are used directly. Movement-bea
 
 | Item | Stat | Value | Unit |
 |------|------|-------|------|
-| **Chaff Pack** | EMP radius | 4 | tiles |
+| **EMP Grenade** | EMP radius | 4 | tiles |
 | | EMP duration | 6 | seconds |
 | | Noise on fire | 0.2 | 0..1 |
 | **Thermal Gel** | Duration | 12 | seconds |
-| **Ration Pack** | Heal amount | 35 | bio-integrity |
+| **Medkit** | Heal amount | 35 | bio-integrity |
 | **Stun Rounds** | Dart reach | 5 | tiles |
 | | Stun duration | 8 | seconds |
 | | Noise on fire | 0.2 | 0..1 |
@@ -244,7 +244,7 @@ The arena is engine-generated, so these defaults are used directly. Movement-bea
 
 ### Consumable Hotkey Configuration
 
-- **Slot order** (hotkeys 1–4): Chaff Pack → Thermal Gel → Ration Pack → Battery → Stun Rounds
+- **Slot order** (hotkeys 1–4): EMP Grenade → Thermal Gel → Medkit → Battery → Stun Rounds
 - **Max consumables held**: 4
 - **Key items** (uncapped): All other items (Flashlight, Access Chit, EIRA-7 Log, Rail-Stapler, Compliance Cert, etc.)
 
