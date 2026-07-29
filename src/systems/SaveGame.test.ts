@@ -185,7 +185,11 @@ describe("SaveGame", () => {
       { ...base, tileX: -1 }, // off-grid tile
       { ...base, tileY: 2.5 }, // fractional tile
       { ...base, level: "" }, // empty level id
+      { ...base, level: "main/../secret" }, // path traversal injection in level name
+      { ...base, level: "main; rm -rf" }, // special characters in level name
       { ...base, inventory: ["ok", 7] }, // non-string inventory entry
+      { ...base, inventory: Array(101).fill("Medkit") }, // excessive inventory size (DoS/bloat)
+      { ...base, inventory: ["A".repeat(101)] }, // excessive item name length
       { ...base, objectives: {} }, // missing logsRecovered
       { ...base, objectives: { logsRecovered: "yes" } }, // wrong type
       { ...base, journal: { unlocked: "orders" } }, // journal not a list
@@ -199,6 +203,24 @@ describe("SaveGame", () => {
       localStorage.setItem("article-zero-save-auto", JSON.stringify(payload));
       expect(loadGame("auto"), JSON.stringify(payload).slice(0, 80)).toBeNull();
     }
+  });
+
+  it("safeguards against prototype pollution by cleanly reconstructing objects", () => {
+    const maliciousPayload = {
+      version: 2,
+      savedAt: Date.now(),
+      ...sample,
+      "__proto__": { polluted: true },
+      constructor: { prototype: { compromised: true } }
+    };
+    localStorage.setItem("article-zero-save-auto", JSON.stringify(maliciousPayload));
+    const loaded = loadGame("auto");
+    expect(loaded).not.toBeNull();
+    // Rebuilt object should have absolutely no polluted properties on prototype
+    expect((loaded as any).polluted).toBeUndefined();
+    expect((loaded as any).compromised).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(loaded, "__proto__")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(loaded, "constructor")).toBe(false);
   });
 
   it("drops journal entries a newer build authored and this one doesn't have", () => {
