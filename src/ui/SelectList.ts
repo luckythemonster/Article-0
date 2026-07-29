@@ -59,6 +59,9 @@ export class SelectList {
       const node = el("div", row.disabled ? "pause-row pause-row--disabled" : "pause-row");
       node.id = `${this.listId}-opt-${i}`;
       node.setAttribute("role", "option");
+      if (row.disabled) {
+        node.setAttribute("aria-disabled", "true");
+      }
       node.appendChild(el("span", "pause-row-label", row.label));
       if (row.note !== undefined) node.appendChild(el("span", "pause-row-note", row.note));
       if (!row.disabled) {

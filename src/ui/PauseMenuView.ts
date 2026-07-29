@@ -1,4 +1,4 @@
-import { asButton, captureModalFocus, el } from "./dom";
+import { captureModalFocus, el } from "./dom";
 import { SelectList, type SelectListRow } from "./SelectList";
 import { createPanelFrame } from "./frame";
 import { drawMiniMap, surveyedFraction } from "./MiniMapCanvas";
@@ -132,6 +132,7 @@ export class PauseMenuView {
     this.panel.appendChild(tabs);
 
     this.body = el("div", "pause-body");
+    this.body.id = "pause-tabpanel";
     this.body.setAttribute("role", "tabpanel");
     this.panel.appendChild(this.body);
 
@@ -139,9 +140,16 @@ export class PauseMenuView {
       const node = el("div", "pause-tab");
       node.setAttribute("role", "tab");
       node.id = `pause-tab-${i}`;
+      node.setAttribute("aria-controls", "pause-tabpanel");
       node.appendChild(el("span", "pause-tab-key", String(i + 1)));
       node.appendChild(el("span", "pause-tab-label", tab.label));
-      asButton(node, () => this.showTab(i));
+      node.addEventListener("click", () => this.showTab(i));
+      node.addEventListener("keydown", (e: KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+          e.preventDefault();
+          this.showTab(i);
+        }
+      });
       // Roving tabindex: only the selected tab is in the tab order, which is how
       // a tablist is meant to behave — Tab leaves the strip, arrows move within it.
       node.tabIndex = -1;
@@ -205,6 +213,7 @@ export class PauseMenuView {
     if (this.active !== i) {
       getAudio().ping();
     }
+    const wasFocusedOnTab = this.tabNodes.some((n) => n === document.activeElement);
     this.active = i;
     this.tabNodes.forEach((node, j) => {
       const on = j === i;
@@ -216,6 +225,10 @@ export class PauseMenuView {
     this.body.replaceChildren(this.panes[i].node);
     this.body.scrollTop = 0;
     this.panes[i].onShow?.();
+
+    if (wasFocusedOnTab) {
+      this.tabNodes[i].focus();
+    }
   }
 
   private handleKey(e: KeyboardEvent): void {
