@@ -147,7 +147,7 @@ export class PauseMenuView {
       node.addEventListener("keydown", (e: KeyboardEvent) => {
         if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
           e.preventDefault();
-          this.showTab(i);
+          this.showTab(i, true);
         }
       });
       // Roving tabindex: only the selected tab is in the tab order, which is how
@@ -208,7 +208,7 @@ export class PauseMenuView {
     );
   }
 
-  private showTab(i: number): void {
+  private showTab(i: number, isKeyboardTransition = false): void {
     if (i < 0 || i >= this.panes.length) return;
     if (this.active !== i) {
       getAudio().ping();
@@ -226,7 +226,7 @@ export class PauseMenuView {
     this.body.scrollTop = 0;
     this.panes[i].onShow?.();
 
-    if (wasFocusedOnTab) {
+    if (wasFocusedOnTab || isKeyboardTransition) {
       this.tabNodes[i].focus();
     }
   }
@@ -243,17 +243,17 @@ export class PauseMenuView {
     if (!inControl) {
       if (e.key === "ArrowLeft") {
         e.preventDefault();
-        this.showTab((this.active - 1 + this.panes.length) % this.panes.length);
+        this.showTab((this.active - 1 + this.panes.length) % this.panes.length, true);
         return;
       }
       if (e.key === "ArrowRight") {
         e.preventDefault();
-        this.showTab((this.active + 1) % this.panes.length);
+        this.showTab((this.active + 1) % this.panes.length, true);
         return;
       }
       if (/^[1-9]$/.test(e.key)) {
         e.preventDefault();
-        this.showTab(Number(e.key) - 1);
+        this.showTab(Number(e.key) - 1, true);
         return;
       }
     }
