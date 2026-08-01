@@ -1,5 +1,6 @@
 import type Phaser from "phaser";
 import type { MapPlan } from "../map/MapPlan";
+import { STAPLER_FIELD_MAX_CHARGES } from "./EntityStats";
 import type { MissionFeatures } from "./Objectives";
 import type { SaveData } from "./SaveGame";
 
@@ -40,6 +41,7 @@ export const SUSPENDED_KEY = "simSuspended";
 /** Registry keys scoped to a single infiltration; cleared when a new one begins. */
 const RUN_KEYS = [
   "inventory",
+  "staplerFieldCharges",
   "objectives",
   "journal",
   "explored",
@@ -108,10 +110,16 @@ export function missionFeatures(registry: Phaser.Data.DataManager): MissionFeatu
 /**
  * Clears per-run state so a new infiltration starts clean. The parsed map, sprite
  * atlas and (immutable) transition graph are map-wide and deliberately kept.
+ *
+ * `inventory` and `staplerFieldCharges` are re-set immediately rather than left
+ * cleared, the same way the flashlight's charge (in `activeItems`, constructed
+ * fresh per level) is always full on a new run or a loaded save — neither is
+ * part of {@link SaveData}, so this is where "full again" actually gets applied.
  */
 export function resetRun(registry: Phaser.Data.DataManager): void {
   for (const key of RUN_KEYS) registry.remove(key);
   registry.set("inventory", []);
+  registry.set("staplerFieldCharges", STAPLER_FIELD_MAX_CHARGES);
 }
 
 /** Resets run state and launches the fresh-run scene from anywhere. */

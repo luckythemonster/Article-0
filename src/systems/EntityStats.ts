@@ -365,14 +365,28 @@ export const STUN_ROUND_NOISE = 0.2;
  * destructible cover or pinning an orderly outside the VENT-4 fight. Kept
  * separate from {@link Vent4Stats.staplerRange}: the boss fight and the
  * overworld have very different balance needs for the same item.
+ *
+ * Deliberately at or below Stun Rounds' numbers (5 tiles / 8s): the field
+ * mode used to out-range and out-last the consumable it's the closest analog
+ * to, on top of being unlimited-use, which made it strictly better in every
+ * respect. {@link STAPLER_FIELD_MAX_CHARGES} is what actually fixes the
+ * unlimited-use half of that.
  */
-export const STAPLER_FIELD_RANGE_TILES = 6;
-/** Seconds between field-mode shots. */
-export const STAPLER_FIELD_COOLDOWN = 1.2;
+export const STAPLER_FIELD_RANGE_TILES = 4;
+/** Seconds between field-mode shots — slow enough that even a full charge bar can't be dumped instantly. */
+export const STAPLER_FIELD_COOLDOWN = 3;
 /** Seconds an orderly stays pinned to a wall after a field-mode hit. */
-export const STAPLER_PIN_DURATION = 10;
+export const STAPLER_PIN_DURATION = 6;
 /** Noise ping (0..1) emitted when firing the Stapler's field mode. */
 export const STAPLER_FIELD_NOISE = 0.35;
+/**
+ * Field-mode shots per run. Unlike Stun Rounds (a stocked consumable), the
+ * Stapler itself is a permanent key item, so the field mode needs its own
+ * scarcity — a fixed pool that resets on a fresh run or a loaded save (same
+ * as the flashlight's charge, which also isn't part of {@link SaveData}) and
+ * currently has no in-run refill source.
+ */
+export const STAPLER_FIELD_MAX_CHARGES = 3;
 
 // --- Item taxonomy -------------------------------------------------------
 
