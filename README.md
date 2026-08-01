@@ -408,7 +408,13 @@ in real seconds so the balance they encode keeps its meaning.
   detection (0.4×). Concealment is gated in the one vision choke point
   (`Enforcer.canSee`); all map cover is `LOW` (crouch). Thermal detection reads
   each cover tile's `ThermalBleed` flag (all map cover blocks heat, so cover hides
-  you from thermal too); the `Destructible` cover field is left for later.
+  you from thermal too). Destructible cover (`src/entities/Cover.ts`) is a
+  separate, sparser layer: only tiles the `Destructible` component marks
+  `true` get an entity at all — the rest of the board stays baked art with no
+  behaviour, exactly as before. A hit (Stun Rounds, a pursuing guard's fire,
+  the Rail-Stapler's field mode) breaks one outright — no durability — clearing
+  its detection dampening and thermal bleed and erasing its art from the
+  baked tile texture.
 - Compliance: behaving like staff makes every sensor clear Rowan on sight, at any
   range — the counterpart to concealment rather than a variant of it
   (`src/systems/Conduct.ts`). One timer drives it: continuous breaches (running,
@@ -497,8 +503,16 @@ in real seconds so the balance they encode keeps its meaning.
 4. **More threats & the RPG layer** — done: `orderly` and `drone` enemy types;
    `sensor` cameras (the `security` board, reinterpreted as fixed optical
    cameras rather than a separate mobile enemy type); thermal detection;
-   `chest` inventory; and alert-network stats. Left: item *effects* (the
-   inventory is collect-and-display for now) and the `Destructible` cover field.
+   `chest` inventory; alert-network stats; item *effects* (every consumable —
+   Chaff Pack, Thermal Gel, Medkit, Battery, Stun Rounds — does something
+   mechanical, `GameScene.applyConsumable`); and the `Destructible` cover
+   field, wired up via three triggers: Stun Rounds break cover in the same
+   forward arc as their orderly stun, a pursuing guard's ranged attack
+   (`Enforcer.pursue`) breaks cover it hits before the player, and the
+   Rail-Stapler's field mode (`[E]`, outside VENT-4) breaks cover or pins an
+   orderly to a wall. A handful of the shipped map's `main1` cover tiles are
+   cloned destructible at boot (`src/map/DestructibleCover.ts`) so the
+   mechanic has something real to break.
 5. **The game loop & the fiction** — done: title / EIRA-7 codec / pause /
    outcome scenes, the four-act run (both log-cache nodes, VENT-4, NW-SMAC-01,
    the rooftop relay) ending on the Alignment Tribunal, a lose (Alignment /
@@ -525,13 +539,13 @@ public/assets/drone/    patrol drone frames (see below)
 public/assets/orderly/  orderly bystander frames (see below)
 src/main.ts         boot: load assets, parse map, generate the extra acts,
                     start scenes
-src/map/            format types, loader, sprite atlas; generate.ts + the four
+src/map/            format types, loader, sprite atlas; generate.ts + the five
                     generators (VentCoreLevel, LogCacheBeta, AlignmentVault,
-                    RoofArrayLevel)
+                    RoofArrayLevel, DestructibleCover)
 src/scenes/         GameScene, UIScene, PauseScene, CodecScene, TitleScene,
                     TribunalScene
 src/entities/       Player, Enforcer, Drone, Orderly, Sensor, Door, Terminal,
-                    Laser, Chest, Vent4Boss, BossCore, RoofRelay, GuardSkin,
+                    Laser, Chest, Cover, Vent4Boss, BossCore, RoofRelay, GuardSkin,
                     PlayerAnimations, EnforcerAnimations, DroneAnimations,
                     OrderlyAnimations
 src/systems/        CollisionGrid, DetectionSystem, Visibility, AlertState,

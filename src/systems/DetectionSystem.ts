@@ -142,6 +142,19 @@ export class DetectionSystem {
     return thermalMasked ? 0 : baseTiles;
   }
 
+  /**
+   * Removes a cover tile's gameplay effects — the detection dampening and any
+   * thermal bleed — once a destructible cover tile has been broken. Returns
+   * whether a cover tile was actually indexed there, so callers ({@link Cover})
+   * can treat a double-destroy as a no-op.
+   */
+  destroyCoverAt(tileX: number, tileY: number): boolean {
+    const k = this.key(tileX, tileY);
+    const had = this.cover.delete(k);
+    this.thermalBleed.delete(k);
+    return had;
+  }
+
   private key(x: number, y: number): number {
     return y * this.width + x;
   }

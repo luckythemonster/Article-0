@@ -53,6 +53,8 @@ export class Orderly {
   private alerted = false;
   /** Seconds of stun remaining; while > 0 the orderly is frozen and can't witness. */
   private stunTimer = 0;
+  /** Seconds pinned to a wall (the Rail-Stapler's field mode) remaining; same effect as stun. */
+  private pinTimer = 0;
   /** A knock the orderly is walking over to inspect, or null while wandering. */
   private distractTarget: { x: number; y: number } | null = null;
   private distractPause = 0;
@@ -81,22 +83,30 @@ export class Orderly {
     this.bang.setVisible(false);
   }
 
+  /** Pins the orderly to a wall for a stretch (the Rail-Stapler's field mode) — can't witness. */
+  pin(seconds: number): void {
+    this.pinTimer = Math.max(this.pinTimer, seconds);
+    this.moving = false;
+    this.bang.setVisible(false);
+  }
+
   /**
    * Lures the orderly to inspect a nearby noise (a player's knock): it leaves
    * its wander, walks over, pauses, then drifts back. A no-op while stunned or
    * already startled by witnessing the player. `sx,sy` are pixels.
    */
   distract(sx: number, sy: number): void {
-    if (this.stunTimer > 0 || this.alerted) return;
+    if (this.isImmobilized || this.alerted) return;
     this.distractTarget = { x: sx, y: sy };
     this.distractPause = 0;
   }
 
   /** True on the exact frame the orderly first spots the player. */
   update(dt: number, ctx: OrderlyContext): boolean {
-    // Stunned: hold still and stay blind until the dart wears off.
-    if (this.stunTimer > 0) {
+    // Stunned or pinned: hold still and stay blind until it wears off.
+    if (this.stunTimer > 0 || this.pinTimer > 0) {
       this.stunTimer = Math.max(0, this.stunTimer - dt);
+      this.pinTimer = Math.max(0, this.pinTimer - dt);
       this.moving = false;
       this.body.setPosition(this.x, this.y);
       this.bang.setPosition(this.x, this.y - ctx.tileSize);
@@ -212,6 +222,16 @@ export class Orderly {
   /** True while frozen by a Stun Rounds dart — guards treat this as an anomaly. */
   get isStunned(): boolean {
     return this.stunTimer > 0;
+  }
+
+  /** True while pinned to a wall by the Rail-Stapler's field mode — same effect as stun. */
+  get isPinned(): boolean {
+    return this.pinTimer > 0;
+  }
+
+  /** Frozen and can't witness, regardless of which effect is holding it. */
+  get isImmobilized(): boolean {
+    return this.isStunned || this.isPinned;
   }
 
   /** Registers idle/walk animations for each direction once per scene. */
