@@ -7,6 +7,7 @@ import type { CollisionGrid } from "../../systems/CollisionGrid";
 import type { ConductState } from "../../systems/Conduct";
 import type { DetectionSystem } from "../../systems/DetectionSystem";
 import { CERT_ITEM, PLAYER_DEFAULTS } from "../../systems/EntityStats";
+import { catalogedNames } from "../../systems/ItemCatalog";
 import type { DebugSnapshot } from "../../ui/DebugHud";
 import type { Lighting } from "../../ui/Lighting";
 
@@ -65,6 +66,8 @@ export interface DebugHost {
   warpTargets: () => string[];
   /** Restart the scene on another level. */
   warpTo: (levelName: string) => void;
+  /** Grants one unit of an item, for testing weapons/items without playing to their chest. */
+  giveItem: (name: string) => void;
 }
 
 /**
@@ -93,6 +96,11 @@ export class DebugOverlay {
   /** Darkness off — the lighting overlay is hidden so the level reads. */
   darknessOff = false;
 
+  /** Every item name the engine can grant, for the give-item cheat to cycle through. */
+  private readonly itemNames = catalogedNames();
+  /** Index into {@link itemNames} of the item [I] currently grants. */
+  private selectedItemIndex = 0;
+
   private readonly gfx: Phaser.GameObjects.Graphics;
   private readonly keys: {
     toggle: Phaser.Input.Keyboard.Key;
@@ -102,6 +110,9 @@ export class DebugOverlay {
     freeze: Phaser.Input.Keyboard.Key;
     darkness: Phaser.Input.Keyboard.Key;
     warp: Phaser.Input.Keyboard.Key[];
+    prevItem: Phaser.Input.Keyboard.Key;
+    nextItem: Phaser.Input.Keyboard.Key;
+    give: Phaser.Input.Keyboard.Key;
   };
 
   /**
@@ -130,7 +141,15 @@ export class DebugOverlay {
       warp: [K.ONE, K.TWO, K.THREE, K.FOUR, K.FIVE, K.SIX]
         .slice(0, WARP_SLOTS)
         .map((c) => kb.addKey(c)),
+      prevItem: kb.addKey(K.OPEN_BRACKET),
+      nextItem: kb.addKey(K.CLOSED_BRACKET),
+      give: kb.addKey(K.I),
     };
+  }
+
+  /** The item name [I] currently grants. */
+  get selectedItem(): string {
+    return this.itemNames[this.selectedItemIndex];
   }
 
   /**
@@ -146,6 +165,9 @@ export class DebugOverlay {
     if (Phaser.Input.Keyboard.JustDown(k.world)) this.worldDraw = !this.worldDraw;
     if (Phaser.Input.Keyboard.JustDown(k.freeze)) this.frozenWorld = !this.frozenWorld;
     if (Phaser.Input.Keyboard.JustDown(k.darkness)) this.setDarknessOff(!this.darknessOff);
+    if (Phaser.Input.Keyboard.JustDown(k.prevItem)) this.stepSelectedItem(-1);
+    if (Phaser.Input.Keyboard.JustDown(k.nextItem)) this.stepSelectedItem(1);
+    if (Phaser.Input.Keyboard.JustDown(k.give)) this.host.giveItem(this.selectedItem);
 
     const warps = this.host.warpTargets();
     for (let i = 0; i < k.warp.length && i < warps.length; i++) {
@@ -174,6 +196,12 @@ export class DebugOverlay {
   setDarknessOff(off: boolean): void {
     this.darknessOff = off;
     this.host.lighting.setEnabled(!off);
+  }
+
+  /** Moves the give-item selection by one, wrapping at either end. */
+  private stepSelectedItem(delta: number): void {
+    const n = this.itemNames.length;
+    this.selectedItemIndex = (this.selectedItemIndex + delta + n) % n;
   }
 
   /** Toggles no-clip by enabling/disabling the player's wall+door colliders. */
@@ -298,6 +326,8 @@ export class DebugOverlay {
       breach: w.conduct.breach,
       flaggedRemaining: w.conduct.flaggedRemaining,
       certified: w.inventory.includes(CERT_ITEM),
+      selectedItem: this.selectedItem,
+      selectedHeld: w.inventory.filter((n) => n === this.selectedItem).length,
       fps: this.scene.game.loop.actualFps,
       px: w.player.x,
       py: w.player.y,

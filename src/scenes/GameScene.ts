@@ -440,6 +440,7 @@ export class GameScene extends Phaser.Scene {
         doorCollider: () => this.doorCollider,
         warpTargets: () => this.debugWarpLevels(),
         warpTo: (levelName) => this.debugWarp(levelName),
+        giveItem: (name) => this.debugGiveItem(name),
       });
     }
 
@@ -2294,6 +2295,19 @@ export class GameScene extends Phaser.Scene {
     this.registry.set("inventory", inv);
     this.noise.emitAt(chest.x, chest.y, chest.stats.noiseOnOpen * this.tileSize);
     getAudio().pickup();
+  }
+
+  /**
+   * Debug cheat: grants one unit of an item straight into inventory, for testing
+   * weapons/items without playing to their chest. Respects the same consumable
+   * cap a real pickup would, but skips collectChest's auto-heal/auto-recharge
+   * shortcuts so the tester actually gets the item to trigger by hand.
+   */
+  private debugGiveItem(name: string): void {
+    const inv = (this.registry.get("inventory") as string[] | undefined) ?? [];
+    if (isConsumable(name) && countConsumables(inv) >= MAX_CONSUMABLES) return;
+    inv.push(name);
+    this.registry.set("inventory", inv);
   }
 
   /** Fades to black, then restarts this scene on the destination level/tile. */
