@@ -9,6 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "docs:types": "tsx tools/typeref/generate.ts",
     "gen:colliders": "tsx src/tools/collider/generate.ts"
   },
   "dependencies": {

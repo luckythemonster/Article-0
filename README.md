@@ -282,6 +282,10 @@ beats.
 > boards and components the engine actually reads, which fields it ignores, the level names
 > it hardcodes, and the handful of things that throw at boot if they're missing.
 
+> **Looking for a specific type?** **[`docs/TYPE_REFERENCE.md`](docs/TYPE_REFERENCE.md)** lists
+> every enum, class, interface, type alias and `as const` constant in `src/`, with its members
+> and the file and line it lives on. Generated from the sources by `npm run docs:types`.
+
 The whole pipeline lives in `src/`:
 
 - **`src/map/`** — the format. `types.ts` describes the edplay schema and the
