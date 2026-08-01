@@ -42,7 +42,7 @@ npm run build    # tsc --noEmit + vite build
 | L | Flashlight — the only way to see in the unlit levels, but it drains and makes you far easier to spot |
 | F | Shared Field — once charged (by staying near a silicate), merge for 3.7s and become undetectable |
 | R | Knock — rap on a wall to lure guards and orderlies to the noise |
-| 1 – 4 | Use the consumable in that slot |
+| 1 – 4 | Use the consumable in that slot (the **Sack Lunch** takes two presses: open, then drop) |
 | C | Open the EIRA-7 codec |
 | Esc | Pause menu — objectives, journal, inventory, index, status, map, controls, settings, saves |
 
@@ -363,7 +363,21 @@ in real seconds so the balance they encode keeps its meaning.
   unobstructed sightline to the player (no cone-angle limit, gated by the
   same concealment check as guards) trips a one-shot "!" witness alert that
   raises the suspicion of any guard within earshot, the same way an opened
-  door does, then the orderly freezes (`src/entities/Orderly.ts`).
+  door does, then the orderly freezes (`src/entities/Orderly.ts`). An explicit
+  four-state machine — WANDER / INSPECT / SANITATION / WITNESSED — with two
+  overrides the **Sack Lunch** triggers, below.
+- The Sack Lunch (Corporate Spec Ration): the one item you can put *down*, and
+  the only one with states. **Sealed** it is inventory; **opened** (first press
+  of its hotkey) it stays in hand, raising detection by 1.15× and the noise
+  profile, but flags Rowan to orderlies as an asset consuming rations — one
+  reprimands him instead of reporting, and only raises the alarm if he is still
+  in view five seconds later. **Deployed** (second press) it drops on the floor
+  as a work order: an orderly within six tiles with line of sight — or three
+  tiles by scent, through walls — leaves its round, walks over, and spends six
+  seconds sanitising it, with its witness radius halved and narrowed to a 90°
+  forward arc for the duration, so its back and flanks are open. It destroys
+  the item and returns to wandering. The sensor channel is generic
+  (`src/systems/Deployables.ts`): a future deployable is one `LURE_SPECS` entry.
 - Stealth: light/cover detection modifiers, global alert FSM, HUD.
 - Transitions: walk-over `stairs` and `E`-to-use `maintenance_access`
   hatches/ladders move between all four levels (`main1`, `duct1`, `duct2`,
@@ -511,8 +525,10 @@ in real seconds so the balance they encode keeps its meaning.
    `sensor` cameras (the `security` board, reinterpreted as fixed optical
    cameras rather than a separate mobile enemy type); thermal detection;
    `chest` inventory; alert-network stats; item *effects* (every consumable —
-   Chaff Pack, Thermal Gel, Medkit, Battery, Stun Rounds — does something
-   mechanical, `GameScene.applyConsumable`); and the `Destructible` cover
+   Chaff Pack, Thermal Gel, Medkit, Battery, Stun Rounds, Sack Lunch — does
+   something mechanical, `GameScene.applyConsumable`, which now reports whether
+   a use actually spends the item so a Sack Lunch can open in the hand instead
+   of resolving); and the `Destructible` cover
    field, wired up via three triggers: Stun Rounds break cover in the same
    forward arc as their orderly stun, a pursuing guard's ranged attack
    (`Enforcer.pursue`) breaks cover it hits before the player, and the
@@ -552,12 +568,12 @@ src/map/            format types, loader, sprite atlas; generate.ts + the five
 src/scenes/         GameScene, UIScene, PauseScene, CodecScene, TitleScene,
                     TribunalScene
 src/entities/       Player, Enforcer, Drone, Orderly, Sensor, Door, Terminal,
-                    Laser, Chest, Cover, Vent4Boss, BossCore, RoofRelay, GuardSkin,
-                    PlayerAnimations, EnforcerAnimations, DroneAnimations,
-                    OrderlyAnimations
+                    Laser, Chest, Cover, DeployedItem, Vent4Boss, BossCore,
+                    RoofRelay, GuardSkin, PlayerAnimations, EnforcerAnimations,
+                    DroneAnimations, OrderlyAnimations
 src/systems/        CollisionGrid, DetectionSystem, Visibility, AlertState,
                     Conduct, TransitionGraph, Radar, AlertNetwork, EntityStats,
-                    Vent4Core, SmacCore, RelayCore, Objectives,
+                    Vent4Core, SmacCore, RelayCore, Objectives, Deployables,
                     Journal, Lexicon, ItemCatalog, Explored, SaveGame, Settings,
                     PauseState
 src/ui/             Hud, Radar, InventoryHud, AlertNetworkHud, Lighting,

@@ -2,6 +2,7 @@ import type { AlertState } from "../../systems/AlertState";
 import type { CollisionGrid } from "../../systems/CollisionGrid";
 import type { DetectionSystem } from "../../systems/DetectionSystem";
 import type { EnforcerContext, GuardAnomaly } from "../../entities/Enforcer";
+import type { DeployedLure } from "../../systems/Deployables";
 
 /**
  * Builds the per-frame {@link EnforcerContext} every guard, camera and boss
@@ -30,8 +31,11 @@ export interface SensingDeps {
   flashlightOn: () => boolean;
   /** True while Thermal Gel is masking body heat. */
   thermalMasked: () => boolean;
-  /** Extra detection multiplier applied on top of the map's lights. */
+  /** True while a held Sack Lunch is open — crinkling packaging, organic scent. */
+  rationOpened: () => boolean;
+  /** Extra detection multipliers applied on top of the map's lights. */
   flashlightMultiplier: number;
+  rationMultiplier: number;
   coverTilesNear: (tileX: number, tileY: number, radiusTiles: number) => { x: number; y: number }[];
   isGuardDoor: (tileX: number, tileY: number) => boolean;
   setDoorOpen: (tileX: number, tileY: number, open: boolean) => void;
@@ -47,9 +51,12 @@ export class SensingContext {
       grid: deps.grid,
       tileSize: deps.tileSize,
       player: { x: 0, y: 0 },
+      // Both item penalties ride the light multiplier: they are the same kind of
+      // thing — a standing cost to being perceived, wherever Rowan is standing.
       lightMultiplierAt: (x, y) =>
         deps.detection.multiplierAt(x, y) *
-        (deps.flashlightOn() ? deps.flashlightMultiplier : 1),
+        (deps.flashlightOn() ? deps.flashlightMultiplier : 1) *
+        (deps.rationOpened() ? deps.rationMultiplier : 1),
       playerNoise: 0,
       playerConcealed: false,
       playerCompliant: false,
@@ -58,6 +65,8 @@ export class SensingContext {
       thermalRadiusMultiplier: (base) => deps.detection.thermalRadiusFor(base, deps.thermalMasked()),
       alert: deps.alert,
       anomalies: [],
+      lures: [],
+      rationSpoof: false,
       playerVelocity: { x: 0, y: 0 },
       coverTilesNear: deps.coverTilesNear,
       isGuardDoor: deps.isGuardDoor,
@@ -100,6 +109,16 @@ export class SensingContext {
   /** This frame's anomaly list. Borrowed, not copied — see the class doc. */
   setAnomalies(anomalies: GuardAnomaly[]): void {
     this.ctx.anomalies = anomalies;
+  }
+
+  /** This frame's deployed items. Borrowed, not copied — see the class doc. */
+  setDeployables(lures: readonly DeployedLure[]): void {
+    this.ctx.lures = lures;
+  }
+
+  /** Whether an opened ration is currently buying tolerance from orderlies. */
+  setRationSpoof(on: boolean): void {
+    this.ctx.rationSpoof = on;
   }
 
   /** The live chaff zone, for callers that need it outside the context. */

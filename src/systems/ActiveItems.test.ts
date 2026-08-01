@@ -67,6 +67,23 @@ describe("ActiveItemState", () => {
     expect(s.flashlightOn).toBe(false);
   });
 
+  it("starts with the Sack Lunch sealed, and opens it in the hand", () => {
+    const s = new ActiveItemState();
+    expect(s.sackLunchOpened).toBe(false);
+    s.openSackLunch();
+    expect(s.sackLunchOpened).toBe(true);
+    // Opening is a state change, not a timer: it holds until the lunch leaves.
+    s.update(60);
+    expect(s.sackLunchOpened).toBe(true);
+  });
+
+  it("reseals when the open Sack Lunch is deployed", () => {
+    const s = new ActiveItemState();
+    s.openSackLunch();
+    s.resealSackLunch();
+    expect(s.sackLunchOpened).toBe(false);
+  });
+
   it("won't turn on a dead flashlight until recharged", () => {
     const s = new ActiveItemState();
     s.toggleFlashlight();

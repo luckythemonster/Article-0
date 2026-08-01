@@ -20,6 +20,7 @@ import {
   type GuardAnomaly,
 } from "../entities/Enforcer";
 import { Orderly } from "../entities/Orderly";
+import { DeployedItem } from "../entities/DeployedItem";
 import { Door } from "../entities/Door";
 import { Terminal } from "../entities/Terminal";
 import { Laser } from "../entities/Laser";
@@ -64,9 +65,12 @@ import {
   isConsumable,
   ENFORCER_FIRE_NOISE,
   MAX_CONSUMABLES,
+  OPENED_RATION_DETECTION_MULTIPLIER,
+  OPENED_RATION_NOISE,
   PLAYER_DEFAULTS,
   RATION_HEAL,
   RATION_PACK_ITEM,
+  SACK_LUNCH_ITEM,
   STAPLER_FIELD_COOLDOWN,
   STAPLER_FIELD_MAX_CHARGES,
   STAPLER_FIELD_NOISE,
@@ -199,6 +203,8 @@ export class GameScene extends Phaser.Scene {
    */
   private guards: Enforcer[] = [];
   private orderlies: Orderly[] = [];
+  /** Items the player has left on the floor — currently only deployed Sack Lunches. */
+  private deployables: DeployedItem[] = [];
   private doors: Door[] = [];
   private terminals: Terminal[] = [];
   private lasers: Laser[] = [];
@@ -478,7 +484,9 @@ export class GameScene extends Phaser.Scene {
       alert: this.alert,
       flashlightOn: () => this.activeItems.flashlightBeamActive,
       thermalMasked: () => this.activeItems.thermalMasked,
+      rationOpened: () => this.activeItems.sackLunchOpened,
       flashlightMultiplier: FLASHLIGHT_DETECTION_MULTIPLIER,
+      rationMultiplier: OPENED_RATION_DETECTION_MULTIPLIER,
       coverTilesNear: (tx, ty, r) => this.coverTilesNear(tx, ty, r),
       isGuardDoor: (tx, ty) => this.guardOperableDoorAt(tx, ty) !== null,
       // Silent on purpose: the operation-noise ping is there to give away the
@@ -580,6 +588,9 @@ export class GameScene extends Phaser.Scene {
   private resetPerRun(): void {
     this.guards = [];
     this.orderlies = [];
+    // A lunch left on deck 1 is not still on the floor when you come back up a
+    // ladder: deployables belong to the level, like the guards who react to them.
+    this.deployables = [];
     this.doors = [];
     this.terminals = [];
     this.lasers = [];
@@ -961,10 +972,12 @@ export class GameScene extends Phaser.Scene {
       this.registry.remove("itemUseRequest");
       const inv = (this.registry.get("inventory") as string[] | undefined) ?? [];
       const idx = inv.indexOf(request);
-      if (idx !== -1) {
+      // The item is spent *after* its effect resolves, and only if the effect says
+      // so — a Sack Lunch's first press opens it in the hand and keeps it. Every
+      // other consumable answers "yes" and behaves exactly as it always did.
+      if (idx !== -1 && this.applyConsumable(request)) {
         inv.splice(idx, 1);
         this.registry.set("inventory", inv);
-        this.applyConsumable(request);
         // Spending anything counts as deviating from the posture NW-SMAC-01 holds
         // Rowan in; the charge is applied where the rest of the conduct tick happens.
         this.deviatedThisFrame = true;
@@ -977,31 +990,65 @@ export class GameScene extends Phaser.Scene {
       flashlightOwned: this.activeItems.flashlightOwned,
       flashlightOn: this.activeItems.flashlightOn,
       flashlightCharge: this.activeItems.flashlightCharge,
+      sackLunchOpened: this.activeItems.sackLunchOpened,
     } satisfies ActiveItemsView);
     this.drawChaffZone();
   }
 
-  /** Applies a consumable's effect once it's been spent from the inventory. */
-  private applyConsumable(item: string): void {
+  /**
+   * Applies a consumable's effect. Returns whether the item should be spent from
+   * the inventory — false for a use that only changes the item's state in hand.
+   */
+  private applyConsumable(item: string): boolean {
     switch (item) {
       case CHAFF_PACK_ITEM:
         this.fireChaffBurst();
-        break;
+        return true;
       case THERMAL_GEL_ITEM:
         this.activeItems.activateThermalGel();
-        break;
+        return true;
       case RATION_PACK_ITEM:
         this.player.heal(RATION_HEAL);
         getAudio().pickup();
-        break;
+        return true;
       case BATTERY_ITEM:
         this.activeItems.rechargeFlashlight();
         getAudio().pickup();
-        break;
+        return true;
       case STUN_ROUNDS_ITEM:
         this.fireStunDart();
-        break;
+        return true;
+      case SACK_LUNCH_ITEM:
+        return this.useSackLunch();
+      default:
+        return true;
     }
+  }
+
+  /**
+   * The Sack Lunch's two presses: open it, then put it down.
+   *
+   * SEALED → OPENED keeps the item — Rowan is now visibly eating, which costs him
+   * detection and buys him tolerance from orderlies at the same time. OPENED →
+   * DEPLOYED spends it and leaves it on the floor as a work order for whoever
+   * finds it.
+   *
+   * Neither half flags his conduct. Leaving a ration lying around is the single
+   * most staff-like thing available in this building, and marking it as tampering
+   * would have the item breaking its own disguise.
+   */
+  private useSackLunch(): boolean {
+    if (!this.activeItems.sackLunchOpened) {
+      this.activeItems.openSackLunch();
+      getAudio().pickup();
+      return false;
+    }
+    this.deployables.push(
+      new DeployedItem(this, "sackLunch", this.player.x, this.player.y, this.tileSize),
+    );
+    this.activeItems.resealSackLunch();
+    getAudio().pickup();
+    return true;
   }
 
   /**
@@ -1381,16 +1428,23 @@ export class GameScene extends Phaser.Scene {
       chaffOrigin?.y ?? 0,
       CHAFF_PACK_RADIUS_TILES * this.tileSize,
     );
-    this.sensing.setPlayer(
-      this.player.x,
-      this.player.y,
-      this.player.noise,
-      body.velocity.x,
-      body.velocity.y,
+    // An open ration bag rustles: a small, permanent addition to the noise profile
+    // for as long as it's carried. The detection half of the penalty is applied in
+    // `SensingContext`, alongside the flashlight's.
+    const noise = Math.min(
+      1,
+      this.player.noise + (this.activeItems.sackLunchOpened ? OPENED_RATION_NOISE : 0),
     );
+    this.sensing.setPlayer(this.player.x, this.player.y, noise, body.velocity.x, body.velocity.y);
     this.sensing.setConcealment(concealed, compliant, thermalConcealed);
     // Opened doors/chests, EMP'd devices and stunned orderlies, for anomaly scanning.
     this.sensing.setAnomalies(this.buildAnomalies(this.sensing.chaffZone));
+    this.sensing.setDeployables(this.deployables);
+    // The Ration Compliance Spoof holds only until an alarm is actually up — an
+    // orderly with guards already running does not stop to cite mess-deck policy.
+    this.sensing.setRationSpoof(
+      this.activeItems.sackLunchOpened && this.alert.phase !== "ALERT",
+    );
     return this.sensing.current;
   }
 
@@ -1497,6 +1551,12 @@ export class GameScene extends Phaser.Scene {
     // already built rather than minting a fresh literal per orderly per frame.
     for (const orderly of this.orderlies) {
       if (orderly.update(dt, ctx)) this.noise.orderlyAlarm(orderly);
+    }
+    // Deployed items an orderly finished sanitising leave the world. Rebuilt only
+    // on the frame one is actually spent — this list is empty in most runs and
+    // must not cost an allocation a frame to stay that way.
+    if (this.deployables.some((d) => d.spent)) {
+      this.deployables = this.deployables.filter((d) => !d.spent);
     }
 
     // Lasers: crossing an active beam/scan zone instantly trips the alarm.

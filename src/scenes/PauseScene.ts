@@ -89,6 +89,7 @@ export class PauseScene extends Phaser.Scene {
         flashlightOwned: false,
         flashlightOn: false,
         flashlightCharge: 1,
+        sackLunchOpened: false,
       },
       journal: (r.get("journal") as JournalState | undefined) ?? initialJournal(),
       hp: (r.get("playerHp") as number | undefined) ?? 0,

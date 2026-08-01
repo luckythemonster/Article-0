@@ -325,6 +325,16 @@ export const BATTERY_ITEM = "Battery";
 /** Consumable: a dart that stuns Orderly bystanders. */
 export const STUN_ROUNDS_ITEM = "Stun Rounds";
 
+/**
+ * Consumable: the corporate-spec ration, and the only item you can leave behind.
+ *
+ * Three states rather than one use: SEALED in the bag, OPENED in the hand (a passive
+ * penalty and a passive buffer at the same time), and DEPLOYED on the floor as a lure.
+ * The states live in {@link ActiveItemState} and {@link DeployedItem}, not in the name —
+ * the inventory is a flat list of names and that is enough for everything else.
+ */
+export const SACK_LUNCH_ITEM = "Sack Lunch";
+
 /** Equipment: the toggleable flashlight (does not count against the consumable cap). */
 export const FLASHLIGHT_ITEM = "Flashlight";
 
@@ -388,6 +398,57 @@ export const STAPLER_FIELD_NOISE = 0.35;
  */
 export const STAPLER_FIELD_MAX_CHARGES = 3;
 
+// --- The Sack Lunch, and the Orderly overrides it triggers ----------------
+
+/**
+ * Reach (tiles) at which an orderly notices a deployed lunch it can *see*, and
+ * the shorter reach at which it notices one it can only smell.
+ *
+ * The scent radius deliberately ignores walls, which is exactly why it is the
+ * smaller of the two: a sensor channel that passes through geometry has to be
+ * short, or a lunch dropped in a sealed side room would empty the deck.
+ */
+export const SACK_LUNCH_SIGHT_TILES = 6;
+export const SACK_LUNCH_SCENT_TILES = 3;
+
+/** Seconds an orderly spends sanitising a deployed lunch before it destroys it. */
+export const SANITATION_SECONDS = 6;
+
+/**
+ * How an orderly's witness check is degraded while it is bent over a spill.
+ *
+ * The design brief asked for "the vision cone narrows by 50%", but an orderly has no
+ * cone — {@link Orderly} witnesses through an omnidirectional line-of-sight test, since
+ * a person looking around is not a mounted camera. So the 50% lands on the radius, and
+ * the *flank* half of the brief ("back/flank stealth tolerance increases") is what the
+ * forward arc below buys: while cleaning, and only while cleaning, an orderly has a
+ * behind to sneak past.
+ */
+export const SANITATION_SIGHT_MULTIPLIER = 0.5;
+export const SANITATION_CONE_DEGREES = 90;
+
+/**
+ * Seconds an orderly tolerates a visibly-eating asset before reporting it anyway.
+ *
+ * Orderlies have no detection meter — witnessing is one-shot and binary — so the
+ * brief's "delays detection/aggro meter buildup" is this grace timer standing in for
+ * the meter. It fills while the orderly can see Rowan and drains at the same rate once
+ * it can't, so crossing a sightline is free and loitering in one is not.
+ */
+export const RATION_SPOOF_SECONDS = 5;
+
+/**
+ * The passive cost of walking around with the bag open: crinkling packaging and an
+ * organic smell, as a detection-fill multiplier and a bump to the noise profile.
+ *
+ * The multiplier is the half that bites. It rides the same closure the flashlight's
+ * does ({@link SensingContext}), so it works on guards and cameras alike; the noise
+ * bump exists because a noise profile that nothing reads would be a lie, and VENT-4's
+ * grate check reads it today.
+ */
+export const OPENED_RATION_DETECTION_MULTIPLIER = 1.15;
+export const OPENED_RATION_NOISE = 0.1;
+
 // --- Item taxonomy -------------------------------------------------------
 
 /**
@@ -401,6 +462,7 @@ export const CONSUMABLE_ORDER = [
   RATION_PACK_ITEM,
   BATTERY_ITEM,
   STUN_ROUNDS_ITEM,
+  SACK_LUNCH_ITEM,
 ] as const;
 
 /** Hard cap on the total number of consumables held at once. */

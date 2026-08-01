@@ -30,3 +30,28 @@ export function alertMarker(
     .setDepth(600)
     .setVisible(false);
 }
+
+/**
+ * A line of speech over someone's head — a reprimand, a muttered protocol
+ * citation. The quiet counterpart to {@link alertMarker}: same depth for the same
+ * reason, but small and dim, because the whole point of the states that use it is
+ * that nobody has raised their voice yet.
+ *
+ * Starts hidden and empty; the caller sets the text, position and visibility.
+ */
+export function speechMarker(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  tileSize: number,
+): Phaser.GameObjects.Text {
+  return scene.add
+    .text(x, y - tileSize, "", {
+      fontFamily: FONT_MONO,
+      fontSize: `${Math.floor(tileSize * 0.34)}px`,
+      color: "#9fb4c7",
+    })
+    .setOrigin(0.5)
+    .setDepth(600)
+    .setVisible(false);
+}

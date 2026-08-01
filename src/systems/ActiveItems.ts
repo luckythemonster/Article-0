@@ -1,8 +1,15 @@
 /**
  * Active-item state: the EMP Grenade (EMP burst) and Thermal Gel (thermal mask)
- * consumable timers, plus the flashlight equipment (owned / on / battery
- * charge). Pure dt-driven state — GameScene owns the instance, ticks it every
- * frame, and applies the effects through the detection context / lighting.
+ * consumable timers, the flashlight equipment (owned / on / battery charge), and
+ * whether the held Sack Lunch is open. Pure dt-driven state — GameScene owns the
+ * instance, ticks it every frame, and applies the effects through the detection
+ * context / lighting.
+ *
+ * The Sack Lunch's SEALED/OPENED flag lives here for the same reason the
+ * flashlight's charge does: the inventory is a flat list of *names*, so anything
+ * an item does over time has to be held beside it rather than inside it. And like
+ * the flashlight's charge it is deliberately not part of `SaveData` — a fresh run,
+ * a loaded save or a level change all hand the bag back sealed.
  */
 
 import {
@@ -30,6 +37,8 @@ export class ActiveItemState {
   private flashlightOnFlag = false;
   /** Battery level, 0..1. */
   private flashlightChargeLevel = 1;
+  /** True while a held Sack Lunch is OPENED rather than SEALED. */
+  private sackLunchOpenedFlag = false;
 
   get chaffActive(): boolean {
     return this.chaffTimer > 0;
@@ -85,6 +94,27 @@ export class ActiveItemState {
     this.flashlightChargeLevel = 1;
   }
 
+  /** True while Rowan is holding an opened ration — the penalty *and* the buffer. */
+  get sackLunchOpened(): boolean {
+    return this.sackLunchOpenedFlag;
+  }
+
+  /** SEALED → OPENED. The lunch stays in the inventory; only its state changes. */
+  openSackLunch(): void {
+    this.sackLunchOpenedFlag = true;
+  }
+
+  /**
+   * OPENED → (deployed, or gone). Called when the open lunch leaves Rowan's hands.
+   *
+   * A player carrying several is carrying one *open* one at most, so any remaining
+   * copies are sealed again — which is also what keeps the flag honest when the
+   * last lunch is deployed and the inventory no longer has one to be open.
+   */
+  resealSackLunch(): void {
+    this.sackLunchOpenedFlag = false;
+  }
+
   update(dt: number): void {
     if (this.chaffTimer > 0) {
       this.chaffTimer = Math.max(0, this.chaffTimer - dt);
@@ -107,4 +137,6 @@ export interface ActiveItemsView {
   flashlightOwned: boolean;
   flashlightOn: boolean;
   flashlightCharge: number;
+  /** A held Sack Lunch is OPENED — the HUD says so, since it costs to carry that way. */
+  sackLunchOpened: boolean;
 }

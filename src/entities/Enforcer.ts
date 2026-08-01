@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import type { ComponentData } from "../map/types";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { AlertState, type AlertPhase } from "../systems/AlertState";
+import type { DeployedLure } from "../systems/Deployables";
 import { enforcerStatsFor, type EnforcerStats } from "../systems/EntityStats";
 import { moveCirclePx } from "../systems/GridMotion";
 import { findPath, smoothPath, type PathNode } from "../systems/Pathfinder";
@@ -83,6 +84,19 @@ export interface EnforcerContext {
   alert: AlertState;
   /** Opened doors/chests, EMP'd devices, and stunned orderlies visible this frame. */
   anomalies?: GuardAnomaly[];
+  /**
+   * Items the player has deployed on the floor this frame.
+   *
+   * Read by orderlies only — a spill is a work order, and guards do not do
+   * cleaning. They live on this context rather than an orderly-shaped one because
+   * `GameScene` deliberately hands the *same* object to both (an `OrderlyContext`
+   * is a structural subset of this one), rather than minting a second literal per
+   * orderly per frame. Making guards notice litter would be one push into
+   * `GameScene.buildAnomalies`, not a change here.
+   */
+  lures?: readonly DeployedLure[];
+  /** True while an opened ration buys tolerance from orderlies — see {@link OrderlyContext}. */
+  rationSpoof?: boolean;
   /** Player's current velocity (px/s), for smart search-point prediction. */
   playerVelocity?: { x: number; y: number };
   /** Cover tiles (pixel centres) within `radiusTiles` of a tile position. */
