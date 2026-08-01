@@ -1,5 +1,6 @@
 import type Phaser from "phaser";
 import { Chest } from "../../entities/Chest";
+import { Cover } from "../../entities/Cover";
 import { Door, footprintCells } from "../../entities/Door";
 import { Drone } from "../../entities/Drone";
 import { Enforcer } from "../../entities/Enforcer";
@@ -12,7 +13,8 @@ import { Terminal } from "../../entities/Terminal";
 import { bakeTileLayers, buildWallBodies } from "../../map/TileBake";
 import type { GameLevel, GameTile } from "../../map/types";
 import type { CollisionGrid } from "../../systems/CollisionGrid";
-import { glassStatsFor, isGlass } from "../../systems/EntityStats";
+import type { DetectionSystem } from "../../systems/DetectionSystem";
+import { glassStatsFor, isGlass, str } from "../../systems/EntityStats";
 import { routeFromLayer } from "../../systems/PatrolRoute";
 
 /**
@@ -44,6 +46,9 @@ export interface BuiltLevel {
   sensors: Sensor[];
   chests: Chest[];
   lasers: Laser[];
+  /** Cover tiles the map (or a generator) marks `Destructible` — the rest of the
+   * `cover` board stays baked art with no entity, exactly as before. */
+  coverTiles: Cover[];
   /** Static bodies for the walls, merged into as few rectangles as possible. */
   wallBodies: Phaser.GameObjects.GameObject[];
   /** Arcade bodies for the closed doors, for the player collider. */
@@ -82,10 +87,11 @@ export function buildLevel(
   level: GameLevel,
   tileSize: number,
   grid: CollisionGrid,
+  detection: DetectionSystem,
   arriveTile: { x: number; y: number } | undefined,
   entityLayers: ReadonlySet<string>,
 ): BuiltLevel {
-  bakeTileLayers(scene, level, tileSize, entityLayers);
+  const tileTexture = bakeTileLayers(scene, level, tileSize, entityLayers);
   const wallBodies = buildWallBodies(scene, level, tileSize);
 
   const built: BuiltLevel = {
@@ -97,13 +103,37 @@ export function buildLevel(
     sensors: [],
     chests: [],
     lasers: [],
+    coverTiles: [],
     wallBodies,
     doorBodies: [],
   };
 
   spawnCast(scene, level, tileSize, built);
   spawnInteractables(scene, level, tileSize, grid, built);
+  spawnDestructibleCover(scene, level, tileSize, detection, tileTexture, built);
   return built;
+}
+
+/**
+ * The `cover` board's `Destructible` tiles — the rest of the board stays
+ * baked art with no entity, since it never changes.
+ */
+function spawnDestructibleCover(
+  scene: Phaser.Scene,
+  level: GameLevel,
+  tileSize: number,
+  detection: DetectionSystem,
+  tileTexture: Phaser.GameObjects.RenderTexture,
+  out: BuiltLevel,
+): void {
+  const coverLayer = level.layers.find((l) => l.name === "cover");
+  if (!coverLayer) return;
+  const floorLayer = level.layers.find((l) => l.name === "floor");
+  for (const t of coverLayer.tiles) {
+    if (str(t.components, "cover", "Destructible", "false") !== "true") continue;
+    const floorTile = floorLayer?.tiles.find((f) => f.x === t.x && f.y === t.y);
+    out.coverTiles.push(new Cover(scene, detection, tileTexture, tileSize, t, floorTile?.frame));
+  }
 }
 
 /** Places the player on the arrival tile, the level's spawn, or its centre. */

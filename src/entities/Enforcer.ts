@@ -31,6 +31,15 @@ import { len, withinOrEqual } from "../systems/distance";
  */
 export type GuardState = "PATROL" | "CAUTIOUS" | "SUSPICIOUS" | "ALERT" | "SEARCHING";
 
+/** A shot fired by a pursuing guard this frame — the scene applies its effects. */
+export interface EnforcerFireResult {
+  originX: number;
+  originY: number;
+  targetX: number;
+  targetY: number;
+  damage: number;
+}
+
 /** An environmental anomaly a guard's vision cone can notice. */
 export interface GuardAnomaly {
   /** Pixel-space position, for cone/LOS checks. */
@@ -39,7 +48,7 @@ export interface GuardAnomaly {
   /** Tile-space position, for search/anomaly bookkeeping. */
   tx: number;
   ty: number;
-  kind: "door" | "chest" | "device" | "stunnedOrderly";
+  kind: "door" | "chest" | "device" | "stunnedOrderly" | "pinnedOrderly";
   /** Stable identity so a guard investigates a given anomaly at most once. */
   key: string;
 }
@@ -178,6 +187,8 @@ export class Enforcer {
   private dir: Dir8 = "south";
 
   private prevPhase: AlertPhase = "INFILTRATION";
+  /** Seconds until the pursuing-guard ranged attack (see {@link pursue}) can fire again. */
+  private fireCooldownLeft = 0;
   private cautiousTimer = 0;
   private investigation: Investigation | null = null;
   private inspectTimer = 0;
@@ -247,16 +258,17 @@ export class Enforcer {
     this.bang = alertMarker(scene, this.x, this.y, tileSize);
   }
 
-  update(dt: number, ctx: EnforcerContext): void {
+  update(dt: number, ctx: EnforcerContext): EnforcerFireResult | undefined {
     const { tileSize, grid } = ctx;
 
+    let fired: EnforcerFireResult | undefined;
     if (ctx.alert.phase === "ALERT") {
       if (this.state !== "ALERT") this.clearPath();
       this.state = "ALERT";
       this.investigation = null;
       this.searchTargets = [];
       this.pendingNoise = null;
-      this.pursue(dt, ctx);
+      fired = this.pursue(dt, ctx);
     } else if (ctx.alert.phase === "EVASION") {
       this.pendingNoise = null;
       if (this.prevPhase !== "EVASION") this.beginSearch(ctx);
@@ -292,6 +304,7 @@ export class Enforcer {
     this.body.setPosition(this.x, this.y);
     this.bang.setPosition(this.x, this.y - tileSize);
     this.bang.setVisible(this.detection > 0.66 || ctx.alert.phase === "ALERT" || this.state === "SUSPICIOUS");
+    return fired;
   }
 
   /** PATROL/CAUTIOUS/SUSPICIOUS handling while the base is calm. */
@@ -389,14 +402,14 @@ export class Enforcer {
 
   /**
    * Scans the vision cone for environmental anomalies while PATROL/CAUTIOUS.
-   * A stunned orderly instantly escalates to a base-wide sighting; an opened
-   * door/chest or an EMP'd device starts a walk-over investigation. Returns
-   * true once something claims the guard's attention this frame.
+   * A stunned or pinned orderly instantly escalates to a base-wide sighting; an
+   * opened door/chest or an EMP'd device starts a walk-over investigation.
+   * Returns true once something claims the guard's attention this frame.
    */
   private scanAnomalies(ctx: EnforcerContext): boolean {
     if (!ctx.anomalies) return false;
     for (const a of ctx.anomalies) {
-      if (a.kind === "stunnedOrderly") {
+      if (a.kind === "stunnedOrderly" || a.kind === "pinnedOrderly") {
         if (this.canSeeAnomaly(a, ctx)) {
           this.detection = 1;
           ctx.alert.reportSighting(a.tx, a.ty);
@@ -615,26 +628,45 @@ export class Enforcer {
    * Straight-lining a *visible* target is the right behaviour — it keeps the
    * chase tight and reactive — but straight-lining a remembered one is what used
    * to wedge guards against the corner they lost you behind.
+   *
+   * While it has a sightline and is close enough, it also fires rather than
+   * closing distance — the guard's answer to the destructible cover the
+   * player can also break with the Stun Rounds/Stapler triggers.
    */
-  private pursue(dt: number, ctx: EnforcerContext): void {
+  private pursue(dt: number, ctx: EnforcerContext): EnforcerFireResult | undefined {
     const { tileSize, alert } = ctx;
     this.scanOffset = 0;
+    this.fireCooldownLeft = Math.max(0, this.fireCooldownLeft - dt);
 
     if (this.sense(ctx)) {
       this.clearPath();
       const ang = Math.atan2(ctx.player.y - this.y, ctx.player.x - this.x);
       this.faceToward(ang, dt);
+      const distPx = len(ctx.player.x - this.x, ctx.player.y - this.y);
+      if (distPx <= this.stats.fireRange * tileSize && this.fireCooldownLeft <= 0) {
+        this.fireCooldownLeft = this.stats.fireCooldown;
+        // Holds position to fire rather than closing distance this frame — reads as
+        // the guard planting and aiming rather than a bullet fired mid-stride.
+        return {
+          originX: this.x,
+          originY: this.y,
+          targetX: ctx.player.x,
+          targetY: ctx.player.y,
+          damage: this.stats.fireDamage,
+        };
+      }
       this.step(ctx, ang, this.stats.purgeSpeed * tileSize * dt);
-      return;
+      return undefined;
     }
 
     const target = alert.lastKnownTile;
-    if (!target) return;
+    if (!target) return undefined;
     if (this.followPath(dt, ctx, target, this.stats.purgeSpeed) === "unreachable") {
       // Nothing walkable leads there. Hold position and sweep rather than
       // charging the wall in between.
       this.sweepCone(dt, CAUTIOUS_TURN_MULTIPLIER);
     }
+    return undefined;
   }
 
   // --- Path following ------------------------------------------------------

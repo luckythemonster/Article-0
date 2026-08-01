@@ -13,13 +13,19 @@ import { AlertState } from "../systems/AlertState";
 import { TransitionGraph } from "../systems/TransitionGraph";
 import { buildRadarSnapshot, emptyRadarSnapshot } from "../systems/Radar";
 import { Player, type InputState } from "../entities/Player";
-import { Enforcer, type EnforcerContext, type GuardAnomaly } from "../entities/Enforcer";
+import {
+  Enforcer,
+  type EnforcerContext,
+  type EnforcerFireResult,
+  type GuardAnomaly,
+} from "../entities/Enforcer";
 import { Orderly } from "../entities/Orderly";
 import { Door } from "../entities/Door";
 import { Terminal } from "../entities/Terminal";
 import { Laser } from "../entities/Laser";
 import { Sensor } from "../entities/Sensor";
 import { Chest } from "../entities/Chest";
+import { Cover } from "../entities/Cover";
 import { buildAlertNetworkSnapshot, NoiseSpamTracker } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
 import {
@@ -56,10 +62,16 @@ import {
   FLASHLIGHT_DETECTION_MULTIPLIER,
   GAME_SPEED,
   isConsumable,
+  ENFORCER_FIRE_NOISE,
   MAX_CONSUMABLES,
   PLAYER_DEFAULTS,
   RATION_HEAL,
   RATION_PACK_ITEM,
+  STAPLER_FIELD_COOLDOWN,
+  STAPLER_FIELD_NOISE,
+  STAPLER_FIELD_RANGE_TILES,
+  STAPLER_ITEM,
+  STAPLER_PIN_DURATION,
   STUN_ROUND_DURATION,
   STUN_ROUND_NOISE,
   STUN_ROUND_REACH_TILES,
@@ -191,6 +203,8 @@ export class GameScene extends Phaser.Scene {
   private lasers: Laser[] = [];
   private sensors: Sensor[] = [];
   private chests: Chest[] = [];
+  /** Destructible cover — the rest of the `cover` board is baked art with no entity. */
+  private coverTiles: Cover[] = [];
   /** The vent-core/vault/roof set-piece encounters, and their mechanical wiring. */
   private encounters!: Encounters;
   /** Lazily-resolved {@link features}; cleared per run so a fresh map re-reads it. */
@@ -229,6 +243,8 @@ export class GameScene extends Phaser.Scene {
   private captureProgress = 0;
   /** Cooldown (seconds) remaining before the player can knock again. */
   private knockCooldown = 0;
+  /** Cooldown for the Rail-Stapler's general-purpose field mode (outside VENT-4). */
+  private staplerFieldCooldown = 0;
   /** The log-cache terminal whose breach launched the compliance puzzle. */
   private pendingCompliance?: Terminal;
   /** The silicate-rack terminal whose breach launched the qualia bypass. */
@@ -253,6 +269,9 @@ export class GameScene extends Phaser.Scene {
   private activeItems = new ActiveItemState();
   /** Draws the EMP Grenade's EMP zone while it's live. */
   private empGfx!: Phaser.GameObjects.Graphics;
+  /** Draws the brief tracer line(s) for a pursuing guard's shot. */
+  private fireTracerGfx!: Phaser.GameObjects.Graphics;
+  private fireTracers: { x1: number; y1: number; x2: number; y2: number; ttl: number }[] = [];
   /**
    * A walk-over transition can only fire once the player has stepped off every
    * transition tile since arriving — otherwise you'd bounce straight back.
@@ -339,6 +358,7 @@ export class GameScene extends Phaser.Scene {
       this.level,
       this.tileSize,
       this.grid,
+      this.detection,
       this.arriveTile,
       ENTITY_LAYERS,
     );
@@ -350,6 +370,7 @@ export class GameScene extends Phaser.Scene {
     this.sensors = built.sensors;
     this.chests = built.chests;
     this.lasers = built.lasers;
+    this.coverTiles = built.coverTiles;
     this.designateQualiaRack();
     this.designateLogCacheNodes();
 
@@ -475,6 +496,8 @@ export class GameScene extends Phaser.Scene {
   private createWorldMarkers(): void {
     // EMP Grenade EMP zone: drawn between the guard cones (400) and bodies (450).
     this.empGfx = this.add.graphics().setDepth(410);
+    // Guard-fire tracers: above bodies, additive so they read as a hot streak.
+    this.fireTracerGfx = this.add.graphics().setDepth(600).setBlendMode(Phaser.BlendModes.ADD);
 
     // Interact prompt for hatches and ladders.
     this.prompt = this.add
@@ -571,6 +594,7 @@ export class GameScene extends Phaser.Scene {
     this.exploredCooldown = 0;
     this.captureProgress = 0;
     this.knockCooldown = 0;
+    this.staplerFieldCooldown = 0;
     this.pendingCompliance = undefined;
     this.pendingQualia = undefined;
     this.qualiaRack = undefined;
@@ -995,7 +1019,11 @@ export class GameScene extends Phaser.Scene {
 
   /**
    * Fires a short stun dart along Rowan's facing: the nearest orderly within
-   * reach and roughly ahead is frozen (can't witness). Firing makes a small noise.
+   * reach and roughly ahead is frozen (can't witness), and independently the
+   * nearest destructible cover tile ahead is broken — a stun round has no real
+   * raycast today (see the orderly loop below), so both effects can land off
+   * the same shot rather than fighting over which one the dart "really" hit.
+   * Firing makes a small noise.
    */
   private fireStunDart(): void {
     const reachPx = STUN_ROUND_REACH_TILES * this.tileSize;
@@ -1017,8 +1045,80 @@ export class GameScene extends Phaser.Scene {
       }
     }
     target?.stun(STUN_ROUND_DURATION);
+
+    let cover: Cover | undefined;
+    let bestCoverDist = Infinity;
+    for (const c of this.coverTiles) {
+      if (c.isBroken) continue;
+      const cx = (c.tileX + 0.5) * this.tileSize;
+      const cy = (c.tileY + 0.5) * this.tileSize;
+      const dx = cx - this.player.x;
+      const dy = cy - this.player.y;
+      const dist = len(dx, dy);
+      if (dist > reachPx || dist === 0) continue;
+      if ((dx * fx + dy * fy) / dist < 0.5) continue;
+      if (dist < bestCoverDist) {
+        bestCoverDist = dist;
+        cover = c;
+      }
+    }
+    cover?.destroy();
+
     this.conduct.violate("HOSTILE", FLAG_HOSTILE);
     this.noise.emitAt(this.player.x, this.player.y, STUN_ROUND_NOISE * this.tileSize);
+  }
+
+  /**
+   * The Rail-Stapler's general-purpose field mode: fires along Rowan's facing
+   * at the nearest of {destructible cover tile, orderly} within reach, forward
+   * cone and a clear line of sight — cover breaks, an orderly gets pinned to a
+   * wall for a stretch (same freeze/witness effect as a Stun Rounds dart, just
+   * a different weapon and a much longer hold). Single press, not hold, and
+   * gated by its own cooldown so it can't be mashed.
+   */
+  private fireStaplerField(): void {
+    const ts = this.tileSize;
+    const reachPx = STAPLER_FIELD_RANGE_TILES * ts;
+    const fx = Math.cos(this.player.facing);
+    const fy = Math.sin(this.player.facing);
+
+    type Target = { x: number; y: number; kind: "cover"; cover: Cover } | { x: number; y: number; kind: "orderly"; orderly: Orderly };
+    let best: Target | undefined;
+    let bestDist = Infinity;
+
+    const consider = (x: number, y: number, candidate: Target): void => {
+      const dx = x - this.player.x;
+      const dy = y - this.player.y;
+      const dist = len(dx, dy);
+      if (dist > reachPx || dist === 0) return;
+      if ((dx * fx + dy * fy) / dist < 0.5) return;
+      if (!this.grid.hasLineOfSight(this.player.x / ts, this.player.y / ts, x / ts, y / ts)) return;
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = candidate;
+      }
+    };
+
+    for (const c of this.coverTiles) {
+      if (c.isBroken) continue;
+      const cx = (c.tileX + 0.5) * ts;
+      const cy = (c.tileY + 0.5) * ts;
+      consider(cx, cy, { x: cx, y: cy, kind: "cover", cover: c });
+    }
+    for (const o of this.orderlies) {
+      if (o.isImmobilized) continue;
+      consider(o.x, o.y, { x: o.x, y: o.y, kind: "orderly", orderly: o });
+    }
+
+    this.staplerFieldCooldown = STAPLER_FIELD_COOLDOWN;
+    if (best) {
+      if (best.kind === "cover") best.cover.destroy();
+      else best.orderly.pin(STAPLER_PIN_DURATION);
+      this.fireTracers.push({ x1: this.player.x, y1: this.player.y, x2: best.x, y2: best.y, ttl: 0.08 });
+      getAudio().railStapler();
+    }
+    this.conduct.violate("HOSTILE", FLAG_HOSTILE);
+    this.noise.emitAt(this.player.x, this.player.y, STAPLER_FIELD_NOISE * ts);
   }
 
   /** Draws the EMP Grenade's EMP zone while it's live. */
@@ -1349,13 +1449,15 @@ export class GameScene extends Phaser.Scene {
 
     for (const e of this.guards) {
       const before = e.detection;
-      e.update(dt, ctx);
+      const fired = e.update(dt, ctx);
       maxDetection = Math.max(maxDetection, e.detection);
       // A fresh full sighting alerts networked guards within reach.
       if (before < 1 && e.detection >= 1) {
         this.noise.broadcast(e.x, e.y, e.stats.alertNetworkRadius);
       }
+      if (fired) this.resolveGuardFire(fired);
     }
+    this.tickFireTracers(dt);
 
     // Sensor cameras run on the same context, reporting sightings themselves.
     for (const s of this.sensors) {
@@ -1401,6 +1503,54 @@ export class GameScene extends Phaser.Scene {
     return maxDetection;
   }
 
+  /**
+   * Applies a pursuing guard's shot: walks the line toward the player, tile
+   * step by tile step, and if it crosses a live destructible cover tile first,
+   * that breaks instead of the player taking the hit — the payoff for the
+   * mechanic existing at all. Otherwise the player takes the damage.
+   */
+  private resolveGuardFire(shot: EnforcerFireResult): void {
+    const ts = this.tileSize;
+    const dx = shot.targetX - shot.originX;
+    const dy = shot.targetY - shot.originY;
+    const dist = len(dx, dy) || 1;
+    const stepPx = ts * 0.5;
+
+    let hitCover: Cover | undefined;
+    for (let d = stepPx; d < dist; d += stepPx) {
+      const tx = Math.floor((shot.originX + (dx / dist) * d) / ts);
+      const ty = Math.floor((shot.originY + (dy / dist) * d) / ts);
+      hitCover = this.coverTiles.find((c) => !c.isBroken && c.tileX === tx && c.tileY === ty);
+      if (hitCover) break;
+    }
+
+    let endX = shot.targetX;
+    let endY = shot.targetY;
+    if (hitCover) {
+      hitCover.destroy();
+      endX = (hitCover.tileX + 0.5) * ts;
+      endY = (hitCover.tileY + 0.5) * ts;
+    } else {
+      this.player.takeDamage(shot.damage);
+      this.cameras.main.flash(120, 255, 130, 130);
+    }
+
+    this.fireTracers.push({ x1: shot.originX, y1: shot.originY, x2: endX, y2: endY, ttl: 0.1 });
+    this.noise.emitAt(shot.originX, shot.originY, ENFORCER_FIRE_NOISE * ts);
+  }
+
+  /** Fades out the guard-fire tracer line(s) drawn this frame. */
+  private tickFireTracers(dt: number): void {
+    if (this.fireTracers.length === 0) return;
+    for (const t of this.fireTracers) t.ttl -= dt;
+    this.fireTracers = this.fireTracers.filter((t) => t.ttl > 0);
+    const g = this.fireTracerGfx;
+    g.clear();
+    if (this.fireTracers.length === 0) return;
+    g.lineStyle(2, 0xffe14d, 0.9);
+    for (const t of this.fireTracers) g.lineBetween(t.x1, t.y1, t.x2, t.y2);
+  }
+
   /** Publishes this frame's HUD state, and draws the debug overlay over it. */
   private publishFrame(): void {
     this.registry.set(
@@ -1437,6 +1587,7 @@ export class GameScene extends Phaser.Scene {
     const ts = this.tileSize;
     const ptx = this.player.x / ts;
     const pty = this.player.y / ts;
+    this.staplerFieldCooldown = Math.max(0, this.staplerFieldCooldown - dt);
 
     // --- Transitions ---
     const raw = this.transitions.at(this.level.name, Math.floor(ptx), Math.floor(pty));
@@ -1527,9 +1678,11 @@ export class GameScene extends Phaser.Scene {
 
     // A tap not consumed by a hack opens/closes a door, or uses a hatch —
     // whichever is nearer (a hatch you're standing on always wins).
+    let adjacentClaimedTap = false;
     if (!hacking && !encounterHold && interactJust) {
       const hatchDist = hatch ? 0.2 : Infinity;
       if (nearestDoor && nearestDoorDist <= hatchDist) {
+        adjacentClaimedTap = true;
         if (nearestDoor.toggle()) {
           getAudio().door();
           if (nearestDoor.isOpen) this.noise.doorOperated(nearestDoor);
@@ -1538,6 +1691,26 @@ export class GameScene extends Phaser.Scene {
         this.beginTransition(hatch);
         return;
       }
+    }
+
+    // --- Rail-Stapler field mode (tap E, nothing adjacent claimed the press) ---
+    // The boss fight's stapler use (Vent4Boss.handleInteract, above) only ever
+    // targets its own hardcoded capacitors; this is the general-purpose use —
+    // breaking destructible cover or pinning an orderly anywhere in the level.
+    // Gated on the encounter having nothing in range (`dist` finite means it
+    // does — e.g. a capacitor prompt), so the boss's own stapler use always
+    // wins over the field mode rather than both firing off the same tap.
+    if (
+      !hacking &&
+      !encounterHold &&
+      !searching &&
+      !adjacentClaimedTap &&
+      !Number.isFinite(encounter.dist) &&
+      interactJust &&
+      this.staplerFieldCooldown <= 0 &&
+      (((this.registry.get("inventory") as string[] | undefined) ?? []).includes(STAPLER_ITEM))
+    ) {
+      this.fireStaplerField();
     }
 
     this.showPrompt(
@@ -2001,15 +2174,25 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (const orderly of this.orderlies) {
-      if (!orderly.isStunned) continue;
-      this.pushAnomaly(
-        orderly.x,
-        orderly.y,
-        Math.floor(orderly.x / ts),
-        Math.floor(orderly.y / ts),
-        "stunnedOrderly",
-        "orderly",
-      );
+      if (orderly.isStunned) {
+        this.pushAnomaly(
+          orderly.x,
+          orderly.y,
+          Math.floor(orderly.x / ts),
+          Math.floor(orderly.y / ts),
+          "stunnedOrderly",
+          "orderly",
+        );
+      } else if (orderly.isPinned) {
+        this.pushAnomaly(
+          orderly.x,
+          orderly.y,
+          Math.floor(orderly.x / ts),
+          Math.floor(orderly.y / ts),
+          "pinnedOrderly",
+          "orderly",
+        );
+      }
     }
 
     return anomalies;

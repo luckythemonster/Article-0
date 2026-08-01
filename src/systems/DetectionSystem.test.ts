@@ -150,6 +150,39 @@ describe("cover queries", () => {
   });
 });
 
+describe("destroyCoverAt", () => {
+  it("removes a cover tile's dampening and thermal bleed, and reports it did", () => {
+    const d = new DetectionSystem(
+      level([{ name: "cover", tiles: [cover(1, 1, "low", true)] }]),
+      TILE,
+    );
+    expect(d.multiplierAt(...at(1, 1))).toBeCloseTo(0.4);
+    expect(d.thermalBleedAt(...at(1, 1))).toBe(true);
+
+    expect(d.destroyCoverAt(1, 1)).toBe(true);
+
+    expect(d.multiplierAt(...at(1, 1))).toBe(1);
+    expect(d.coverTypeAt(...at(1, 1))).toBeUndefined();
+    expect(d.thermalBleedAt(...at(1, 1))).toBe(false);
+  });
+
+  it("leaves other cover tiles untouched and no-ops on a tile with none", () => {
+    const d = new DetectionSystem(
+      level([{ name: "cover", tiles: [cover(1, 1), cover(2, 1)] }]),
+      TILE,
+    );
+    d.destroyCoverAt(1, 1);
+    expect(d.coverTypeAt(...at(2, 1))).toBe("low");
+    expect(d.destroyCoverAt(9, 9)).toBe(false);
+  });
+
+  it("is idempotent — destroying twice still just reports false the second time", () => {
+    const d = new DetectionSystem(level([{ name: "cover", tiles: [cover(1, 1)] }]), TILE);
+    expect(d.destroyCoverAt(1, 1)).toBe(true);
+    expect(d.destroyCoverAt(1, 1)).toBe(false);
+  });
+});
+
 describe("thermalRadiusFor", () => {
   it("passes the base radius through, and zeroes it while masked", () => {
     const d = new DetectionSystem(level([]), TILE);

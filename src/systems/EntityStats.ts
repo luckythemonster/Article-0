@@ -40,6 +40,12 @@ export interface EnforcerStats {
   turnRate: number; // degrees/second
   auditDelay: number; // seconds in cone before full detection
   alertNetworkRadius: number;
+  /** Reach of the pursuing-guard ranged attack, in tiles. */
+  fireRange: number;
+  /** Seconds between shots. */
+  fireCooldown: number;
+  /** Bio-integrity damage per shot that reaches the player. */
+  fireDamage: number;
 }
 
 export const ENFORCER_DEFAULTS: EnforcerStats = {
@@ -51,6 +57,9 @@ export const ENFORCER_DEFAULTS: EnforcerStats = {
   turnRate: 120,
   auditDelay: 0.9,
   alertNetworkRadius: 7,
+  fireRange: 4.5,
+  fireCooldown: 1.6,
+  fireDamage: 12,
 };
 
 export interface LightStats {
@@ -97,8 +106,14 @@ export function enforcerStatsFor(components: ComponentData[]): EnforcerStats {
     turnRate: paced(num(components, "enforcer", "TurnRate", ENFORCER_DEFAULTS.turnRate)),
     auditDelay: num(components, "enforcer", "AuditDelay", ENFORCER_DEFAULTS.auditDelay),
     alertNetworkRadius: num(components, "enforcer", "AlertNetworkRadius", ENFORCER_DEFAULTS.alertNetworkRadius),
+    fireRange: num(components, "enforcer", "FireRange", ENFORCER_DEFAULTS.fireRange),
+    fireCooldown: num(components, "enforcer", "FireCooldown", ENFORCER_DEFAULTS.fireCooldown),
+    fireDamage: num(components, "enforcer", "FireDamage", ENFORCER_DEFAULTS.fireDamage),
   };
 }
+
+/** Noise ping (0..1) emitted by a pursuing guard's shot. */
+export const ENFORCER_FIRE_NOISE = 0.5;
 
 export function lightStatsFor(components: ComponentData[]): LightStats {
   return {
@@ -345,6 +360,19 @@ export const STUN_ROUND_REACH_TILES = 5;
 export const STUN_ROUND_DURATION = 8;
 /** Noise ping (0..1) emitted when firing a Stun Rounds dart. */
 export const STUN_ROUND_NOISE = 0.2;
+/**
+ * Reach (tiles) of the Rail-Stapler's general-purpose field mode — breaking
+ * destructible cover or pinning an orderly outside the VENT-4 fight. Kept
+ * separate from {@link Vent4Stats.staplerRange}: the boss fight and the
+ * overworld have very different balance needs for the same item.
+ */
+export const STAPLER_FIELD_RANGE_TILES = 6;
+/** Seconds between field-mode shots. */
+export const STAPLER_FIELD_COOLDOWN = 1.2;
+/** Seconds an orderly stays pinned to a wall after a field-mode hit. */
+export const STAPLER_PIN_DURATION = 10;
+/** Noise ping (0..1) emitted when firing the Stapler's field mode. */
+export const STAPLER_FIELD_NOISE = 0.35;
 
 // --- Item taxonomy -------------------------------------------------------
 

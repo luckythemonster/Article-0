@@ -28,7 +28,9 @@ import {
   FLASHLIGHT_ITEM,
   RATION_HEAL,
   RATION_PACK_ITEM,
+  STAPLER_FIELD_RANGE_TILES,
   STAPLER_ITEM,
+  STAPLER_PIN_DURATION,
   STUN_ROUND_DURATION,
   STUN_ROUND_REACH_TILES,
   STUN_ROUNDS_ITEM,
@@ -76,7 +78,9 @@ const CATALOG: Record<string, ItemInfo> = {
     blurb:
       "Compliance darts, rated for staff. They exist because the apparatus expects people to " +
       "occasionally need stopping, and has decided in advance that this is humane.",
-    effect: `Drops an orderly at up to ${STUN_ROUND_REACH_TILES} tiles for ${STUN_ROUND_DURATION}s. Firing makes noise.`,
+    effect:
+      `Drops an orderly at up to ${STUN_ROUND_REACH_TILES} tiles for ${STUN_ROUND_DURATION}s, ` +
+      "and breaks destructible cover in the same arc. Firing makes noise.",
   },
   [FLASHLIGHT_ITEM]: {
     name: FLASHLIGHT_ITEM,
@@ -110,7 +114,10 @@ const CATALOG: Record<string, ItemInfo> = {
     blurb:
       "A hull tool, not a weapon, which is a distinction the facility would enforce if it knew " +
       "you had one down here.",
-    effect: "Passive. Enables capacitor fire while VENT-4 is JAMMED.",
+    effect:
+      "Enables capacitor fire while VENT-4 is JAMMED. Elsewhere, [E] fires it at up to " +
+      `${STAPLER_FIELD_RANGE_TILES} tiles: breaks destructible cover, or pins an orderly to a ` +
+      `wall for ${STAPLER_PIN_DURATION}s.`,
   },
 };
 
