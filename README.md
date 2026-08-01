@@ -69,10 +69,13 @@ warps; visit with `?debug=0` to turn it back off.
 | V | World overlay — guard patrol routes and live A* paths, collision circles, line-of-sight rays, blocked tiles, and detection hot spots |
 | O | Darkness off — hide the lighting / line-of-sight overlay and read the level at full brightness |
 | 1–6 | Warp to the map's levels in board order, with the generated ones last — for the shipped map that's `main1` / `duct1` / `duct2` / `main2` / `vent_core` / `roof_array` (resets the alert; keeps your HP) |
+| `[` / `]` | Cycle the give-item selection through every item the game knows about (weapons, consumables, key items) |
+| I | Grant one unit of the selected item straight into your inventory — for testing weapons/items without playing to their chest |
 
 While enabled, a top-right panel shows FPS, player position, facing, HP, capture
-progress, the current level, alert phase, and per-unit detection. The G/N/V/O and
-warp keys only respond while debug mode is on.
+progress, the current level, alert phase, per-unit detection, and the item the
+`[`/`]`/`I` cheat is currently pointed at (with how many you're holding). The
+G/N/V/O, warp, and item-cheat keys only respond while debug mode is on.
 
 Walk onto a **staircase** and you descend/ascend automatically; **hatches and
 ladders** show a `[E] Use access` prompt and change level when you press **E**.

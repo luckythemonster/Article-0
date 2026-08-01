@@ -26,6 +26,10 @@ export interface DebugSnapshot {
   flaggedRemaining: number;
   /** Carrying the Q0 compliance cert (lets compliance survive a search). */
   certified: boolean;
+  /** The item name [I] currently grants. */
+  selectedItem: string;
+  /** How many of {@link selectedItem} are currently held. */
+  selectedHeld: number;
   fps: number;
   px: number;
   py: number;
@@ -72,7 +76,7 @@ export class DebugHud {
       .setVisible(false);
 
     this.legend = scene.add
-      .text(x, this.pad, "`=debug  G=god  N=no-clip  V=world  H=halt  O=dark  1-6=warp", {
+      .text(x, this.pad, "`=debug  G=god  N=no-clip  V=world  H=halt  O=dark  1-6=warp  [ ]=item  I=give", {
         fontFamily: FONT_MONO,
         fontSize: "11px",
         color: "#6b7f92",
@@ -120,6 +124,7 @@ export class DebugHud {
           ? "conduct COMPLIANT"
           : `conduct ${view.breach ?? "FLAGGED"} ${view.flaggedRemaining.toFixed(1)}s`) +
           (view.certified ? "  cert ON" : ""),
+        `item   ${view.selectedItem} (${view.selectedHeld} held)`,
         units ? `units:\n${units}` : "units: (none)",
       ].join("\n"),
     );
