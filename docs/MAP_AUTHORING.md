@@ -177,7 +177,7 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
     this way the engine promotes one per level.
   - anything else → a plain terminal whose hack releases doors within 6 tiles.
 - **`chest` item slots** left blank fall back to
-  `["Ration Pack", "Battery", "Access Chit"]` (`CHEST_DEFAULTS`).
+  `["Medkit", "Battery", "Access Chit"]` (`CHEST_DEFAULTS`).
 
 ## 5. Gotchas
 

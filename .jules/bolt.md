@@ -1,0 +1,3 @@
+## 2025-05-18 - [Voxel Raycasting Optimization]
+**Learning:** In 2.5D rendering pipelines, raycasting is the primary CPU bottleneck, particularly when casting hundreds of rays per frame (e.g., 720 rays at 60fps). Redundant divisions, sign checks, and absolute value calculations within the raycast walk can be completely eliminated by precomputing the unit ray directions and DDA factors (deltaX, deltaY, stepX, stepY) at initialization.
+**Action:** Precalculate `deltaX`, `deltaY`, `stepX`, and `stepY` in `RayDirections` and use them in a specialized fast-path during `sightDistances` rendering walks.

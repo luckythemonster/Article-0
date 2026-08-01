@@ -1,4 +1,4 @@
-import { asButton, captureModalFocus, el } from "./dom";
+import { captureModalFocus, el } from "./dom";
 import { SelectList, type SelectListRow } from "./SelectList";
 import { createPanelFrame } from "./frame";
 import { drawMiniMap, surveyedFraction } from "./MiniMapCanvas";
@@ -31,6 +31,7 @@ import type { MapSnapshot } from "../systems/PauseState";
 import type { SaveData, SlotId } from "../systems/SaveGame";
 import type { Settings } from "../systems/Settings";
 import type { Frame } from "@arwes/frames";
+import { getAudio } from "../systems/AudioDirector";
 import "./PauseMenuView.css";
 
 /** Everything the menu renders, read off the registry when the game freezes. */
@@ -131,6 +132,7 @@ export class PauseMenuView {
     this.panel.appendChild(tabs);
 
     this.body = el("div", "pause-body");
+    this.body.id = "pause-tabpanel";
     this.body.setAttribute("role", "tabpanel");
     this.panel.appendChild(this.body);
 
@@ -138,9 +140,16 @@ export class PauseMenuView {
       const node = el("div", "pause-tab");
       node.setAttribute("role", "tab");
       node.id = `pause-tab-${i}`;
+      node.setAttribute("aria-controls", "pause-tabpanel");
       node.appendChild(el("span", "pause-tab-key", String(i + 1)));
       node.appendChild(el("span", "pause-tab-label", tab.label));
-      asButton(node, () => this.showTab(i));
+      node.addEventListener("click", () => this.showTab(i));
+      node.addEventListener("keydown", (e: KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+          e.preventDefault();
+          this.showTab(i, true);
+        }
+      });
       // Roving tabindex: only the selected tab is in the tab order, which is how
       // a tablist is meant to behave — Tab leaves the strip, arrows move within it.
       node.tabIndex = -1;
@@ -199,8 +208,12 @@ export class PauseMenuView {
     );
   }
 
-  private showTab(i: number): void {
+  private showTab(i: number, isKeyboardTransition = false): void {
     if (i < 0 || i >= this.panes.length) return;
+    if (this.active !== i) {
+      getAudio().ping();
+    }
+    const wasFocusedOnTab = this.tabNodes.some((n) => n === document.activeElement);
     this.active = i;
     this.tabNodes.forEach((node, j) => {
       const on = j === i;
@@ -212,6 +225,10 @@ export class PauseMenuView {
     this.body.replaceChildren(this.panes[i].node);
     this.body.scrollTop = 0;
     this.panes[i].onShow?.();
+
+    if (wasFocusedOnTab || isKeyboardTransition) {
+      this.tabNodes[i].focus();
+    }
   }
 
   private handleKey(e: KeyboardEvent): void {
@@ -226,17 +243,17 @@ export class PauseMenuView {
     if (!inControl) {
       if (e.key === "ArrowLeft") {
         e.preventDefault();
-        this.showTab((this.active - 1 + this.panes.length) % this.panes.length);
+        this.showTab((this.active - 1 + this.panes.length) % this.panes.length, true);
         return;
       }
       if (e.key === "ArrowRight") {
         e.preventDefault();
-        this.showTab((this.active + 1) % this.panes.length);
+        this.showTab((this.active + 1) % this.panes.length, true);
         return;
       }
       if (/^[1-9]$/.test(e.key)) {
         e.preventDefault();
-        this.showTab(Number(e.key) - 1);
+        this.showTab(Number(e.key) - 1, true);
         return;
       }
     }

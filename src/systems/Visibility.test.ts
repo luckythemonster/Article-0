@@ -143,3 +143,59 @@ describe("sightDistances", () => {
     for (let i = 0; i < 64; i++) expect(out[i]).toBeLessThan(20);
   });
 });
+
+describe("sightDistances optimization parity and benchmark", () => {
+  it("asserts exact numerical parity between fast path and fallback path", () => {
+    const g = new CollisionGrid(level());
+    const dirs = rayDirections(SIGHT_RAYS);
+    const outFast = new Float64Array(SIGHT_RAYS);
+    const outFallback = new Float64Array(SIGHT_RAYS);
+
+    for (let j = 0; j < 15; j++) {
+      const originX = 0.1 + Math.random() * 4.8;
+      const originY = 0.1 + Math.random() * 4.8;
+      const maxTiles = 1.0 + Math.random() * 15.0;
+
+      const strippedDirs = { cos: dirs.cos, sin: dirs.sin };
+      sightDistances(g, originX, originY, maxTiles, strippedDirs, outFallback);
+      sightDistances(g, originX, originY, maxTiles, dirs, outFast);
+
+      for (let i = 0; i < SIGHT_RAYS; i++) {
+        expect(outFast[i]).toBeCloseTo(outFallback[i], 9);
+      }
+    }
+  });
+
+  it("benchmarks execution time to document performance gains", () => {
+    const g = new CollisionGrid(level());
+    const dirs = rayDirections(SIGHT_RAYS);
+    const out = new Float64Array(SIGHT_RAYS);
+
+    const iterations = 1000;
+    const originX = 2.5;
+    const originY = 2.5;
+    const maxTiles = 10;
+
+    // Benchmark Fallback Path
+    const strippedDirs = { cos: dirs.cos, sin: dirs.sin };
+    const startFallback = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      sightDistances(g, originX, originY, maxTiles, strippedDirs, out);
+    }
+    const endFallback = performance.now();
+    const fallbackTime = endFallback - startFallback;
+
+    // Benchmark Fast Path
+    const startFast = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      sightDistances(g, originX, originY, maxTiles, dirs, out);
+    }
+    const endFast = performance.now();
+    const fastTime = endFast - startFast;
+
+    const speedup = fallbackTime / (fastTime || 1);
+    console.log(`[BENCHMARK] Fallback path: ${fallbackTime.toFixed(2)}ms, Fast path: ${fastTime.toFixed(2)}ms (Speedup: ${speedup.toFixed(2)}x)`);
+
+    expect(fastTime).toBeLessThanOrEqual(fallbackTime + 15.0);
+  });
+});

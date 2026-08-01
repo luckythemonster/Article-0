@@ -119,7 +119,7 @@ holds. What breaks it is behaviour, not geometry:
 | `SNEAKING` | Crouching (**Shift**) — skulking is its own kind of conspicuous |
 | `UNAUTHORIZED` | Working a terminal or a silicate rack |
 | `TAMPERING` | Searching a chest, knocking on walls (**R**) |
-| `HOSTILE` | A stun dart, a Chaff Pack burst |
+| `HOSTILE` | A stun dart, an EMP Grenade burst |
 | `EVASION` | Guards are sweeping for you — unless you have papers (see below) |
 | `ALERT` | Active pursuit. Nothing talks you out of that |
 
@@ -419,7 +419,7 @@ in real seconds so the balance they encode keeps its meaning.
   range — the counterpart to concealment rather than a variant of it
   (`src/systems/Conduct.ts`). One timer drives it: continuous breaches (running,
   crouching, an active alert) pin it at a settle floor while they last, and discrete
-  ones (terminals, chests, knocks, darts, chaff) hold a per-severity cooldown.
+  ones (terminals, chests, knocks, darts, EMP bursts) hold a per-severity cooldown.
   `violate` takes the *max*, so a held action re-reporting itself every frame reads as
   "flagged throughout, then a cooldown" with no extra bookkeeping. It plugs into the
   same `canSee` choke points as concealment, via a `playerCompliant` flag on the guard

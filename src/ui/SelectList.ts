@@ -1,4 +1,5 @@
 import { el } from "./dom";
+import { getAudio } from "../systems/AudioDirector";
 
 /**
  * A keyboard-navigable row list for the pause menu's master/detail tabs.
@@ -26,6 +27,8 @@ export interface SelectListRow {
 }
 
 export class SelectList {
+  private static idCounter = 0;
+  private readonly listId: string;
   readonly node: HTMLElement;
   private rows: SelectListRow[] = [];
   private nodes: HTMLElement[] = [];
@@ -40,9 +43,13 @@ export class SelectList {
     private readonly onChange: (index: number) => void,
     label = "Entries",
   ) {
+    const id = `select-list-${SelectList.idCounter++}`;
+    this.listId = id;
     this.node = el("div", "pause-list");
+    this.node.id = id;
     this.node.setAttribute("role", "listbox");
     this.node.setAttribute("aria-label", label);
+    this.node.tabIndex = 0;
   }
 
   setRows(rows: SelectListRow[]): void {
@@ -50,11 +57,18 @@ export class SelectList {
     this.node.replaceChildren();
     this.nodes = rows.map((row, i) => {
       const node = el("div", row.disabled ? "pause-row pause-row--disabled" : "pause-row");
+      node.id = `${this.listId}-opt-${i}`;
       node.setAttribute("role", "option");
+      if (row.disabled) {
+        node.setAttribute("aria-disabled", "true");
+      }
       node.appendChild(el("span", "pause-row-label", row.label));
       if (row.note !== undefined) node.appendChild(el("span", "pause-row-note", row.note));
       if (!row.disabled) {
         node.addEventListener("click", () => {
+          if (this.index !== i) {
+            getAudio().ping();
+          }
           this.select(i);
           row.onActivate?.();
         });
@@ -83,6 +97,7 @@ export class SelectList {
       if (next < 0 || next >= this.rows.length) break;
       i = next;
       if (!this.rows[i].disabled) {
+        getAudio().ping();
         this.select(i);
         return;
       }
@@ -132,5 +147,11 @@ export class SelectList {
       node.classList.toggle("pause-row--selected", on);
       node.setAttribute("aria-selected", String(on));
     });
+    const selectedNode = this.nodes[this.index];
+    if (selectedNode && !this.rows[this.index]?.disabled) {
+      this.node.setAttribute("aria-activedescendant", selectedNode.id);
+    } else {
+      this.node.removeAttribute("aria-activedescendant");
+    }
   }
 }
