@@ -68,6 +68,7 @@ import {
   RATION_HEAL,
   RATION_PACK_ITEM,
   STAPLER_FIELD_COOLDOWN,
+  STAPLER_FIELD_MAX_CHARGES,
   STAPLER_FIELD_NOISE,
   STAPLER_FIELD_RANGE_TILES,
   STAPLER_ITEM,
@@ -553,6 +554,9 @@ export class GameScene extends Phaser.Scene {
     this.registry.set("objectives", this.objectives);
     this.registry.set("currentLevel", this.level.name);
     if (!this.registry.has("inventory")) this.registry.set("inventory", []);
+    if (!this.registry.has("staplerFieldCharges")) {
+      this.registry.set("staplerFieldCharges", STAPLER_FIELD_MAX_CHARGES);
+    }
 
     this.journal = (this.registry.get("journal") as JournalState | undefined) ?? initialJournal();
     this.registry.set("journal", this.journal);
@@ -1069,13 +1073,21 @@ export class GameScene extends Phaser.Scene {
     this.noise.emitAt(this.player.x, this.player.y, STUN_ROUND_NOISE * this.tileSize);
   }
 
+  /** Field-mode shots left this run — see {@link STAPLER_FIELD_MAX_CHARGES}. */
+  private staplerFieldCharges(): number {
+    return (this.registry.get("staplerFieldCharges") as number | undefined) ?? STAPLER_FIELD_MAX_CHARGES;
+  }
+
   /**
    * The Rail-Stapler's general-purpose field mode: fires along Rowan's facing
    * at the nearest of {destructible cover tile, orderly} within reach, forward
    * cone and a clear line of sight — cover breaks, an orderly gets pinned to a
    * wall for a stretch (same freeze/witness effect as a Stun Rounds dart, just
-   * a different weapon and a much longer hold). Single press, not hold, and
-   * gated by its own cooldown so it can't be mashed.
+   * a different weapon and a much shorter reach and hold). Single press, not
+   * hold; gated by its own cooldown so it can't be mashed, and by a fixed
+   * per-run charge pool spent on every attempt — whether or not it hits
+   * anything — the same way firing a Stun Rounds dart spends the item
+   * regardless of whether it connects.
    */
   private fireStaplerField(): void {
     const ts = this.tileSize;
@@ -1112,6 +1124,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.staplerFieldCooldown = STAPLER_FIELD_COOLDOWN;
+    this.registry.set("staplerFieldCharges", Math.max(0, this.staplerFieldCharges() - 1));
     if (best) {
       if (best.kind === "cover") best.cover.destroy();
       else best.orderly.pin(STAPLER_PIN_DURATION);
@@ -1709,6 +1722,7 @@ export class GameScene extends Phaser.Scene {
       !Number.isFinite(encounter.dist) &&
       interactJust &&
       this.staplerFieldCooldown <= 0 &&
+      this.staplerFieldCharges() > 0 &&
       (((this.registry.get("inventory") as string[] | undefined) ?? []).includes(STAPLER_ITEM))
     ) {
       this.fireStaplerField();

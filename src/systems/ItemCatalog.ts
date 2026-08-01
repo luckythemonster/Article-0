@@ -28,6 +28,7 @@ import {
   FLASHLIGHT_ITEM,
   RATION_HEAL,
   RATION_PACK_ITEM,
+  STAPLER_FIELD_MAX_CHARGES,
   STAPLER_FIELD_RANGE_TILES,
   STAPLER_ITEM,
   STAPLER_PIN_DURATION,
@@ -117,7 +118,8 @@ const CATALOG: Record<string, ItemInfo> = {
     effect:
       "Enables capacitor fire while VENT-4 is JAMMED. Elsewhere, [E] fires it at up to " +
       `${STAPLER_FIELD_RANGE_TILES} tiles: breaks destructible cover, or pins an orderly to a ` +
-      `wall for ${STAPLER_PIN_DURATION}s.`,
+      `wall for ${STAPLER_PIN_DURATION}s. Field use draws from a fixed ` +
+      `${STAPLER_FIELD_MAX_CHARGES}-shot supply that does not refill.`,
   },
 };
 
