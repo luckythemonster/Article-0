@@ -108,6 +108,7 @@ export class UIScene extends Phaser.Scene {
       flashlightOwned: true,
       flashlightOn: false,
       flashlightCharge: 1,
+      sackLunchOpened: false,
     };
     this.inventory.update(items, activeItems);
 

@@ -5,6 +5,7 @@ import {
   countConsumables,
   isKeyItem,
   MAX_CONSUMABLES,
+  SACK_LUNCH_ITEM,
   THERMAL_GEL_ITEM,
 } from "../systems/EntityStats";
 import type { ActiveItemsView } from "../systems/ActiveItems";
@@ -49,7 +50,15 @@ export class InventoryHud {
     else {
       for (const s of slots) {
         const remaining = activeRemaining(s.name, active);
-        const status = remaining > 0 ? ` (ACTIVE ${Math.ceil(remaining)}s)` : "";
+        const status =
+          remaining > 0
+            ? ` (ACTIVE ${Math.ceil(remaining)}s)`
+            : // The Sack Lunch has state instead of a timer, and the open state
+              // costs the player something — so it gets the same slot's worth of
+              // attention the timed buffs get.
+              s.name === SACK_LUNCH_ITEM && active.sackLunchOpened
+              ? " (OPENED)"
+              : "";
         lines.push(`[${s.slot}] ${s.name} ×${s.count}${status}`);
       }
     }

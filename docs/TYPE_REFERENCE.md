@@ -8,15 +8,15 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 
 | Area | Enums | Classes | Interfaces | Type aliases | Constants | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| [Systems](#systems) | 3 | 16 | 66 | 16 | 6 | 107 |
-| [Entities](#entities) | 0 | 16 | 16 | 11 | 4 | 47 |
+| [Systems](#systems) | 3 | 16 | 69 | 17 | 6 | 111 |
+| [Entities](#entities) | 0 | 17 | 16 | 12 | 4 | 49 |
 | [Map](#map) | 0 | 3 | 26 | 3 | 1 | 33 |
 | [Scenes](#scenes) | 0 | 14 | 12 | 2 | 0 | 28 |
 | [UI](#ui) | 0 | 18 | 19 | 1 | 1 | 39 |
 | [Tools](#tools) | 0 | 0 | 6 | 1 | 0 | 7 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **69** | **145** | **34** | **12** | **263** |
+| **All** | **3** | **70** | **148** | **36** | **12** | **269** |
 
 ## Conventions
 
@@ -159,14 +159,14 @@ below) modulate sweep speed, steam, and thermal behaviour on the boss side.
 
 #### `CONSUMABLE_ORDER` — const
 
-`src/systems/EntityStats.ts:398`
+`src/systems/EntityStats.ts:459`
 
 The consumables that map to hotkeys [1]–[4], in canonical slot order. Held
 consumables fill slots dynamically (unheld names are skipped), so e.g. a
 player holding only Thermal Gel + Medkit sees them as [1] and [2].
 
 ```ts
-const CONSUMABLE_ORDER = [ CHAFF_PACK_ITEM, THERMAL_GEL_ITEM, RATION_PACK_ITEM, BATTERY_ITEM, STUN_ROUNDS_ITEM, ] as const;
+const CONSUMABLE_ORDER = [ CHAFF_PACK_ITEM, THERMAL_GEL_ITEM, RATION_PACK_ITEM, BATTERY_ITEM, STUN_ROUNDS_ITEM, SACK_LUNCH_ITEM, ] as const;
 ```
 
 <a id="const-door-defaults"></a>
@@ -219,7 +219,7 @@ const RUN_KEYS = [ "inventory", "staplerFieldCharges", "objectives", "journal", 
 
 #### `ActiveItemState` — class
 
-`src/systems/ActiveItems.ts:22`
+`src/systems/ActiveItems.ts:29`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -236,9 +236,12 @@ const RUN_KEYS = [ "inventory", "staplerFieldCharges", "objectives", "journal", 
 | `activateThermalGel` | `activateThermalGel(): void` |  |
 | `toggleFlashlight` | `toggleFlashlight(): void` | Toggles the flashlight; a no-op when it isn't owned or the battery is dead. |
 | `rechargeFlashlight` | `rechargeFlashlight(): void` | Restores the flashlight battery to 100% (Battery consumable). |
+| `sackLunchOpened` | `get sackLunchOpened(): boolean` | True while Rowan is holding an opened ration — the penalty *and* the buffer. |
+| `openSackLunch` | `openSackLunch(): void` | SEALED → OPENED. The lunch stays in the inventory; only its state changes. |
+| `resealSackLunch` | `resealSackLunch(): void` | OPENED → (deployed, or gone). Called when the open lunch leaves Rowan's hands. A player carrying several is carrying one *open* one at most, so any remaining copies are sealed again — which is also what keeps the flag honest when the last lunch is deployed and the inventory no longer has one to be open. |
 | `update` | `update(dt: number): void` |  |
 
-*Plus 5 private members.*
+*Plus 6 private members.*
 
 <a id="class-alertstate"></a>
 
@@ -604,7 +607,7 @@ of play it stops allocating entirely.
 
 #### `ActiveItemsView` — interface
 
-`src/systems/ActiveItems.ts:104`
+`src/systems/ActiveItems.ts:134`
 
 Snapshot published to the registry for the HUD.
 
@@ -615,6 +618,7 @@ Snapshot published to the registry for the HUD.
 | `flashlightOwned` | `boolean` |  |
 | `flashlightOn` | `boolean` |  |
 | `flashlightCharge` | `number` |  |
+| `sackLunchOpened` | `boolean` | A held Sack Lunch is OPENED — the HUD says so, since it costs to carry that way. |
 
 <a id="interface-alertnetworksnapshot"></a>
 
@@ -718,7 +722,7 @@ Snapshot published to the registry for the HUD and the codec.
 
 #### `ConsumableSlot` — interface
 
-`src/systems/EntityStats.ts:436`
+`src/systems/EntityStats.ts:498`
 
 One occupied consumable hotkey slot.
 
@@ -746,6 +750,27 @@ names *which* required flag it satisfies, so a puzzle can require several keys.
 | `replacementWord` | `string` | The compliant text that replaces the flagged block. |
 | `GrantsOverrideFlag` | `boolean` | True when applying this correction contributes an override-payload key. |
 | `overrideFlag` *(opt)* | `string` | The required flag this correction grants (only read when the above is true). |
+
+<a id="interface-deployedlure"></a>
+
+#### `DeployedLure` — interface
+
+`src/systems/Deployables.ts:32`
+
+A deployed object as the AI sees it: where it is, what it is, and whether it has
+already been dealt with.
+
+Declared structurally rather than as a class so the Phaser-side `DeployedItem`
+satisfies it by shape and a test can hand these functions plain objects — the same
+arrangement `SensingWorld` uses for the guard context.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `kind` | `readonly kind: DeployableKind` |  |
+| `x` | `readonly x: number` | Pixel-space position. |
+| `y` | `readonly y: number` |  |
+| `spent` | `readonly spent: boolean` | True once serviced (or otherwise removed); a spent lure attracts nobody. |
+| `consume` | `consume(): void` | Finish with it: the responder has done whatever the item asked of it. Part of the contract rather than the scene's business, because the AI that services a lure is the only thing that knows when it is done — and must be idempotent, since two responders can finish on the same frame. |
 
 <a id="interface-detectionworld"></a>
 
@@ -834,7 +859,7 @@ field nothing acts on is how the codebase accumulated dead content in the first 
 
 #### `ItemInfo` — interface
 
-`src/systems/ItemCatalog.ts:42`
+`src/systems/ItemCatalog.ts:46`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -935,6 +960,34 @@ One tokenized block of the raw log. Violation blocks are the editable ones.
 | `text` | `string` | The block's original text (a forbidden phrase when `violation` is true). |
 | `violation` *(opt)* | `boolean` | True for a Q>0-flagged block the player must rewrite. |
 | `qWeight` *(opt)* | `number` | The block's qualia weight (Q contribution) — flavour for the status bar. |
+
+<a id="interface-lurespec"></a>
+
+#### `LureSpec` — interface
+
+`src/systems/Deployables.ts:49`
+
+How one kind of deployable reads to the AI, and what servicing it costs.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `sightTiles` | `number` | Reach (tiles) at which it is noticed with a clear line of sight. |
+| `scentTiles` | `number` | Shorter reach (tiles) at which it is noticed *through* walls, by smell. |
+| `serviceSeconds` | `number` | Seconds of servicing before it is destroyed. |
+| `label` | `string` | What the responder is doing about it, for the on-screen state readout. |
+
+<a id="interface-lureworld"></a>
+
+#### `LureWorld` — interface
+
+`src/systems/Deployables.ts:70`
+
+The slice of the world `noticedLure` reads. Matches the guard context by shape.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `tileSize` | `number` |  |
+| `grid` | `{ hasLineOfSight(x0: number, y0: number, x1: number, y1: number): boolean }` |  |
 
 <a id="interface-mapsnapshot"></a>
 
@@ -1270,7 +1323,7 @@ Unit ray directions, split into parallel arrays so casting allocates nothing.
 
 #### `RelayStats` — interface
 
-`src/systems/EntityStats.ts:657`
+`src/systems/EntityStats.ts:719`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1444,7 +1497,7 @@ Serializable mid-fight state, so re-entering the level doesn't restart the boss.
 
 #### `SmacStats` — interface
 
-`src/systems/EntityStats.ts:585`
+`src/systems/EntityStats.ts:647`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1596,7 +1649,7 @@ Serializable fight progress — kept in the registry across level swaps.
 
 #### `Vent4Stats` — interface
 
-`src/systems/EntityStats.ts:461`
+`src/systems/EntityStats.ts:523`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1736,6 +1789,18 @@ Why compliance is currently withheld. Drives the HUD readout.
 
 ```ts
 type ConductBreach = | "ALERT" /** * Guards are sweeping for you. Blocking unless Rowan carries the Q0 compliance * cert — with papers in hand he can stand the search down and pass as staff again. */ | "EVASION" | "RUNNING" | "SNEAKING" /** Working a terminal or a silicate rack. */ | "UNAUTHORIZED" /** Searching a container, rapping on walls. */ | "TAMPERING" /** Stun round, chaff burst. */ | "HOSTILE" /** Clean again, but still standing down from something. */ | "SETTLING";
+```
+
+<a id="type-deployablekind"></a>
+
+#### `DeployableKind` — type
+
+`src/systems/Deployables.ts:22`
+
+Which deployable a lure is. One entry today; the point is that it is a list.
+
+```ts
+type DeployableKind = "sackLunch";
 ```
 
 <a id="type-exploredstate"></a>
@@ -2054,6 +2119,34 @@ cover tile is untouched by this feature.
 
 *Plus 1 private member.*
 
+<a id="class-deployeditem"></a>
+
+#### `DeployedItem` — class
+
+`src/entities/DeployedItem.ts:17` · `implements DeployedLure`
+
+An item the player has left on the floor — the world half of a deployable.
+
+Modelled on `Cover`: a small class that owns one visual and one piece of
+state, existing only because something has to happen to it later. It satisfies
+`DeployedLure` structurally, so the AI reads it through the pure sensor
+module without knowing a Phaser object is on the other end.
+
+There is no icon art for the Sack Lunch (Stun Rounds and the Rail-Stapler ship
+icon-less too), so the prop is drawn: a small paper-bag glyph over a soft floor
+stain, at prop depth so it reads as litter rather than as an actor.
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `kind` | `readonly kind: DeployableKind` |  |
+| `x` | `readonly x: number` |  |
+| `y` | `readonly y: number` |  |
+| `constructor` | `constructor(scene: Phaser.Scene, kind: DeployableKind, x: number, y: number, tileSize: number)` |  |
+| `spent` | `get spent(): boolean` | True once serviced — a spent lure attracts nobody and is culled by the scene. |
+| `consume` | `consume(): void` | Destroys the item: the responder has finished with it. Idempotent, because two orderlies can finish sanitising the same lunch on the same frame. |
+
+*Plus 3 private members.*
+
 <a id="class-door"></a>
 
 #### `Door` — class
@@ -2116,7 +2209,7 @@ drone's `GuardSkin` wired into the shared AI core.
 
 #### `Enforcer` — class
 
-`src/entities/Enforcer.ts:154`
+`src/entities/Enforcer.ts:168`
 
 A patrolling guard with a wall-clipped vision cone and a per-guard
 detection meter. Behaviour is shared by every guard type (the map's
@@ -2225,7 +2318,7 @@ them to share names they shouldn't.
 
 #### `Orderly` — class
 
-`src/entities/Orderly.ts:43`
+`src/entities/Orderly.ts:88`
 
 A bystander, not a threat — the map's `orderlies` tiles carry no gameplay
 component (unlike guards/drones), so this is a distinct, lighter mechanic.
@@ -2238,6 +2331,12 @@ frame so the scene can react (raise nearby guards' suspicion, the same way
 a noisy door does) — after which the orderly freezes, its job done. It's a
 hazard to avoid being seen by, not a persistent threat like a guard.
 
+Two things bend that: a **deployed Sack Lunch**, which pulls it off its round
+to clean and half-blinds it while it works, and an **opened** one held in
+plain sight, which buys a grace window before it reports. Both are the same
+insight from opposite ends — an orderly is a member of staff with a job, and
+a job is a thing you can give it.
+
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `x` | `x: number` | Pixel position — public for the same reason as `Enforcer.x`. |
@@ -2245,13 +2344,13 @@ hazard to avoid being seen by, not a persistent threat like a guard.
 | `constructor` | `constructor(scene: Phaser.Scene, tileX: number, tileY: number, tileSize: number)` |  |
 | `stun` | `stun(seconds: number): void` | Freezes the orderly for a stretch (a Stun Rounds dart) — can't witness. |
 | `pin` | `pin(seconds: number): void` | Pins the orderly to a wall for a stretch (the Rail-Stapler's field mode) — can't witness. |
-| `distract` | `distract(sx: number, sy: number): void` | Lures the orderly to inspect a nearby noise (a player's knock): it leaves its wander, walks over, pauses, then drifts back. A no-op while stunned or already startled by witnessing the player. `sx,sy` are pixels. |
+| `distract` | `distract(sx: number, sy: number): void` | Lures the orderly to inspect a nearby noise (a player's knock): it leaves its wander, walks over, pauses, then drifts back. A no-op while stunned, already startled by witnessing the player, or busy with a spill — a knock does not out-rank an actual work order. |
 | `update` | `update(dt: number, ctx: OrderlyContext): boolean` | True on the exact frame the orderly first spots the player. |
 | `isStunned` | `get isStunned(): boolean` | True while frozen by a Stun Rounds dart — guards treat this as an anomaly. |
 | `isPinned` | `get isPinned(): boolean` | True while pinned to a wall by the Rail-Stapler's field mode — same effect as stun. |
 | `isImmobilized` | `get isImmobilized(): boolean` | Frozen and can't witness, regardless of which effect is holding it. |
 
-*Plus 17 private members.*
+*Plus 30 private members.*
 
 <a id="class-player"></a>
 
@@ -2452,7 +2551,7 @@ is live, so it lives here rather than three times.
 
 #### `EnforcerContext` — interface
 
-`src/entities/Enforcer.ts:56`
+`src/entities/Enforcer.ts:57`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2468,6 +2567,8 @@ is live, so it lives here rather than three times.
 | `thermalRadiusMultiplier` | `(baseTiles: number) => number` | Scales a guard's thermalRadius stat (in tiles) — 0 while Thermal Gel is active. |
 | `alert` | `AlertState` |  |
 | `anomalies` *(opt)* | `GuardAnomaly[]` | Opened doors/chests, EMP'd devices, and stunned orderlies visible this frame. |
+| `lures` *(opt)* | `readonly DeployedLure[]` | Items the player has deployed on the floor this frame. Read by orderlies only — a spill is a work order, and guards do not do cleaning. They live on this context rather than an orderly-shaped one because `GameScene` deliberately hands the *same* object to both (an `OrderlyContext` is a structural subset of this one), rather than minting a second literal per orderly per frame. Making guards notice litter would be one push into `GameScene.buildAnomalies`, not a change here. |
+| `rationSpoof` *(opt)* | `boolean` | True while an opened ration buys tolerance from orderlies — see `OrderlyContext`. |
 | `playerVelocity` *(opt)* | `{ x: number; y: number }` | Player's current velocity (px/s), for smart search-point prediction. |
 | `coverTilesNear` *(opt)* | `(tileX: number, tileY: number, radiusTiles: number) => { x: number; y: number }[]` | Cover tiles (pixel centres) within `radiusTiles` of a tile position. |
 | `isGuardDoor` *(opt)* | `(tileX: number, tileY: number) => boolean` | True when this tile holds a door the guard may work itself — unlocked, and not a wall. Guards route through their own facility's doors rather than treating every one as permanent geometry: `main1`'s patrol beat crosses two of them, and without this the south half of the route is simply unreachable. |
@@ -2477,7 +2578,7 @@ is live, so it lives here rather than three times.
 
 #### `EnforcerFireResult` — interface
 
-`src/entities/Enforcer.ts:35`
+`src/entities/Enforcer.ts:36`
 
 A shot fired by a pursuing guard this frame — the scene applies its effects.
 
@@ -2493,7 +2594,7 @@ A shot fired by a pursuing guard this frame — the scene applies its effects.
 
 #### `GuardAnomaly` — interface
 
-`src/entities/Enforcer.ts:44`
+`src/entities/Enforcer.ts:45`
 
 An environmental anomaly a guard's vision cone can notice.
 
@@ -2564,7 +2665,7 @@ The tuning that actually differs between one guard's art and another's.
 
 #### `Investigation` — interface *(module-private)*
 
-`src/entities/Enforcer.ts:101`
+`src/entities/Enforcer.ts:115`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2579,7 +2680,7 @@ The tuning that actually differs between one guard's art and another's.
 
 #### `OrderlyContext` — interface
 
-`src/entities/Orderly.ts:15`
+`src/entities/Orderly.ts:22`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2588,6 +2689,8 @@ The tuning that actually differs between one guard's art and another's.
 | `player` | `{ x: number; y: number }` |  |
 | `playerConcealed` | `boolean` | True when the player is hidden (crouched in cover) — orderlies can't see them either. |
 | `playerCompliant` | `boolean` | True when the player reads as compliant staff — nothing to report. |
+| `lures` *(opt)* | `readonly DeployedLure[]` | Items left on the floor this frame; an orderly services the nearest it notices. |
+| `rationSpoof` *(opt)* | `boolean` | True when the player is holding an opened ration and no alarm is up: the orderly reads Rowan as an asset on a break and grants a grace window instead of reporting. Resolved by the scene, since the "before an alarm" half of it is global alert state the orderly has no other reason to know about. |
 
 <a id="interface-relaytickresult"></a>
 
@@ -2717,7 +2820,7 @@ type Dir8 = (typeof DIRS_8)[number];
 
 #### `FollowResult` — type *(module-private)*
 
-`src/entities/Enforcer.ts:140`
+`src/entities/Enforcer.ts:154`
 
 What a single `Enforcer.followPath` step achieved.
 
@@ -2729,7 +2832,7 @@ type FollowResult = "moving" | "arrived" | "unreachable";
 
 #### `GuardState` — type
 
-`src/entities/Enforcer.ts:32`
+`src/entities/Enforcer.ts:33`
 
 A per-guard behaviour state, layered on top of the global `AlertState`
 phase (which stays the base-wide ALERT/EVASION/INFILTRATION authority for
@@ -2798,6 +2901,29 @@ Frames live in public/assets/orderly/<anim>/<direction>/<frame>.png.
 
 ```ts
 type OrderlyAnimName = "idle" | "walk";
+```
+
+<a id="type-orderlystate"></a>
+
+#### `OrderlyState` — type *(module-private)*
+
+`src/entities/Orderly.ts:55`
+
+What an orderly is currently doing.
+
+These used to be three implicit booleans (`alerted`, a nullable distract target,
+a pause accumulator) whose legal combinations were only knowable by reading the
+whole file — which was survivable with one override and stopped being so with
+three. The transitions are now stated in `Orderly.think`, once:
+
+ - **WANDER**     — the default: drift near the spawn point on a leash.
+ - **INSPECT**    — walking over to look at a knock, then giving up.
+ - **SANITATION** — servicing a deployed item: the Sanitation / Containment
+                    override, which outranks both of the above.
+ - **WITNESSED**  — has seen the player and raised its one alarm. Terminal.
+
+```ts
+type OrderlyState = "WANDER" | "INSPECT" | "SANITATION" | "WITNESSED";
 ```
 
 <a id="type-playeranimname"></a>
@@ -3487,7 +3613,7 @@ rather than death: the record simply shows that no subject was harmed.
 
 #### `GameScene` — class
 
-`src/scenes/GameScene.ts:187` · `extends Phaser.Scene`
+`src/scenes/GameScene.ts:191` · `extends Phaser.Scene`
 
 The playable scene. Renders one level's tile art in board z-order, builds the
 wall collision, spawns the player and guards, and drives the stealth systems
@@ -3500,7 +3626,7 @@ each frame.
 | `create` | `create(): void` |  |
 | `update` | `update(_time: number, delta: number): void` |  |
 
-*Plus 117 private members.*
+*Plus 119 private members.*
 
 <a id="class-noiseevents"></a>
 
@@ -3594,7 +3720,7 @@ is up and stops this scene.
 
 #### `SensingContext` — class
 
-`src/scenes/game/SensingContext.ts:40`
+`src/scenes/game/SensingContext.ts:44`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -3603,6 +3729,8 @@ is up and stops this scene.
 | `setConcealment` | `setConcealment(concealed: boolean, compliant: boolean, thermalConcealed: boolean): void` | @param concealed hidden from vision cones (cover, or the Shared Field). @param compliant reads as staff, so sensing is suppressed outright. @param thermalConcealed hidden from the short-range heat sense as well. |
 | `setChaff` | `setChaff(active: boolean, x: number, y: number, radiusPx: number): void` | The live EMP Grenade EMP zone, or `active: false` when none is running. |
 | `setAnomalies` | `setAnomalies(anomalies: GuardAnomaly[]): void` | This frame's anomaly list. Borrowed, not copied — see the class doc. |
+| `setDeployables` | `setDeployables(lures: readonly DeployedLure[]): void` | This frame's deployed items. Borrowed, not copied — see the class doc. |
+| `setRationSpoof` | `setRationSpoof(on: boolean): void` | Whether an opened ration is currently buying tolerance from orderlies. |
 | `chaffZone` | `get chaffZone(): { x: number; y: number; radiusPx: number } \| null` | The live chaff zone, for callers that need it outside the context. |
 | `current` | `get current(): EnforcerContext` | The context for this frame. Valid only until the next `set*` call. |
 
@@ -3804,7 +3932,7 @@ three and no explicit reset method to keep in step with that.
 
 #### `GameSceneData` — interface *(module-private)*
 
-`src/scenes/GameScene.ts:128`
+`src/scenes/GameScene.ts:132`
 
 Data passed to `GameScene` when (re)starting for a level swap.
 
@@ -3863,7 +3991,7 @@ The live level state noise propagation reads. Held by reference.
 
 #### `SensingDeps` — interface
 
-`src/scenes/game/SensingContext.ts:24`
+`src/scenes/game/SensingContext.ts:25`
 
 The long-lived collaborators the context points at, fixed for a level.
 
@@ -3875,7 +4003,9 @@ The long-lived collaborators the context points at, fixed for a level.
 | `alert` | `AlertState` |  |
 | `flashlightOn` | `() => boolean` | True while the flashlight beam is lit — it makes Rowan far easier to spot. |
 | `thermalMasked` | `() => boolean` | True while Thermal Gel is masking body heat. |
-| `flashlightMultiplier` | `number` | Extra detection multiplier applied on top of the map's lights. |
+| `rationOpened` | `() => boolean` | True while a held Sack Lunch is open — crinkling packaging, organic scent. |
+| `flashlightMultiplier` | `number` | Extra detection multipliers applied on top of the map's lights. |
+| `rationMultiplier` | `number` |  |
 | `coverTilesNear` | `(tileX: number, tileY: number, radiusTiles: number) => { x: number; y: number }[]` |  |
 | `isGuardDoor` | `(tileX: number, tileY: number) => boolean` |  |
 | `setDoorOpen` | `(tileX: number, tileY: number, open: boolean) => void` |  |
@@ -3926,7 +4056,7 @@ type OverlayId = "pause" | "codec" | "compliance" | "qualia";
 
 #### `Target` — type *(module-private)*
 
-`src/scenes/GameScene.ts:1098`
+`src/scenes/GameScene.ts:1145`
 
 ```ts
 type Target = { x: number; y: number; kind: "cover"; cover: Cover } | { x: number; y: number; kind: "orderly"; orderly: Orderly };
@@ -4088,7 +4218,7 @@ bio-integrity (health). Pinned to the camera; runs in the parallel UIScene.
 
 #### `InventoryHud` — class
 
-`src/ui/InventoryHud.ts:21`
+`src/ui/InventoryHud.ts:22`
 
 A compact inventory readout pinned to the bottom-right of the screen, in three
 sections: the held CONSUMABLES mapped to hotkeys [1]–[4] (with counts and, for
@@ -4851,8 +4981,8 @@ GameScene.
 | Name | Kind | Declared in |
 | --- | --- | --- |
 | [AABB](#interface-aabb) | interface | `src/tools/collider/format.ts:15` |
-| [ActiveItemState](#class-activeitemstate) | class | `src/systems/ActiveItems.ts:22` |
-| [ActiveItemsView](#interface-activeitemsview) | interface | `src/systems/ActiveItems.ts:104` |
+| [ActiveItemState](#class-activeitemstate) | class | `src/systems/ActiveItems.ts:29` |
+| [ActiveItemsView](#interface-activeitemsview) | interface | `src/systems/ActiveItems.ts:134` |
 | [AlertNetworkHud](#class-alertnetworkhud) | class | `src/ui/AlertNetworkHud.ts:21` |
 | [AlertNetworkSnapshot](#interface-alertnetworksnapshot) | interface | `src/systems/AlertNetwork.ts:11` |
 | [AlertPhase](#type-alertphase) | type | `src/systems/AlertState.ts:13` |
@@ -4886,8 +5016,8 @@ GameScene.
 | [ConductState](#class-conductstate) | class | `src/systems/Conduct.ts:112` |
 | [ConductView](#interface-conductview) | interface | `src/systems/Conduct.ts:246` |
 | [ConeStyle](#interface-conestyle) | interface | `src/ui/VisionCone.ts:28` |
-| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:398` |
-| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:436` |
+| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:459` |
+| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:498` |
 | [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:13` |
 | [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:35` |
 | [Cover](#class-cover) | class | `src/entities/Cover.ts:16` |
@@ -4898,6 +5028,9 @@ GameScene.
 | [DebugUnitView](#interface-debugunitview) | interface | `src/ui/DebugHud.ts:7` |
 | [DebugWorld](#interface-debugworld) | interface | `src/scenes/game/DebugOverlay.ts:39` |
 | [DecodedImage](#interface-decodedimage) | interface | `src/tools/collider/png.ts:13` |
+| [DeployableKind](#type-deployablekind) | type | `src/systems/Deployables.ts:22` |
+| [DeployedItem](#class-deployeditem) | class | `src/entities/DeployedItem.ts:17` |
+| [DeployedLure](#interface-deployedlure) | interface | `src/systems/Deployables.ts:32` |
 | [DetectionSystem](#class-detectionsystem) | class | `src/systems/DetectionSystem.ts:34` |
 | [DetectionWorld](#interface-detectionworld) | interface | `src/systems/Sensing.ts:67` |
 | [Dir8](#type-dir8) | type | `src/entities/directions.ts:31` |
@@ -4929,38 +5062,38 @@ GameScene.
 | [EncounterInteractResult](#interface-encounterinteractresult) | interface | `src/entities/EncounterTypes.ts:11` |
 | [Encounters](#class-encounters) | class | `src/scenes/game/Encounters.ts:70` |
 | [EncountersCallbacks](#interface-encounterscallbacks) | interface | `src/scenes/game/Encounters.ts:50` |
-| [Enforcer](#class-enforcer) | class | `src/entities/Enforcer.ts:154` |
+| [Enforcer](#class-enforcer) | class | `src/entities/Enforcer.ts:168` |
 | [ENFORCER_PATROL_SOUTH_COLLIDER](#const-enforcer-patrol-south-collider) | const | `src/entities/generated/enforcerCollider.ts:32` |
-| [EnforcerContext](#interface-enforcercontext) | interface | `src/entities/Enforcer.ts:56` |
-| [EnforcerFireResult](#interface-enforcerfireresult) | interface | `src/entities/Enforcer.ts:35` |
+| [EnforcerContext](#interface-enforcercontext) | interface | `src/entities/Enforcer.ts:57` |
+| [EnforcerFireResult](#interface-enforcerfireresult) | interface | `src/entities/Enforcer.ts:36` |
 | [EnforcerStats](#interface-enforcerstats) | interface | `src/systems/EntityStats.ts:34` |
 | [ExploredMap](#class-exploredmap) | class | `src/systems/Explored.ts:16` |
 | [ExploredState](#type-exploredstate) | type | `src/systems/Explored.ts:74` |
 | [Eye](#interface-eye) | interface | `src/systems/Sensing.ts:20` |
 | [FlashlightBeam](#interface-flashlightbeam) | interface | `src/ui/Lighting.ts:125` |
-| [FollowResult](#type-followresult) | type | `src/entities/Enforcer.ts:140` |
+| [FollowResult](#type-followresult) | type | `src/entities/Enforcer.ts:154` |
 | [FrameSize](#interface-framesize) | interface | `src/tools/collider/format.ts:28` |
 | [GameLayer](#interface-gamelayer) | interface | `src/map/types.ts:180` |
 | [GameLevel](#interface-gamelevel) | interface | `src/map/types.ts:185` |
 | [GameMap](#interface-gamemap) | interface | `src/map/types.ts:193` |
 | [GameMode](#type-gamemode) | type | `src/systems/GameState.ts:20` |
 | [GameOverScene](#class-gameoverscene) | class | `src/scenes/GameOverScene.ts:12` |
-| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:187` |
-| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:128` |
+| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:191` |
+| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:132` |
 | [GameTile](#interface-gametile) | interface | `src/map/types.ts:156` |
 | [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:224` |
 | [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:173` |
-| [GuardAnomaly](#interface-guardanomaly) | interface | `src/entities/Enforcer.ts:44` |
+| [GuardAnomaly](#interface-guardanomaly) | interface | `src/entities/Enforcer.ts:45` |
 | [GuardSkin](#interface-guardskin) | interface | `src/entities/GuardSkin.ts:11` |
 | [GuardSkinSpec](#interface-guardskinspec) | interface | `src/entities/GuardSkin.ts:62` |
-| [GuardState](#type-guardstate) | type | `src/entities/Enforcer.ts:32` |
+| [GuardState](#type-guardstate) | type | `src/entities/Enforcer.ts:33` |
 | [HoldFixture](#class-holdfixture) | class | `src/entities/HoldFixture.ts:24` |
 | [HoldTarget](#class-holdtarget) | class | `src/entities/HoldTarget.ts:35` |
 | [Hud](#class-hud) | class | `src/ui/Hud.ts:21` |
 | [InputState](#interface-inputstate) | interface | `src/entities/Player.ts:275` |
-| [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:21` |
-| [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:101` |
-| [ItemInfo](#interface-iteminfo) | interface | `src/systems/ItemCatalog.ts:42` |
+| [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:22` |
+| [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:115` |
+| [ItemInfo](#interface-iteminfo) | interface | `src/systems/ItemCatalog.ts:46` |
 | [JournalEntry](#interface-journalentry) | interface | `src/systems/Journal.ts:42` |
 | [JournalEntryId](#type-journalentryid) | type | `src/systems/Journal.ts:23` |
 | [JournalState](#interface-journalstate) | interface | `src/systems/Journal.ts:337` |
@@ -4976,6 +5109,8 @@ GameScene.
 | [LightSource](#interface-lightsource) | interface | `src/systems/DetectionSystem.ts:4` |
 | [LightStats](#interface-lightstats) | interface | `src/systems/EntityStats.ts:65` |
 | [LogToken](#interface-logtoken) | interface | `src/systems/Compliance.ts:20` |
+| [LureSpec](#interface-lurespec) | interface | `src/systems/Deployables.ts:49` |
+| [LureWorld](#interface-lureworld) | interface | `src/systems/Deployables.ts:70` |
 | [MANUAL_SLOTS](#const-manual-slots) | const | `src/systems/SaveGame.ts:29` |
 | [MapPlan](#interface-mapplan) | interface | `src/map/MapPlan.ts:19` |
 | [MapSnapshot](#interface-mapsnapshot) | interface | `src/systems/PauseState.ts:36` |
@@ -4995,9 +5130,10 @@ GameScene.
 | [ObjectiveLine](#interface-objectiveline) | interface | `src/systems/Objectives.ts:166` |
 | [ObjectiveState](#interface-objectivestate) | interface | `src/systems/Objectives.ts:20` |
 | [OpenablePredicate](#type-openablepredicate) | type | `src/systems/GridMotion.ts:41` |
-| [Orderly](#class-orderly) | class | `src/entities/Orderly.ts:43` |
+| [Orderly](#class-orderly) | class | `src/entities/Orderly.ts:88` |
 | [OrderlyAnimName](#type-orderlyanimname) | type | `src/entities/OrderlyAnimations.ts:12` |
-| [OrderlyContext](#interface-orderlycontext) | interface | `src/entities/Orderly.ts:15` |
+| [OrderlyContext](#interface-orderlycontext) | interface | `src/entities/Orderly.ts:22` |
+| [OrderlyState](#type-orderlystate) | type | `src/entities/Orderly.ts:55` |
 | [Origin](#type-origin) | type | `src/tools/collider/format.ts:26` |
 | [OverlayConfig](#interface-overlayconfig) | interface | `src/scenes/game/OverlayGate.ts:21` |
 | [OverlayGate](#class-overlaygate) | class | `src/scenes/game/OverlayGate.ts:32` |
@@ -5042,7 +5178,7 @@ GameScene.
 | [RelayMsg](#interface-relaymsg) | interface | `src/systems/RelayCore.ts:46` |
 | [RelaySnapshot](#interface-relaysnapshot) | interface | `src/systems/RelayCore.ts:40` |
 | [RelayState](#enum-relaystate) | enum | `src/systems/RelayCore.ts:18` |
-| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:657` |
+| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:719` |
 | [RelayTickResult](#interface-relaytickresult) | interface | `src/entities/RoofRelay.ts:56` |
 | [RelayTransition](#interface-relaytransition) | interface | `src/systems/RelayCore.ts:35` |
 | [RelayView](#interface-relayview) | interface | `src/systems/RelayCore.ts:55` |
@@ -5054,8 +5190,8 @@ GameScene.
 | [SavePayload](#type-savepayload) | type | `src/systems/SaveGame.ts:53` |
 | [SelectList](#class-selectlist) | class | `src/ui/SelectList.ts:29` |
 | [SelectListRow](#interface-selectlistrow) | interface | `src/ui/SelectList.ts:18` |
-| [SensingContext](#class-sensingcontext) | class | `src/scenes/game/SensingContext.ts:40` |
-| [SensingDeps](#interface-sensingdeps) | interface | `src/scenes/game/SensingContext.ts:24` |
+| [SensingContext](#class-sensingcontext) | class | `src/scenes/game/SensingContext.ts:44` |
+| [SensingDeps](#interface-sensingdeps) | interface | `src/scenes/game/SensingContext.ts:25` |
 | [SensingWorld](#interface-sensingworld) | interface | `src/systems/Sensing.ts:55` |
 | [Sensor](#class-sensor) | class | `src/entities/Sensor.ts:26` |
 | [SensorStats](#interface-sensorstats) | interface | `src/systems/EntityStats.ts:211` |
@@ -5070,7 +5206,7 @@ GameScene.
 | [SmacMsg](#interface-smacmsg) | interface | `src/systems/SmacCore.ts:72` |
 | [SmacSnapshot](#interface-smacsnapshot) | interface | `src/systems/SmacCore.ts:63` |
 | [SmacState](#enum-smacstate) | enum | `src/systems/SmacCore.ts:38` |
-| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:585` |
+| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:647` |
 | [SmacTickResult](#interface-smactickresult) | interface | `src/entities/BossCore.ts:56` |
 | [SmacTransition](#interface-smactransition) | interface | `src/systems/SmacCore.ts:57` |
 | [SmacView](#interface-smacview) | interface | `src/systems/SmacCore.ts:94` |
@@ -5081,7 +5217,7 @@ GameScene.
 | [SpriteFrame](#interface-spriteframe) | interface | `src/map/types.ts:138` |
 | [Stance](#type-stance) | type | `src/entities/Player.ts:30` |
 | [SteamJet](#interface-steamjet) | interface | `src/entities/Vent4Boss.ts:59` |
-| [Target](#type-target) | type | `src/scenes/GameScene.ts:1098` |
+| [Target](#type-target) | type | `src/scenes/GameScene.ts:1145` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:16` |
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:199` |
 | [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:190` |
@@ -5105,7 +5241,7 @@ GameScene.
 | [Vent4PhysicsSystem](#class-vent4physicssystem) | class | `src/systems/Vent4PhysicsSystem.ts:63` |
 | [Vent4Snapshot](#interface-vent4snapshot) | interface | `src/systems/Vent4Core.ts:34` |
 | [Vent4State](#enum-vent4state) | enum | `src/systems/Vent4Core.ts:17` |
-| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:461` |
+| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:523` |
 | [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:46` |
 | [Vent4Transition](#interface-vent4transition) | interface | `src/systems/Vent4Core.ts:28` |
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |

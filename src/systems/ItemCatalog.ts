@@ -26,8 +26,12 @@ import {
   FLASHLIGHT_DETECTION_MULTIPLIER,
   FLASHLIGHT_DRAIN_SECONDS,
   FLASHLIGHT_ITEM,
+  OPENED_RATION_DETECTION_MULTIPLIER,
   RATION_HEAL,
   RATION_PACK_ITEM,
+  RATION_SPOOF_SECONDS,
+  SACK_LUNCH_ITEM,
+  SANITATION_SECONDS,
   STAPLER_FIELD_MAX_CHARGES,
   STAPLER_FIELD_RANGE_TILES,
   STAPLER_ITEM,
@@ -82,6 +86,18 @@ const CATALOG: Record<string, ItemInfo> = {
     effect:
       `Drops an orderly at up to ${STUN_ROUND_REACH_TILES} tiles for ${STUN_ROUND_DURATION}s, ` +
       "and breaks destructible cover in the same arc. Firing makes noise.",
+  },
+  [SACK_LUNCH_ITEM]: {
+    name: SACK_LUNCH_ITEM,
+    blurb:
+      "Corporate Spec Ration, issued by the shift. Sealed, it is lunch. Open, it is a " +
+      "document: proof that the thing holding it is an asset on a break rather than an " +
+      "intruder. Dropped, it is a mess, and a mess is somebody's job.",
+    effect:
+      `Press again to open, again to drop. Held open: orderlies tolerate you for ` +
+      `${RATION_SPOOF_SECONDS}s before reporting, at ${OPENED_RATION_DETECTION_MULTIPLIER}× ` +
+      `detection. Dropped: an orderly leaves its round to sanitise it for ` +
+      `${SANITATION_SECONDS}s, half-blind while it works.`,
   },
   [FLASHLIGHT_ITEM]: {
     name: FLASHLIGHT_ITEM,
