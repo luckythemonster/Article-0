@@ -10,6 +10,7 @@ import {
   CHAFF_PACK_ITEM,
   EIRA7_LOG_ITEM,
   RATION_PACK_ITEM,
+  SACK_LUNCH_ITEM,
   THERMAL_GEL_ITEM,
 } from "./EntityStats";
 
@@ -21,6 +22,7 @@ export const ITEM_ICON_PATHS: Record<string, string> = {
   [BATTERY_ITEM]: "assets/icons/battery.png",
   [EIRA7_LOG_ITEM]: "assets/icons/disk.png",
   [ACCESS_CHIT_ITEM]: "assets/icons/access_chit.png",
+  [SACK_LUNCH_ITEM]: "assets/icons/sack_lunch.png",
 };
 
 /** The flashlight's icon depends on its toggle state, so it isn't in the flat map. */
