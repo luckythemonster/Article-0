@@ -159,7 +159,7 @@ below) modulate sweep speed, steam, and thermal behaviour on the boss side.
 
 #### `CONSUMABLE_ORDER` — const
 
-`src/systems/EntityStats.ts:459`
+`src/systems/EntityStats.ts:467`
 
 The consumables that map to hotkeys [1]–[4], in canonical slot order. Held
 consumables fill slots dynamically (unheld names are skipped), so e.g. a
@@ -722,7 +722,7 @@ Snapshot published to the registry for the HUD and the codec.
 
 #### `ConsumableSlot` — interface
 
-`src/systems/EntityStats.ts:498`
+`src/systems/EntityStats.ts:506`
 
 One occupied consumable hotkey slot.
 
@@ -1323,7 +1323,7 @@ Unit ray directions, split into parallel arrays so casting allocates nothing.
 
 #### `RelayStats` — interface
 
-`src/systems/EntityStats.ts:719`
+`src/systems/EntityStats.ts:727`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1497,7 +1497,7 @@ Serializable mid-fight state, so re-entering the level doesn't restart the boss.
 
 #### `SmacStats` — interface
 
-`src/systems/EntityStats.ts:647`
+`src/systems/EntityStats.ts:655`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1649,7 +1649,7 @@ Serializable fight progress — kept in the registry across level swaps.
 
 #### `Vent4Stats` — interface
 
-`src/systems/EntityStats.ts:523`
+`src/systems/EntityStats.ts:531`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3613,7 +3613,7 @@ rather than death: the record simply shows that no subject was harmed.
 
 #### `GameScene` — class
 
-`src/scenes/GameScene.ts:191` · `extends Phaser.Scene`
+`src/scenes/GameScene.ts:192` · `extends Phaser.Scene`
 
 The playable scene. Renders one level's tile art in board z-order, builds the
 wall collision, spawns the player and guards, and drives the stealth systems
@@ -3932,7 +3932,7 @@ three and no explicit reset method to keep in step with that.
 
 #### `GameSceneData` — interface *(module-private)*
 
-`src/scenes/GameScene.ts:132`
+`src/scenes/GameScene.ts:133`
 
 Data passed to `GameScene` when (re)starting for a level swap.
 
@@ -4056,7 +4056,7 @@ type OverlayId = "pause" | "codec" | "compliance" | "qualia";
 
 #### `Target` — type *(module-private)*
 
-`src/scenes/GameScene.ts:1145`
+`src/scenes/GameScene.ts:1146`
 
 ```ts
 type Target = { x: number; y: number; kind: "cover"; cover: Cover } | { x: number; y: number; kind: "orderly"; orderly: Orderly };
@@ -5016,8 +5016,8 @@ GameScene.
 | [ConductState](#class-conductstate) | class | `src/systems/Conduct.ts:112` |
 | [ConductView](#interface-conductview) | interface | `src/systems/Conduct.ts:246` |
 | [ConeStyle](#interface-conestyle) | interface | `src/ui/VisionCone.ts:28` |
-| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:459` |
-| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:498` |
+| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:467` |
+| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:506` |
 | [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:13` |
 | [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:35` |
 | [Cover](#class-cover) | class | `src/entities/Cover.ts:16` |
@@ -5078,8 +5078,8 @@ GameScene.
 | [GameMap](#interface-gamemap) | interface | `src/map/types.ts:193` |
 | [GameMode](#type-gamemode) | type | `src/systems/GameState.ts:20` |
 | [GameOverScene](#class-gameoverscene) | class | `src/scenes/GameOverScene.ts:12` |
-| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:191` |
-| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:132` |
+| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:192` |
+| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:133` |
 | [GameTile](#interface-gametile) | interface | `src/map/types.ts:156` |
 | [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:224` |
 | [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:173` |
@@ -5178,7 +5178,7 @@ GameScene.
 | [RelayMsg](#interface-relaymsg) | interface | `src/systems/RelayCore.ts:46` |
 | [RelaySnapshot](#interface-relaysnapshot) | interface | `src/systems/RelayCore.ts:40` |
 | [RelayState](#enum-relaystate) | enum | `src/systems/RelayCore.ts:18` |
-| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:719` |
+| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:727` |
 | [RelayTickResult](#interface-relaytickresult) | interface | `src/entities/RoofRelay.ts:56` |
 | [RelayTransition](#interface-relaytransition) | interface | `src/systems/RelayCore.ts:35` |
 | [RelayView](#interface-relayview) | interface | `src/systems/RelayCore.ts:55` |
@@ -5206,7 +5206,7 @@ GameScene.
 | [SmacMsg](#interface-smacmsg) | interface | `src/systems/SmacCore.ts:72` |
 | [SmacSnapshot](#interface-smacsnapshot) | interface | `src/systems/SmacCore.ts:63` |
 | [SmacState](#enum-smacstate) | enum | `src/systems/SmacCore.ts:38` |
-| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:647` |
+| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:655` |
 | [SmacTickResult](#interface-smactickresult) | interface | `src/entities/BossCore.ts:56` |
 | [SmacTransition](#interface-smactransition) | interface | `src/systems/SmacCore.ts:57` |
 | [SmacView](#interface-smacview) | interface | `src/systems/SmacCore.ts:94` |
@@ -5217,7 +5217,7 @@ GameScene.
 | [SpriteFrame](#interface-spriteframe) | interface | `src/map/types.ts:138` |
 | [Stance](#type-stance) | type | `src/entities/Player.ts:30` |
 | [SteamJet](#interface-steamjet) | interface | `src/entities/Vent4Boss.ts:59` |
-| [Target](#type-target) | type | `src/scenes/GameScene.ts:1145` |
+| [Target](#type-target) | type | `src/scenes/GameScene.ts:1146` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:16` |
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:199` |
 | [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:190` |
@@ -5241,7 +5241,7 @@ GameScene.
 | [Vent4PhysicsSystem](#class-vent4physicssystem) | class | `src/systems/Vent4PhysicsSystem.ts:63` |
 | [Vent4Snapshot](#interface-vent4snapshot) | interface | `src/systems/Vent4Core.ts:34` |
 | [Vent4State](#enum-vent4state) | enum | `src/systems/Vent4Core.ts:17` |
-| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:523` |
+| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:531` |
 | [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:46` |
 | [Vent4Transition](#interface-vent4transition) | interface | `src/systems/Vent4Core.ts:28` |
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |

@@ -335,6 +335,14 @@ export const STUN_ROUNDS_ITEM = "Stun Rounds";
  */
 export const SACK_LUNCH_ITEM = "Sack Lunch";
 
+/**
+ * Rowan starts a run carrying one Sack Lunch — the mechanic is reachable without the
+ * debug give-item cheat. A named constant rather than an inline array at each seed
+ * point ({@link resetRun} and its `GameScene` fallback) so a second starting item
+ * can't be added to one and silently forgotten at the other.
+ */
+export const STARTING_INVENTORY: readonly string[] = [SACK_LUNCH_ITEM];
+
 /** Equipment: the toggleable flashlight (does not count against the consumable cap). */
 export const FLASHLIGHT_ITEM = "Flashlight";
 

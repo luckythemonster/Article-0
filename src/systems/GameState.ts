@@ -1,6 +1,6 @@
 import type Phaser from "phaser";
 import type { MapPlan } from "../map/MapPlan";
-import { STAPLER_FIELD_MAX_CHARGES } from "./EntityStats";
+import { STAPLER_FIELD_MAX_CHARGES, STARTING_INVENTORY } from "./EntityStats";
 import type { MissionFeatures } from "./Objectives";
 import type { SaveData } from "./SaveGame";
 
@@ -115,10 +115,13 @@ export function missionFeatures(registry: Phaser.Data.DataManager): MissionFeatu
  * cleared, the same way the flashlight's charge (in `activeItems`, constructed
  * fresh per level) is always full on a new run or a loaded save — neither is
  * part of {@link SaveData}, so this is where "full again" actually gets applied.
+ * `inventory` starts at {@link STARTING_INVENTORY} rather than empty — spread into
+ * a fresh array so the registry never holds the shared const by reference, since
+ * `GameScene` mutates the held inventory array in place.
  */
 export function resetRun(registry: Phaser.Data.DataManager): void {
   for (const key of RUN_KEYS) registry.remove(key);
-  registry.set("inventory", []);
+  registry.set("inventory", [...STARTING_INVENTORY]);
   registry.set("staplerFieldCharges", STAPLER_FIELD_MAX_CHARGES);
 }
 

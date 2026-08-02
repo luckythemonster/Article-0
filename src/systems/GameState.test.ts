@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type Phaser from "phaser";
 import { resetRun } from "./GameState";
-import { STAPLER_FIELD_MAX_CHARGES } from "./EntityStats";
+import { STAPLER_FIELD_MAX_CHARGES, STARTING_INVENTORY } from "./EntityStats";
 
 /** A minimal stand-in for Phaser.Data.DataManager — get/set/has/remove over a Map. */
 function fakeRegistry(): Phaser.Data.DataManager {
@@ -23,9 +23,16 @@ describe("resetRun", () => {
 
     resetRun(registry);
 
-    expect(registry.get("inventory")).toEqual([]);
+    expect(registry.get("inventory")).toEqual([...STARTING_INVENTORY]);
     expect(registry.get("staplerFieldCharges")).toBe(STAPLER_FIELD_MAX_CHARGES);
     expect(registry.has("objectives")).toBe(false);
+  });
+
+  it("hands back a fresh array each time, not the shared starting-inventory const", () => {
+    const registry = fakeRegistry();
+    resetRun(registry);
+    (registry.get("inventory") as string[]).push("Stun Rounds");
+    expect(STARTING_INVENTORY).toEqual(["Sack Lunch"]);
   });
 
   it("is idempotent — resetting an already-clean registry still yields full charges", () => {
