@@ -77,6 +77,7 @@ import {
   STAPLER_FIELD_RANGE_TILES,
   STAPLER_ITEM,
   STAPLER_PIN_DURATION,
+  STARTING_INVENTORY,
   STUN_ROUND_DURATION,
   STUN_ROUND_NOISE,
   STUN_ROUND_REACH_TILES,
@@ -561,7 +562,7 @@ export class GameScene extends Phaser.Scene {
       (this.registry.get("objectives") as ObjectiveState | undefined) ?? initialObjectives();
     this.registry.set("objectives", this.objectives);
     this.registry.set("currentLevel", this.level.name);
-    if (!this.registry.has("inventory")) this.registry.set("inventory", []);
+    if (!this.registry.has("inventory")) this.registry.set("inventory", [...STARTING_INVENTORY]);
     if (!this.registry.has("staplerFieldCharges")) {
       this.registry.set("staplerFieldCharges", STAPLER_FIELD_MAX_CHARGES);
     }
