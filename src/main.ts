@@ -29,6 +29,7 @@ import { ENFORCER_SKIN } from "./entities/EnforcerAnimations";
 import { DRONE_SKIN } from "./entities/DroneAnimations";
 import { preloadGuardSkin } from "./entities/GuardSkin";
 import { preloadOrderly } from "./entities/OrderlyAnimations";
+import { preloadDeployedItems } from "./entities/DeployedItem";
 
 /**
  * Boot scene: loads the edplay map JSON and the three spritesheets, parses the
@@ -60,6 +61,7 @@ class BootScene extends Phaser.Scene {
     preloadGuardSkin(this, ENFORCER_SKIN);
     preloadGuardSkin(this, DRONE_SKIN);
     preloadOrderly(this);
+    preloadDeployedItems(this);
   }
 
   create(): void {
