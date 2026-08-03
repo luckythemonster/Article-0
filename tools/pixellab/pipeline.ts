@@ -444,7 +444,7 @@ async function rotationUrls(characterId: string): Promise<Record<string, string>
   return character.rotation_urls;
 }
 
-interface Frame {
+export interface Frame {
   anim: string;
   direction: Direction;
   frame: number;
@@ -475,6 +475,18 @@ async function writeFrames(spec: CharacterSpec, state: State, outDir: string): P
     console.log(`  ${anim.name}: ${DIRECTIONS.length * (directions.south?.length ?? 0)} frames`);
   }
 
+  writeFrameSet(spec, decoded, outDir);
+}
+
+/**
+ * Validates a complete frame set and writes it to disk.
+ *
+ * Split from the download so a set assembled another way — `rescale.ts` redraws
+ * the frames already on disk rather than generating new ones — goes through the
+ * same checks and the same re-canvasing rather than a second implementation of
+ * them.
+ */
+export function writeFrameSet(spec: CharacterSpec, decoded: Frame[], outDir: string): void {
   // One shared bounding box only means anything if the frames share a coordinate
   // space, so a mismatched canvas has to stop the run rather than silently
   // translate half the set.
