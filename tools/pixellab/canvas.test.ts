@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  bodyBounds,
   boundsHeight,
   boundsWidth,
   contentBounds,
@@ -41,6 +42,40 @@ describe("contentBounds", () => {
     // A stray pixel at alpha 10 is anti-aliasing residue, not content.
     image.data[(0 * 8 + 0) * 4 + 3] = 10;
     expect(contentBounds(image)).toEqual({ minX: 2, minY: 2, maxX: 3, maxY: 3 });
+  });
+});
+
+describe("bodyBounds", () => {
+  /** A character-sized rect, plus a detached speck floating above it. */
+  function withDebris(): DecodedImage {
+    const image = withRect(32, 10, 12, 8, 16);
+    // Two opaque pixels near the top, clear of the body — the shape the
+    // generator produces when it hallucinates something above the head.
+    for (const i of [(2 * 32 + 14) * 4, (3 * 32 + 14) * 4]) {
+      image.data[i] = 255;
+      image.data[i + 3] = 255;
+    }
+    return image;
+  }
+
+  it("measures the character and ignores detached specks", () => {
+    const image = withDebris();
+    expect(bodyBounds(image)).toEqual({ minX: 10, minY: 12, maxX: 17, maxY: 27 });
+  });
+
+  it("differs from contentBounds by exactly the floating content", () => {
+    const image = withDebris();
+    // This gap is the signal the generator's debris check keys off.
+    expect(boundsHeight(contentBounds(image)!) - boundsHeight(bodyBounds(image)!)).toBe(10);
+  });
+
+  it("agrees with contentBounds when the sprite is a single blob", () => {
+    const image = withRect(24, 4, 6, 9, 11);
+    expect(bodyBounds(image)).toEqual(contentBounds(image));
+  });
+
+  it("returns null for a fully transparent frame", () => {
+    expect(bodyBounds({ width: 8, height: 8, data: new Uint8Array(256) })).toBeNull();
   });
 });
 

@@ -29,7 +29,15 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { balance, download, get, post, awaitJob, toBase64Image } from "./client";
-import { boundsHeight, boundsWidth, contentBounds, recanvas, unionBounds, type Bounds } from "./canvas";
+import {
+  bodyBounds,
+  boundsHeight,
+  boundsWidth,
+  contentBounds,
+  recanvas,
+  unionBounds,
+  type Bounds,
+} from "./canvas";
 import { decodeRgba8, encodeRgba8, type DecodedImage } from "./png";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
@@ -220,7 +228,9 @@ async function main(): Promise<void> {
     const forced = redo.has(spec.name);
     if (forced) {
       await retireTake(state, spec, redo.get(spec.name));
-      writeState(statePath, state);
+      // Re-read before deciding what is missing, so `done` below reflects the
+      // takes that actually survived rather than the pre-retirement picture.
+      await refreshFrames(state, statePath);
     } else if (isComplete(state, spec)) {
       console.log(`${spec.name}: already generated, skipping`);
       continue;
@@ -393,20 +403,26 @@ async function retireTake(
   const characterId = spec.sheet === "standing" ? state.standing! : state.crouched!;
   const takes = (await characterAnimations(characterId)).filter((a) => a.display_name === spec.name);
   const retired = new Set(state.retired ?? []);
-  const frames = state.frames[spec.name] ?? {};
+  const before = retired.size;
 
   for (const take of takes) {
     const covered = (take.directions ?? []).map((d) => d.direction as Direction);
     const hit = directions ? covered.some((d) => directions.has(d)) : true;
-    if (!hit || !take.animation_group_id) continue;
-    retired.add(take.animation_group_id);
-    for (const direction of covered) delete frames[direction];
+    if (hit && take.animation_group_id) retired.add(take.animation_group_id);
   }
 
   state.retired = [...retired];
   state.groups = { ...state.groups, [spec.name]: (state.groups?.[spec.name] ?? []).filter((g) => !retired.has(g)) };
-  state.frames[spec.name] = frames;
-  console.log(`  retiring ${directions ? [...directions].join(", ") : "all directions"} of ${spec.name}`);
+  console.log(
+    `  ${spec.name}: retired ${retired.size - before} take(s) covering ` +
+      `${directions ? [...directions].join(", ") : "all directions"}`,
+  );
+
+  // Which directions survive is worked out by re-reading the character, never
+  // by deleting entries here. A retired group can span directions the caller
+  // never asked to re-roll — the original batched take covers all eight — and
+  // clearing them by hand would cascade a one-direction re-roll into a full
+  // one. Re-reading keeps whatever a surviving group still supplies.
 }
 
 interface AnimationRecord {
@@ -468,7 +484,7 @@ async function writeFrames(state: State, outDir: string): Promise<void> {
     );
   }
 
-  assertLoopsClose(decoded);
+  assertFramesUsable(decoded);
 
   const boxes: Bounds[] = [];
   for (const entry of decoded) {
@@ -502,42 +518,72 @@ async function writeFrames(state: State, outDir: string): Promise<void> {
 }
 
 /**
- * Largest silhouette change a looping cycle may show between its last frame and
- * its first, in pixels. A walk or run legitimately lands on a different foot,
- * so this is not zero; a cycle that has wandered into a different *stance* is
- * far outside it.
+ * How much a looping cycle's body height may vary across the whole cycle.
+ *
+ * Measured, not guessed: idle and run vary by 4px, walk by 2, crouch-walk by 4
+ * — a gait genuinely rises and falls. A cycle that leaves its *stance* is far
+ * outside that; the crouch that prompted this check varied by 11.
+ *
+ * The comparison spans every frame rather than just the first and last. A cycle
+ * can start and end correctly crouched and still bulge to standing height in
+ * the middle, which loops as a bob and is exactly as wrong.
  */
-const MAX_LOOP_DRIFT = 5;
+const MAX_CYCLE_RANGE = 6;
 
 /**
- * Rejects looping animations that do not end where they began.
+ * How far the full opaque box may exceed the body's, per frame.
  *
- * The game plays every non-transition clip with `repeat: -1`, so a cycle whose
- * last frame differs from its first snaps on every wrap. When the drift is a
- * change of stance rather than a footfall the result is unmistakable — a held
- * crouch that reads as the character standing up and dropping again, over and
- * over. Silhouette height is a blunt measure but it catches exactly that,
- * which is the failure the motion model actually produces.
+ * The gap is detached content: pixels the generator left floating clear of the
+ * character. They are a small fraction of the sprite — under 2% — so counting
+ * pixels does not find them, but they sit in empty space above the head where
+ * they read as debris popping in and out.
  */
-function assertLoopsClose(
+const MAX_DETACHED = 5;
+
+/**
+ * Rejects generated cycles that do not hold their pose, and frames carrying
+ * floating debris.
+ *
+ * Both are measured on the largest connected component rather than raw alpha.
+ * That matters in both directions: debris would otherwise inflate the pose
+ * measurement and mask a bad cycle, and comparing the two boxes is the only way
+ * the debris itself shows up.
+ */
+function assertFramesUsable(
   decoded: { anim: string; direction: Direction; frame: number; image: DecodedImage }[],
 ): void {
   const failures: string[] = [];
 
   for (const spec of ANIMS) {
-    if (spec.oneShot) continue;
     for (const direction of DIRECTIONS) {
       const frames = decoded
         .filter((e) => e.anim === spec.name && e.direction === direction)
         .sort((a, b) => a.frame - b.frame);
-      const first = contentBounds(frames[0].image);
-      const last = contentBounds(frames[frames.length - 1].image);
-      if (!first || !last) continue;
-      const drift = Math.abs(boundsHeight(last) - boundsHeight(first));
-      if (drift > MAX_LOOP_DRIFT) {
+
+      const heights: number[] = [];
+      for (const frame of frames) {
+        const body = bodyBounds(frame.image);
+        const whole = contentBounds(frame.image);
+        if (!body || !whole) continue;
+        heights.push(boundsHeight(body));
+
+        const detached = boundsHeight(whole) - boundsHeight(body);
+        if (detached > MAX_DETACHED) {
+          failures.push(
+            `  ${spec.name}/${direction}/${frame.frame}: ${detached}px of content floating clear ` +
+              `of the character (body ${boundsHeight(body)}px, full box ${boundsHeight(whole)}px)`,
+          );
+        }
+      }
+
+      // A transition is supposed to change stance, so only cycles are held to
+      // a stable height.
+      if (spec.oneShot || heights.length === 0) continue;
+      const range = Math.max(...heights) - Math.min(...heights);
+      if (range > MAX_CYCLE_RANGE) {
         failures.push(
-          `  ${spec.name}/${direction}: ${boundsHeight(first)}px tall on frame 0, ` +
-            `${boundsHeight(last)}px on frame ${frames.length - 1} (drift ${drift}px)`,
+          `  ${spec.name}/${direction}: body height swings ${range}px across the cycle ` +
+            `(${heights.join(", ")}) — it does not hold its pose`,
         );
       }
     }
@@ -545,10 +591,10 @@ function assertLoopsClose(
 
   if (failures.length) {
     throw new Error(
-      `These looping animations do not return to their starting pose, so they will snap ` +
-        `every time they wrap:\n${failures.join("\n")}\n` +
-        `Give the animation an \`endFrameSheet\` pointing at its own sheet to anchor both ` +
-        `ends of the cycle, then re-run.`,
+      `These frames are not usable:\n${failures.join("\n")}\n\n` +
+        `A cycle that will not hold its pose usually needs an \`endFrameSheet\` pointing at ` +
+        `its own sheet. Otherwise re-roll the affected facings with ` +
+        `--redo <anim>:<direction>.`,
     );
   }
 }

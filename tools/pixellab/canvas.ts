@@ -20,6 +20,7 @@
  * Nothing here resamples. Pixels are copied one-to-one or the operation throws.
  */
 
+import { alphaMask, largestComponent } from "../../src/tools/collider/contour";
 import type { DecodedImage } from "./png";
 
 /** A pixel rectangle, `max` inclusive. */
@@ -51,6 +52,43 @@ export function contentBounds(image: DecodedImage, threshold = ALPHA_THRESHOLD):
   for (let y = 0; y < image.height; y++) {
     for (let x = 0; x < image.width; x++) {
       if (image.data[(y * image.width + x) * 4 + 3] <= threshold) continue;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+
+  return maxX < 0 ? null : { minX, minY, maxX, maxY };
+}
+
+/**
+ * The box around the largest connected opaque region — the character alone.
+ *
+ * {@link contentBounds} measures every opaque pixel, so a stray artifact the
+ * generator hallucinated in the empty space above the character's head inflates
+ * it. Measuring the body means measuring the pose, which is what the animation
+ * checks are actually asking about. Comparing the two boxes is in turn how
+ * detached debris is spotted at all.
+ *
+ * Connected-component analysis is the collider generator's, not a second copy.
+ */
+export function bodyBounds(image: DecodedImage, threshold = ALPHA_THRESHOLD): Bounds | null {
+  const mask = alphaMask(image, threshold);
+  // `largestComponent` throws on an empty mask rather than returning one, so an
+  // empty frame is answered here — callers treat it the same as `contentBounds`
+  // finding nothing.
+  if (!mask.data.some((v) => v)) return null;
+
+  const body = largestComponent(mask);
+  let minX = body.width;
+  let minY = body.height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < body.height; y++) {
+    for (let x = 0; x < body.width; x++) {
+      if (!body.data[y * body.width + x]) continue;
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
       if (y < minY) minY = y;
