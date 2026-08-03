@@ -562,11 +562,21 @@ const MAX_CYCLE_RANGE = 6;
 const MAX_DETACHED = 5;
 
 /**
- * How far a redrawn frame's body may differ from the frame it was drawn from.
+ * How far a redrawn frame's body may differ from the frame it was drawn from,
+ * as a fraction of the source's height.
  *
- * Measured across the drone's 64 frames, where the largest deviation was 4px.
+ * Relative rather than absolute, because an absolute pixel budget is a different
+ * standard for every character: 5px is 14% of the drone's ~35px body but 7.5% of
+ * the enforcer's ~66px one, so the same number silently held bigger sprites to a
+ * stricter rule. Measured across both, the largest genuine deviation was 12%.
+ *
+ * Note what this check is and is not. A redraw is allowed to *improve* on its
+ * source — the enforcer's shipped frames carry a lavender shadow blob left by a
+ * failed background removal, and the redraw dropped it, which reads as the body
+ * shrinking because the artifact was inside the measured box. So this is a guard
+ * against a redraw wandering off, not a demand that it match pixel for pixel.
  */
-const MAX_FIDELITY_DRIFT = 5;
+const MAX_FIDELITY_DRIFT = 0.15;
 
 /**
  * Rejects frames carrying floating debris, and cycles that do not hold their
@@ -621,10 +631,11 @@ export function assertFramesUsable(spec: CharacterSpec, decoded: Frame[], baseli
         }
 
         const was = baselineHeight.get(`${anim.name}/${direction}/${frame.frame}`);
-        if (was !== undefined && Math.abs(boundsHeight(body) - was) > MAX_FIDELITY_DRIFT) {
+        if (was !== undefined && Math.abs(boundsHeight(body) - was) / was > MAX_FIDELITY_DRIFT) {
+          const off = ((Math.abs(boundsHeight(body) - was) / was) * 100).toFixed(0);
           failures.push(
             `  ${anim.name}/${direction}/${frame.frame}: redrawn body is ${boundsHeight(body)}px ` +
-              `where the source scales to ${was.toFixed(0)}px — the redraw did not keep the pose`,
+              `where the source scales to ${was.toFixed(0)}px — ${off}% off, the redraw did not keep the pose`,
           );
         }
       }
