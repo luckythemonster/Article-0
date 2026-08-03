@@ -654,32 +654,46 @@ Three things worth knowing before changing any of this:
 ## Character & enemy art
 
 All four were generated with [PixelLab.ai](https://www.pixellab.ai/) (high
-top-down templates) and pulled in via its API:
+top-down templates) and pulled in via its API. The player's set is reproducible
+from the command line — see *Regenerating the player sprite* below; the other
+three were generated before that tooling existed.
 
-- **Player** ("Rowan Ibarra", 88x88) — idle/walk/run cycles in all 8
+- **Player** ("Rowan Ibarra", 96x96) — idle/walk/run cycles in all 8
   directions (`public/assets/player/`, manifest at
   `public/assets/player/manifest.json`). `PlayerAnimations.ts` maps that frame
   layout to Phaser animation keys; facing matches the free 8-directional
   movement exactly, no direction snapping. Crouch and crouch-walk come from a
-  second, dedicated "Rowan Ibarra crouched" character sheet (same rig/outfit,
-  posed low) rather than a reskinned standing pose — a settled kneel for
-  standing still in cover, and a distinct low stride for sneaking on the move.
+  crouched *state* of the same character (same rig, outfit and palette, posed
+  low) rather than a reskinned standing pose — a settled kneel for standing
+  still in cover, and a distinct low stride for sneaking on the move.
   Standing ⇄ crouched is a small state machine (`Player.ts`): pressing/releasing
   **Shift** plays a one-shot **crouch-down** / **crouch-up** transition (both
-  generated across all 8 directions from the two sheets) that must finish
-  before the target stance takes over, so Rowan visibly lowers and rises
-  instead of popping between poses; transition completion is driven off the
+  interpolated between the two sheets' rotations, across all 8 directions) that
+  must finish before the target stance takes over, so Rowan visibly lowers and
+  rises instead of popping between poses; transition completion is driven off the
   clip's own `isPlaying` state each frame (not a fire-once event), so holding
   Shift reliably settles into and holds the looping idle crouch. Cover
-  concealment only counts him hidden once he's *fully* down. He also renders
-  at 0.8× his standing height while crouched, scaled smoothly in sync with the
-  transition clip's own playback progress rather than a fixed timer, so the
-  height change always finishes exactly when the pose does.
+  concealment only counts him hidden once he's *fully* down. The crouch is
+  carried entirely by the art — the sprite is never squashed by a scale factor,
+  for the reason in the next paragraph.
+
+The player's 96x96 frame size is load-bearing, not descriptive. The sprite is
+drawn at `displaySize / PLAYER_SOURCE_SIZE`, and the camera runs at 2x zoom, so
+`48 / 96 * 2 = 1`: exactly one screen pixel per source pixel, and the art is
+never resampled. The frames used to be 88x88, which works out to 1.0909 screen
+pixels per source pixel — and with `pixelArt: true` (nearest-neighbour) that
+means most pixels get one screen pixel while every eleventh gets two, with
+`roundPixels` re-snapping the whole grid as the camera pans. The result was a
+broken-up outline and crawling interior detail: the character read as a smudge
+regardless of how well it was drawn. If any of the three numbers changes, their
+product must stay whole. The same reasoning is why crouching no longer scales
+the sprite to 0.8x — that put the art straight back onto a fractional factor.
+
 Display size is per sprite rather than one shared number, because "1.5 tiles"
 means different things for different art. The player and orderly are ~1.5 tiles
-tall; the guards are smaller, and deliberately. The player's
-88x88 sheet is mostly padding, so Rowan's body is only ~0.5 tiles across; the
-guards' frames are nearly edge-to-edge robot, so at the same nominal size they
+tall; the guards are smaller, and deliberately. The player's 96x96 sheet is
+mostly padding, so Rowan's body is only ~0.5 tiles across; the guards' frames
+are nearly edge-to-edge robot, so at the same nominal size they
 were genuinely *wider than the doorways they patrol through*. The enforcer sits at
 1.15 tiles and the drone at 0.75 — see the collider note under *What's
 implemented*.
@@ -702,3 +716,50 @@ implemented*.
   template mode, all 8 directions each in one call — a bystander has no
   run/crouch; `public/assets/orderly/`, manifest at
   `public/assets/orderly/manifest.json`, mapped by `OrderlyAnimations.ts`).
+
+### Regenerating the player sprite
+
+`tools/pixellab/` drives the whole thing from a PixelLab API key in
+`PIXELLAB_API_KEY` (never committed — get one at
+[pixellab.ai](https://www.pixellab.ai/)).
+
+Rotating and animating a character costs far more than drawing one frame of it,
+so the cheap step goes first. `npm run gen:candidates -- --out <dir>` draws
+several south-facing variants of the same character and lays them out on a
+contact sheet at 1x and 3x over a dark floor swatch — a sprite that has to read
+in unlit rooms cannot be judged against a white background, and 1x is the only
+size that tells you the truth.
+
+Then, with the winner:
+
+```
+PIXELLAB_API_KEY=... npm run gen:player -- --reference <candidate>.png
+npm run gen:colliders
+```
+
+`generate-player.ts` rotates the reference into 8 directions, derives a crouched
+state from that same character, generates all seven animations at the frame
+counts `PLAYER_ANIM_FRAME_COUNTS` expects, and re-canvases every frame onto the
+fixed 96x96 square. That last step crops through a *single* bounding box shared
+by the whole set rather than each frame's own — cropping per frame would
+re-centre the character on every tick and destroy the walk cycle's weight shift.
+It only ever crops and pads; if the art does not fit, it throws instead of
+scaling.
+
+Generation is slow and costs credits, so progress is checkpointed to a state
+file after each completed unit of work. Re-running resumes rather than
+regenerating, which makes it safe to interrupt. `--only <anim>` restricts a run
+to one animation, and `--redo <anim,anim>` re-rolls animations that came out
+badly — a character accumulates animations rather than replacing them, so the
+state file records which groups belong to the current take and `--redo` drops
+that record so the new one wins.
+
+Every looping animation is checked to end where it began before anything is
+written. A cycle that drifts is worth failing the run over: the motion model
+treats a crouch as a pose to move *out of*, so an unanchored crouch cycle walks
+the character back up toward a neutral stance and then snaps down again on every
+wrap. Anchoring both ends of the cycle to the same rotation is the fix, and the
+error message says so.
+
+`npm run gen:colliders` is not optional: the physics body is traced from
+`idle/south/0.png`, so it does not match new art until it is re-run.

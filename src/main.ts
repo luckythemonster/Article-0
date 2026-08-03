@@ -118,7 +118,16 @@ const gameEl = document.getElementById("game")!;
  * `fontsReady` fails open (and is bounded by its own timeout), so a blocked font
  * costs the player the typeface, never the game.
  */
-void fontsReady().then(() => startGame());
+void fontsReady().then(() => {
+  const game = startGame();
+  // Phaser is bundled rather than global, so `Phaser.GAMES` is not reachable
+  // from the console or from a browser-driving script. Publish the instance in
+  // dev builds only — Vite resolves `import.meta.env.DEV` to false for
+  // production, so this drops out at build time.
+  if (import.meta.env.DEV) {
+    (window as unknown as { game: Phaser.Game }).game = game;
+  }
+});
 
 function startGame(): Phaser.Game {
   return new Phaser.Game({
