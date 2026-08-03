@@ -153,4 +153,101 @@ export const DRONE: CharacterSpec = {
   maxCycleRange: 8,
 };
 
-export const CHARACTERS: Record<string, CharacterSpec> = { player: PLAYER, drone: DRONE };
+export const ENFORCER: CharacterSpec = {
+  id: "enforcer",
+
+  /**
+   * 72, up from 48, paired with an `ENFORCER_DISPLAY_TILES` of 1.125.
+   *
+   * `(32 * 1.125) / 72 * 2` = exactly 1 screen pixel per source pixel. The old
+   * pairing of 48 and 1.15 gave 1.533, so two source pixels out of three got one
+   * screen pixel and the third got two — and which ones moved with the sprite,
+   * so the outline broke up as the enforcer patrolled.
+   *
+   * Unlike the drone this is an *upscale*: the enforcer was being magnified, not
+   * shrunk, so the fix is art with enough pixels to be shown at the size it is
+   * already shown at. The display drops from 1.15 tiles to 1.125 — the nearest
+   * value with a whole-number canvas — which is a 2% reduction on screen, far
+   * inside the margin that made 1.15 necessary in the first place.
+   *
+   * The union of every frame's content comes to 71x69 here, against a 72 canvas.
+   * That is nearly no margin, and it is not an oversight: this art is 98% frame
+   * fill, which is precisely why the enforcer could not be fixed by changing
+   * numbers alone. If a redraw overflows, the canvas can go to 80 with
+   * `displayTiles` at 1.25 without changing the on-screen size at all — with a
+   * net factor of 1 the body appears at whatever size it is *drawn*, and the
+   * canvas around it is only padding.
+   */
+  canvas: 72,
+  templateId: "mannequin",
+  view: "high top-down",
+
+  sheets: [
+    {
+      name: "body",
+      source: {
+        from: "reference",
+        displayName: "Commonwealth Enforcer",
+        description:
+          "A blocky robotic sentry gliding on magnetic tracks, with a rotating crown of " +
+          "camera-arms above a heavy armoured torso. Top-down view, crisp black outline.",
+      },
+    },
+  ],
+
+  /** Matches `ENFORCER_SKIN`: 8 frames at 8fps, the patrol-scan cycle. */
+  anims: [
+    {
+      name: "patrol",
+      sheet: "body",
+      action: "gliding forward while the crown of camera-arms sweeps back and forth",
+      frameCount: 8,
+      keepFirstFrame: false,
+    },
+  ],
+};
+
+export const ORDERLY: CharacterSpec = {
+  id: "orderly",
+
+  /**
+   * 96, up from 84, with `displayTiles` left at 1.5.
+   *
+   * `(32 * 1.5) / 96 * 2` = exactly 1. The old canvas of 84 gave 1.1429, a
+   * fraction, so the grid re-snapped under camera motion. 96 is 84 * 8/7, which
+   * is the same ratio the old scale was magnifying by — so the orderly comes out
+   * exactly the size it already was, and nothing but the canvas moves.
+   */
+  canvas: 96,
+  templateId: "mannequin",
+  view: "high top-down",
+
+  sheets: [
+    {
+      name: "body",
+      source: {
+        from: "reference",
+        displayName: "Commonwealth Orderly",
+        description:
+          "A human orderly in a utilitarian jumpsuit with reinforced utility pockets, carrying a " +
+          "diagnostic tablet. Top-down view, crisp black outline.",
+      },
+    },
+  ],
+
+  /**
+   * Matches `ORDERLY_ANIM_FRAME_COUNTS`: idle and walk, 4 frames each. A
+   * bystander has no run or crouch.
+   */
+  anims: [
+    { name: "idle", sheet: "body", action: "standing still, breathing, weight shifting slightly", frameCount: 4, keepFirstFrame: false },
+    { name: "walk", sheet: "body", action: "walking forward at a steady pace", frameCount: 4, keepFirstFrame: false },
+  ],
+};
+
+export const CHARACTERS: Record<string, CharacterSpec> = {
+  player: PLAYER,
+  drone: DRONE,
+  enforcer: ENFORCER,
+  orderly: ORDERLY,
+};
