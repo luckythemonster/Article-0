@@ -706,18 +706,33 @@ implemented*.
   `public/assets/enforcer/manifest.json`). `EnforcerAnimations.ts` maps the
   frames to Phaser animation keys; facing matches the guard's continuous
   patrol/pursuit angle exactly.
-- **Drone** (85x85) — a small spider-legged sentry with a sensor-cluster
+- **Drone** (48x48) — a small spider-legged sentry with a sensor-cluster
   "eye", generated the same way as the Enforcer (v3 mode, one call, all 8
   directions; `public/assets/drone/`, manifest at
   `public/assets/drone/manifest.json`, mapped by `DroneAnimations.ts`). It's
-  the Enforcer's AI wearing a different `GuardSkin` — see `Drone.ts`.
+  the Enforcer's AI wearing a different `GuardSkin` — see `Drone.ts`. The
+  frames were 85x85 until they were redrawn at 48 (see *Regenerating sprites*),
+  which is what makes `(32 * 0.75) / 48 * 2` come out at exactly 1 screen pixel
+  per source pixel; at 85 it was 0.5647, so nearest-neighbour was discarding
+  about 44% of every frame and doing it differently as the drone moved. The
+  drone is the same size on screen as before — the art was redrawn smaller, not
+  displayed smaller.
 - **Orderly** (84x84) — a human orderly in a utility jumpsuit carrying a
   diagnostic tablet. Only `idle` and `walk` were generated (character
   template mode, all 8 directions each in one call — a bystander has no
   run/crouch; `public/assets/orderly/`, manifest at
   `public/assets/orderly/manifest.json`, mapped by `OrderlyAnimations.ts`).
 
-### Regenerating the player sprite
+The rule those numbers answer to lives in `src/render/pixelScale.ts`, with a
+test. `(tileSize * displayTiles) / sourceSize * cameraZoom` is how many screen
+pixels one source pixel covers, and under `pixelArt: true` only a whole number is
+stable — a fraction re-snaps the grid as the camera pans, and anything below 1 is
+discarding pixels outright. The player and the drone satisfy it. **The enforcer
+(1.533) and the orderly (1.143) still do not**, and the test says so rather than
+pretending otherwise; neither can be fixed by changing the numbers alone, because
+their frames are nearly edge-to-edge art with no padding to give.
+
+### Regenerating sprites
 
 `tools/pixellab/` drives the whole thing from a PixelLab API key in
 `PIXELLAB_API_KEY` (never committed — get one at
@@ -763,3 +778,24 @@ error message says so.
 
 `npm run gen:colliders` is not optional: the physics body is traced from
 `idle/south/0.png`, so it does not match new art until it is re-run.
+
+**When regeneration is not available.** Rotating a reference into 8 directions
+fits a 3D skeleton to the sprite, and the templates on offer are humanoid or
+hoofed quadrupeds. A body plan that is neither — the drone's four legs splay out
+sideways — comes back mangled: limbs detached, joints at impossible angles, in
+seven of eight facings. Nothing in the prompt fixes that; there is no template
+that fits.
+
+So `npm run gen:rescale -- --subject drone --from 85` does the other operation:
+not "draw this character again" but "draw these frames smaller". Each frame goes
+through `/resize`, which re-renders pixel art at a new size rather than
+resampling it — the difference between a redrawn sprite and a decimated one, and
+why thin details like legs survive. Results are cached per frame, so an
+interrupted run resumes without paying twice.
+
+A rescale is checked against the frames it was drawn from rather than in the
+absolute. The source art already shipped, so its motion is not on trial and the
+only thing that can go wrong is the redraw departing from it. Judging it by the
+absolute rule instead means re-litigating whatever the source already does — for
+the drone that meant flagging a diagonal gait whose silhouette varies by 16px in
+the *shipped* art, which the redraw reproduced to within 4.

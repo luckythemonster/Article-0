@@ -84,6 +84,7 @@ import {
   STUN_ROUNDS_ITEM,
   THERMAL_GEL_ITEM,
 } from "../systems/EntityStats";
+import { CAMERA_ZOOM } from "../render/pixelScale";
 import {
   ActiveItemState,
   CHAFF_PACK_DURATION,
@@ -423,7 +424,7 @@ export class GameScene extends Phaser.Scene {
     else if (this.encounters.vent4State === Vent4State.PHASE_3_PURGE) getAudio().setPurge(true);
 
     this.cameras.main.startFollow(this.player.sprite, true, 0.15, 0.15);
-    this.cameras.main.setZoom(2);
+    this.cameras.main.setZoom(CAMERA_ZOOM);
     this.cameras.main.roundPixels = true;
 
     // Every walk/run/patrol cycle has to advance at the same fraction of real

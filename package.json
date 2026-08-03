@@ -12,6 +12,7 @@
     "docs:types": "tsx tools/typeref/generate.ts",
     "gen:colliders": "tsx src/tools/collider/generate.ts",
     "gen:player": "tsx tools/pixellab/generate-player.ts",
+    "gen:rescale": "tsx tools/pixellab/rescale.ts",
     "gen:candidates": "tsx tools/pixellab/candidates.ts"
   },
   "dependencies": {

@@ -46,6 +46,14 @@ export type PlayerAnimName =
  */
 export const PLAYER_SOURCE_SIZE = 96;
 
+/**
+ * Display height as a multiple of tile size.
+ *
+ * Paired with {@link PLAYER_SOURCE_SIZE} above: together they are what make the
+ * scale come out whole. See `src/render/pixelScale.ts`.
+ */
+export const PLAYER_DISPLAY_TILES = 1.5;
+
 /** Frame count per animation (same across all 8 directions). */
 export const PLAYER_ANIM_FRAME_COUNTS: Record<PlayerAnimName, number> = {
   idle: 4,
