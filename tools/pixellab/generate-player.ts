@@ -137,13 +137,21 @@ interface State {
    * makes a re-roll actually take effect.
    */
   groups?: Record<string, string[]>;
+  /**
+   * Groups discarded by `--redo`, never read again.
+   *
+   * The API has no way to delete a single animation, so a bad take stays on the
+   * character forever. Retiring it by id is what stops it being picked back up
+   * the next time the character is read.
+   */
+  retired?: string[];
 }
 
 async function main(): Promise<void> {
   const statePath = path.resolve(argValue("--state") ?? path.join(ROOT, ".pixellab-player.json"));
   const outDir = path.resolve(argValue("--out") ?? path.join(ROOT, "public", "assets", "player"));
   const only = argValue("--only");
-  const redo = (argValue("--redo") ?? "").split(",").filter(Boolean);
+  const redo = parseRedo(argValue("--redo"));
   const state = readState(statePath);
 
   const before = await balance();
@@ -206,13 +214,12 @@ async function main(): Promise<void> {
   for (const spec of ANIMS) {
     if (only && spec.name !== only) continue;
 
-    // `--redo` re-rolls an animation that generated badly. Dropping its
-    // recorded groups is the part that matters: the previous take stays on the
-    // character under the same name, and without this it would keep winning.
-    const forced = redo.includes(spec.name);
+    // `--redo` re-rolls a take that generated badly. Retiring the groups it
+    // replaces is the part that matters: the previous take stays on the
+    // character under the same name, and would otherwise keep winning.
+    const forced = redo.has(spec.name);
     if (forced) {
-      (state.groups ??= {})[spec.name] = [];
-      delete state.frames[spec.name];
+      await retireTake(state, spec, redo.get(spec.name));
       writeState(statePath, state);
     } else if (isComplete(state, spec)) {
       console.log(`${spec.name}: already generated, skipping`);
@@ -317,10 +324,13 @@ async function refreshFrames(state: State, statePath: string): Promise<void> {
     ...(await characterAnimations(state.crouched!)),
   ];
 
+  const retired = new Set(state.retired ?? []);
   const merged: State["frames"] = {};
   for (const spec of ANIMS) {
     const recorded = state.groups?.[spec.name];
-    let takes = all.filter((a) => a.display_name === spec.name);
+    let takes = all.filter(
+      (a) => a.display_name === spec.name && !(a.animation_group_id && retired.has(a.animation_group_id)),
+    );
     // Once this run has recorded groups for an animation, they are the only
     // ones that count — that is what lets a `--redo` beat the take it replaced.
     if (recorded?.length) {
@@ -347,12 +357,56 @@ async function refreshFrames(state: State, statePath: string): Promise<void> {
 
 /** Notes which animation groups appeared on the character as a result of this request. */
 async function recordGroups(state: State, spec: AnimSpec, characterId: string): Promise<void> {
+  const retired = new Set(state.retired ?? []);
   const known = new Set((state.groups?.[spec.name] ?? []).filter(Boolean));
   for (const animation of await characterAnimations(characterId)) {
-    if (animation.display_name !== spec.name || !animation.animation_group_id) continue;
-    known.add(animation.animation_group_id);
+    const group = animation.animation_group_id;
+    if (animation.display_name !== spec.name || !group || retired.has(group)) continue;
+    known.add(group);
   }
   (state.groups ??= {})[spec.name] = [...known];
+}
+
+/**
+ * Discards the current take of an animation so the next run replaces it.
+ *
+ * `directions` narrows the re-roll to specific facings, which matters because
+ * generation varies per direction: a crouch cycle can hold its pose in seven
+ * directions and drift out of it in the eighth, and re-rolling all eight to fix
+ * one risks the seven that came out fine. Only animations issued a direction at
+ * a time can be narrowed — a batched request produces one group covering all
+ * eight, so there is nothing finer to retire.
+ */
+async function retireTake(
+  state: State,
+  spec: AnimSpec,
+  directions: Set<Direction> | null | undefined,
+): Promise<void> {
+  if (directions && !spec.endFrameSheet) {
+    throw new Error(
+      `--redo ${spec.name}:<direction> is not supported: ${spec.name} is generated for all ` +
+        `directions in one request, so its directions cannot be re-rolled separately. ` +
+        `Use --redo ${spec.name} to re-roll the whole animation.`,
+    );
+  }
+
+  const characterId = spec.sheet === "standing" ? state.standing! : state.crouched!;
+  const takes = (await characterAnimations(characterId)).filter((a) => a.display_name === spec.name);
+  const retired = new Set(state.retired ?? []);
+  const frames = state.frames[spec.name] ?? {};
+
+  for (const take of takes) {
+    const covered = (take.directions ?? []).map((d) => d.direction as Direction);
+    const hit = directions ? covered.some((d) => directions.has(d)) : true;
+    if (!hit || !take.animation_group_id) continue;
+    retired.add(take.animation_group_id);
+    for (const direction of covered) delete frames[direction];
+  }
+
+  state.retired = [...retired];
+  state.groups = { ...state.groups, [spec.name]: (state.groups?.[spec.name] ?? []).filter((g) => !retired.has(g)) };
+  state.frames[spec.name] = frames;
+  console.log(`  retiring ${directions ? [...directions].join(", ") : "all directions"} of ${spec.name}`);
 }
 
 interface AnimationRecord {
@@ -507,6 +561,36 @@ function readState(file: string): State {
 
 function writeState(file: string, state: State): void {
   fs.writeFileSync(file, `${JSON.stringify(state, null, 2)}\n`);
+}
+
+/**
+ * Parses `--redo` into animation name -> directions to re-roll.
+ *
+ * `crouch` re-rolls every direction; `crouch:south` re-rolls one; both forms
+ * can be combined, comma-separated. A `null` value means the whole animation.
+ */
+function parseRedo(raw: string | undefined): Map<string, Set<Direction> | null> {
+  const targets = new Map<string, Set<Direction> | null>();
+
+  for (const entry of (raw ?? "").split(",").filter(Boolean)) {
+    const [name, direction] = entry.split(":");
+    if (!ANIMS.some((a) => a.name === name)) {
+      throw new Error(`--redo: no animation called "${name}". Known: ${ANIMS.map((a) => a.name).join(", ")}`);
+    }
+    if (!direction) {
+      targets.set(name, null);
+      continue;
+    }
+    if (!DIRECTIONS.includes(direction as Direction)) {
+      throw new Error(`--redo: no direction called "${direction}". Known: ${DIRECTIONS.join(", ")}`);
+    }
+    // An entry naming the whole animation wins over one naming a direction.
+    if (targets.has(name) && targets.get(name) === null) continue;
+    const existing = targets.get(name) ?? new Set<Direction>();
+    existing.add(direction as Direction);
+    targets.set(name, existing);
+  }
+  return targets;
 }
 
 function argValue(flag: string): string | undefined {
