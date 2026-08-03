@@ -80,23 +80,26 @@ export const DRONE: CharacterSpec = {
   id: "drone",
 
   /**
-   * 64, down from the 85 this art used to ship at, paired with a
-   * `DRONE_DISPLAY_TILES` of 1.0.
+   * 48, down from the 85 this art used to ship at.
    *
    * What has to hold is `(tileSize * displayTiles) / canvas * zoom` = a whole
-   * number: `(32 * 1.0) / 64 * 2` = exactly 1, one screen pixel per source
+   * number: `(32 * 0.75) / 48 * 2` = exactly 1, one screen pixel per source
    * pixel. At 85 the same sum gave 0.5647 — below 1, so nearest-neighbour was
    * *discarding* roughly 44% of every frame, and which pixels survived depended
    * on the sprite's subpixel position, so the detail changed as the drone moved.
    *
-   * Any `canvas = 64 * displayTiles` satisfies that equally and they are
-   * indistinguishable on screen — with a net factor of 1 the canvas is pure
-   * padding, so the drone is the size its *body* is drawn either way. 64 is
-   * chosen for margin: the union of every frame's content is 55px wide, because
-   * the drone translates within its frame as it walks, and a 48 canvas cannot
-   * hold that.
+   * Any `canvas = 64 * displayTiles` satisfies the arithmetic equally, but they
+   * are not interchangeable: at a net factor of 1 the drone appears at whatever
+   * size its *body* is drawn, and a rescale scales the body with the canvas. 48
+   * is what keeps the drone the size it is today — the body lands at 41px on
+   * screen against the 40.7px it currently occupies, so `DRONE_DISPLAY_TILES`
+   * does not move and neither does the duct fit. 64 would have made it 54px.
+   *
+   * The union of every frame's content comes to 45x41 at this size, so it fits
+   * with room; the drone translates within its frame as it walks, which is why
+   * the union is wider than any single frame.
    */
-  canvas: 64,
+  canvas: 48,
   templateId: "cat",
   view: "high top-down",
 
