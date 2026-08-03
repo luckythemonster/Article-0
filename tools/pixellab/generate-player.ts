@@ -114,7 +114,11 @@ const ANIMS: AnimSpec[] = [
   { name: "idle", sheet: "standing", action: "standing still, breathing, weight shifting slightly", frameCount: 4, keepFirstFrame: false },
   { name: "walk", sheet: "standing", action: "walking forward at a steady pace", frameCount: 4, keepFirstFrame: false },
   { name: "run", sheet: "standing", action: "running forward urgently, leaning into the stride", frameCount: 4, keepFirstFrame: false },
-  { name: "crouch", sheet: "crouched", action: "holding a low crouch, breathing, staying low throughout", frameCount: 4, keepFirstFrame: false, endFrameSheet: "crouched" },
+  // No "breathing" here, deliberately. Asking for it three times running got a
+  // visible effect drawn around the head — a puff, then a halo — rather than a
+  // subtle shift in the shoulders. The pose holding still is what this clip is
+  // for; the settled read comes from the pose, not from motion.
+  { name: "crouch", sheet: "crouched", action: "crouched low and completely still, holding the pose, no effects or particles", frameCount: 4, keepFirstFrame: false, endFrameSheet: "crouched" },
   { name: "crouch-walk", sheet: "crouched", action: "creeping forward one full stride while staying crouched low throughout", frameCount: 6, keepFirstFrame: false, endFrameSheet: "crouched" },
   { name: "crouch-down", sheet: "standing", action: "lowering from standing into a low crouch", frameCount: 8, keepFirstFrame: true, endFrameSheet: "crouched", oneShot: true },
   { name: "crouch-up", sheet: "crouched", action: "rising from a low crouch back up to standing", frameCount: 8, keepFirstFrame: true, endFrameSheet: "standing", oneShot: true },
