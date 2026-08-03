@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import {
   PLAYER_ANIM_FRAME_COUNTS,
   PLAYER_ANIM_FRAME_RATES,
+  PLAYER_SOURCE_SIZE,
   playerAnimKey,
   playerFrameKey,
   type PlayerAnimName,
@@ -34,13 +35,9 @@ export class Player {
   /** Facing angle in radians; updated as the player moves. */
   facing = -Math.PI / 2; // start facing "up"
   private readonly walkSpeed: number;
-  private readonly baseScale: number;
   private dir: Dir8 = "south";
   private currentAnim: PlayerAnimName = "idle";
   private stance: Stance = "standing";
-
-  /** Crouched Rowan renders at this fraction of his standing height. */
-  private static readonly CROUCH_SCALE_FACTOR = 0.8;
 
   constructor(scene: Phaser.Scene, x: number, y: number, tileSize: number) {
     this.walkSpeed = tileSize * paced(3.2); // px/sec baseline
@@ -53,14 +50,21 @@ export class Player {
     // stepped out of the light — the room stays black, but the character reads.
     this.sprite.setDepth(750);
 
-    // Scale the 88x88 art to ~1.5 tiles tall, then fit the collision body to
-    // the sprite's alpha silhouette. The box is traced from the art by the
-    // collider generator (`npm run gen:colliders`) rather than hand-tuned, so
-    // it tracks the character instead of the padded frame. Values are in the
-    // sprite's *unscaled* local space (Arcade Body convention).
+    // Scale the art to ~1.5 tiles tall, then fit the collision body to the
+    // sprite's alpha silhouette. The box is traced from the art by the collider
+    // generator (`npm run gen:colliders`) rather than hand-tuned, so it tracks
+    // the character instead of the padded frame. Values are in the sprite's
+    // *unscaled* local space (Arcade Body convention).
+    //
+    // The two sizes are chosen so this division lands on exactly 0.5, which is
+    // what keeps the pixel art crisp under the camera's 2x zoom — see
+    // PLAYER_SOURCE_SIZE for why that matters.
+    //
+    // Crouching does not squash the sprite: the crouched frames are drawn low
+    // already, and scaling them by a fraction would put the art back on a
+    // non-integer factor — the exact thing this division is arranged to avoid.
     const displaySize = tileSize * 1.5;
-    this.baseScale = displaySize / 88;
-    this.sprite.setScale(this.baseScale);
+    this.sprite.setScale(displaySize / PLAYER_SOURCE_SIZE);
     const body = this.sprite.body as Phaser.Physics.Arcade.Body;
     const { width, height, offsetX, offsetY } = PLAYER_IDLE_SOUTH_COLLIDER.aabb;
     body.setSize(width, height);
@@ -187,7 +191,6 @@ export class Player {
       this.setAnimation(anim, this.dir);
     }
 
-    this.updateScale();
     this.updateInvuln(dt);
   }
 
@@ -197,32 +200,6 @@ export class Player {
     this.hitCooldownLeft = Math.max(0, this.hitCooldownLeft - dt);
     if (this.hitCooldownLeft === 0) this.sprite.clearTint();
     else this.sprite.setTint(Math.floor(this.hitCooldownLeft * 12) % 2 === 0 ? 0xffffff : 0xff6b6b);
-  }
-
-  /**
-   * Crouched Rowan renders shorter than standing. The height change is
-   * synced to the lower/rise clip's own playback progress (not a fixed
-   * timer), so it always finishes exactly when the pose does, however fast
-   * or slow that animation ends up being.
-   */
-  private updateScale(): void {
-    const crouchScale = this.baseScale * Player.CROUCH_SCALE_FACTOR;
-    let scale: number;
-    switch (this.stance) {
-      case "standing":
-        scale = this.baseScale;
-        break;
-      case "crouched":
-        scale = crouchScale;
-        break;
-      case "crouching-down":
-        scale = Phaser.Math.Linear(this.baseScale, crouchScale, this.sprite.anims.getProgress());
-        break;
-      case "standing-up":
-        scale = Phaser.Math.Linear(crouchScale, this.baseScale, this.sprite.anims.getProgress());
-        break;
-    }
-    this.sprite.setScale(scale);
   }
 
   /** Enters a lower/rise transition: plays the one-shot clip locked to the

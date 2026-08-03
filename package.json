@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "docs:types": "tsx tools/typeref/generate.ts",
-    "gen:colliders": "tsx src/tools/collider/generate.ts"
+    "gen:colliders": "tsx src/tools/collider/generate.ts",
+    "gen:player": "tsx tools/pixellab/generate-player.ts",
+    "gen:candidates": "tsx tools/pixellab/candidates.ts"
   },
   "dependencies": {
     "@arwes/frames": "1.0.0-next.25020502",
