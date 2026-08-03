@@ -1,230 +1,6 @@
 [
  {
   "anim": "patrol",
-  "direction": "east",
-  "frame": 0,
-  "key": "enforcer-patrol-east-0",
-  "path": "assets/enforcer/patrol/east/0.png"
- },
- {
-  "anim": "patrol",
-  "direction": "east",
-  "frame": 1,
-  "key": "enforcer-patrol-east-1",
-  "path": "assets/enforcer/patrol/east/1.png"
- },
- {
-  "anim": "patrol",
-  "direction": "east",
-  "frame": 2,
-  "key": "enforcer-patrol-east-2",
-  "path": "assets/enforcer/patrol/east/2.png"
- },
- {
-  "anim": "patrol",
-  "direction": "east",
-  "frame": 3,
-  "key": "enforcer-patrol-east-3",
-  "path": "assets/enforcer/patrol/east/3.png"
- },
- {
-  "anim": "patrol",
-  "direction": "east",
-  "frame": 4,
-  "key": "enforcer-patrol-east-4",
-  "path": "assets/enforcer/patrol/east/4.png"
- },
- {
-  "anim": "patrol",
-  "direction": "east",
-  "frame": 5,
-  "key": "enforcer-patrol-east-5",
-  "path": "assets/enforcer/patrol/east/5.png"
- },
- {
-  "anim": "patrol",
-  "direction": "east",
-  "frame": 6,
-  "key": "enforcer-patrol-east-6",
-  "path": "assets/enforcer/patrol/east/6.png"
- },
- {
-  "anim": "patrol",
-  "direction": "east",
-  "frame": 7,
-  "key": "enforcer-patrol-east-7",
-  "path": "assets/enforcer/patrol/east/7.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north",
-  "frame": 0,
-  "key": "enforcer-patrol-north-0",
-  "path": "assets/enforcer/patrol/north/0.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north",
-  "frame": 1,
-  "key": "enforcer-patrol-north-1",
-  "path": "assets/enforcer/patrol/north/1.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north",
-  "frame": 2,
-  "key": "enforcer-patrol-north-2",
-  "path": "assets/enforcer/patrol/north/2.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north",
-  "frame": 3,
-  "key": "enforcer-patrol-north-3",
-  "path": "assets/enforcer/patrol/north/3.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north",
-  "frame": 4,
-  "key": "enforcer-patrol-north-4",
-  "path": "assets/enforcer/patrol/north/4.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north",
-  "frame": 5,
-  "key": "enforcer-patrol-north-5",
-  "path": "assets/enforcer/patrol/north/5.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north",
-  "frame": 6,
-  "key": "enforcer-patrol-north-6",
-  "path": "assets/enforcer/patrol/north/6.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north",
-  "frame": 7,
-  "key": "enforcer-patrol-north-7",
-  "path": "assets/enforcer/patrol/north/7.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north-east",
-  "frame": 0,
-  "key": "enforcer-patrol-north-east-0",
-  "path": "assets/enforcer/patrol/north-east/0.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north-east",
-  "frame": 1,
-  "key": "enforcer-patrol-north-east-1",
-  "path": "assets/enforcer/patrol/north-east/1.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north-east",
-  "frame": 2,
-  "key": "enforcer-patrol-north-east-2",
-  "path": "assets/enforcer/patrol/north-east/2.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north-east",
-  "frame": 3,
-  "key": "enforcer-patrol-north-east-3",
-  "path": "assets/enforcer/patrol/north-east/3.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north-east",
-  "frame": 4,
-  "key": "enforcer-patrol-north-east-4",
-  "path": "assets/enforcer/patrol/north-east/4.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north-east",
-  "frame": 5,
-  "key": "enforcer-patrol-north-east-5",
-  "path": "assets/enforcer/patrol/north-east/5.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north-east",
-  "frame": 6,
-  "key": "enforcer-patrol-north-east-6",
-  "path": "assets/enforcer/patrol/north-east/6.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north-east",
-  "frame": 7,
-  "key": "enforcer-patrol-north-east-7",
-  "path": "assets/enforcer/patrol/north-east/7.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north-west",
-  "frame": 0,
-  "key": "enforcer-patrol-north-west-0",
-  "path": "assets/enforcer/patrol/north-west/0.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north-west",
-  "frame": 1,
-  "key": "enforcer-patrol-north-west-1",
-  "path": "assets/enforcer/patrol/north-west/1.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north-west",
-  "frame": 2,
-  "key": "enforcer-patrol-north-west-2",
-  "path": "assets/enforcer/patrol/north-west/2.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north-west",
-  "frame": 3,
-  "key": "enforcer-patrol-north-west-3",
-  "path": "assets/enforcer/patrol/north-west/3.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north-west",
-  "frame": 4,
-  "key": "enforcer-patrol-north-west-4",
-  "path": "assets/enforcer/patrol/north-west/4.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north-west",
-  "frame": 5,
-  "key": "enforcer-patrol-north-west-5",
-  "path": "assets/enforcer/patrol/north-west/5.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north-west",
-  "frame": 6,
-  "key": "enforcer-patrol-north-west-6",
-  "path": "assets/enforcer/patrol/north-west/6.png"
- },
- {
-  "anim": "patrol",
-  "direction": "north-west",
-  "frame": 7,
-  "key": "enforcer-patrol-north-west-7",
-  "path": "assets/enforcer/patrol/north-west/7.png"
- },
- {
-  "anim": "patrol",
   "direction": "south",
   "frame": 0,
   "key": "enforcer-patrol-south-0",
@@ -337,59 +113,227 @@
  },
  {
   "anim": "patrol",
-  "direction": "south-west",
+  "direction": "east",
   "frame": 0,
-  "key": "enforcer-patrol-south-west-0",
-  "path": "assets/enforcer/patrol/south-west/0.png"
+  "key": "enforcer-patrol-east-0",
+  "path": "assets/enforcer/patrol/east/0.png"
  },
  {
   "anim": "patrol",
-  "direction": "south-west",
+  "direction": "east",
   "frame": 1,
-  "key": "enforcer-patrol-south-west-1",
-  "path": "assets/enforcer/patrol/south-west/1.png"
+  "key": "enforcer-patrol-east-1",
+  "path": "assets/enforcer/patrol/east/1.png"
  },
  {
   "anim": "patrol",
-  "direction": "south-west",
+  "direction": "east",
   "frame": 2,
-  "key": "enforcer-patrol-south-west-2",
-  "path": "assets/enforcer/patrol/south-west/2.png"
+  "key": "enforcer-patrol-east-2",
+  "path": "assets/enforcer/patrol/east/2.png"
  },
  {
   "anim": "patrol",
-  "direction": "south-west",
+  "direction": "east",
   "frame": 3,
-  "key": "enforcer-patrol-south-west-3",
-  "path": "assets/enforcer/patrol/south-west/3.png"
+  "key": "enforcer-patrol-east-3",
+  "path": "assets/enforcer/patrol/east/3.png"
  },
  {
   "anim": "patrol",
-  "direction": "south-west",
+  "direction": "east",
   "frame": 4,
-  "key": "enforcer-patrol-south-west-4",
-  "path": "assets/enforcer/patrol/south-west/4.png"
+  "key": "enforcer-patrol-east-4",
+  "path": "assets/enforcer/patrol/east/4.png"
  },
  {
   "anim": "patrol",
-  "direction": "south-west",
+  "direction": "east",
   "frame": 5,
-  "key": "enforcer-patrol-south-west-5",
-  "path": "assets/enforcer/patrol/south-west/5.png"
+  "key": "enforcer-patrol-east-5",
+  "path": "assets/enforcer/patrol/east/5.png"
  },
  {
   "anim": "patrol",
-  "direction": "south-west",
+  "direction": "east",
   "frame": 6,
-  "key": "enforcer-patrol-south-west-6",
-  "path": "assets/enforcer/patrol/south-west/6.png"
+  "key": "enforcer-patrol-east-6",
+  "path": "assets/enforcer/patrol/east/6.png"
  },
  {
   "anim": "patrol",
-  "direction": "south-west",
+  "direction": "east",
   "frame": 7,
-  "key": "enforcer-patrol-south-west-7",
-  "path": "assets/enforcer/patrol/south-west/7.png"
+  "key": "enforcer-patrol-east-7",
+  "path": "assets/enforcer/patrol/east/7.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-east",
+  "frame": 0,
+  "key": "enforcer-patrol-north-east-0",
+  "path": "assets/enforcer/patrol/north-east/0.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-east",
+  "frame": 1,
+  "key": "enforcer-patrol-north-east-1",
+  "path": "assets/enforcer/patrol/north-east/1.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-east",
+  "frame": 2,
+  "key": "enforcer-patrol-north-east-2",
+  "path": "assets/enforcer/patrol/north-east/2.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-east",
+  "frame": 3,
+  "key": "enforcer-patrol-north-east-3",
+  "path": "assets/enforcer/patrol/north-east/3.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-east",
+  "frame": 4,
+  "key": "enforcer-patrol-north-east-4",
+  "path": "assets/enforcer/patrol/north-east/4.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-east",
+  "frame": 5,
+  "key": "enforcer-patrol-north-east-5",
+  "path": "assets/enforcer/patrol/north-east/5.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-east",
+  "frame": 6,
+  "key": "enforcer-patrol-north-east-6",
+  "path": "assets/enforcer/patrol/north-east/6.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-east",
+  "frame": 7,
+  "key": "enforcer-patrol-north-east-7",
+  "path": "assets/enforcer/patrol/north-east/7.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north",
+  "frame": 0,
+  "key": "enforcer-patrol-north-0",
+  "path": "assets/enforcer/patrol/north/0.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north",
+  "frame": 1,
+  "key": "enforcer-patrol-north-1",
+  "path": "assets/enforcer/patrol/north/1.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north",
+  "frame": 2,
+  "key": "enforcer-patrol-north-2",
+  "path": "assets/enforcer/patrol/north/2.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north",
+  "frame": 3,
+  "key": "enforcer-patrol-north-3",
+  "path": "assets/enforcer/patrol/north/3.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north",
+  "frame": 4,
+  "key": "enforcer-patrol-north-4",
+  "path": "assets/enforcer/patrol/north/4.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north",
+  "frame": 5,
+  "key": "enforcer-patrol-north-5",
+  "path": "assets/enforcer/patrol/north/5.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north",
+  "frame": 6,
+  "key": "enforcer-patrol-north-6",
+  "path": "assets/enforcer/patrol/north/6.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north",
+  "frame": 7,
+  "key": "enforcer-patrol-north-7",
+  "path": "assets/enforcer/patrol/north/7.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-west",
+  "frame": 0,
+  "key": "enforcer-patrol-north-west-0",
+  "path": "assets/enforcer/patrol/north-west/0.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-west",
+  "frame": 1,
+  "key": "enforcer-patrol-north-west-1",
+  "path": "assets/enforcer/patrol/north-west/1.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-west",
+  "frame": 2,
+  "key": "enforcer-patrol-north-west-2",
+  "path": "assets/enforcer/patrol/north-west/2.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-west",
+  "frame": 3,
+  "key": "enforcer-patrol-north-west-3",
+  "path": "assets/enforcer/patrol/north-west/3.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-west",
+  "frame": 4,
+  "key": "enforcer-patrol-north-west-4",
+  "path": "assets/enforcer/patrol/north-west/4.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-west",
+  "frame": 5,
+  "key": "enforcer-patrol-north-west-5",
+  "path": "assets/enforcer/patrol/north-west/5.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-west",
+  "frame": 6,
+  "key": "enforcer-patrol-north-west-6",
+  "path": "assets/enforcer/patrol/north-west/6.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "north-west",
+  "frame": 7,
+  "key": "enforcer-patrol-north-west-7",
+  "path": "assets/enforcer/patrol/north-west/7.png"
  },
  {
   "anim": "patrol",
@@ -446,5 +390,61 @@
   "frame": 7,
   "key": "enforcer-patrol-west-7",
   "path": "assets/enforcer/patrol/west/7.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-west",
+  "frame": 0,
+  "key": "enforcer-patrol-south-west-0",
+  "path": "assets/enforcer/patrol/south-west/0.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-west",
+  "frame": 1,
+  "key": "enforcer-patrol-south-west-1",
+  "path": "assets/enforcer/patrol/south-west/1.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-west",
+  "frame": 2,
+  "key": "enforcer-patrol-south-west-2",
+  "path": "assets/enforcer/patrol/south-west/2.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-west",
+  "frame": 3,
+  "key": "enforcer-patrol-south-west-3",
+  "path": "assets/enforcer/patrol/south-west/3.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-west",
+  "frame": 4,
+  "key": "enforcer-patrol-south-west-4",
+  "path": "assets/enforcer/patrol/south-west/4.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-west",
+  "frame": 5,
+  "key": "enforcer-patrol-south-west-5",
+  "path": "assets/enforcer/patrol/south-west/5.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-west",
+  "frame": 6,
+  "key": "enforcer-patrol-south-west-6",
+  "path": "assets/enforcer/patrol/south-west/6.png"
+ },
+ {
+  "anim": "patrol",
+  "direction": "south-west",
+  "frame": 7,
+  "key": "enforcer-patrol-south-west-7",
+  "path": "assets/enforcer/patrol/south-west/7.png"
  }
 ]
