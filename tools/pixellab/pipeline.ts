@@ -486,7 +486,12 @@ async function writeFrames(spec: CharacterSpec, state: State, outDir: string): P
  * same checks and the same re-canvasing rather than a second implementation of
  * them.
  */
-export function writeFrameSet(spec: CharacterSpec, decoded: Frame[], outDir: string): void {
+export function writeFrameSet(
+  spec: CharacterSpec,
+  decoded: Frame[],
+  outDir: string,
+  baseline?: Frame[],
+): void {
   // One shared bounding box only means anything if the frames share a coordinate
   // space, so a mismatched canvas has to stop the run rather than silently
   // translate half the set.
@@ -500,7 +505,7 @@ export function writeFrameSet(spec: CharacterSpec, decoded: Frame[], outDir: str
     );
   }
 
-  assertFramesUsable(spec, decoded);
+  assertFramesUsable(spec, decoded, baseline);
 
   const boxes: Bounds[] = [];
   for (const entry of decoded) {
@@ -557,17 +562,42 @@ const MAX_CYCLE_RANGE = 6;
 const MAX_DETACHED = 5;
 
 /**
- * Rejects generated cycles that do not hold their pose, and frames carrying
- * floating debris.
+ * How far a redrawn frame's body may differ from the frame it was drawn from.
+ *
+ * Measured across the drone's 64 frames, where the largest deviation was 4px.
+ */
+const MAX_FIDELITY_DRIFT = 5;
+
+/**
+ * Rejects frames carrying floating debris, and cycles that do not hold their
+ * pose.
  *
  * Both are measured on the largest connected component rather than raw alpha.
  * That matters in both directions: debris would otherwise inflate the pose
  * measurement and mask a bad cycle, and comparing the two boxes is the only way
  * the debris itself shows up.
+ *
+ * `baseline` switches what "holding a pose" is measured against. Without it,
+ * each cycle is judged in the absolute — the right question for art generated
+ * from nothing, where a crouch really can wander into a stand. With it, each
+ * frame is compared against the one it was redrawn from, which is the right
+ * question for a rescale: the source art already shipped, so its motion is not
+ * on trial, and the only thing that can go wrong is the redraw departing from
+ * it. Applying the absolute rule to a rescale means re-litigating whatever the
+ * source already does — for the drone that meant flagging a diagonal gait whose
+ * silhouette varies by 16px in the *shipped* art, which the redraw reproduced
+ * to within 4.
  */
-export function assertFramesUsable(spec: CharacterSpec, decoded: Frame[]): void {
+export function assertFramesUsable(spec: CharacterSpec, decoded: Frame[], baseline?: Frame[]): void {
   const maxRange = spec.maxCycleRange ?? MAX_CYCLE_RANGE;
   const failures: string[] = [];
+
+  const scale = baseline?.length ? spec.canvas / baseline[0].image.width : 1;
+  const baselineHeight = new Map<string, number>();
+  for (const frame of baseline ?? []) {
+    const body = bodyBounds(frame.image);
+    if (body) baselineHeight.set(`${frame.anim}/${frame.direction}/${frame.frame}`, boundsHeight(body) * scale);
+  }
 
   for (const anim of spec.anims) {
     for (const direction of DIRECTIONS) {
@@ -589,11 +619,19 @@ export function assertFramesUsable(spec: CharacterSpec, decoded: Frame[]): void 
               `of the character (body ${boundsHeight(body)}px, full box ${boundsHeight(whole)}px)`,
           );
         }
+
+        const was = baselineHeight.get(`${anim.name}/${direction}/${frame.frame}`);
+        if (was !== undefined && Math.abs(boundsHeight(body) - was) > MAX_FIDELITY_DRIFT) {
+          failures.push(
+            `  ${anim.name}/${direction}/${frame.frame}: redrawn body is ${boundsHeight(body)}px ` +
+              `where the source scales to ${was.toFixed(0)}px — the redraw did not keep the pose`,
+          );
+        }
       }
 
       // A transition is supposed to change stance, so only cycles are held to a
-      // stable height.
-      if (anim.oneShot || heights.length === 0) continue;
+      // stable height — and only when there is no source to compare against.
+      if (baseline?.length || anim.oneShot || heights.length === 0) continue;
       const range = Math.max(...heights) - Math.min(...heights);
       if (range > maxRange) {
         failures.push(

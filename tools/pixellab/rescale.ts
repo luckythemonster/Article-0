@@ -52,15 +52,22 @@ async function main(): Promise<void> {
   console.log(`Redrawing ${spec.id} frames ${from}px -> ${spec.canvas}px\n`);
 
   const decoded: Frame[] = [];
+  const baseline: Frame[] = [];
   for (const anim of spec.anims) {
     for (const direction of DIRECTIONS) {
       for (let frame = 0; frame < anim.frameCount; frame++) {
+        const source = path.join(srcDir, anim.name, direction, `${frame}.png`);
         const cached = path.join(cacheDir, `${anim.name}-${direction}-${frame}.png`);
         if (!fs.existsSync(cached)) {
-          const source = path.join(srcDir, anim.name, direction, `${frame}.png`);
           fs.writeFileSync(cached, await redraw(spec, source, from));
           process.stdout.write(".");
         }
+        baseline.push({
+          anim: anim.name,
+          direction,
+          frame,
+          image: decodeRgba8(new Uint8Array(fs.readFileSync(source))),
+        });
         decoded.push({
           anim: anim.name,
           direction,
@@ -72,7 +79,10 @@ async function main(): Promise<void> {
     console.log(`\n  ${anim.name}: ${DIRECTIONS.length * anim.frameCount} frames`);
   }
 
-  writeFrameSet(spec, decoded, outDir);
+  // The frames are judged against the ones they were drawn from, not in the
+  // absolute — a rescale cannot be asked to improve on its source's motion, only
+  // to reproduce it.
+  writeFrameSet(spec, decoded, outDir, baseline);
 
   const after = await balance();
   console.log(`\nGenerations remaining: ${after.subscription?.generations ?? "?"}`);

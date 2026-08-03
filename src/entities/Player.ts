@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import {
   PLAYER_ANIM_FRAME_COUNTS,
   PLAYER_ANIM_FRAME_RATES,
+  PLAYER_DISPLAY_TILES,
   PLAYER_SOURCE_SIZE,
   playerAnimKey,
   playerFrameKey,
@@ -63,7 +64,7 @@ export class Player {
     // Crouching does not squash the sprite: the crouched frames are drawn low
     // already, and scaling them by a fraction would put the art back on a
     // non-integer factor — the exact thing this division is arranged to avoid.
-    const displaySize = tileSize * 1.5;
+    const displaySize = tileSize * PLAYER_DISPLAY_TILES;
     this.sprite.setScale(displaySize / PLAYER_SOURCE_SIZE);
     const body = this.sprite.body as Phaser.Physics.Arcade.Body;
     const { width, height, offsetX, offsetY } = PLAYER_IDLE_SOUTH_COLLIDER.aabb;
