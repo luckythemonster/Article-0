@@ -30,7 +30,7 @@ import * as path from "node:path";
 
 import { balance, download, get, post, awaitJob, toBase64Image } from "./client";
 import { boundsHeight, boundsWidth, contentBounds, recanvas, unionBounds, type Bounds } from "./canvas";
-import { decodeRgba8, encodeRgba8 } from "./png";
+import { decodeRgba8, encodeRgba8, type DecodedImage } from "./png";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 
@@ -75,26 +75,41 @@ interface AnimSpec {
    */
   keepFirstFrame: boolean;
   /**
-   * For transitions: the sheet whose rotation is the pose to interpolate
-   * toward. Set this and the animation is issued one direction at a time, since
-   * the API takes a single end frame per request.
+   * The sheet whose rotation is the pose to interpolate toward. Set this and
+   * the animation is issued one direction at a time, since the API takes a
+   * single end frame per request.
+   *
+   * Pointing it at a *different* sheet gives a transition. Pointing it at the
+   * animation's own sheet gives a closed loop: it starts and ends on the same
+   * pose, which is the only way to stop a cycle drifting (see the crouched
+   * entries in ANIMS).
    */
   endFrameSheet?: Sheet;
+  /** Plays once and holds its last frame, rather than looping. */
+  oneShot?: boolean;
 }
 
 /**
  * The seven animations, with frame counts matching `PLAYER_ANIM_FRAME_COUNTS`
  * exactly. Changing a count here without changing it there desynchronises the
  * loader from the assets on disk.
+ *
+ * The two crouched loops pin their end frame to their own sheet. Left to run
+ * open-ended, the motion model treats the crouch as a pose to move *out of* and
+ * walks the character back up toward the template's neutral stance over the
+ * cycle — which loops as Rowan repeatedly standing and dropping rather than
+ * holding a crouch. Anchoring both ends to the crouched rotation forces the
+ * cycle closed. The standing loops need no such anchor: neutral is where they
+ * already start.
  */
 const ANIMS: AnimSpec[] = [
   { name: "idle", sheet: "standing", action: "standing still, breathing, weight shifting slightly", frameCount: 4, keepFirstFrame: false },
   { name: "walk", sheet: "standing", action: "walking forward at a steady pace", frameCount: 4, keepFirstFrame: false },
   { name: "run", sheet: "standing", action: "running forward urgently, leaning into the stride", frameCount: 4, keepFirstFrame: false },
-  { name: "crouch", sheet: "crouched", action: "holding a low crouch, breathing, staying still", frameCount: 4, keepFirstFrame: false },
-  { name: "crouch-walk", sheet: "crouched", action: "creeping forward slowly while staying crouched low", frameCount: 6, keepFirstFrame: false },
-  { name: "crouch-down", sheet: "standing", action: "lowering from standing into a low crouch", frameCount: 8, keepFirstFrame: true, endFrameSheet: "crouched" },
-  { name: "crouch-up", sheet: "crouched", action: "rising from a low crouch back up to standing", frameCount: 8, keepFirstFrame: true, endFrameSheet: "standing" },
+  { name: "crouch", sheet: "crouched", action: "holding a low crouch, breathing, staying low throughout", frameCount: 4, keepFirstFrame: false, endFrameSheet: "crouched" },
+  { name: "crouch-walk", sheet: "crouched", action: "creeping forward one full stride while staying crouched low throughout", frameCount: 6, keepFirstFrame: false, endFrameSheet: "crouched" },
+  { name: "crouch-down", sheet: "standing", action: "lowering from standing into a low crouch", frameCount: 8, keepFirstFrame: true, endFrameSheet: "crouched", oneShot: true },
+  { name: "crouch-up", sheet: "crouched", action: "rising from a low crouch back up to standing", frameCount: 8, keepFirstFrame: true, endFrameSheet: "standing", oneShot: true },
 ];
 
 const CHARACTER_PROMPT =
@@ -113,12 +128,22 @@ interface State {
   crouched?: string;
   /** Animation name -> direction -> ordered frame URLs. */
   frames: Record<string, Partial<Record<Direction, string[]>>>;
+  /**
+   * Animation name -> the animation groups this tool created for it.
+   *
+   * A character accumulates animations rather than replacing them, so
+   * re-rolling `crouch` leaves the old one sitting alongside the new one under
+   * the same name. Recording which groups belong to the current take is what
+   * makes a re-roll actually take effect.
+   */
+  groups?: Record<string, string[]>;
 }
 
 async function main(): Promise<void> {
   const statePath = path.resolve(argValue("--state") ?? path.join(ROOT, ".pixellab-player.json"));
   const outDir = path.resolve(argValue("--out") ?? path.join(ROOT, "public", "assets", "player"));
   const only = argValue("--only");
+  const redo = (argValue("--redo") ?? "").split(",").filter(Boolean);
   const state = readState(statePath);
 
   const before = await balance();
@@ -180,7 +205,16 @@ async function main(): Promise<void> {
 
   for (const spec of ANIMS) {
     if (only && spec.name !== only) continue;
-    if (isComplete(state, spec)) {
+
+    // `--redo` re-rolls an animation that generated badly. Dropping its
+    // recorded groups is the part that matters: the previous take stays on the
+    // character under the same name, and without this it would keep winning.
+    const forced = redo.includes(spec.name);
+    if (forced) {
+      (state.groups ??= {})[spec.name] = [];
+      delete state.frames[spec.name];
+      writeState(statePath, state);
+    } else if (isComplete(state, spec)) {
       console.log(`${spec.name}: already generated, skipping`);
       continue;
     }
@@ -190,19 +224,21 @@ async function main(): Promise<void> {
     const done = state.frames[spec.name] ?? {};
 
     if (spec.endFrameSheet) {
-      // Interpolated transitions carry a target pose, and the API takes one end
-      // frame per request — so these go one direction at a time.
+      // An end frame is per-request, so anything carrying one — a transition,
+      // or a loop anchored to its own sheet — goes one direction at a time.
       for (const direction of DIRECTIONS) {
         if (done[direction]?.length) continue;
         const endFrame = await download(rotations[spec.endFrameSheet][direction]);
         const response = await requestAnimation(characterId, spec, [direction], toBase64Image(endFrame));
         await awaitAll(response, [direction], spec);
+        await recordGroups(state, spec, characterId);
         await refreshFrames(state, statePath);
       }
     } else {
       const pending = DIRECTIONS.filter((d) => !done[d]?.length);
       const response = await requestAnimation(characterId, spec, pending);
       await awaitAll(response, pending, spec);
+      await recordGroups(state, spec, characterId);
       await refreshFrames(state, statePath);
     }
 
@@ -276,51 +312,63 @@ function isComplete(state: State, spec: AnimSpec): boolean {
  * mis-parsed previous run instead of inheriting it.
  */
 async function refreshFrames(state: State, statePath: string): Promise<void> {
+  const all = [
+    ...(await characterAnimations(state.standing!)),
+    ...(await characterAnimations(state.crouched!)),
+  ];
+
   const merged: State["frames"] = {};
-  for (const id of [state.standing!, state.crouched!]) {
-    for (const [name, directions] of Object.entries(await animationFrames(id))) {
-      merged[name] = { ...(merged[name] ?? {}), ...directions };
+  for (const spec of ANIMS) {
+    const recorded = state.groups?.[spec.name];
+    let takes = all.filter((a) => a.display_name === spec.name);
+    // Once this run has recorded groups for an animation, they are the only
+    // ones that count — that is what lets a `--redo` beat the take it replaced.
+    if (recorded?.length) {
+      takes = recorded.flatMap((group) => takes.filter((a) => a.animation_group_id === group));
     }
+
+    // Last writer wins. Each take carries a whole set of directions, so a later
+    // one replaces an earlier one wholesale rather than interleaving with it —
+    // a direction is never a blend of two generations. The transitions are the
+    // exception by design: they are issued per direction, so each take
+    // contributes the single direction it owns.
+    const directions: Partial<Record<Direction, string[]>> = {};
+    for (const take of takes) {
+      for (const entry of take.directions ?? []) {
+        if (entry.frames?.length) directions[entry.direction as Direction] = entry.frames;
+      }
+    }
+    if (Object.keys(directions).length) merged[spec.name] = directions;
   }
+
   state.frames = merged;
   writeState(statePath, state);
 }
 
-interface CharacterRecord {
-  rotation_urls: Record<string, string>;
-  animations?: {
-    display_name?: string;
-    directions?: { direction: string; frames: string[] }[];
-  }[];
+/** Notes which animation groups appeared on the character as a result of this request. */
+async function recordGroups(state: State, spec: AnimSpec, characterId: string): Promise<void> {
+  const known = new Set((state.groups?.[spec.name] ?? []).filter(Boolean));
+  for (const animation of await characterAnimations(characterId)) {
+    if (animation.display_name !== spec.name || !animation.animation_group_id) continue;
+    known.add(animation.animation_group_id);
+  }
+  (state.groups ??= {})[spec.name] = [...known];
 }
 
-/**
- * One character's animations as `name -> direction -> frame URLs`.
- *
- * Animations sharing a display name are unioned by direction, because the
- * interpolated transitions are issued one direction at a time and so land as
- * eight separate single-direction animations under one name.
- *
- * First writer wins per direction. An interrupted run can leave a second, older
- * copy of a whole set behind, and taking the union blindly would let a walk
- * cycle draw its north frames from one generation and its south frames from
- * another. Whichever copy is seen first supplies every direction it has, so a
- * direction is never a blend of two takes.
- */
-async function animationFrames(characterId: string): Promise<State["frames"]> {
-  const character = (await get(`/characters/${characterId}`)) as CharacterRecord;
-  const byName: State["frames"] = {};
+interface AnimationRecord {
+  display_name?: string;
+  animation_group_id?: string;
+  directions?: { direction: string; frames: string[] }[];
+}
 
-  for (const animation of character.animations ?? []) {
-    const name = animation.display_name;
-    if (!name) continue;
-    const directions = (byName[name] ??= {});
-    for (const entry of animation.directions ?? []) {
-      const direction = entry.direction as Direction;
-      if (entry.frames?.length && !directions[direction]) directions[direction] = entry.frames;
-    }
-  }
-  return byName;
+interface CharacterRecord {
+  rotation_urls: Record<string, string>;
+  animations?: AnimationRecord[];
+}
+
+async function characterAnimations(characterId: string): Promise<AnimationRecord[]> {
+  const character = (await get(`/characters/${characterId}`)) as CharacterRecord;
+  return character.animations ?? [];
 }
 
 async function rotationUrls(characterId: string): Promise<Record<string, string>> {
@@ -366,6 +414,8 @@ async function writeFrames(state: State, outDir: string): Promise<void> {
     );
   }
 
+  assertLoopsClose(decoded);
+
   const boxes: Bounds[] = [];
   for (const entry of decoded) {
     const box = contentBounds(entry.image);
@@ -395,6 +445,58 @@ async function writeFrames(state: State, outDir: string): Promise<void> {
   // One-space indent matches the other asset manifests in public/assets.
   fs.writeFileSync(path.join(outDir, "manifest.json"), `${JSON.stringify(manifest, null, 1)}\n`);
   console.log(`Wrote ${manifest.length} frames + manifest.json to ${outDir}`);
+}
+
+/**
+ * Largest silhouette change a looping cycle may show between its last frame and
+ * its first, in pixels. A walk or run legitimately lands on a different foot,
+ * so this is not zero; a cycle that has wandered into a different *stance* is
+ * far outside it.
+ */
+const MAX_LOOP_DRIFT = 5;
+
+/**
+ * Rejects looping animations that do not end where they began.
+ *
+ * The game plays every non-transition clip with `repeat: -1`, so a cycle whose
+ * last frame differs from its first snaps on every wrap. When the drift is a
+ * change of stance rather than a footfall the result is unmistakable — a held
+ * crouch that reads as the character standing up and dropping again, over and
+ * over. Silhouette height is a blunt measure but it catches exactly that,
+ * which is the failure the motion model actually produces.
+ */
+function assertLoopsClose(
+  decoded: { anim: string; direction: Direction; frame: number; image: DecodedImage }[],
+): void {
+  const failures: string[] = [];
+
+  for (const spec of ANIMS) {
+    if (spec.oneShot) continue;
+    for (const direction of DIRECTIONS) {
+      const frames = decoded
+        .filter((e) => e.anim === spec.name && e.direction === direction)
+        .sort((a, b) => a.frame - b.frame);
+      const first = contentBounds(frames[0].image);
+      const last = contentBounds(frames[frames.length - 1].image);
+      if (!first || !last) continue;
+      const drift = Math.abs(boundsHeight(last) - boundsHeight(first));
+      if (drift > MAX_LOOP_DRIFT) {
+        failures.push(
+          `  ${spec.name}/${direction}: ${boundsHeight(first)}px tall on frame 0, ` +
+            `${boundsHeight(last)}px on frame ${frames.length - 1} (drift ${drift}px)`,
+        );
+      }
+    }
+  }
+
+  if (failures.length) {
+    throw new Error(
+      `These looping animations do not return to their starting pose, so they will snap ` +
+        `every time they wrap:\n${failures.join("\n")}\n` +
+        `Give the animation an \`endFrameSheet\` pointing at its own sheet to anchor both ` +
+        `ends of the cycle, then re-run.`,
+    );
+  }
 }
 
 function readState(file: string): State {

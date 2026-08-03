@@ -748,8 +748,18 @@ scaling.
 
 Generation is slow and costs credits, so progress is checkpointed to a state
 file after each completed unit of work. Re-running resumes rather than
-regenerating, which makes it safe to interrupt, and `--only <anim>` re-rolls a
-single animation.
+regenerating, which makes it safe to interrupt. `--only <anim>` restricts a run
+to one animation, and `--redo <anim,anim>` re-rolls animations that came out
+badly — a character accumulates animations rather than replacing them, so the
+state file records which groups belong to the current take and `--redo` drops
+that record so the new one wins.
+
+Every looping animation is checked to end where it began before anything is
+written. A cycle that drifts is worth failing the run over: the motion model
+treats a crouch as a pose to move *out of*, so an unanchored crouch cycle walks
+the character back up toward a neutral stance and then snaps down again on every
+wrap. Anchoring both ends of the cycle to the same rotation is the fix, and the
+error message says so.
 
 `npm run gen:colliders` is not optional: the physics body is traced from
 `idle/south/0.png`, so it does not match new art until it is re-run.
