@@ -42,6 +42,7 @@ npm run build    # tsc --noEmit + vite build
 | L | Flashlight — the only way to see in the unlit levels, but it drains and makes you far easier to spot |
 | F | Shared Field — once charged (by staying near a silicate), merge for 3.7s and become undetectable |
 | R | Knock — rap on a wall to lure guards and orderlies to the noise |
+| Q | Hold up — with a weapon in hand, aim at an orderly: hands up, silent, and he walks ahead of you while you hold it |
 | 1 – 4 | Use the consumable in that slot (the **Sack Lunch** takes two presses: open, then drop) |
 | C | Open the EIRA-7 codec |
 | Esc | Pause menu — objectives, journal, inventory, index, status, map, controls, settings, saves |
@@ -122,7 +123,7 @@ holds. What breaks it is behaviour, not geometry:
 | `SNEAKING` | Crouching (**Shift**) — skulking is its own kind of conspicuous |
 | `UNAUTHORIZED` | Working a terminal or a silicate rack |
 | `TAMPERING` | Searching a chest, knocking on walls (**R**) |
-| `HOSTILE` | A stun dart, an EMP Grenade burst |
+| `HOSTILE` | A stun dart, an EMP Grenade burst, a weapon pointed at somebody (**Q**) |
 | `EVASION` | Guards are sweeping for you — unless you have papers (see below) |
 | `ALERT` | Active pursuit. Nothing talks you out of that |
 
@@ -378,6 +379,24 @@ in real seconds so the balance they encode keeps its meaning.
   forward arc for the duration, so its back and flanks are open. It destroys
   the item and returns to wandering. The sensor channel is generic
   (`src/systems/Deployables.ts`): a future deployable is one `LURE_SPECS` entry.
+- The hold-up (**Q**): the third thing Rowan can do with a weapon, and the only one
+  that doesn't go off. Carrying Stun Rounds or the Rail-Stapler, aim at an orderly
+  within three tiles in a 90° arc with a clear sightline and he puts his hands up:
+  frozen, unable to witness, tinted amber, saying the only word this building has ever
+  offered him. Hold the key and he **marches** — a fixed 1.2 tiles ahead along Rowan's
+  facing, so pushing the stick pushes the man, which is also what makes the mechanic
+  need no aiming input and no new sprite frames. He'll take a pursuing guard's shot
+  meant for you; Rowan walks at the sneak pace and can't sprint or knock while his
+  hands are full. Letting go leaves him frozen for four more seconds, and then he is an
+  ordinary witness again — so a hold-up buys passage, never absolution, and the thing
+  you have to do with the time is break his line of sight. It is **silent**, which is
+  the whole argument for it over a dart (0.2 noise) or a staple (0.35), but it is
+  `HOSTILE` conduct throughout and for fourteen seconds after, and a patrol that sees a
+  man with his hands up escalates instantly, exactly as it does for a body on the
+  floor. The geometry is a pure, tested module (`src/systems/Surrender.ts`); the
+  surrender itself is a fifth state on `src/entities/Orderly.ts`, deliberately kept out
+  of `isImmobilized` — see that file's state doc for the four call sites that would
+  otherwise have changed behind your back.
 - Stealth: light/cover detection modifiers, global alert FSM, HUD.
 - Transitions: walk-over `stairs` and `E`-to-use `maintenance_access`
   hatches/ladders move between all four levels (`main1`, `duct1`, `duct2`,

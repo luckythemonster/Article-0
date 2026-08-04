@@ -304,6 +304,17 @@ export const PLAYER_DEFAULTS: PlayerStats = {
   hitCooldown: 1.0,
 };
 
+/**
+ * Rowan's baseline walking pace, tiles per second, before {@link paced} and before
+ * the stance multipliers in `Player.update`.
+ *
+ * Lifted out of `Player.ts`, where it was a literal inside the constructor, once a
+ * second number had to be balanced against it: a hostage marched ahead of Rowan has
+ * to out-walk him or he falls out of the hold, and a relationship between two
+ * constants can only be asserted where both of them live.
+ */
+export const PLAYER_WALK_TILES = 3.2;
+
 /** Loot granted by the vent-core supply chest; enables capacitor fire while JAMMED. */
 export const STAPLER_ITEM = "Pneumatic Rail-Stapler";
 
@@ -405,6 +416,104 @@ export const STAPLER_FIELD_NOISE = 0.35;
  * currently has no in-run refill source.
  */
 export const STAPLER_FIELD_MAX_CHARGES = 3;
+
+/**
+ * Full firing arc, in degrees, of everything Rowan points along his facing — the
+ * Stun Rounds dart and the Rail-Stapler's field mode.
+ *
+ * This is not new tuning. It was the bare `0.5` cosine written out three times in
+ * `GameScene` (the dart's orderly pass, the dart's cover pass, and the stapler's
+ * unified pass), which is a ±60° half-plane test spelled as a magic number. Naming
+ * it here is what lets {@link HOLD_UP_ARC_DEGREES} be the *second* named arc in the
+ * codebase rather than the third anonymous one.
+ */
+export const WEAPON_ARC_DEGREES = 120;
+
+// --- The hold-up ----------------------------------------------------------
+
+/**
+ * Reach (tiles) at which Rowan can put a weapon *on* a person rather than fire it.
+ *
+ * Deliberately under both weapons' own reach (5 and 4): the dart and the staple are
+ * things you do from across a room, and the hold-up is the thing you close for. It
+ * is also under the orderly's own five-tile sight range ({@link Orderly}), which is
+ * the point — letting a man go at maximum reach still leaves you standing in his
+ * eyeline, so the grace below is a deadline rather than a dismissal.
+ *
+ * **There is no noise constant here, and the absence is the mechanic.** The dart
+ * pings at 0.2 and the stapler at 0.35; a hold-up is the only way to take a person
+ * off the board without telling the deck you did it. A `HOLD_UP_NOISE = 0` would
+ * read as an oversight and get "fixed" by the next person through; an absence
+ * documented in prose cannot be.
+ */
+export const HOLD_UP_REACH_TILES = 3;
+
+/**
+ * Reach (tiles) at which an *established* hold finally breaks.
+ *
+ * Wider than {@link HOLD_UP_REACH_TILES} on purpose. A hostage marched ahead of you
+ * lags when he clips a corner, and without hysteresis the hold would strobe on and
+ * off at the acquire boundary — freeing and re-freezing him several times a second,
+ * which flickers the anomaly a patrol sees.
+ */
+export const HOLD_UP_RELEASE_TILES = 4.5;
+
+/**
+ * Full arc (degrees) inside which a hold-up can be *started*.
+ *
+ * Narrower than {@link WEAPON_ARC_DEGREES}, because this one is aimed rather than
+ * sprayed: with two orderlies abreast, which of them puts his hands up should be a
+ * choice you made, not the one the dot product happened to prefer.
+ */
+export const HOLD_UP_ARC_DEGREES = 90;
+
+/**
+ * Full arc (degrees) inside which an established hold *survives*.
+ *
+ * Much wider than the acquire arc, because a man walking ahead of you swings a long
+ * way off your axis as you both round a corner. Range is the gate that should end a
+ * march; angle ending it would make corners un-navigable with a hostage.
+ */
+export const HOLD_UP_RELEASE_ARC_DEGREES = 160;
+
+/** Tiles ahead of Rowan a marched hostage is held — just over one, so he leads through a doorway. */
+export const ESCORT_STANDOFF_TILES = 1.2;
+
+/**
+ * Marched pace (tiles/sec) of a hostage walking ahead of Rowan.
+ *
+ * The one paced constant in this block, because it is the only one that *moves*.
+ * It must exceed an orderly's own wander speed (1.1) or he could not keep station
+ * with Rowan's escort pace — 3.2 × {@link ESCORT_SPEED_MULTIPLIER} = 1.44 — and
+ * would fall out of the hold on every straight.
+ */
+export const ESCORT_WALK_TILES = paced(1.6);
+
+/** Rowan's speed multiplier while marching someone — the sneak pace, since his hands are full. */
+export const ESCORT_SPEED_MULTIPLIER = 0.45;
+
+/**
+ * Seconds a released hostage stays frozen before the ordinary witness path resumes.
+ *
+ * A hold-up buys passage, not absolution: at Rowan's walking pace this is a corner's
+ * worth of head start, not a room's. It is well under the stapler's six-second pin
+ * and the dart's eight seconds, so the free option is never also the strongest hold.
+ *
+ * Note the timer that actually decides whether he reports you is not this one — it
+ * is `FLAG_HOSTILE` (14s), because a flagged Rowan cannot use the compliance
+ * short-circuit at the top of `Orderly.canSee`. You have to break the sightline.
+ */
+export const HOLD_UP_GRACE_SECONDS = 4;
+
+/**
+ * Body radius (tiles) an orderly is collided against.
+ *
+ * Hand-written rather than traced, because orderlies have no generated collider —
+ * `npm run gen:colliders` covers the player, the enforcer and the drone, whose art
+ * is nearly edge-to-edge, and the orderly's 84x84 sheet is mostly padding. 0.3
+ * clears a one-tile passage with room either side.
+ */
+export const ORDERLY_COLLISION_RADIUS_TILES = 0.3;
 
 // --- The Sack Lunch, and the Orderly overrides it triggers ----------------
 

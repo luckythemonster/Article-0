@@ -39,6 +39,8 @@ import {
   STUN_ROUND_DURATION,
   STUN_ROUND_REACH_TILES,
   STUN_ROUNDS_ITEM,
+  HOLD_UP_GRACE_SECONDS,
+  HOLD_UP_REACH_TILES,
   THERMAL_GEL_ITEM,
   THERMAL_GEL_SECONDS,
 } from "./EntityStats";
@@ -85,7 +87,10 @@ const CATALOG: Record<string, ItemInfo> = {
       "occasionally need stopping, and has decided in advance that this is humane.",
     effect:
       `Drops an orderly at up to ${STUN_ROUND_REACH_TILES} tiles for ${STUN_ROUND_DURATION}s, ` +
-      "and breaks destructible cover in the same arc. Firing makes noise.",
+      "and breaks destructible cover in the same arc. Firing makes noise. " +
+      `Carrying it also enables the hold-up: [Q] within ${HOLD_UP_REACH_TILES} tiles ` +
+      `puts an orderly's hands up silently and marches him ahead of you, and he stays ` +
+      `frozen ${HOLD_UP_GRACE_SECONDS}s after you lower it.`,
   },
   [SACK_LUNCH_ITEM]: {
     name: SACK_LUNCH_ITEM,
@@ -135,7 +140,9 @@ const CATALOG: Record<string, ItemInfo> = {
       "Enables capacitor fire while VENT-4 is JAMMED. Elsewhere, [E] fires it at up to " +
       `${STAPLER_FIELD_RANGE_TILES} tiles: breaks destructible cover, or pins an orderly to a ` +
       `wall for ${STAPLER_PIN_DURATION}s. Field use draws from a fixed ` +
-      `${STAPLER_FIELD_MAX_CHARGES}-shot supply that does not refill.`,
+      `${STAPLER_FIELD_MAX_CHARGES}-shot supply that does not refill. Pointing it is ` +
+      `free: [Q] within ${HOLD_UP_REACH_TILES} tiles holds an orderly up instead, ` +
+      `silently and off the charge pool.`,
   },
 };
 

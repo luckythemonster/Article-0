@@ -132,6 +132,12 @@ The map carries no player component, so these defaults are used directly.
 | `hazardDamage` | 25 | - | Bio-integrity lost per hazard hit (laser, steam, etc.) |
 | `hitCooldown` | 1.0 | seconds | Invulnerability after taking a hit |
 
+Movement pace is a module constant rather than a member of `PlayerStats`:
+
+| Constant | Value | Unit | Notes |
+|------|-------|------|-------|
+| `PLAYER_WALK_TILES` | 3.2 | tiles/sec | Baseline walk, **scaled by `GAME_SPEED`**. Crouching, mid-crouch-transition and escorting run at 0.45×; sprinting at 1.6× |
+
 ---
 
 ## VENT-4 Boss
@@ -241,6 +247,31 @@ The arena is engine-generated, so these defaults are used directly. Movement-bea
 | | Noise on fire | 0.2 | 0..1 |
 | **Flashlight** | Drain time (100→0) | 45 | seconds |
 | | Detection multiplier | 1.8 | multiplier |
+
+### Aimed Actions
+
+| Constant | Value | Unit | Notes |
+|------|-------|------|-------|
+| `WEAPON_ARC_DEGREES` | 120 | degrees | Full forward arc a dart or a staple reaches (±60°) |
+
+### The Hold-Up
+
+Pointing a weapon at an orderly rather than firing it (**Q**), which requires Stun
+Rounds or the Rail-Stapler in the inventory. **There is deliberately no noise
+constant** — the hold-up is silent, and that absence is the reason to use it over the
+dart (0.2) or the stapler (0.35).
+
+| Constant | Value | Unit | Notes |
+|------|-------|------|-------|
+| `HOLD_UP_REACH_TILES` | 3 | tiles | Reach to *start* a hold. Under both weapons, and under an orderly's own 5-tile sight range |
+| `HOLD_UP_RELEASE_TILES` | 4.5 | tiles | Reach an established hold survives to — hysteresis, so a marched man clipping a corner doesn't strobe the hold |
+| `HOLD_UP_ARC_DEGREES` | 90 | degrees | Full arc to start a hold. Narrower than `WEAPON_ARC_DEGREES` |
+| `HOLD_UP_RELEASE_ARC_DEGREES` | 160 | degrees | Full arc an established hold survives in — wide, so corners are navigable with a hostage |
+| `ESCORT_STANDOFF_TILES` | 1.2 | tiles | How far ahead of Rowan a marched hostage is held |
+| `ESCORT_WALK_TILES` | 1.6 | tiles/sec | Marched pace, **scaled by `GAME_SPEED`**. Must exceed Rowan's escort pace (3.2 × 0.45 = 1.44) |
+| `ESCORT_SPEED_MULTIPLIER` | 0.45 | multiplier | Rowan's own pace while marching someone |
+| `HOLD_UP_GRACE_SECONDS` | 4 | seconds | Frozen shock after the aim comes off, before the ordinary witness path resumes |
+| `ORDERLY_COLLISION_RADIUS_TILES` | 0.3 | tiles | Orderly body radius for `GridMotion`. Hand-written: `gen:colliders` covers the player, enforcer and drone only |
 
 ### Consumable Hotkey Configuration
 
