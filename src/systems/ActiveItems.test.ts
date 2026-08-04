@@ -84,6 +84,18 @@ describe("ActiveItemState", () => {
     expect(s.sackLunchOpened).toBe(false);
   });
 
+  it("seeds owned/on/charge from a prior snapshot instead of starting full", () => {
+    const s = new ActiveItemState({
+      flashlightOwned: true,
+      flashlightOn: true,
+      flashlightCharge: 0.4,
+    });
+    expect(s.flashlightOwned).toBe(true);
+    expect(s.flashlightOn).toBe(true);
+    expect(s.flashlightCharge).toBe(0.4);
+    expect(s.flashlightBeamActive).toBe(true);
+  });
+
   it("won't turn on a dead flashlight until recharged", () => {
     const s = new ActiveItemState();
     s.toggleFlashlight();

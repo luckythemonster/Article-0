@@ -7,9 +7,13 @@
  *
  * The Sack Lunch's SEALED/OPENED flag lives here for the same reason the
  * flashlight's charge does: the inventory is a flat list of *names*, so anything
- * an item does over time has to be held beside it rather than inside it. And like
- * the flashlight's charge it is deliberately not part of `SaveData` — a fresh run,
- * a loaded save or a level change all hand the bag back sealed.
+ * an item does over time has to be held beside it rather than inside it. Neither
+ * is part of `SaveData` — a fresh run or a loaded save hand the bag back sealed
+ * and the battery full. A level change is different: `GameScene` seeds a new
+ * instance from the `"activeItems"` registry snapshot it already publishes every
+ * frame for the HUD, so the flashlight's owned/on/charge state (equipment, not a
+ * per-level effect) survives the swap. The Sack Lunch and the two consumable
+ * timers below are level-scoped and still reset on every transition.
  */
 
 import {
@@ -39,6 +43,20 @@ export class ActiveItemState {
   private flashlightChargeLevel = 1;
   /** True while a held Sack Lunch is OPENED rather than SEALED. */
   private sackLunchOpenedFlag = false;
+
+  /**
+   * Optionally seeds the flashlight's owned/on/charge state from a prior
+   * `ActiveItemsView` snapshot — how `GameScene.resetPerRun()` carries the
+   * flashlight across a level transition. Omitted (a fresh run / loaded save),
+   * the flashlight starts owned, off, and full, as before.
+   */
+  constructor(seed?: Pick<ActiveItemsView, "flashlightOwned" | "flashlightOn" | "flashlightCharge">) {
+    if (seed) {
+      this.flashlightOwnedFlag = seed.flashlightOwned;
+      this.flashlightOnFlag = seed.flashlightOn;
+      this.flashlightChargeLevel = seed.flashlightCharge;
+    }
+  }
 
   get chaffActive(): boolean {
     return this.chaffTimer > 0;
