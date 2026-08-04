@@ -698,7 +698,7 @@ were genuinely *wider than the doorways they patrol through*. The enforcer sits 
 1.15 tiles and the drone at 0.75 — see the collider note under *What's
 implemented*.
 
-- **Enforcer** (48x48) — a blocky robotic sentry gliding on magnetic tracks
+- **Enforcer** (72x72) — a blocky robotic sentry gliding on magnetic tracks
   with a rotating crown of camera-arms. It shipped with no animations, so its
   "patrol-scan" cycle (the camera-arms sweeping back and forth while it
   glides forward) was generated with PixelLab's custom v3 animation mode
@@ -717,7 +717,7 @@ implemented*.
   about 44% of every frame and doing it differently as the drone moved. The
   drone is the same size on screen as before — the art was redrawn smaller, not
   displayed smaller.
-- **Orderly** (84x84) — a human orderly in a utility jumpsuit carrying a
+- **Orderly** (96x96) — a human orderly in a utility jumpsuit carrying a
   diagnostic tablet. Only `idle` and `walk` were generated (character
   template mode, all 8 directions each in one call — a bystander has no
   run/crouch; `public/assets/orderly/`, manifest at
@@ -727,10 +727,25 @@ The rule those numbers answer to lives in `src/render/pixelScale.ts`, with a
 test. `(tileSize * displayTiles) / sourceSize * cameraZoom` is how many screen
 pixels one source pixel covers, and under `pixelArt: true` only a whole number is
 stable — a fraction re-snaps the grid as the camera pans, and anything below 1 is
-discarding pixels outright. The player and the drone satisfy it. **The enforcer
-(1.533) and the orderly (1.143) still do not**, and the test says so rather than
-pretending otherwise; neither can be fixed by changing the numbers alone, because
-their frames are nearly edge-to-edge art with no padding to give.
+discarding pixels outright.
+
+All four satisfy it now. All four started out failing it:
+
+| | was | is |
+| --- | --- | --- |
+| Player | 1.0909 — 88px art at 1.5 tiles | 1 — 96px |
+| Drone | 0.5647 — 85px at 0.75 tiles, *discarding* ~44% of every frame | 1 — 48px |
+| Enforcer | 1.5333 — 48px at 1.15 tiles | 1 — 72px at 1.125 |
+| Orderly | 1.1429 — 84px at 1.5 tiles | 1 — 96px |
+
+Not one of them could be fixed by changing the numbers alone: their frames are
+nearly edge-to-edge art with no padding to give, so each needed its art redrawn
+at a size that pairs with its display height. Two were being magnified and two
+shrunk, so "redrawn" meant larger for the enforcer and orderly and smaller for
+the drone — but in every case the sprite ends up the size it already was, give or
+take a couple of percent. The test iterates the cast rather than listing
+assertions, so a fifth character is held to the same rule without anyone
+remembering to add a case.
 
 ### Regenerating sprites
 

@@ -12,6 +12,8 @@ import { alertMarker, speechMarker } from "./markers";
 import {
   ORDERLY_ANIM_FRAME_COUNTS,
   ORDERLY_ANIM_FRAME_RATES,
+  ORDERLY_DISPLAY_TILES,
+  ORDERLY_SOURCE_SIZE,
   orderlyAnimKey,
   orderlyFrameKey,
   type OrderlyAnimName,
@@ -131,8 +133,10 @@ export class Orderly {
 
     Orderly.ensureAnimations(scene);
     this.body = scene.add.sprite(this.x, this.y, orderlyFrameKey("idle", "south", 0)).setDepth(440);
-    // The 84x84 source art scaled to ~1.5 tiles tall, matching the guards.
-    this.body.setScale((tileSize * 1.5) / 84);
+    // Scaled to ~1.5 tiles tall, matching the guards. The two constants are
+    // paired so this division lands on 0.5 and the art is never resampled — see
+    // ORDERLY_SOURCE_SIZE.
+    this.body.setScale((tileSize * ORDERLY_DISPLAY_TILES) / ORDERLY_SOURCE_SIZE);
     this.body.play(orderlyAnimKey("idle", "south"));
 
     this.bang = alertMarker(scene, this.x, this.y, tileSize);
