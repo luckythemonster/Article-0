@@ -64,6 +64,8 @@ import {
   GAME_SPEED,
   isConsumable,
   ENFORCER_FIRE_NOISE,
+  ESCORT_STANDOFF_TILES,
+  HOLD_UP_GRACE_SECONDS,
   MAX_CONSUMABLES,
   OPENED_RATION_DETECTION_MULTIPLIER,
   OPENED_RATION_NOISE,
@@ -83,6 +85,7 @@ import {
   STUN_ROUND_REACH_TILES,
   STUN_ROUNDS_ITEM,
   THERMAL_GEL_ITEM,
+  WEAPON_ARC_DEGREES,
 } from "../systems/EntityStats";
 import { CAMERA_ZOOM } from "../render/pixelScale";
 import {
@@ -118,6 +121,12 @@ import { planFor, type MapPlan } from "../map/MapPlan";
 import { getAudio } from "../systems/AudioDirector";
 import { saveGame, clearSave, loadGame, type SlotId } from "../systems/SaveGame";
 import { SharedField, WITNESS_RADIUS_TILES } from "../systems/SharedField";
+import {
+  canHoldUp,
+  escortPoint,
+  SurrenderAim,
+  type SurrenderWorld,
+} from "../systems/Surrender";
 import {
   ConductState,
   FLAG_HOSTILE,
@@ -171,6 +180,12 @@ const ENTITY_LAYERS = new Set([
 
 /** How close (in tiles) the player must be to interact with a door/terminal. */
 const INTERACT_RANGE = 1.4;
+
+/**
+ * Cos of the half-angle of {@link WEAPON_ARC_DEGREES} — the forward arc a dart or a
+ * staple can reach. Was the bare `0.5` written out at three call sites below.
+ */
+const WEAPON_ARC_COS = Math.cos((WEAPON_ARC_DEGREES * Math.PI) / 360);
 
 /** Radius (tiles) around a hacked terminal whose doors it releases. */
 const HACK_UNLOCK_RADIUS = 6;
@@ -272,6 +287,18 @@ export class GameScene extends Phaser.Scene {
   private playTimeMs = 0;
   /** The Shared Field (WX-9) charge / active state. */
   private sharedField = new SharedField();
+  /** The live hold-up, if any — who Rowan currently has a weapon on. */
+  private holdUp = new SurrenderAim<Orderly>();
+  /**
+   * Whether somebody is standing where a hold-up *would* land, this frame.
+   *
+   * Resolved in `updateHoldUp` and read by the prompt several methods later, because
+   * the geometry is worth answering exactly once a frame and the prompt runs after
+   * the aim does.
+   */
+  private holdUpCandidate = false;
+  /** The level's line-of-sight view, built once in `create` rather than per frame. */
+  private surrenderWorld!: SurrenderWorld;
   /** Whether Rowan currently reads to the facility as compliant staff. */
   private conduct = new ConductState();
   /** EMP Grenade / Thermal Gel consumable timers. */
@@ -316,6 +343,7 @@ export class GameScene extends Phaser.Scene {
     field: Phaser.Input.Keyboard.Key;
     flashlight: Phaser.Input.Keyboard.Key;
     knock: Phaser.Input.Keyboard.Key;
+    holdUp: Phaser.Input.Keyboard.Key;
   };
 
   constructor() {
@@ -361,6 +389,9 @@ export class GameScene extends Phaser.Scene {
     registerGlazing(this.level, this.grid, this.tileSize);
     this.detection = new DetectionSystem(this.level, this.tileSize);
     this.sensing = this.buildSensingContext();
+    // One object for the level rather than a literal per frame — the same reasoning
+    // `SensingContext` exists for, on a much smaller scale.
+    this.surrenderWorld = { tileSize: this.tileSize, grid: this.grid };
 
     const built = buildLevel(
       this,
@@ -602,6 +633,10 @@ export class GameScene extends Phaser.Scene {
     this.alert = new AlertState();
     this.noiseSpam = new NoiseSpamTracker();
     this.sharedField = new SharedField();
+    // Load-bearing: a live aim holds a reference to an `Orderly`, and every orderly on
+    // the deck is rebuilt by the restart this method exists to service. Without this
+    // the new level would open with a weapon pointed at a destroyed sprite.
+    this.holdUp = new SurrenderAim<Orderly>();
     // Conduct metrics are per *run*, not per level, and a level change is a
     // scene.restart() — so they ride the registry rather than resetting here.
     this.conduct = new ConductState(
@@ -727,7 +762,9 @@ export class GameScene extends Phaser.Scene {
       interact: kb.addKey(Phaser.Input.Keyboard.KeyCodes.E),
       // Q used to abort the run straight from the pause screen. The pause menu
       // owns quitting now, behind a confirmation — a stray keystroke while
-      // reading the journal must not throw the infiltration away.
+      // reading the journal must not throw the infiltration away. The freed key
+      // went to the hold-up, which wants to sit under the movement hand.
+      holdUp: kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
       pause: kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC),
       codec: kb.addKey(Phaser.Input.Keyboard.KeyCodes.C),
       field: kb.addKey(Phaser.Input.Keyboard.KeyCodes.F),
@@ -1091,8 +1128,8 @@ export class GameScene extends Phaser.Scene {
       const dy = p.y - this.player.y;
       const dist = len(dx, dy);
       if (dist > reachPx || dist === 0) continue;
-      // Only orderlies roughly in front of Rowan (within the forward half-plane).
-      if ((dx * fx + dy * fy) / dist < 0.5) continue;
+      // Only orderlies roughly in front of Rowan — see WEAPON_ARC_DEGREES.
+      if ((dx * fx + dy * fy) / dist < WEAPON_ARC_COS) continue;
       if (dist < bestDist) {
         bestDist = dist;
         target = orderly;
@@ -1110,7 +1147,7 @@ export class GameScene extends Phaser.Scene {
       const dy = cy - this.player.y;
       const dist = len(dx, dy);
       if (dist > reachPx || dist === 0) continue;
-      if ((dx * fx + dy * fy) / dist < 0.5) continue;
+      if ((dx * fx + dy * fy) / dist < WEAPON_ARC_COS) continue;
       if (dist < bestCoverDist) {
         bestCoverDist = dist;
         cover = c;
@@ -1153,7 +1190,7 @@ export class GameScene extends Phaser.Scene {
       const dy = y - this.player.y;
       const dist = len(dx, dy);
       if (dist > reachPx || dist === 0) return;
-      if ((dx * fx + dy * fy) / dist < 0.5) return;
+      if ((dx * fx + dy * fy) / dist < WEAPON_ARC_COS) return;
       if (!this.grid.hasLineOfSight(this.player.x / ts, this.player.y / ts, x / ts, y / ts)) return;
       if (dist < bestDist) {
         bestDist = dist;
@@ -1182,6 +1219,58 @@ export class GameScene extends Phaser.Scene {
     }
     this.conduct.violate("HOSTILE", FLAG_HOSTILE);
     this.noise.emitAt(this.player.x, this.player.y, STAPLER_FIELD_NOISE * ts);
+  }
+
+  /**
+   * The **hold-up**: pointing a weapon at a person instead of firing it, and walking
+   * him ahead of you while you do.
+   *
+   * The third of the three things Rowan can do with a weapon, and the only one that
+   * does not go off. It is deliberately the quiet one — there is **no**
+   * `noise.emitAt` call anywhere in here, which is the whole reason to prefer it over
+   * a dart, and is why {@link HOLD_UP_REACH_TILES} makes you close for it. What it
+   * costs instead is conduct: a man at gunpoint is the least compliant thing in the
+   * building, so the HOSTILE flag runs the entire time and for fourteen seconds after.
+   *
+   * Everything about *whether* a hold survives lives in `Surrender.ts` where it can
+   * be tested; everything about what a surrender *is* lives in `Orderly`. This is the
+   * wiring in between.
+   */
+  private updateHoldUp(dt: number): void {
+    const inventory = (this.registry.get("inventory") as string[] | undefined) ?? [];
+    // `inputLocked` releases the hold rather than merely ignoring the key: the roof's
+    // discharge is the run's authored ending, and a hostage must not stay frozen
+    // through the tribunal because a finger was still on Q.
+    const aiming =
+      this.keys.holdUp.isDown && canHoldUp(inventory) && !this.encounters.inputLocked;
+
+    const r = this.holdUp.update(dt, aiming, this.player, this.orderlies, this.surrenderWorld);
+    // Set even when nothing is held — it is what lets the prompt offer the verb
+    // before the player has thought to press the key. Gated on carrying a weapon,
+    // because advertising an action Rowan cannot perform is worse than silence.
+    this.holdUpCandidate = r.candidate !== null && canHoldUp(inventory);
+    const target = r.target;
+    if (!target) return;
+
+    // Re-asserted every frame, exactly like a terminal hold: `handsUp` and `violate`
+    // both take the max, so "held throughout, then a cooldown" needs no bookkeeping
+    // here and cannot be left set by a path that forgets to clear it.
+    target.handsUp(HOLD_UP_GRACE_SECONDS);
+    this.conduct.violate("HOSTILE", FLAG_HOSTILE);
+
+    const point = escortPoint(this.player, ESCORT_STANDOFF_TILES, this.tileSize);
+    target.escortTo(point.x, point.y);
+    // Standing still, Rowan looks at the man rather than at the last wall he walked
+    // toward. Moving, his facing is the direction he is pushing — which is also what
+    // aims the escort point, so the march needs no aiming input of its own.
+    if ((this.player.sprite.body as Phaser.Physics.Arcade.Body).velocity.lengthSq() === 0) {
+      this.player.face(Math.atan2(target.y - this.player.y, target.x - this.player.x));
+    }
+
+    if (r.acquired) {
+      this.note("hands-up");
+      getAudio().select();
+    }
   }
 
   /** Draws the EMP Grenade's EMP zone while it's live. */
@@ -1217,7 +1306,15 @@ export class GameScene extends Phaser.Scene {
     // The discharge on the roof: Rowan stops being able to act before the tribunal
     // takes the screen, so the last seconds are watched rather than played.
     if (this.encounters.inputLocked) {
-      return { up: false, down: false, left: false, right: false, sneak: false, run: false };
+      return {
+        up: false,
+        down: false,
+        left: false,
+        right: false,
+        sneak: false,
+        run: false,
+        escorting: false,
+      };
     }
 
     const correction = this.encounters.correction;
@@ -1228,6 +1325,11 @@ export class GameScene extends Phaser.Scene {
       right: correction?.invertX ? left : right,
       sneak: k.sneak.isDown,
       run: k.run.isDown,
+      // Marching a hostage slows Rowan and rules out a sprint. It lands here rather
+      // than in `Player` for the reason the doc above gives, and it deliberately does
+      // *not* touch the direction: the whole march is steered by walking normally,
+      // and the axes are still inverted underneath it if NW-SMAC-01 is doing that.
+      escorting: this.holdUp.target !== null,
     };
   }
 
@@ -1478,15 +1580,22 @@ export class GameScene extends Phaser.Scene {
    * fade owns it: time spent reading the journal is not time spent infiltrating.
    */
   private updatePlayerFrame(dt: number, delta: number): void {
+    // Before `player.update`, and the order is load-bearing twice over: `face()` has
+    // to land before the animation is picked (`setAnimation` reads `dir` inside that
+    // call), and `readInput` has to already know whether a hold is live.
+    this.updateHoldUp(dt);
     this.player.update(this.readInput(), dt);
     // Flashlight: L toggles the beam; feed its state to the lighting cone.
     if (Phaser.Input.Keyboard.JustDown(this.keys.flashlight)) {
       this.activeItems.toggleFlashlight();
     }
     // Knock (R): rap on an adjacent wall/object to lure guards and orderlies there.
+    // Not while holding someone up — his hands are full, and a knock is loud, which
+    // is the one thing a hold-up is for not being.
     this.knockCooldown = Math.max(0, this.knockCooldown - dt);
     if (
       this.knockCooldown <= 0 &&
+      !this.holdUp.target &&
       Phaser.Input.Keyboard.JustDown(this.keys.knock) &&
       this.noise.knock(this.player.x, this.player.y, this.player.facing)
     ) {
@@ -1584,6 +1693,12 @@ export class GameScene extends Phaser.Scene {
    * step by tile step, and if it crosses a live destructible cover tile first,
    * that breaks instead of the player taking the hit — the payoff for the
    * mechanic existing at all. Otherwise the player takes the damage.
+   *
+   * A hostage marched into the line is the other thing that can be in the way, and
+   * this is the point of marching one: he takes it. He is not cover, though, so he
+   * gets his own pass rather than joining the tile walk — a man is at a pixel
+   * position rather than on a tile, and he stops being a shield the moment he is hit,
+   * because a stun ends the surrender and with it the hold.
    */
   private resolveGuardFire(shot: EnforcerFireResult): void {
     const ts = this.tileSize;
@@ -1593,16 +1708,31 @@ export class GameScene extends Phaser.Scene {
     const stepPx = ts * 0.5;
 
     let hitCover: Cover | undefined;
+    let hitHostage: Orderly | undefined;
+    const hostage = this.holdUp.target;
     for (let d = stepPx; d < dist; d += stepPx) {
-      const tx = Math.floor((shot.originX + (dx / dist) * d) / ts);
-      const ty = Math.floor((shot.originY + (dy / dist) * d) / ts);
+      const px = shot.originX + (dx / dist) * d;
+      const py = shot.originY + (dy / dist) * d;
+      if (hostage && withinOrEqual(hostage.x - px, hostage.y - py, ts * 0.5)) {
+        hitHostage = hostage;
+        break;
+      }
+      const tx = Math.floor(px / ts);
+      const ty = Math.floor(py / ts);
       hitCover = this.coverTiles.find((c) => !c.isBroken && c.tileX === tx && c.tileY === ty);
       if (hitCover) break;
     }
 
     let endX = shot.targetX;
     let endY = shot.targetY;
-    if (hitCover) {
+    if (hitHostage) {
+      // Rowan takes nothing; the man he was hiding behind goes down, which drops the
+      // hold on the next frame's `aimedAt` (a stunned orderly cannot surrender).
+      hitHostage.stun(STUN_ROUND_DURATION);
+      endX = hitHostage.x;
+      endY = hitHostage.y;
+      this.cameras.main.flash(120, 255, 200, 130);
+    } else if (hitCover) {
       hitCover.destroy();
       endX = (hitCover.tileX + 0.5) * ts;
       endY = (hitCover.tileY + 0.5) * ts;
@@ -1682,8 +1812,23 @@ export class GameScene extends Phaser.Scene {
     const hatch =
       tr && tr.kind === "maintenance_access" && this.transitionArmed ? tr : undefined;
 
-    const interactDown = this.keys.interact.isDown;
-    const interactJust = Phaser.Input.Keyboard.JustDown(this.keys.interact);
+    // A hold-up claims Rowan's hands: he cannot work a panel, empty a chest, swing a
+    // door or fire the Stapler while pointing a weapon at somebody. Masking both E
+    // reads here short-circuits the entire claim chain below in one place, because
+    // every step of it already `&&`-guards on the steps above — rather than adding a
+    // sixth condition to each of six branches and to every future one.
+    //
+    // The dangerous one is the Stapler's field tap at the end of the chain: without
+    // this it would fire on a tap that nothing adjacent claimed, pin the very man
+    // being held up, spend one of three per-run charges and emit STAPLER_FIELD_NOISE
+    // — turning the one silent verb in the game into the loudest one, by accident.
+    //
+    // `JustDown` is a *consuming* read, so it is evaluated unconditionally and the
+    // result masked afterwards. Skipping the call would bank the press and fire it on
+    // the frame after Q comes back up.
+    const heldUp = this.holdUp.target !== null;
+    const interactDown = this.keys.interact.isDown && !heldUp;
+    const interactJust = Phaser.Input.Keyboard.JustDown(this.keys.interact) && !heldUp;
 
     // --- The vent-core/vault/roof encounter, whichever is live (hold E) ---
     const encounter = this.encounters.handleInteract(
@@ -1790,6 +1935,13 @@ export class GameScene extends Phaser.Scene {
       this.fireStaplerField();
     }
 
+    // A weapon on somebody outranks every verb in the chain above, because it is the
+    // only thing E cannot currently do.
+    if (heldUp) {
+      this.setPrompt("[Q] HOLDING");
+      return;
+    }
+
     this.showPrompt(
       nearestTerminal,
       nearestTerminalDist,
@@ -1804,6 +1956,9 @@ export class GameScene extends Phaser.Scene {
       // reads as a bug rather than a lock.
       roofLocked ? "[ROOF SEALED — ALIGNMENT CORE STILL ACTIVE]" : undefined,
     );
+    // Advertise the verb, but only into a slot nothing nearer wanted: a door in your
+    // face outranks a hint about somebody across the room.
+    if (!this.prompt.visible && this.holdUpCandidate) this.setPrompt("[Q] Hold up");
   }
 
   /**
@@ -1862,13 +2017,24 @@ export class GameScene extends Phaser.Scene {
     // why it won't open matters more than any verb they could reach from there.
     if (lockedLabel) label = lockedLabel;
 
-    if (label) {
-      this.prompt.setText(label);
-      this.prompt.setPosition(this.player.x, this.player.y - this.tileSize * 0.9);
-      this.prompt.setVisible(true);
-    } else {
+    this.setPrompt(label);
+  }
+
+  /**
+   * Puts a label in the contextual prompt over Rowan's head, or clears it.
+   *
+   * Split out of {@link showPrompt} rather than taking an eleventh positional
+   * parameter: that signature is already ten long and the hold-up is not another
+   * nearest-wins candidate — it is a state that replaces the whole comparison.
+   */
+  private setPrompt(label: string | undefined): void {
+    if (!label) {
       this.prompt.setVisible(false);
+      return;
     }
+    this.prompt.setText(label);
+    this.prompt.setPosition(this.player.x, this.player.y - this.tileSize * 0.9);
+    this.prompt.setVisible(true);
   }
 
   /**
@@ -2267,6 +2433,18 @@ export class GameScene extends Phaser.Scene {
           Math.floor(orderly.x / ts),
           Math.floor(orderly.y / ts),
           "pinnedOrderly",
+          "orderly",
+        );
+      } else if (orderly.isSurrendered) {
+        // Last, so a man surrendered and then darted reports as darted: the dart is
+        // the longer-lasting and harder evidence, and it is what a patrol should be
+        // reacting to once both are true.
+        this.pushAnomaly(
+          orderly.x,
+          orderly.y,
+          Math.floor(orderly.x / ts),
+          Math.floor(orderly.y / ts),
+          "surrenderedOrderly",
           "orderly",
         );
       }

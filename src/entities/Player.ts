@@ -9,7 +9,12 @@ import {
   type PlayerAnimName,
 } from "./PlayerAnimations";
 import { DIRS_8, directionOf, type Dir8 } from "./directions";
-import { PLAYER_DEFAULTS, paced } from "../systems/EntityStats";
+import {
+  ESCORT_SPEED_MULTIPLIER,
+  PLAYER_DEFAULTS,
+  PLAYER_WALK_TILES,
+  paced,
+} from "../systems/EntityStats";
 import { PLAYER_IDLE_SOUTH_COLLIDER } from "./generated/playerCollider";
 import { len } from "../systems/distance";
 
@@ -41,7 +46,7 @@ export class Player {
   private stance: Stance = "standing";
 
   constructor(scene: Phaser.Scene, x: number, y: number, tileSize: number) {
-    this.walkSpeed = tileSize * paced(3.2); // px/sec baseline
+    this.walkSpeed = tileSize * paced(PLAYER_WALK_TILES); // px/sec baseline
 
     Player.ensureAnimations(scene);
 
@@ -156,10 +161,22 @@ export class Player {
     const transitioning = this.stance === "crouching-down" || this.stance === "standing-up";
     const crouchedNow = this.stance === "crouched";
     const sneaking = crouchedNow && moving;
-    const running = cursors.run && moving && this.stance === "standing";
+    // Marching someone at gunpoint rules out a sprint the way a crouch does: his hands
+    // are full, and the man in front of him sets the pace either way.
+    const running = cursors.run && moving && !cursors.escorting && this.stance === "standing";
     this.runningNow = running;
-    // Crouched *and* mid-transition both move at the slow sneak pace.
-    const stanceMul = transitioning || sneaking ? 0.45 : running ? 1.6 : 1;
+    // Crouched *and* mid-transition both move at the slow sneak pace. Escorting is
+    // its own branch at its own constant even though the two numbers agree today —
+    // they answer to different things, and collapsing them would mean retuning the
+    // crouch to retune a hostage march.
+    const stanceMul =
+      transitioning || sneaking
+        ? 0.45
+        : cursors.escorting
+          ? ESCORT_SPEED_MULTIPLIER
+          : running
+            ? 1.6
+            : 1;
     const speed = this.walkSpeed * stanceMul;
 
     if (moving) {
@@ -193,6 +210,27 @@ export class Player {
     }
 
     this.updateInvuln(dt);
+  }
+
+  /**
+   * Points Rowan at something without moving him.
+   *
+   * `facing` and the animation direction are otherwise written only inside the
+   * `if (moving)` block above, which means Rowan cannot turn on the spot — correct
+   * for a game with no aiming, and the one thing a hold-up needs. This seeds both
+   * fields and lets `update` play the idle pose in that direction on its own, so a
+   * man standing over a hostage looks at him rather than at the last wall he walked
+   * toward. No new art is involved.
+   *
+   * The direction is left alone mid-crouch-transition for the same reason the
+   * movement path leaves it alone: turning would restart the one-shot clip facing
+   * somewhere else.
+   */
+  face(angle: number): void {
+    this.facing = angle;
+    if (this.stance !== "crouching-down" && this.stance !== "standing-up") {
+      this.dir = directionOf(Math.cos(angle), Math.sin(angle));
+    }
   }
 
   /** Ticks the post-hit invulnerability window, flashing the sprite while active. */
@@ -257,4 +295,11 @@ export interface InputState {
   right: boolean;
   run: boolean;
   sneak: boolean;
+  /**
+   * Marching someone at gunpoint: slower, and no sprinting. Arrives through
+   * `GameScene.readInput` rather than off a key, because it is a consequence of the
+   * hold rather than an input — the same funnel NW-SMAC-01's axis inversion and the
+   * roof's input lock use, and for the same reason.
+   */
+  escorting: boolean;
 }

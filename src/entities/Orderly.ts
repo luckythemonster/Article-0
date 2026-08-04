@@ -1,11 +1,14 @@
 import Phaser from "phaser";
 import type { CollisionGrid } from "../systems/CollisionGrid";
 import {
+  ESCORT_WALK_TILES,
+  ORDERLY_COLLISION_RADIUS_TILES,
   paced,
   RATION_SPOOF_SECONDS,
   SANITATION_CONE_DEGREES,
   SANITATION_SIGHT_MULTIPLIER,
 } from "../systems/EntityStats";
+import { moveCirclePx } from "../systems/GridMotion";
 import { LURE_SPECS, noticedLure, type DeployedLure } from "../systems/Deployables";
 import { DIRS_8, nearestDirection, type Dir8 } from "./directions";
 import { alertMarker, speechMarker } from "./markers";
@@ -52,9 +55,26 @@ export interface OrderlyContext {
  *  - **INSPECT**    — walking over to look at a knock, then giving up.
  *  - **SANITATION** — servicing a deployed item: the Sanitation / Containment
  *                     override, which outranks both of the above.
+ *  - **SURRENDERED** — hands up at gunpoint. Outranks everything but WITNESSED.
  *  - **WITNESSED**  — has seen the player and raised its one alarm. Terminal.
+ *
+ * SURRENDERED is a member of this union rather than a third timer beside
+ * {@link stunTimer} and {@link pinTimer}, and the distinction is worth stating.
+ * Stun and pin get away with being bare timers because they carry no *behaviour*:
+ * {@link update} short-circuits above `think()` and the orderly simply resumes when
+ * they lapse. Surrender does carry behaviour — it turns to face the weapon, it says
+ * something, it can be marched, it has a release grace, and it is refused outright
+ * to someone who has already reported you. That is a state.
+ *
+ * It is also why {@link isImmobilized} is deliberately **not** extended to cover it.
+ * Folding surrender in there would silently change four unrelated call sites at once:
+ * the Rail-Stapler would stop being able to staple a surrendered man, `distract`
+ * would no-op by accident rather than by decision, {@link syncMarkers} would blank
+ * the very speech line that carries the state, and `GameScene.buildAnomalies` would
+ * report the wrong kind to the patrols. Two separate getters, so each of those is
+ * answered on purpose.
  */
-type OrderlyState = "WANDER" | "INSPECT" | "SANITATION" | "WITNESSED";
+type OrderlyState = "WANDER" | "INSPECT" | "SANITATION" | "SURRENDERED" | "WITNESSED";
 
 const SIGHT_RANGE_TILES = 5;
 const WANDER_LEASH_TILES = 2.5;
@@ -68,6 +88,13 @@ const ARRIVE_TILES = 0.5;
 const REPRIMAND = "RATIONS IN THE MESS DECK, ASSET.";
 /** What it mutters over a spill. */
 const SANITATION_LINE = "BIOHAZARD. CONTAINING.";
+/**
+ * What a man says with a weapon pointed at him: he reaches for the only protection
+ * this building has ever offered anybody, and finds out what it is worth.
+ */
+const SURRENDER_LINE = "COMPLIANT. I'M COMPLIANT. DON'T.";
+/** The pale amber a surrendered orderly is tinted — see {@link syncMarkers}. */
+const SURRENDER_TINT = 0xffd08a;
 
 /**
  * A bystander, not a threat — the map's `orderlies` tiles carry no gameplay
@@ -81,11 +108,17 @@ const SANITATION_LINE = "BIOHAZARD. CONTAINING.";
  * a noisy door does) — after which the orderly freezes, its job done. It's a
  * hazard to avoid being seen by, not a persistent threat like a guard.
  *
- * Two things bend that: a **deployed Sack Lunch**, which pulls it off its round
- * to clean and half-blinds it while it works, and an **opened** one held in
- * plain sight, which buys a grace window before it reports. Both are the same
- * insight from opposite ends — an orderly is a member of staff with a job, and
- * a job is a thing you can give it.
+ * Three things bend that. A **deployed Sack Lunch** pulls it off its round to clean
+ * and half-blinds it while it works; an **opened** one held in plain sight buys a
+ * grace window before it reports. Both are the same insight from opposite ends — an
+ * orderly is a member of staff with a job, and a job is a thing you can give it.
+ *
+ * The third is a **weapon** ({@link handsUp}). An orderly is also the only human
+ * being on the deck, which is the one thing a threat needs to work on, and the
+ * silicates it shares a corridor with are not. He puts his hands up, he stops being
+ * able to report anything, and he walks where he is pointed — and the moment the
+ * weapon comes off him he is a witness again with a very short memory of being
+ * frightened.
  */
 export class Orderly {
   /** Pixel position — public for the same reason as {@link Enforcer.x}. */
@@ -121,6 +154,18 @@ export class Orderly {
   private spoofTimer = 0;
   /** Set on frames the orderly is actively citing mess-deck policy at Rowan. */
   private reprimanding = false;
+  /** Seconds of surrender left to run. Topped up every frame the weapon stays on him. */
+  private surrenderGrace = 0;
+  /**
+   * Where the scene wants this man marched *this frame*, or null to stand his ground.
+   *
+   * Consumed and cleared by {@link complyAtGunpoint} every frame, so the escort has to
+   * be re-sent to persist. That is the same discipline {@link handsUp} runs on, and it
+   * means no path out of a hold has to remember to cancel a stale march order.
+   */
+  private escortTarget: { x: number; y: number } | null = null;
+  /** Mirrors whether the body currently carries {@link SURRENDER_TINT}. */
+  private tinted = false;
 
   private readonly body: Phaser.GameObjects.Sprite;
   private readonly bang: Phaser.GameObjects.Text;
@@ -145,6 +190,9 @@ export class Orderly {
 
   /** Freezes the orderly for a stretch (a Stun Rounds dart) — can't witness. */
   stun(seconds: number): void {
+    // Being knocked out ends a surrender rather than layering over it, so the kind of
+    // anomaly the patrols see can't flicker between the two on alternate frames.
+    if (this.state === "SURRENDERED") this.returnToRound();
     this.stunTimer = Math.max(this.stunTimer, seconds);
     this.moving = false;
     this.bang.setVisible(false);
@@ -152,9 +200,45 @@ export class Orderly {
 
   /** Pins the orderly to a wall for a stretch (the Rail-Stapler's field mode) — can't witness. */
   pin(seconds: number): void {
+    if (this.state === "SURRENDERED") this.returnToRound();
     this.pinTimer = Math.max(this.pinTimer, seconds);
     this.moving = false;
     this.bang.setVisible(false);
+  }
+
+  /**
+   * Puts the orderly's hands up, and keeps them there for `seconds`.
+   *
+   * Shaped exactly like {@link stun} and {@link pin}, and called on **every frame**
+   * the weapon stays trained: `Math.max` tops the grace back up for as long as the
+   * hold lasts, so *releasing someone is simply the scene ceasing to call this*.
+   * There is deliberately no `release()` — a second method would be a second thing to
+   * forget on a level change, a capture, or any of the paths that drop an aim.
+   *
+   * Refused to a man who has already reported you. Un-reporting him would re-arm the
+   * one-shot alarm this class exists to make one-shot, and a single orderly pinging
+   * repeatedly is exactly what `NoiseSpamTracker` escalates to a full ALERT.
+   */
+  handsUp(seconds: number): void {
+    if (this.state === "WITNESSED") return;
+    if (this.state !== "SURRENDERED") {
+      this.returnToRound(); // drops the mop, the knock, the lot
+      this.state = "SURRENDERED";
+      this.bang.setVisible(false);
+    }
+    this.surrenderGrace = Math.max(this.surrenderGrace, seconds);
+  }
+
+  /**
+   * Marches a surrendered orderly toward a point this frame — the standoff position
+   * ahead of the player, recomputed from Rowan's facing every frame by the scene.
+   *
+   * A no-op on anyone not currently at gunpoint, so a stray call can't push a man
+   * around who never put his hands up.
+   */
+  escortTo(x: number, y: number): void {
+    if (this.state !== "SURRENDERED") return;
+    this.escortTarget = { x, y };
   }
 
   /**
@@ -165,7 +249,10 @@ export class Orderly {
    */
   distract(sx: number, sy: number): void {
     if (this.isImmobilized) return;
+    // A knock does not out-rank an actual work order, and it certainly does not
+    // out-rank the weapon pointed at him.
     if (this.state === "WITNESSED" || this.state === "SANITATION") return;
+    if (this.state === "SURRENDERED") return;
     this.state = "INSPECT";
     this.distractTarget = { x: sx, y: sy };
     this.distractPause = 0;
@@ -193,7 +280,13 @@ export class Orderly {
     }
     this.body.setPosition(this.x, this.y);
 
-    const witnessed = this.state === "WITNESSED" ? false : this.witnessCheck(dt, ctx);
+    // A man with his hands up is not raising the alarm, and this one line is the
+    // whole of that requirement — `canSee` stays untouched. It is also exactly right
+    // about the release frame: the grace drains inside `think()`, which ran above, so
+    // on the frame it reaches zero the state is already WANDER and the witness check
+    // runs *that same frame*. No second timer, no "was released last frame" flag.
+    const frozen = this.state === "WITNESSED" || this.state === "SURRENDERED";
+    const witnessed = frozen ? false : this.witnessCheck(dt, ctx);
     this.syncMarkers(ctx);
     return witnessed;
   }
@@ -212,7 +305,12 @@ export class Orderly {
   private think(dt: number, ctx: OrderlyContext): void {
     if (this.state === "WITNESSED") return;
 
-    if (this.state !== "SANITATION") {
+    // Only a man going about his round notices litter. Written as an allow-list rather
+    // than as `!== "SANITATION"` because the moment there was a second state that must
+    // not be interrupted, the deny-list silently stopped covering them all — a
+    // surrendered orderly would spot a Sack Lunch and walk off to clean it with his
+    // hands in the air.
+    if (this.state === "WANDER" || this.state === "INSPECT") {
       const found = ctx.lures
         ? noticedLure(this.x, this.y, ctx.lures, ctx, this.isUnreachable)
         : null;
@@ -226,6 +324,9 @@ export class Orderly {
     }
 
     switch (this.state) {
+      case "SURRENDERED":
+        this.complyAtGunpoint(dt, ctx);
+        break;
       case "SANITATION":
         this.sanitize(dt, ctx);
         break;
@@ -257,15 +358,22 @@ export class Orderly {
     }
 
     if (!this.moving) return;
-    const speed = WALK_SPEED_TILES * tileSize;
-    const nx = this.x + Math.cos(this.facing) * speed * dt;
-    const ny = this.y + Math.sin(this.facing) * speed * dt;
-    if (grid.isBlocked(Math.floor(nx / tileSize), Math.floor(ny / tileSize))) {
+    const speed = WALK_SPEED_TILES * tileSize * dt;
+    const moved = moveCirclePx(
+      grid,
+      this.x,
+      this.y,
+      Math.cos(this.facing) * speed,
+      Math.sin(this.facing) * speed,
+      ORDERLY_COLLISION_RADIUS_TILES,
+      tileSize,
+    );
+    this.x = moved.x;
+    this.y = moved.y;
+    // Meeting a wall head-on ends the leg; clipping one on the diagonal just slides.
+    if (moved.blockedX && moved.blockedY) {
       this.moving = false;
       this.wanderTimer = Phaser.Math.FloatBetween(1, 2);
-    } else {
-      this.x = nx;
-      this.y = ny;
     }
   }
 
@@ -334,11 +442,56 @@ export class Orderly {
   }
 
   /**
+   * The **hold-up**: hands up, and walk where the weapon says.
+   *
+   * The grace drains here rather than in `update()` so that it drains inside
+   * `think()` — see the witness gate in {@link update} for why that placement is the
+   * whole of the release behaviour.
+   *
+   * Standing still he turns to face the thing pointed at him; marched, he faces the
+   * way he is walking, which {@link stepToward} sets for him. Between the two, the
+   * tint and the speech line, the state reads at 32px with **no new art** — the
+   * orderly sheet is `idle` and `walk` only, and a hands-up pose would mean a
+   * PixelLab generation and a manual pipeline run for one pose.
+   */
+  private complyAtGunpoint(dt: number, ctx: OrderlyContext): void {
+    const target = this.escortTarget;
+    this.escortTarget = null;
+
+    // The scene re-sends the standoff point every frame of a hold, including the
+    // frames Rowan is standing still — on those the point is where the man already
+    // is, so the step reports `arrived` and he turns back to face the weapon. Keying
+    // the turn off *not walking* rather than off *no target* is what makes that work:
+    // a hostage wedged against a wall (`blocked`) looks at Rowan too, rather than
+    // standing at attention facing the wall he failed to walk through.
+    const step = target ? this.stepToward(target.x, target.y, dt, ctx) : "arrived";
+    if (step !== "walking") {
+      this.moving = false;
+      const dx = ctx.player.x - this.x;
+      const dy = ctx.player.y - this.y;
+      // Same guard as `sanitize`: atan2 of nothing is due east, which would have him
+      // staring past the shoulder of a man standing on his toes.
+      if (dx !== 0 || dy !== 0) this.facing = Math.atan2(dy, dx);
+    }
+
+    this.surrenderGrace = Math.max(0, this.surrenderGrace - dt);
+    if (this.surrenderGrace <= 0) this.returnToRound();
+  }
+
+  /**
    * One step along the ground toward a point, shared by both walk-over states.
    *
    * Returns what happened, so the caller owns the give-up policy rather than
    * having its own copy of the movement: `"arrived"` inside {@link ARRIVE_TILES},
-   * `"blocked"` when the next step would enter a wall, `"walking"` otherwise.
+   * `"blocked"` when a wall refused the step outright, `"walking"` otherwise.
+   *
+   * Resolved through {@link moveCirclePx}, like the guards, rather than by asking
+   * whether the tile under the orderly's centre point is blocked. That older test is
+   * the one `GridMotion`'s own doc says it replaced "everywhere" — orderlies were
+   * simply missed at the time, which was survivable while they only pottered about
+   * near a spawn point and stopped being so the moment one could be marched down a
+   * corridor at gunpoint: a body pushed diagonally into a wall stalled dead against
+   * it instead of sliding along it, several times a straight.
    */
   private stepToward(
     tx: number,
@@ -353,26 +506,46 @@ export class Orderly {
     }
 
     this.facing = Math.atan2(ty - this.y, tx - this.x);
-    const speed = WALK_SPEED_TILES * tileSize;
-    const nx = this.x + Math.cos(this.facing) * speed * dt;
-    const ny = this.y + Math.sin(this.facing) * speed * dt;
-    if (grid.isBlocked(Math.floor(nx / tileSize), Math.floor(ny / tileSize))) {
+    const speed = this.walkSpeedTiles() * tileSize * dt;
+    const moved = moveCirclePx(
+      grid,
+      this.x,
+      this.y,
+      Math.cos(this.facing) * speed,
+      Math.sin(this.facing) * speed,
+      ORDERLY_COLLISION_RADIUS_TILES,
+      tileSize,
+    );
+    this.x = moved.x;
+    this.y = moved.y;
+    // Only a step refused on *both* axes is blocked. One axis surviving is the slide
+    // that carries him along the wall and around the corner.
+    if (moved.blockedX && moved.blockedY) {
       this.moving = false;
       return "blocked";
     }
     this.moving = true;
-    this.x = nx;
-    this.y = ny;
     return "walking";
   }
 
-  /** Drops whatever the orderly was doing — finished or abandoned — and resumes its round. */
+  /** Marched pace while at gunpoint, his own amble otherwise — see {@link ESCORT_WALK_TILES}. */
+  private walkSpeedTiles(): number {
+    return this.state === "SURRENDERED" ? ESCORT_WALK_TILES : WALK_SPEED_TILES;
+  }
+
+  /**
+   * Drops whatever the orderly was doing — finished or abandoned — and resumes its
+   * round. The single place every override's bookkeeping is cleared, which is what
+   * lets `handsUp`, `stun`, `pin` and the grace expiry all share one reset.
+   */
   private returnToRound(): void {
     this.state = "WANDER";
     this.distractTarget = null;
     this.distractPause = 0;
     this.lure = null;
     this.serviceTimer = 0;
+    this.surrenderGrace = 0;
+    this.escortTarget = null;
     this.moving = false;
   }
 
@@ -437,22 +610,33 @@ export class Orderly {
     this.bang.setPosition(this.x, this.y - ts);
     this.speech.setPosition(this.x, this.y - ts * 0.75);
 
-    // The spoof line is the one worth reading — it is a timer the player is
-    // spending — so it wins over the cleaning mutter when both apply. Nothing is
-    // said while frozen by a dart or a staple.
+    // Surrender wins outright — it is the only line said with a weapon in the way.
+    // Below it, the spoof line beats the cleaning mutter, because it is a timer the
+    // player is spending. Nothing is said at all while frozen by a dart or a staple.
     const line = this.isImmobilized
       ? ""
-      : this.reprimanding
-        ? REPRIMAND
-        : this.state === "SANITATION"
-          ? SANITATION_LINE
-          : "";
-    if (line === "") {
-      this.speech.setVisible(false);
-      return;
+      : this.state === "SURRENDERED"
+        ? SURRENDER_LINE
+        : this.reprimanding
+          ? REPRIMAND
+          : this.state === "SANITATION"
+            ? SANITATION_LINE
+            : "";
+    if (line === "") this.speech.setVisible(false);
+    else {
+      if (this.speech.text !== line) this.speech.setText(line);
+      this.speech.setVisible(true);
     }
-    if (this.speech.text !== line) this.speech.setText(line);
-    this.speech.setVisible(true);
+
+    // The hands-up read, carried by colour rather than by a pose. Latched against a
+    // flag for the same reason the animation key is checked before `play` above: a
+    // tint call every frame is a WebGL round-trip for a value that changes twice.
+    const wantTint = this.state === "SURRENDERED";
+    if (wantTint !== this.tinted) {
+      this.tinted = wantTint;
+      if (wantTint) this.body.setTint(SURRENDER_TINT);
+      else this.body.clearTint();
+    }
   }
 
   /** True while frozen by a Stun Rounds dart — guards treat this as an anomaly. */
@@ -465,9 +649,28 @@ export class Orderly {
     return this.pinTimer > 0;
   }
 
-  /** Frozen and can't witness, regardless of which effect is holding it. */
+  /**
+   * Frozen and can't witness, regardless of which effect is holding it.
+   *
+   * Covers the dart and the staple only. A surrendered orderly is *also* frozen and
+   * also can't witness, and is deliberately still excluded here — see the state
+   * union's doc for the four call sites that would have changed behind your back.
+   */
   get isImmobilized(): boolean {
     return this.isStunned || this.isPinned;
+  }
+
+  /** Hands up at gunpoint — the patrols read this as an anomaly, same as a dart. */
+  get isSurrendered(): boolean {
+    return this.state === "SURRENDERED";
+  }
+
+  /**
+   * Eligible to be held up: still has an alarm to withhold, and is awake to withhold
+   * it. Read by `Surrender.aimedAt`, which this satisfies structurally.
+   */
+  get canSurrender(): boolean {
+    return this.state !== "WITNESSED" && !this.isImmobilized;
   }
 
   /** Registers idle/walk animations for each direction once per scene. */

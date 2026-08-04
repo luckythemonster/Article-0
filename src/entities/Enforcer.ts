@@ -41,6 +41,27 @@ export interface EnforcerFireResult {
   damage: number;
 }
 
+/**
+ * An anomaly that is a *person*, in a state no orderly ever puts themselves in:
+ * dropped by a dart, stapled to a wall, or standing with their hands up.
+ *
+ * Split out from the rest because these three take a different branch in
+ * {@link Enforcer.scanAnomalies} — an instant, base-wide sighting rather than a
+ * walk-over investigation — and because that branch is the only reason they are
+ * safe. `GameScene.pushAnomaly` keys an anomaly by its tile, and *people move*: a
+ * key of `orderly:<tx>:<ty>` changes every time its subject crosses a tile boundary.
+ * The instant branch returns before it ever consults `investigatedAnomalies`, so
+ * nothing accumulates. Demoting any of these kinds to an investigation would leak a
+ * Set entry per tile per orderly for the length of the run, and have a guard
+ * re-investigate the same man forever.
+ */
+export type PersonAnomalyKind = "stunnedOrderly" | "pinnedOrderly" | "surrenderedOrderly";
+
+/** True for the three kinds that are a person rather than a thing. */
+export function isPersonAnomaly(kind: GuardAnomaly["kind"]): kind is PersonAnomalyKind {
+  return kind === "stunnedOrderly" || kind === "pinnedOrderly" || kind === "surrenderedOrderly";
+}
+
 /** An environmental anomaly a guard's vision cone can notice. */
 export interface GuardAnomaly {
   /** Pixel-space position, for cone/LOS checks. */
@@ -49,7 +70,7 @@ export interface GuardAnomaly {
   /** Tile-space position, for search/anomaly bookkeeping. */
   tx: number;
   ty: number;
-  kind: "door" | "chest" | "device" | "stunnedOrderly" | "pinnedOrderly";
+  kind: "door" | "chest" | "device" | PersonAnomalyKind;
   /** Stable identity so a guard investigates a given anomaly at most once. */
   key: string;
 }
@@ -416,14 +437,15 @@ export class Enforcer {
 
   /**
    * Scans the vision cone for environmental anomalies while PATROL/CAUTIOUS.
-   * A stunned or pinned orderly instantly escalates to a base-wide sighting; an
-   * opened door/chest or an EMP'd device starts a walk-over investigation.
+   * A person on the floor, stapled to a wall or standing with their hands up
+   * instantly escalates to a base-wide sighting; an opened door/chest or an EMP'd
+   * device starts a walk-over investigation.
    * Returns true once something claims the guard's attention this frame.
    */
   private scanAnomalies(ctx: EnforcerContext): boolean {
     if (!ctx.anomalies) return false;
     for (const a of ctx.anomalies) {
-      if (a.kind === "stunnedOrderly" || a.kind === "pinnedOrderly") {
+      if (isPersonAnomaly(a.kind)) {
         if (this.canSeeAnomaly(a, ctx)) {
           this.detection = 1;
           ctx.alert.reportSighting(a.tx, a.ty);

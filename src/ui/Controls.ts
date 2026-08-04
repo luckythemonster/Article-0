@@ -25,6 +25,7 @@ export const CONTROLS: readonly ControlBinding[] = [
   { key: "L", action: "Flashlight — the only way to see in the unlit levels" },
   { key: "F", action: "Shared Field — once charged, merge and become undetectable", hint: "F shared-field" },
   { key: "R", action: "Knock — lure guards and orderlies to a wall" },
+  { key: "Q", action: "Hold up — with a weapon, aim at an orderly: hands up, silent, and he walks ahead of you" },
   { key: "1 – 4", action: "Use the consumable in that slot" },
   { key: "C", action: "Open the EIRA-7 codec", hint: "C codec" },
   { key: "Esc", action: "Pause — objectives, journal, inventory, index, saves", hint: "Esc pause" },

@@ -27,6 +27,7 @@ export type JournalEntryId =
   | "arrival-duct2"
   | "arrival-main2"
   | "supply"
+  | "hands-up"
   | "flagged"
   | "we"
   | "the-cache"
@@ -126,6 +127,28 @@ export const JOURNAL_ENTRIES: readonly JournalEntry[] = [
       "at all.",
       "",
       "I take the rations. I note the inconsistency. I keep moving.",
+    ].join("\n"),
+  },
+  {
+    id: "hands-up",
+    title: "HANDS UP",
+    body: [
+      "I pointed it at him and he put his hands up and said he was",
+      "compliant. Twice. Like it was a password.",
+      "",
+      "He is staff. He is a person, legally, which on this deck makes",
+      "him rare — the drones in the corridor are not, the thing in the",
+      "vault is not, and by their own Act the only two subjects in that",
+      "room were him and me. So of everything I could have threatened",
+      "tonight, I picked the one that counts.",
+      "",
+      "He walked where I pointed him. He was very careful about it.",
+      "He kept saying the word, and I kept not being the apparatus it",
+      "was addressed to, and neither of us said so.",
+      "",
+      "I let him go around a corner where he could not see me. He gets",
+      "to report it. I would rather he reported it than that I made",
+      "sure he could not.",
     ].join("\n"),
   },
   {
