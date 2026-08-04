@@ -1,6 +1,7 @@
 import type Phaser from "phaser";
 import type { GameTile, SpriteFrame } from "../map/types";
 import type { DetectionSystem } from "../systems/DetectionSystem";
+import { playVfx, SMOKE_PLUME } from "./Vfx";
 
 /**
  * A destructible cover tile — the map's `Destructible` cover field, wired up.
@@ -50,6 +51,12 @@ export class Cover {
     const ts = this.tileSize;
     const x = this.tileX * ts;
     const y = this.tileY * ts;
+
+    // Fired here rather than at the call sites so all three ways of breaking
+    // cover — a stun round, the Rail-Stapler's field mode, and a pursuing
+    // guard's fire — get it without any of them knowing about it. Centred on
+    // the tile, not its corner.
+    playVfx(this.scene, SMOKE_PLUME, x + ts / 2, y + ts / 2, ts);
     // A same-size opaque stamp, erased against the baked tile texture — the
     // same technique Lighting.ts uses to punch light pools out of the dark.
     const stamp = this.scene.make
