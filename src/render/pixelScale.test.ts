@@ -4,6 +4,7 @@ import { PLAYER_DISPLAY_TILES, PLAYER_SOURCE_SIZE } from "../entities/PlayerAnim
 import { DRONE_SKIN } from "../entities/DroneAnimations";
 import { ENFORCER_SKIN } from "../entities/EnforcerAnimations";
 import { ORDERLY_DISPLAY_TILES, ORDERLY_SOURCE_SIZE } from "../entities/OrderlyAnimations";
+import { assertVfxScales, vfxScales } from "../entities/Vfx";
 
 describe("screenPixelsPerSourcePixel", () => {
   it("is the sprite scale times the camera zoom", () => {
@@ -64,5 +65,30 @@ describe("the shipped character sprites", () => {
     ];
     const resampling = cast.filter(([, tiles, size]) => !isPixelPerfect(tiles, size));
     expect(resampling.map(([name]) => name)).toEqual([]);
+  });
+});
+
+describe("the one-shot effects", () => {
+  /**
+   * Effects are held to the same rule as the characters.
+   *
+   * They are easier to get wrong: the frames come from third-party packs at
+   * whatever size the artist drew them, so the display height has to be picked
+   * to suit each one rather than a house standard. Two more packs sit unused in
+   * `public/assets/vfx/` at 512px — sixteen tiles across — precisely because no
+   * sane display height rescues them without a redraw.
+   */
+  it("resamples nothing", () => {
+    expect(assertVfxScales()).toEqual([]);
+  });
+
+  it("covers every effect that ships", () => {
+    // Guards against the check above passing because the list is empty.
+    expect(vfxScales().map((v) => v.id).sort()).toEqual([
+      "electronics-spark",
+      "emp-blast",
+      "impact",
+      "smoke-plume",
+    ]);
   });
 });

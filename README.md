@@ -766,6 +766,37 @@ take a couple of percent. The test iterates the cast rather than listing
 assertions, so a fifth character is held to the same rule without anyone
 remembering to add a case.
 
+### One-shot effects
+
+Everything else the game draws is procedural — the EMP zone, the fire tracers,
+the boss core and the relay dish are all `Graphics` primitives with an ADD blend.
+`Vfx.ts` is the only sprite-based effect path: `playVfx` puts an animation at a
+world position and throws it away when it finishes.
+
+| effect | fires on | drawn from |
+| --- | --- | --- |
+| EMP blast | an EMP Grenade going off | `vfx/emp-blast`, 9 frames at 64px |
+| Electronics spark | a laser emitter knocked out by that burst | `vfx/impact-electronics-or-silicate`, 12 at 128px |
+| Impact | a stun dart or Rail-Stapler landing on an orderly | `vfx/impact`, 4 at 32px |
+| Smoke plume | cover coming apart | `vfx/smoke-plume`, 7 at 32px |
+
+The smoke fires from inside `Cover.destroy()` rather than at the call sites, so
+all three ways of breaking cover — a stun round, the stapler's field mode, a
+pursuing guard's fire — get it without any of them knowing about it.
+
+Effects render **above** the lighting overlay, alongside the player and for the
+same reason: unlit space is fully opaque, so anything beneath it is simply gone,
+and an effect that vanishes because the room is dark fails at the only job it
+has. They are all player-triggered and last under a second, so nothing is
+revealed that the player did not just cause.
+
+They obey the same scale rule as the characters, and the test covers them. Two
+packs in `public/assets/vfx/` are **staged but unused**: `explosion` and
+`electricity` are 512x512, sixteen tiles across, and no display height rescues
+them without an 8x reduction — the exact pixel destruction the rule exists to
+prevent. They need redrawing at size (`gen:rescale` can do it) before they can be
+wired up.
+
 ### Regenerating sprites
 
 `tools/pixellab/` drives the whole thing from a PixelLab API key in

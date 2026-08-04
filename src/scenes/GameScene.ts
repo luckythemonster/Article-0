@@ -27,6 +27,7 @@ import { Laser } from "../entities/Laser";
 import { Sensor } from "../entities/Sensor";
 import { Chest } from "../entities/Chest";
 import { Cover } from "../entities/Cover";
+import { playVfx, EMP_BLAST, ELECTRONICS_SPARK, IMPACT } from "../entities/Vfx";
 import { buildAlertNetworkSnapshot, NoiseSpamTracker } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
 import {
@@ -1108,8 +1109,12 @@ export class GameScene extends Phaser.Scene {
     for (const laser of this.lasers) {
       if (withinOrEqual(laser.x - this.player.x, laser.y - this.player.y, radiusPx)) {
         laser.emp(CHAFF_PACK_DURATION);
+        // Each emitter it knocks out sparks where it stands, so the burst's
+        // reach is legible rather than implied by the flash alone.
+        playVfx(this, ELECTRONICS_SPARK, laser.x, laser.y, this.tileSize);
       }
     }
+    playVfx(this, EMP_BLAST, this.player.x, this.player.y, this.tileSize);
     this.cameras.main.flash(200, 120, 200, 255);
   }
 
@@ -1141,6 +1146,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
     target?.stun(STUN_ROUND_DURATION);
+    if (target) playVfx(this, IMPACT, target.x, target.y, this.tileSize);
 
     let cover: Cover | undefined;
     let bestCoverDist = Infinity;
@@ -1217,8 +1223,12 @@ export class GameScene extends Phaser.Scene {
     this.staplerFieldCooldown = STAPLER_FIELD_COOLDOWN;
     this.registry.set("staplerFieldCharges", Math.max(0, this.staplerFieldCharges() - 1));
     if (best) {
+      // Cover fires its own effect from `destroy()`; a pinned man does not.
       if (best.kind === "cover") best.cover.destroy();
-      else best.orderly.pin(STAPLER_PIN_DURATION);
+      else {
+        best.orderly.pin(STAPLER_PIN_DURATION);
+        playVfx(this, IMPACT, best.orderly.x, best.orderly.y, this.tileSize);
+      }
       this.fireTracers.push({ x1: this.player.x, y1: this.player.y, x2: best.x, y2: best.y, ttl: 0.08 });
       getAudio().railStapler();
     }
