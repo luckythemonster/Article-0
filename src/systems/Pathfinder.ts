@@ -81,6 +81,20 @@ export function tilePassable(
   return circleFits(grid, tx + 0.5, ty + 0.5, radiusTiles, openable);
 }
 
+// Reusable static buffers to ensure zero dynamic allocation during hot pathfinding loops.
+let gScoreBuffer = new Float64Array(2048);
+let cameFromBuffer = new Int32Array(2048);
+let closedBuffer = new Uint8Array(2048);
+
+function ensureBuffers(size: number): void {
+  if (gScoreBuffer.length < size) {
+    const newSize = Math.max(gScoreBuffer.length * 2, size);
+    gScoreBuffer = new Float64Array(newSize);
+    cameFromBuffer = new Int32Array(newSize);
+    closedBuffer = new Uint8Array(newSize);
+  }
+}
+
 /**
  * A* from `start` to `goal` in tile coordinates.
  *
@@ -121,30 +135,34 @@ export function findPath(
   // is the one response that leaves it stuck there forever.
 
   const w = grid.width;
+  const h = grid.height;
+  const size = w * h;
+  ensureBuffers(size);
+
+  gScoreBuffer.fill(Infinity, 0, size);
+  cameFromBuffer.fill(-1, 0, size);
+  closedBuffer.fill(0, 0, size);
+  openHeap.clear();
+
   const index = (x: number, y: number): number => y * w + x;
 
-  const gScore = new Map<number, number>();
-  const cameFrom = new Map<number, number>();
-  const closed = new Set<number>();
-  const open = new BinaryHeap();
-
   const startIdx = index(sx, sy);
-  gScore.set(startIdx, 0);
-  open.push(startIdx, octile(sx, sy, gx, gy));
+  gScoreBuffer[startIdx] = 0;
+  openHeap.push(startIdx, octile(sx, sy, gx, gy));
 
   let expanded = 0;
-  while (open.size > 0) {
-    const current = open.pop()!;
-    if (closed.has(current)) continue;
-    closed.add(current);
+  while (openHeap.size > 0) {
+    const current = openHeap.pop()!;
+    if (closedBuffer[current] === 1) continue;
+    closedBuffer[current] = 1;
 
     const cx = current % w;
     const cy = (current - cx) / w;
-    if (cx === gx && cy === gy) return reconstruct(cameFrom, current, w);
+    if (cx === gx && cy === gy) return reconstruct(cameFromBuffer, current, w);
 
     if (++expanded > maxNodes) return null;
 
-    const cg = gScore.get(current)!;
+    const cg = gScoreBuffer[current];
     for (const [dx, dy] of NEIGHBOURS) {
       const nx = cx + dx;
       const ny = cy + dy;
@@ -155,14 +173,14 @@ export function findPath(
         if (!passable(cx, cy + dy)) continue;
       }
       const nIdx = index(nx, ny);
-      if (closed.has(nIdx)) continue;
+      if (closedBuffer[nIdx] === 1) continue;
       const doorToll = grid.isBlocked(nx, ny) ? DOOR_STEP_COST : 0;
       const tentative = cg + (dx !== 0 && dy !== 0 ? SQRT2 : 1) + doorToll;
-      const known = gScore.get(nIdx);
-      if (known !== undefined && tentative >= known) continue;
-      gScore.set(nIdx, tentative);
-      cameFrom.set(nIdx, current);
-      open.push(nIdx, tentative + octile(nx, ny, gx, gy));
+      const known = gScoreBuffer[nIdx];
+      if (tentative >= known) continue;
+      gScoreBuffer[nIdx] = tentative;
+      cameFromBuffer[nIdx] = current;
+      openHeap.push(nIdx, tentative + octile(nx, ny, gx, gy));
     }
   }
   return null;
@@ -238,13 +256,13 @@ function octile(x0: number, y0: number, x1: number, y1: number): number {
   return dx + dy + (SQRT2 - 2) * Math.min(dx, dy);
 }
 
-function reconstruct(cameFrom: Map<number, number>, end: number, w: number): PathNode[] {
+function reconstruct(cameFrom: Int32Array, end: number, w: number): PathNode[] {
   const out: PathNode[] = [];
-  let node: number | undefined = end;
-  while (node !== undefined) {
+  let node = end;
+  while (node !== -1) {
     const x = node % w;
     out.push({ x, y: (node - x) / w });
-    node = cameFrom.get(node);
+    node = cameFrom[node];
   }
   return out.reverse();
 }
@@ -262,6 +280,11 @@ class BinaryHeap {
 
   get size(): number {
     return this.nodes.length;
+  }
+
+  clear(): void {
+    this.nodes.length = 0;
+    this.costs.length = 0;
   }
 
   push(node: number, cost: number): void {
@@ -300,7 +323,14 @@ class BinaryHeap {
   }
 
   private swap(a: number, b: number): void {
-    [this.nodes[a], this.nodes[b]] = [this.nodes[b], this.nodes[a]];
-    [this.costs[a], this.costs[b]] = [this.costs[b], this.costs[a]];
+    const tempNode = this.nodes[a];
+    this.nodes[a] = this.nodes[b];
+    this.nodes[b] = tempNode;
+
+    const tempCost = this.costs[a];
+    this.costs[a] = this.costs[b];
+    this.costs[b] = tempCost;
   }
 }
+
+const openHeap = new BinaryHeap();
