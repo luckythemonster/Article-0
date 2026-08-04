@@ -37,7 +37,7 @@ npm run build    # tsc --noEmit + vite build
 | --- | --- |
 | WASD / Arrows | Move (free 8-directional) |
 | Shift | Sneak / crouch — slower, quieter; crouch on cover to hide |
-| Space | Run — faster but louder |
+| Space | Run — faster but louder; tap to toggle |
 | E | Contextual: open/close a door, hack a terminal (hold), search a chest (hold), or use a hatch/ladder |
 | L | Flashlight — the only way to see in the unlit levels, but it drains and makes you far easier to spot |
 | F | Shared Field — once charged (by staying near a silicate), merge for 3.7s and become undetectable |

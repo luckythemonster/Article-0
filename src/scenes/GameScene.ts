@@ -268,6 +268,10 @@ export class GameScene extends Phaser.Scene {
   private captureProgress = 0;
   /** Cooldown (seconds) remaining before the player can knock again. */
   private knockCooldown = 0;
+  /** Run is a toggle (tap Space), not a hold — holding it alongside two direction
+   * keys for a diagonal sprint asks a keyboard for 3 simultaneous keys, which some
+   * keyboards fail to report (N-key rollover/ghosting) and no code can work around. */
+  private runToggled = false;
   /** Cooldown for the Rail-Stapler's general-purpose field mode (outside VENT-4). */
   private staplerFieldCooldown = 0;
   /** The log-cache terminal whose breach launched the compliance puzzle. */
@@ -653,6 +657,7 @@ export class GameScene extends Phaser.Scene {
     this.exploredCooldown = 0;
     this.captureProgress = 0;
     this.knockCooldown = 0;
+    this.runToggled = false;
     this.staplerFieldCooldown = 0;
     this.pendingCompliance = undefined;
     this.pendingQualia = undefined;
@@ -1339,7 +1344,7 @@ export class GameScene extends Phaser.Scene {
       left: correction?.invertX ? right : left,
       right: correction?.invertX ? left : right,
       sneak: k.sneak.isDown,
-      run: k.run.isDown,
+      run: this.runToggled,
       // Marching a hostage slows Rowan and rules out a sprint. It lands here rather
       // than in `Player` for the reason the doc above gives, and it deliberately does
       // *not* touch the direction: the whole march is steered by walking normally,
@@ -1599,6 +1604,11 @@ export class GameScene extends Phaser.Scene {
     // to land before the animation is picked (`setAnimation` reads `dir` inside that
     // call), and `readInput` has to already know whether a hold is live.
     this.updateHoldUp(dt);
+    // Space toggles running rather than being held, so a diagonal sprint never needs
+    // more than the two direction keys — see `runToggled`'s doc comment for why.
+    if (Phaser.Input.Keyboard.JustDown(this.keys.run)) {
+      this.runToggled = !this.runToggled;
+    }
     this.player.update(this.readInput(), dt);
     // Flashlight: L toggles the beam; feed its state to the lighting cone.
     if (Phaser.Input.Keyboard.JustDown(this.keys.flashlight)) {

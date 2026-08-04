@@ -20,7 +20,7 @@ export interface ControlBinding {
 export const CONTROLS: readonly ControlBinding[] = [
   { key: "WASD / Arrows", action: "Move (free 8-directional)", hint: "WASD move" },
   { key: "Shift", action: "Sneak — slower and quieter; crouch on cover to hide", hint: "Shift sneak" },
-  { key: "Space", action: "Run — faster, but louder", hint: "Space run" },
+  { key: "Space", action: "Run — faster but louder; tap to toggle", hint: "Space run" },
   { key: "E", action: "Interact: doors, terminals, chests, hatches (hold where needed)", hint: "E interact" },
   { key: "L", action: "Flashlight — the only way to see in the unlit levels" },
   { key: "F", action: "Shared Field — once charged, merge and become undetectable", hint: "F shared-field" },
