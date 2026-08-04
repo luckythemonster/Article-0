@@ -615,8 +615,9 @@ export class GameScene extends Phaser.Scene {
    * A transition is a `scene.restart()`, and class-field initialisers do not
    * re-run on one — the instance is reused. Anything belonging to *this level*
    * rather than to the run has to be reset by hand here. Anything that should
-   * carry across — objectives, journal, inventory, HP, the play clock — is
-   * deliberately absent, and rides the registry instead.
+   * carry across — objectives, journal, inventory, HP, the play clock, conduct
+   * metrics, the flashlight's owned/on/charge state — is deliberately absent,
+   * and rides the registry instead.
    */
   private resetPerRun(): void {
     this.guards = [];
@@ -642,7 +643,11 @@ export class GameScene extends Phaser.Scene {
     this.conduct = new ConductState(
       this.registry.get("conductMetrics") as ConductMetrics | undefined,
     );
-    this.activeItems = new ActiveItemState();
+    // Owned/on/charge ride the registry snapshot published every frame for the
+    // HUD, so the flashlight survives a level swap instead of coming back full.
+    this.activeItems = new ActiveItemState(
+      this.registry.get("activeItems") as ActiveItemsView | undefined,
+    );
     this.transitioning = false;
     this.exploredCooldown = 0;
     this.captureProgress = 0;
