@@ -99,9 +99,9 @@ export class Player {
   }
 
   /**
-   * True while actually sprinting — moving, upright, with run held. Not just the key
-   * state: standing still on Space isn't running. Read by the conduct rules, where a
-   * sprint is one of the things that stops you reading as staff.
+   * True while actually sprinting — moving, upright, with run toggled on. Not just
+   * the key state: standing still with run toggled on isn't running. Read by the
+   * conduct rules, where a sprint is one of the things that stops you reading as staff.
    */
   get running(): boolean {
     return this.runningNow;

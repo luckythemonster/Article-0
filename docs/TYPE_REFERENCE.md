@@ -2456,7 +2456,7 @@ frightened.
 | `maxHp` | `readonly maxHp = PLAYER_DEFAULTS.maxHp` | Full and current bio-integrity (health). |
 | `hp` | `hp = PLAYER_DEFAULTS.maxHp` |  |
 | `crouched` | `get crouched(): boolean` | True only once *fully* crouched — not during the lower/rise transitions. Cover concealment keys off this, so tapping Shift can't grant an instant hide before Rowan has actually gone to ground. |
-| `running` | `get running(): boolean` | True while actually sprinting — moving, upright, with run held. Not just the key state: standing still on Space isn't running. Read by the conduct rules, where a sprint is one of the things that stops you reading as staff. |
+| `running` | `get running(): boolean` | True while actually sprinting — moving, upright, with run toggled on. Not just the key state: standing still with run toggled on isn't running. Read by the conduct rules, where a sprint is one of the things that stops you reading as staff. |
 | `alive` | `get alive(): boolean` |  |
 | `takeDamage` | `takeDamage(amount: number): boolean` | Applies damage unless still within the post-hit invulnerability window. Returns true if the hit landed (so callers can trigger feedback/SFX). |
 | `heal` | `heal(amount: number): void` | Restores bio-integrity, capped at `maxHp` (Medkit). |
