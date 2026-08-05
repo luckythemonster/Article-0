@@ -9,14 +9,14 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 | Area | Enums | Classes | Interfaces | Type aliases | Constants | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | [Systems](#systems) | 3 | 17 | 73 | 17 | 6 | 116 |
-| [Entities](#entities) | 0 | 17 | 16 | 13 | 4 | 50 |
+| [Entities](#entities) | 0 | 17 | 17 | 14 | 4 | 52 |
 | [Map](#map) | 0 | 3 | 26 | 3 | 1 | 33 |
 | [Scenes](#scenes) | 0 | 14 | 12 | 2 | 0 | 28 |
 | [UI](#ui) | 0 | 18 | 19 | 1 | 1 | 39 |
 | [Tools](#tools) | 0 | 0 | 6 | 1 | 0 | 7 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **71** | **152** | **37** | **12** | **275** |
+| **All** | **3** | **71** | **153** | **38** | **12** | **277** |
 
 ## Conventions
 
@@ -219,11 +219,12 @@ const RUN_KEYS = [ "inventory", "staplerFieldCharges", "objectives", "journal", 
 
 #### `ActiveItemState` — class
 
-`src/systems/ActiveItems.ts:29`
+`src/systems/ActiveItems.ts:33`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `chaffOrigin` | `chaffOrigin: { x: number; y: number } \| null = null` | World position the EMP Grenade was used at; null while inactive. |
+| `constructor` | `constructor(seed?: Pick<ActiveItemsView, "flashlightOwned" \| "flashlightOn" \| "flashlightCharge">)` | Optionally seeds the flashlight's owned/on/charge state from a prior `ActiveItemsView` snapshot — how `GameScene.resetPerRun()` carries the flashlight across a level transition. Omitted (a fresh run / loaded save), the flashlight starts owned, off, and full, as before. |
 | `chaffActive` | `get chaffActive(): boolean` |  |
 | `chaffRemaining` | `get chaffRemaining(): number` |  |
 | `thermalMasked` | `get thermalMasked(): boolean` |  |
@@ -296,7 +297,7 @@ const RUN_KEYS = [ "inventory", "staplerFieldCharges", "objectives", "journal", 
 
 #### `BinaryHeap` — class *(module-private)*
 
-`src/systems/Pathfinder.ts:259`
+`src/systems/Pathfinder.ts:277`
 
 Minimal binary min-heap over (node, priority) pairs.
 
@@ -307,6 +308,7 @@ closed set. That costs a little memory and buys a much smaller heap.
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `size` | `get size(): number` |  |
+| `clear` | `clear(): void` |  |
 | `push` | `push(node: number, cost: number): void` |  |
 | `pop` | `pop(): number \| undefined` |  |
 
@@ -316,7 +318,7 @@ closed set. That costs a little memory and buys a much smaller heap.
 
 #### `CollisionGrid` — class
 
-`src/systems/CollisionGrid.ts:60`
+`src/systems/CollisionGrid.ts:69`
 
 A grid of blocked tiles for a level, plus helpers used by both player movement and
 line of sight. Built from the `walls` layer (and any other layers marked as
@@ -328,12 +330,19 @@ predicate that matches what they are asking — `isBlocked` for anything physica
 (movement, pathing, radar, knocking) and `blocksSight` for anything optical
 (line-of-sight tests, vision cones, the darkness overlay's visibility polygon).
 
+Both are read off the tile as it was authored, in one pass: a blocking tile claims
+every cell of its `footprintCells` (a 1×2.5 pane blocks two cells, not the one
+it is placed on), and a `glass` component on it means those cells stop movement
+without stopping sight. Glazing used to be a second walk over the layers *after*
+construction, which could only downgrade cells the first walk had already blocked —
+so a pane wider than its own cell lost the rest of itself entirely.
+
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `width` | `readonly width: number` |  |
 | `height` | `readonly height: number` |  |
 | `revision` | `revision = 0` | Bumped whenever a tile's blocked or see-through state actually changes. Lets a cache of derived geometry — the player's visibility polygon in `Lighting` — know a door opened even if nothing else about the frame moved. |
-| `constructor` | `constructor(level: GameLevel, blockingLayers: string[] = ["walls"])` |  |
+| `constructor` | `constructor(level: GameLevel, blockingLayers: string[] = ["walls"], tileSize = 32)` | @param tileSize pixels per cell, for reading the tiles' authored footprints. |
 | `inBounds` | `inBounds(x: number, y: number): boolean` |  |
 | `isBlocked` | `isBlocked(tileX: number, tileY: number): boolean` | Blocks movement. Out of bounds counts as blocked. |
 | `blocksSight` | `blocksSight(tileX: number, tileY: number): boolean` | Blocks line of sight. Everything that blocks movement also blocks sight *unless* it was registered as see-through. Out of bounds blocks sight, which is also what stops the ray walks in `hasLineOfSight` and `Visibility.rayDistance` running away. |
@@ -498,7 +507,7 @@ escalate straight to a base-wide alert instead.
 
 <a id="class-surrenderaim"></a>
 
-#### `SurrenderAim` — class
+#### `SurrenderAim<T extends Surrenderable>` — class
 
 `src/systems/Surrender.ts:187`
 
@@ -510,9 +519,9 @@ a `scene.restart()` destroys.
 
 | Member | Signature | Notes |
 | --- | --- | --- |
-| `target` | `get target(): Surrenderable \| null` | Who is currently at gunpoint, or null. |
+| `target` | `get target(): T \| null` | Who is currently at gunpoint, or null. |
 | `heldSeconds` | `get heldSeconds(): number` | How long the current hold has run. Resets to zero whenever the aim moves. |
-| `update` | `update<T extends Surrenderable>( dt: number, aiming: boolean, aimer: Aimer, candidates: readonly T[], world: SurrenderWorld, ): SurrenderResult<T>` | Advances the aim by one frame. `aiming` is the key *and* everything that gates it (a weapon in the bag, the roof's input lock). Passing false is how a hold is released — there is no separate release call, and there is deliberately nothing here that could forget to make one. |
+| `update` | `update( dt: number, aiming: boolean, aimer: Aimer, candidates: readonly T[], world: SurrenderWorld, ): SurrenderResult<T>` | Advances the aim by one frame. `aiming` is the key *and* everything that gates it (a weapon in the bag, the roof's input lock). Passing false is how a hold is released — there is no separate release call, and there is deliberately nothing here that could forget to make one. |
 
 *Plus 2 private members.*
 
@@ -601,7 +610,7 @@ Pure: never touches Phaser. Built once from the parsed `GameMap`.
 
 #### `WallBuffer` — class
 
-`src/systems/CollisionGrid.ts:11`
+`src/systems/CollisionGrid.ts:13`
 
 A growable list of (dx, dy) point pairs, backed by one `Float32Array`.
 
@@ -627,7 +636,7 @@ of play it stops allocating entirely.
 
 #### `ActiveItemsView` — interface
 
-`src/systems/ActiveItems.ts:134`
+`src/systems/ActiveItems.ts:152`
 
 Snapshot published to the registry for the HUD.
 
@@ -2176,7 +2185,7 @@ and hold timer are a `HoldTarget`, shared with `Terminal`.
 
 #### `Cover` — class
 
-`src/entities/Cover.ts:16`
+`src/entities/Cover.ts:17`
 
 A destructible cover tile — the map's `Destructible` cover field, wired up.
 
@@ -2230,7 +2239,7 @@ actor — a spill an Orderly has a reason to walk over and deal with.
 
 #### `Door` — class
 
-`src/entities/Door.ts:27`
+`src/entities/Door.ts:28`
 
 An interactive door, sized and placed from the map's authoring data.
 
@@ -2397,7 +2406,7 @@ them to share names they shouldn't.
 
 #### `Orderly` — class
 
-`src/entities/Orderly.ts:121`
+`src/entities/Orderly.ts:123`
 
 A bystander, not a threat — the map's `orderlies` tiles carry no gameplay
 component (unlike guards/drones), so this is a distinct, lighter mechanic.
@@ -2771,7 +2780,7 @@ The tuning that actually differs between one guard's art and another's.
 
 #### `OrderlyContext` — interface
 
-`src/entities/Orderly.ts:25`
+`src/entities/Orderly.ts:27`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2895,6 +2904,22 @@ What happened inside the boss this frame, for the scene to apply/dress.
 | `overheating` | `boolean` | Heat is maxed during the purge — the scene applies periodic damage. |
 | `transition` | `Vent4Transition \| null` |  |
 
+<a id="interface-vfxspec"></a>
+
+#### `VfxSpec` — interface
+
+`src/entities/Vfx.ts:26`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `string` | Texture/animation key prefix, and the folder under `assets/vfx/`. |
+| `source` | `VfxSource` |  |
+| `frameCount` | `number` |  |
+| `frameRate` | `number` |  |
+| `frameSize` | `number` | Native pixel size of one frame. |
+| `displayTiles` | `number` | Height on screen, as a multiple of tile size. Paired with `frameSize` under the same rule the characters follow: `(tileSize * displayTiles) / frameSize * cameraZoom` has to be a whole number or the frames get resampled. `assertVfxScales` checks it. |
+| `depth` | `number` | Render depth. The ladder in play: guard cones 400, EMP zone 410, orderlies 440, bodies 450, the lighting overlay 700/701, the player 750. Effects sit **above** the lighting, at `VFX_DEPTH`, for the same reason the player does: unlit space is fully opaque, so anything underneath it is simply gone. An effect exists to tell you something landed, and one that vanishes because the room happens to be dark fails at the only job it has — you would fire a stun round into a dark corridor and get no feedback at all. Every one of these is player-triggered and lasts under a second, so nothing is revealed that the player did not just cause. |
+
 ### Entities — Type aliases
 
 <a id="type-dir8"></a>
@@ -2985,7 +3010,7 @@ type LaserKind = "scanner" | "beam";
 
 Frame manifest for the orderly sprite (generated via PixelLab.ai — a human
 orderly in a utilitarian jumpsuit with a diagnostic tablet, high top-down,
-84x84, `mannequin` template). Only idle and walk are needed — an orderly is
+96x96, `mannequin` template). Only idle and walk are needed — an orderly is
 a bystander, not a combatant, so it has no run/crouch.
 
 Frames live in public/assets/orderly/<anim>/<direction>/<frame>.png.
@@ -2998,7 +3023,7 @@ type OrderlyAnimName = "idle" | "walk";
 
 #### `OrderlyState` — type *(module-private)*
 
-`src/entities/Orderly.ts:75`
+`src/entities/Orderly.ts:77`
 
 What an orderly is currently doing.
 
@@ -3128,6 +3153,18 @@ The boss's claim on this frame's interact key, for the scene's dispatcher.
 
 ```ts
 type Vent4InteractResult = EncounterInteractResult<Vent4Transition>;
+```
+
+<a id="type-vfxsource"></a>
+
+#### `VfxSource` — type
+
+`src/entities/Vfx.ts:20`
+
+Where an effect's frames come from.
+
+```ts
+type VfxSource = | { kind: "frames"; frame(index: number): string } /** A uniform grid in a single image. */ | { kind: "sheet"; path: string; frameSize: number };
 ```
 
 ---
@@ -3572,7 +3609,7 @@ Where a transition tile leads: the destination level and arrival tile.
 
 #### `WallRect` — interface
 
-`src/map/TileBake.ts:31`
+`src/map/TileBake.ts:32`
 
 An axis-aligned run of blocked cells, in tile coordinates.
 
@@ -3589,7 +3626,7 @@ An axis-aligned run of blocked cells, in tile coordinates.
 
 #### `BlockedAt` — type
 
-`src/map/TileBake.ts:41`
+`src/map/TileBake.ts:42`
 
 True when the cell at (x, y) should collide.
 
@@ -3746,7 +3783,7 @@ rather than death: the record simply shows that no subject was harmed.
 
 #### `GameScene` — class
 
-`src/scenes/GameScene.ts:208` · `extends Phaser.Scene`
+`src/scenes/GameScene.ts:209` · `extends Phaser.Scene`
 
 The playable scene. Renders one level's tile art in board z-order, builds the
 wall collision, spawns the player and guards, and drives the stealth systems
@@ -3759,7 +3796,7 @@ each frame.
 | `create` | `create(): void` |  |
 | `update` | `update(_time: number, delta: number): void` |  |
 
-*Plus 124 private members.*
+*Plus 125 private members.*
 
 <a id="class-noiseevents"></a>
 
@@ -4065,7 +4102,7 @@ three and no explicit reset method to keep in step with that.
 
 #### `GameSceneData` — interface *(module-private)*
 
-`src/scenes/GameScene.ts:143`
+`src/scenes/GameScene.ts:144`
 
 Data passed to `GameScene` when (re)starting for a level swap.
 
@@ -4189,7 +4226,7 @@ type OverlayId = "pause" | "codec" | "compliance" | "qualia";
 
 #### `Target` — type *(module-private)*
 
-`src/scenes/GameScene.ts:1184`
+`src/scenes/GameScene.ts:1199`
 
 ```ts
 type Target = { x: number; y: number; kind: "cover"; cover: Cover } | { x: number; y: number; kind: "orderly"; orderly: Orderly };
@@ -5095,7 +5132,7 @@ Top-level bootstrap modules.
 
 #### `BootScene` — class *(module-private)*
 
-`src/main.ts:39` · `extends Phaser.Scene`
+`src/main.ts:40` · `extends Phaser.Scene`
 
 Boot scene: loads the edplay map JSON and the three spritesheets, parses the
 map into the normalized model, stashes it in the registry, then hands off to
@@ -5114,8 +5151,8 @@ GameScene.
 | Name | Kind | Declared in |
 | --- | --- | --- |
 | [AABB](#interface-aabb) | interface | `src/tools/collider/format.ts:15` |
-| [ActiveItemState](#class-activeitemstate) | class | `src/systems/ActiveItems.ts:29` |
-| [ActiveItemsView](#interface-activeitemsview) | interface | `src/systems/ActiveItems.ts:134` |
+| [ActiveItemState](#class-activeitemstate) | class | `src/systems/ActiveItems.ts:33` |
+| [ActiveItemsView](#interface-activeitemsview) | interface | `src/systems/ActiveItems.ts:152` |
 | [Aimer](#interface-aimer) | interface | `src/systems/Surrender.ts:39` |
 | [AlertNetworkHud](#class-alertnetworkhud) | class | `src/ui/AlertNetworkHud.ts:21` |
 | [AlertNetworkSnapshot](#interface-alertnetworksnapshot) | interface | `src/systems/AlertNetwork.ts:11` |
@@ -5124,9 +5161,9 @@ GameScene.
 | [AppliedCorrections](#type-appliedcorrections) | type | `src/systems/Compliance.ts:64` |
 | [Args](#interface-args) | interface | `src/tools/collider/generate.ts:28` |
 | [AudioDirector](#class-audiodirector) | class | `src/systems/AudioDirector.ts:26` |
-| [BinaryHeap](#class-binaryheap) | class | `src/systems/Pathfinder.ts:259` |
-| [BlockedAt](#type-blockedat) | type | `src/map/TileBake.ts:41` |
-| [BootScene](#class-bootscene) | class | `src/main.ts:39` |
+| [BinaryHeap](#class-binaryheap) | class | `src/systems/Pathfinder.ts:277` |
+| [BlockedAt](#type-blockedat) | type | `src/map/TileBake.ts:42` |
+| [BootScene](#class-bootscene) | class | `src/main.ts:40` |
 | [BossCore](#class-bosscore) | class | `src/entities/BossCore.ts:64` |
 | [BossCoreHud](#class-bosscorehud) | class | `src/ui/BossCoreHud.ts:44` |
 | [BuiltLevel](#interface-builtlevel) | interface | `src/scenes/game/LevelBuilder.ts:39` |
@@ -5136,7 +5173,7 @@ GameScene.
 | [CodecContext](#interface-codeccontext) | interface | `src/ui/Codec.ts:28` |
 | [CodecData](#interface-codecdata) | interface | `src/scenes/CodecScene.ts:15` |
 | [CodecScene](#class-codecscene) | class | `src/scenes/CodecScene.ts:37` |
-| [CollisionGrid](#class-collisiongrid) | class | `src/systems/CollisionGrid.ts:60` |
+| [CollisionGrid](#class-collisiongrid) | class | `src/systems/CollisionGrid.ts:69` |
 | [ComplianceBand](#type-complianceband) | type | `src/systems/Vent4Core.ts:25` |
 | [ComplianceData](#interface-compliancedata) | interface | `src/scenes/ComplianceScene.ts:8` |
 | [ComplianceResult](#interface-complianceresult) | interface | `src/systems/Compliance.ts:67` |
@@ -5154,7 +5191,7 @@ GameScene.
 | [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:615` |
 | [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:13` |
 | [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:35` |
-| [Cover](#class-cover) | class | `src/entities/Cover.ts:16` |
+| [Cover](#class-cover) | class | `src/entities/Cover.ts:17` |
 | [DebugHost](#interface-debughost) | interface | `src/scenes/game/DebugOverlay.ts:61` |
 | [DebugHud](#class-debughud) | class | `src/ui/DebugHud.ts:55` |
 | [DebugOverlay](#class-debugoverlay) | class | `src/scenes/game/DebugOverlay.ts:85` |
@@ -5169,7 +5206,7 @@ GameScene.
 | [DetectionWorld](#interface-detectionworld) | interface | `src/systems/Sensing.ts:67` |
 | [Dir8](#type-dir8) | type | `src/entities/directions.ts:31` |
 | [DIRS_8](#const-dirs-8) | const | `src/entities/directions.ts:20` |
-| [Door](#class-door) | class | `src/entities/Door.ts:27` |
+| [Door](#class-door) | class | `src/entities/Door.ts:28` |
 | [DOOR_DEFAULTS](#const-door-defaults) | const | `src/systems/EntityStats.ts:152` |
 | [DoorStats](#interface-doorstats) | interface | `src/systems/EntityStats.ts:143` |
 | [Drone](#class-drone) | class | `src/entities/Drone.ts:13` |
@@ -5212,8 +5249,8 @@ GameScene.
 | [GameMap](#interface-gamemap) | interface | `src/map/types.ts:193` |
 | [GameMode](#type-gamemode) | type | `src/systems/GameState.ts:20` |
 | [GameOverScene](#class-gameoverscene) | class | `src/scenes/GameOverScene.ts:12` |
-| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:208` |
-| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:143` |
+| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:209` |
+| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:144` |
 | [GameTile](#interface-gametile) | interface | `src/map/types.ts:156` |
 | [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:224` |
 | [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:173` |
@@ -5264,10 +5301,10 @@ GameScene.
 | [ObjectiveLine](#interface-objectiveline) | interface | `src/systems/Objectives.ts:166` |
 | [ObjectiveState](#interface-objectivestate) | interface | `src/systems/Objectives.ts:20` |
 | [OpenablePredicate](#type-openablepredicate) | type | `src/systems/GridMotion.ts:41` |
-| [Orderly](#class-orderly) | class | `src/entities/Orderly.ts:121` |
+| [Orderly](#class-orderly) | class | `src/entities/Orderly.ts:123` |
 | [OrderlyAnimName](#type-orderlyanimname) | type | `src/entities/OrderlyAnimations.ts:12` |
-| [OrderlyContext](#interface-orderlycontext) | interface | `src/entities/Orderly.ts:25` |
-| [OrderlyState](#type-orderlystate) | type | `src/entities/Orderly.ts:75` |
+| [OrderlyContext](#interface-orderlycontext) | interface | `src/entities/Orderly.ts:27` |
+| [OrderlyState](#type-orderlystate) | type | `src/entities/Orderly.ts:77` |
 | [Origin](#type-origin) | type | `src/tools/collider/format.ts:26` |
 | [OverlayConfig](#interface-overlayconfig) | interface | `src/scenes/game/OverlayGate.ts:21` |
 | [OverlayGate](#class-overlaygate) | class | `src/scenes/game/OverlayGate.ts:32` |
@@ -5356,7 +5393,7 @@ GameScene.
 | [SurrenderAim](#class-surrenderaim) | class | `src/systems/Surrender.ts:187` |
 | [SurrenderResult](#interface-surrenderresult) | interface | `src/systems/Surrender.ts:61` |
 | [SurrenderWorld](#interface-surrenderworld) | interface | `src/systems/Surrender.ts:33` |
-| [Target](#type-target) | type | `src/scenes/GameScene.ts:1184` |
+| [Target](#type-target) | type | `src/scenes/GameScene.ts:1199` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:16` |
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:199` |
 | [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:190` |
@@ -5384,7 +5421,9 @@ GameScene.
 | [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:46` |
 | [Vent4Transition](#interface-vent4transition) | interface | `src/systems/Vent4Core.ts:28` |
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |
-| [WallBuffer](#class-wallbuffer) | class | `src/systems/CollisionGrid.ts:11` |
-| [WallRect](#interface-wallrect) | interface | `src/map/TileBake.ts:31` |
+| [VfxSource](#type-vfxsource) | type | `src/entities/Vfx.ts:20` |
+| [VfxSpec](#interface-vfxspec) | interface | `src/entities/Vfx.ts:26` |
+| [WallBuffer](#class-wallbuffer) | class | `src/systems/CollisionGrid.ts:13` |
+| [WallRect](#interface-wallrect) | interface | `src/map/TileBake.ts:32` |
 | [WaveParams](#interface-waveparams) | interface | `src/systems/QualiaLock.ts:27` |
 | [WitnessAnchor](#interface-witnessanchor) | interface | `src/scenes/game/Encounters.ts:64` |

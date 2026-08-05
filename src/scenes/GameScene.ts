@@ -3,7 +3,7 @@ import type { GameLevel, GameMap, Transition } from "../map/types";
 import type { ParsedMap } from "../map/EdplayLoader";
 import { SensingContext } from "./game/SensingContext";
 import { DebugOverlay, type DebugWorld } from "./game/DebugOverlay";
-import { buildLevel, registerGlazing } from "./game/LevelBuilder";
+import { buildLevel } from "./game/LevelBuilder";
 import { NoiseEvents } from "./game/NoiseEvents";
 import { OverlayGate } from "./game/OverlayGate";
 import { SpriteAtlas } from "../map/SpriteAtlas";
@@ -388,10 +388,9 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, worldW, worldH);
     this.cameras.main.setBackgroundColor("#05070a");
 
-    this.grid = new CollisionGrid(this.level, ["walls"]);
-    // Glass has to be re-marked see-through after the grid exists, and before
-    // anything reads sight off it.
-    registerGlazing(this.level, this.grid, this.tileSize);
+    // Reads each wall tile's authored footprint, so a pane wider than its own
+    // cell blocks all of it — and marks the glazed ones see-through as it goes.
+    this.grid = new CollisionGrid(this.level, ["walls"], this.tileSize);
     this.detection = new DetectionSystem(this.level, this.tileSize);
     this.sensing = this.buildSensingContext();
     // One object for the level rather than a literal per frame — the same reasoning

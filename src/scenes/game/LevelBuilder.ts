@@ -1,7 +1,7 @@
 import type Phaser from "phaser";
 import { Chest } from "../../entities/Chest";
 import { Cover } from "../../entities/Cover";
-import { Door, footprintCells } from "../../entities/Door";
+import { Door } from "../../entities/Door";
 import { Drone } from "../../entities/Drone";
 import { Enforcer } from "../../entities/Enforcer";
 import { ENFORCER_SKIN } from "../../entities/EnforcerAnimations";
@@ -14,7 +14,7 @@ import { bakeTileLayers, buildWallBodies } from "../../map/TileBake";
 import type { GameLevel, GameTile } from "../../map/types";
 import type { CollisionGrid } from "../../systems/CollisionGrid";
 import type { DetectionSystem } from "../../systems/DetectionSystem";
-import { glassStatsFor, isGlass, str } from "../../systems/EntityStats";
+import { str } from "../../systems/EntityStats";
 import { routeFromLayer } from "../../systems/PatrolRoute";
 
 /**
@@ -53,25 +53,6 @@ export interface BuiltLevel {
   wallBodies: Phaser.GameObjects.GameObject[];
   /** Arcade bodies for the closed doors, for the player collider. */
   doorBodies: Phaser.GameObjects.GameObject[];
-}
-
-/**
- * Clear glazing blocks movement but not sight.
- *
- * The collision grid is built from the `walls` board alone, which cannot know
- * that some of those cells are windows. This re-marks the glass ones as
- * see-through *after* the grid exists, so guards and the darkness overlay look
- * through a pane the player still can't walk through.
- */
-export function registerGlazing(level: GameLevel, grid: CollisionGrid, tileSize: number): void {
-  for (const layer of level.layers) {
-    for (const tile of layer.tiles) {
-      if (!isGlass(tile.components) || glassStatsFor(tile.components).visionBlock) continue;
-      for (const cell of footprintCells(tile, tileSize)) {
-        if (grid.isBlocked(cell.x, cell.y)) grid.setBlocked(cell.x, cell.y, true, true);
-      }
-    }
-  }
 }
 
 /**
