@@ -25,6 +25,7 @@
  */
 
 import type Phaser from "phaser";
+import { footprintCells, footprintCentre, isSingleCell } from "./footprint";
 import type { GameLevel } from "./types";
 
 /** An axis-aligned run of blocked cells, in tile coordinates. */
@@ -127,22 +128,71 @@ export function bakeTileLayers(
     .setOrigin(0, 0)
     .setDepth(BAKED_TILES_DEPTH);
 
+  // Tiles that span more than their own cell (or sit off its centre) are drawn
+  // through this instead of `batchDrawFrame`, which takes a position but no
+  // size. Their art is authored pre-squished into one 32px cell and is meant to
+  // be stretched over the footprint — the same thing `Door` does for the door
+  // tiles, and what the `main2` glass panes need to read as glass at all. One
+  // reusable off-list image rather than one per tile: the same trick
+  // `Cover.destroy` uses to stamp against this texture.
+  let scaled: Phaser.GameObjects.Image | undefined;
+
   rt.beginDraw();
   for (const layer of level.layers) {
     if (skipLayers.has(layer.name)) continue;
     for (const tile of layer.tiles) {
       if (!tile.frame) continue;
-      rt.batchDrawFrame(
-        tile.frame.textureKey,
-        tile.frame.frameKey,
-        tile.x * tileSize,
-        tile.y * tileSize,
-      );
+      if (isSingleCell(tile)) {
+        rt.batchDrawFrame(
+          tile.frame.textureKey,
+          tile.frame.frameKey,
+          tile.x * tileSize,
+          tile.y * tileSize,
+        );
+        continue;
+      }
+      const centre = footprintCentre(tile, tileSize);
+      scaled ??= scene.make.image({ key: tile.frame.textureKey, add: false }).setOrigin(0.5);
+      scaled
+        .setTexture(tile.frame.textureKey, tile.frame.frameKey)
+        .setDisplaySize(tile.colSpan * tileSize, tile.rowSpan * tileSize)
+        .setPosition(centre.x, centre.y);
+      rt.batchDraw(scaled);
     }
   }
   rt.endDraw();
+  scaled?.destroy();
 
   return rt;
+}
+
+/**
+ * The cells a level's `walls` board actually fills, as a `width * height` mask.
+ *
+ * Split out of {@link buildWallBodies} so the geometry can be tested without a
+ * Phaser scene. Wall tiles are nearly all one cell, but the board can also carry
+ * a tile with a real footprint — `main2` glazes two passage jambs with 1×2.5
+ * panes — and those have to claim every cell they cover or the player walks
+ * through the half of the pane that has no body under it.
+ *
+ * Only wall tiles that carry a frame are included, which is what the per-tile
+ * version did (it attached the body to the image, so a frameless wall never got
+ * one).
+ */
+export function wallCells(level: GameLevel, tileSize: number): Uint8Array {
+  const { width, height } = level;
+  const solid = new Uint8Array(width * height);
+  for (const layer of level.layers) {
+    if (layer.name !== "walls") continue;
+    for (const tile of layer.tiles) {
+      if (!tile.frame) continue;
+      for (const cell of footprintCells(tile, tileSize)) {
+        if (cell.x < 0 || cell.y < 0 || cell.x >= width || cell.y >= height) continue;
+        solid[cell.y * width + cell.x] = 1;
+      }
+    }
+  }
+  return solid;
 }
 
 /**
@@ -154,10 +204,8 @@ export function bakeTileLayers(
  * into the tile texture. They are returned so the scene can hand them to a
  * single collider and toggle it for debug no-clip, exactly as before.
  *
- * Only wall tiles that carry a frame are included, which is what the per-tile
- * version did (it attached the body to the image, so a frameless wall never got
- * one). Every wall frame in the shipped map is exactly one tile with no offset
- * or span, so a tile-aligned rectangle is the same body the old code made.
+ * The cells come from {@link wallCells}, so a wall tile with a footprint bigger
+ * than its own cell gets a body under all of it.
  */
 export function buildWallBodies(
   scene: Phaser.Scene,
@@ -165,15 +213,7 @@ export function buildWallBodies(
   tileSize: number,
 ): Phaser.GameObjects.GameObject[] {
   const { width, height } = level;
-  const solid = new Uint8Array(width * height);
-  for (const layer of level.layers) {
-    if (layer.name !== "walls") continue;
-    for (const tile of layer.tiles) {
-      if (!tile.frame) continue;
-      if (tile.x < 0 || tile.y < 0 || tile.x >= width || tile.y >= height) continue;
-      solid[tile.y * width + tile.x] = 1;
-    }
-  }
+  const solid = wallCells(level, tileSize);
 
   const rects = mergeWallRects(width, height, (x, y) => solid[y * width + x] === 1);
 

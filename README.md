@@ -473,8 +473,16 @@ in real seconds so the balance they encode keeps its meaning.
   darkness overlay's visibility polygon). Clear glass is the case that needs it: the map's
   glass doors carry a `glass` component *alongside* their `door` one, so they are real
   openable doors that happen never to block sight (`glassStatsFor` reads `VisionBlock`).
-  Two panes on `main2`'s `walls` board are static rather than doors, so
-  `GameScene.registerGlazing` covers glass placed directly on a blocking board.
+  Two panes on `main2`'s `walls` board are static rather than doors, so the grid reads
+  the `glass` component off the blocking board's tiles as it builds, covering glass
+  placed directly on a blocking board.
+- Tile footprints: a placed tile can be bigger than the cell it sits on — doors are 1.5
+  or 2.5 tiles in one axis, and those two `main2` panes are 1×2.5 nudged half a tile
+  down. `map/footprint.ts` turns the authored `colSpan`/`rowSpan`/`offset` into the cells
+  it covers, and it is the one answer the tile bake, the wall bodies and the collision
+  grid all use. They each used to assume one cell at the tile's own coordinates, which
+  drew a 2.5-tile pane as a one-tile decal and left the other half of it with no
+  collision at all — you walked through the bottom of the glass.
 - Held items: `isKeyItem` is the complement of `CONSUMABLE_ORDER` rather than its own
   allowlist, so anything granted shows up under KEY ITEMS. It used to be a hardcoded
   pair, which silently hid the compliance cert, the two vent-core flavour items, and the

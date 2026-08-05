@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { footprintCells } from "../map/footprint";
 import type { GameTile, SpriteFrame } from "../map/types";
 import type { CollisionGrid } from "../systems/CollisionGrid";
 import { doorStatsFor, glassStatsFor, isGlass, type DoorStats } from "../systems/EntityStats";
@@ -119,23 +120,4 @@ export class Door {
       this.image.setDisplaySize(this.displayW, this.displayH);
     }
   }
-}
-
-/** Grid cells whose centre lies inside a tile's footprint rectangle. */
-export function footprintCells(tile: GameTile, tileSize: number): { x: number; y: number }[] {
-  const halfW = tile.colSpan / 2;
-  const halfH = tile.rowSpan / 2;
-  const cx = tile.x + 0.5 + tile.offsetX / tileSize;
-  const cy = tile.y + 0.5 + tile.offsetY / tileSize;
-  const cells: { x: number; y: number }[] = [];
-  for (let gy = Math.floor(cy - halfH); gy <= Math.ceil(cy + halfH); gy++) {
-    for (let gx = Math.floor(cx - halfW); gx <= Math.ceil(cx + halfW); gx++) {
-      if (Math.abs(gx + 0.5 - cx) <= halfW && Math.abs(gy + 0.5 - cy) <= halfH) {
-        cells.push({ x: gx, y: gy });
-      }
-    }
-  }
-  // Always cover at least the placed cell.
-  if (cells.length === 0) cells.push({ x: tile.x, y: tile.y });
-  return cells;
 }
