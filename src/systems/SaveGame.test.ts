@@ -194,8 +194,29 @@ describe("SaveGame", () => {
       { ...base, objectives: { logsRecovered: "yes" } }, // wrong type
       { ...base, journal: { unlocked: "orders" } }, // journal not a list
       { ...base, journal: null }, // journal missing
+      { ...base, journal: { unlocked: Array(101).fill("orders") } }, // oversized journal list (DoS)
+      { ...base, journal: { unlocked: ["orders", "A".repeat(51)] } }, // oversized journal entry ID
+      { ...base, journal: { unlocked: ["orders", "invalid;chars"] } }, // invalid characters in journal entry ID
       { ...base, explored: [] }, // explored not a record
       { ...base, explored: { main1: 42 } }, // non-string mask
+      {
+        ...base,
+        explored: Object.defineProperty({}, "__proto__", {
+          value: "somebase64",
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        }),
+      }, // prototype pollution in explored state
+      { ...base, explored: { "constructor": "somebase64" } }, // constructor property injection in explored state
+      { ...base, explored: { "main1": "A".repeat(100001) } }, // oversized mask in explored state (DoS)
+      { ...base, explored: { "invalid;level": "somebase64" } }, // invalid characters in level name of explored state
+      {
+        ...base,
+        explored: Object.fromEntries(
+          Array.from({ length: 51 }, (_, i) => [`lvl_${i}`, "somebase64"])
+        )
+      }, // excessive number of level maps in explored state (DoS)
       { ...base, playTimeMs: -1 }, // negative clock
       { ...base, playTimeMs: Number.NaN }, // non-finite clock
     ];
