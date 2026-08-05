@@ -46,10 +46,18 @@ export function saveSettings(settings: Settings): void {
  * slider that looks fine.
  */
 export function normalizeSettings(v: unknown): Settings {
-  const raw = (typeof v === "object" && v !== null ? v : {}) as Partial<Settings>;
-  const volume = Number(raw.masterVolume);
+  if (typeof v !== "object" || v === null || Array.isArray(v)) {
+    return { ...DEFAULT_SETTINGS };
+  }
+
+  // Guard against prototype pollution or unexpected lookup of inherited properties by using hasOwnProperty
+  const hasOwn = Object.prototype.hasOwnProperty;
+  const masterVolume = hasOwn.call(v, "masterVolume") ? (v as any).masterVolume : undefined;
+  const muted = hasOwn.call(v, "muted") ? (v as any).muted : undefined;
+
+  const volume = Number(masterVolume);
   return {
     masterVolume: Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : DEFAULT_SETTINGS.masterVolume,
-    muted: typeof raw.muted === "boolean" ? raw.muted : DEFAULT_SETTINGS.muted,
+    muted: typeof muted === "boolean" ? muted : DEFAULT_SETTINGS.muted,
   };
 }

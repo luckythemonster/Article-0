@@ -9,6 +9,13 @@ describe("Settings", () => {
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
   });
 
+  it("ignores inherited prototype properties to protect against prototype pollution", () => {
+    const malicious = Object.create({ masterVolume: 0.5, muted: true });
+    // malicious has masterVolume and muted on its prototype, not as own properties.
+    const normalized = normalizeSettings(malicious);
+    expect(normalized).toEqual(DEFAULT_SETTINGS);
+  });
+
   it("round-trips a preference", () => {
     saveSettings({ masterVolume: 0.4, muted: true });
     expect(loadSettings()).toEqual({ masterVolume: 0.4, muted: true });

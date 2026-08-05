@@ -425,9 +425,18 @@ export function journalIdForLevel(level: string): JournalEntryId | undefined {
  * authored more entries should still load, minus the entries this build lacks.
  */
 export function isJournalState(v: unknown): v is JournalState {
-  if (typeof v !== "object" || v === null) return false;
+  if (typeof v !== "object" || v === null || Array.isArray(v)) return false;
   const unlocked = (v as JournalState).unlocked;
-  return Array.isArray(unlocked) && unlocked.every((id) => typeof id === "string");
+  return (
+    Array.isArray(unlocked) &&
+    unlocked.length < 100 && // restrict maximum journal entries size to prevent DoS
+    unlocked.every(
+      (id) =>
+        typeof id === "string" &&
+        id.length < 50 &&
+        /^[a-zA-Z0-9_-]+$/.test(id) // validate entry ID format and prevent unexpected characters
+    )
+  );
 }
 
 /** A journal containing only ids this build knows, with duplicates removed. */
