@@ -187,8 +187,13 @@ export function wallCells(level: GameLevel, tileSize: number): Uint8Array {
     for (const tile of layer.tiles) {
       if (!tile.frame) continue;
       for (const cell of footprintCells(tile, tileSize)) {
+        // `>= 0` and `< width` both pass for NaN, so a tile with a non-finite
+        // coordinate used to reach the write and land on `solid[NaN]` — a silent
+        // no-op that cost the level its border collision. Test the index itself.
+        const i = cell.y * width + cell.x;
+        if (!Number.isInteger(i) || i < 0 || i >= solid.length) continue;
         if (cell.x < 0 || cell.y < 0 || cell.x >= width || cell.y >= height) continue;
-        solid[cell.y * width + cell.x] = 1;
+        solid[i] = 1;
       }
     }
   }
