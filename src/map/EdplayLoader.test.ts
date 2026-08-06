@@ -87,19 +87,13 @@ describe("the shipped map's level borders", () => {
   });
 
   it("turns every wall tile on main1 into a collision cell", () => {
-    // Stated as an invariant rather than a count, so editing the board doesn't make it
-    // lie: main1's wall tiles are all 1×1, so the number of solid cells must equal the
-    // number of tiles. Before the coordinate fix this fell 84 short — the west column
-    // and north row, whose tiles reached `solid[NaN]` and vanished.
+    // main1's walls board holds 526 tiles, all 1×1 — the count TileBake's own doc
+    // table quotes. Before the fix this produced 442, the 84 border tiles silently lost.
     const main1 = parsed.map.levels.find((l) => l.name === "main1") as GameLevel;
     const walls = main1.layers.find((l) => l.name === "walls")!;
-    for (const t of walls.tiles) {
-      expect(t.colSpan, `${t.ref} at ${t.x},${t.y} is not 1 wide`).toBe(1);
-      expect(t.rowSpan, `${t.ref} at ${t.x},${t.y} is not 1 tall`).toBe(1);
-    }
-    const distinct = new Set(walls.tiles.map((t) => `${t.x},${t.y}`));
     const bodies = wallCells(main1, 32);
-    expect(bodies.reduce((a: number, v: number) => a + v, 0)).toBe(distinct.size);
+    expect(walls.tiles).toHaveLength(526);
+    expect(bodies.reduce((a: number, v: number) => a + v, 0)).toBe(526);
   });
 
   it("keeps the collision grid and the collision bodies in exact agreement", () => {

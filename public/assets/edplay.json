@@ -18748,6 +18748,12 @@
               "BrushId": "9a0fad05-4811-4d23-a809-a3bf7bb58fe8"
             },
             {
+              "X": 33,
+              "Y": 40,
+              "Handle": 3164240515,
+              "BrushId": "9a0fad05-4811-4d23-a809-a3bf7bb58fe8"
+            },
+            {
               "Y": 9,
               "Handle": 3164367405,
               "BrushId": "9a0fad05-4811-4d23-a809-a3bf7bb58fe8"
@@ -20916,6 +20922,12 @@
               "BrushId": "9a0fad05-4811-4d23-a809-a3bf7bb58fe8"
             },
             {
+              "X": 7,
+              "Y": 40,
+              "Handle": 3164240515,
+              "BrushId": "9a0fad05-4811-4d23-a809-a3bf7bb58fe8"
+            },
+            {
               "X": 14,
               "Y": 33,
               "Handle": 3164359505,
@@ -20955,6 +20967,12 @@
               "X": 27,
               "Y": 43,
               "Handle": 3164292805,
+              "BrushId": "9a0fad05-4811-4d23-a809-a3bf7bb58fe8"
+            },
+            {
+              "X": 24,
+              "Y": 40,
+              "Handle": 3164240515,
               "BrushId": "9a0fad05-4811-4d23-a809-a3bf7bb58fe8"
             },
             {
@@ -21123,6 +21141,12 @@
               "X": 19,
               "Y": 43,
               "Handle": 3164317855,
+              "BrushId": "9a0fad05-4811-4d23-a809-a3bf7bb58fe8"
+            },
+            {
+              "X": 16,
+              "Y": 40,
+              "Handle": 3164240515,
               "BrushId": "9a0fad05-4811-4d23-a809-a3bf7bb58fe8"
             },
             {
@@ -21704,176 +21728,6 @@
               "Y": 26,
               "Handle": 3164131925,
               "BrushId": "9a0fad05-4811-4d23-a809-a3bf7bb58fe8"
-            },
-            {
-              "X": 1,
-              "Y": 41,
-              "Handle": 811000001
-            },
-            {
-              "X": 2,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 3,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 4,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 5,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 6,
-              "Y": 41,
-              "Handle": 811000003
-            },
-            {
-              "X": 8,
-              "Y": 41,
-              "Handle": 811000001
-            },
-            {
-              "X": 9,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 10,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 11,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 12,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 13,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 14,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 15,
-              "Y": 41,
-              "Handle": 811000003
-            },
-            {
-              "X": 17,
-              "Y": 41,
-              "Handle": 811000001
-            },
-            {
-              "X": 18,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 19,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 20,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 21,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 22,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 23,
-              "Y": 41,
-              "Handle": 811000003
-            },
-            {
-              "X": 25,
-              "Y": 41,
-              "Handle": 811000001
-            },
-            {
-              "X": 26,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 27,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 28,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 29,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 30,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 31,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 32,
-              "Y": 41,
-              "Handle": 811000003
-            },
-            {
-              "X": 34,
-              "Y": 41,
-              "Handle": 811000001
-            },
-            {
-              "X": 35,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 36,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 37,
-              "Y": 41,
-              "Handle": 811000002
-            },
-            {
-              "X": 38,
-              "Y": 41,
-              "Handle": 811000003
             }
           ],
           "Opacity": 1.0,
@@ -76418,84 +76272,6 @@
     }
   ],
   "TileDefs": [
-    {
-      "Char": " ",
-      "Animation": {
-        "KeyFrames": [
-          {
-            "SpriteId": "WINDOWS_TERRAIN48_37",
-            "Duration": 1.0,
-            "DurationMax": 1.0
-          }
-        ],
-        "Rate": 1.0
-      },
-      "RowSpan": 1.0,
-      "ColSpan": 1.0,
-      "TintColor": 4294967295,
-      "Variables": [],
-      "DataComponents": [
-        {
-          "DataType": "glass",
-          "Variables": []
-        }
-      ],
-      "Handle": 811000001,
-      "Ref": "glass_wall_horizontal_left0",
-      "Id": "8f2a1c40-5d31-4e77-9a10-6c1b7e4a0001"
-    },
-    {
-      "Char": " ",
-      "Animation": {
-        "KeyFrames": [
-          {
-            "SpriteId": "WINDOWS_TERRAIN48_38",
-            "Duration": 1.0,
-            "DurationMax": 1.0
-          }
-        ],
-        "Rate": 1.0
-      },
-      "RowSpan": 1.0,
-      "ColSpan": 1.0,
-      "TintColor": 4294967295,
-      "Variables": [],
-      "DataComponents": [
-        {
-          "DataType": "glass",
-          "Variables": []
-        }
-      ],
-      "Handle": 811000002,
-      "Ref": "glass_wall_horizontal0",
-      "Id": "8f2a1c40-5d31-4e77-9a10-6c1b7e4a0002"
-    },
-    {
-      "Char": " ",
-      "Animation": {
-        "KeyFrames": [
-          {
-            "SpriteId": "WINDOWS_TERRAIN48_39",
-            "Duration": 1.0,
-            "DurationMax": 1.0
-          }
-        ],
-        "Rate": 1.0
-      },
-      "RowSpan": 1.0,
-      "ColSpan": 1.0,
-      "TintColor": 4294967295,
-      "Variables": [],
-      "DataComponents": [
-        {
-          "DataType": "glass",
-          "Variables": []
-        }
-      ],
-      "Handle": 811000003,
-      "Ref": "glass_wall_horizontal_right0",
-      "Id": "8f2a1c40-5d31-4e77-9a10-6c1b7e4a0003"
-    },
     {
       "Char": "ő",
       "Animation": {

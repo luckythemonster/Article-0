@@ -5,7 +5,6 @@ import { appendLogCacheBeta } from "./map/LogCacheBeta";
 import { appendAlignmentVault } from "./map/AlignmentVault";
 import { appendRoofArray } from "./map/RoofArrayLevel";
 import { appendDestructibleCover } from "./map/DestructibleCover";
-import { appendLobbyGlazing } from "./map/LobbyGlazing";
 import { planFor } from "./map/MapPlan";
 import type { EdPlayFile } from "./map/types";
 import { GameScene } from "./scenes/GameScene";
@@ -93,9 +92,6 @@ class BootScene extends Phaser.Scene {
     // Best-effort: gives the destructible-cover mechanic something real to break in a
     // playthrough. Doesn't gate anything, so no flag is stashed for it.
     appendDestructibleCover(parsed.map, plan.startLevel);
-    // The lobby frontage is authored in the map; this only rebuilds it on a re-export
-    // that lost the glass-wall tile defs, and declines when it is already there.
-    appendLobbyGlazing(parsed.map, plan.startLevel);
     this.registry.set("mapPlan", plan);
     this.registry.set("hasVentCore", hasVentCore);
     this.registry.set("hasLogBeta", hasLogBeta);

@@ -3179,7 +3179,7 @@ The `edplay` file format, its in-memory game-side counterpart, and the generator
 
 #### `GENERATED_LEVELS` — const
 
-`src/map/types.ts:230`
+`src/map/types.ts:224`
 
 Levels the engine appends to the parsed map at boot rather than reading out of
 `edplay.json`. Kept as one list so `isGeneratedLevel` — and therefore
@@ -3249,7 +3249,7 @@ Sprite/Image created with `(textureKey, frameKey)` draws that exact rect.
 
 #### `ComponentData` — interface
 
-`src/map/types.ts:156`
+`src/map/types.ts:150`
 
 A component instance placed on an entity, with values resolved to defaults.
 
@@ -3273,7 +3273,7 @@ A component instance placed on an entity, with values resolved to defaults.
 
 #### `EdBoard` — interface
 
-`src/map/types.ts:84`
+`src/map/types.ts:78`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3299,7 +3299,7 @@ A component instance placed on an entity, with values resolved to defaults.
 
 #### `EdDataStructure` — interface
 
-`src/map/types.ts:106`
+`src/map/types.ts:100`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3311,7 +3311,7 @@ A component instance placed on an entity, with values resolved to defaults.
 
 #### `EdDataTypes` — interface
 
-`src/map/types.ts:118`
+`src/map/types.ts:112`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3322,7 +3322,7 @@ A component instance placed on an entity, with values resolved to defaults.
 
 #### `EdEnumDef` — interface
 
-`src/map/types.ts:112`
+`src/map/types.ts:106`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3334,7 +3334,7 @@ A component instance placed on an entity, with values resolved to defaults.
 
 #### `EdField` — interface
 
-`src/map/types.ts:99`
+`src/map/types.ts:93`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3360,7 +3360,7 @@ A component instance placed on an entity, with values resolved to defaults.
 
 #### `EdLevel` — interface
 
-`src/map/types.ts:93`
+`src/map/types.ts:87`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3372,7 +3372,7 @@ A component instance placed on an entity, with values resolved to defaults.
 
 #### `EdPlayFile` — interface
 
-`src/map/types.ts:123`
+`src/map/types.ts:117`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3424,8 +3424,8 @@ A component instance placed on an entity, with values resolved to defaults.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `X` *(opt)* | `number` | Tile coordinates — **absent when zero**. The exporter drops any field at its default, so every board's west column has no `X` and its north row no `Y`. Declaring them required is what hid that: `EdplayLoader` read them straight through and produced `undefined` coordinates for 672 tiles of the shipped map. |
-| `Y` *(opt)* | `number` |  |
+| `X` | `number` |  |
+| `Y` | `number` |  |
 | `Handle` | `number` |  |
 | `BrushId` *(opt)* | `string` |  |
 
@@ -3467,7 +3467,7 @@ A component instance placed on an entity, with values resolved to defaults.
 
 #### `GameLayer` — interface
 
-`src/map/types.ts:186`
+`src/map/types.ts:180`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3478,7 +3478,7 @@ A component instance placed on an entity, with values resolved to defaults.
 
 #### `GameLevel` — interface
 
-`src/map/types.ts:191`
+`src/map/types.ts:185`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3491,7 +3491,7 @@ A component instance placed on an entity, with values resolved to defaults.
 
 #### `GameMap` — interface
 
-`src/map/types.ts:199`
+`src/map/types.ts:193`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3505,7 +3505,7 @@ A component instance placed on an entity, with values resolved to defaults.
 
 #### `GameTile` — interface
 
-`src/map/types.ts:162`
+`src/map/types.ts:156`
 
 A single placed tile in the normalized model.
 
@@ -3555,7 +3555,7 @@ Pure — no Phaser — so the rules are unit-testable on their own.
 
 #### `ParsedMap` — interface
 
-`src/map/EdplayLoader.ts:161`
+`src/map/EdplayLoader.ts:154`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3566,7 +3566,7 @@ Pure — no Phaser — so the rules are unit-testable on their own.
 
 #### `SpriteFrame` — interface
 
-`src/map/types.ts:144`
+`src/map/types.ts:138`
 
 A resolved rectangle inside one of the spritesheet PNGs.
 
@@ -3594,7 +3594,7 @@ A resolved rectangle inside one of the spritesheet PNGs.
 
 #### `Transition` — interface
 
-`src/map/types.ts:257`
+`src/map/types.ts:251`
 
 Where a transition tile leads: the destination level and arrival tile.
 
@@ -3638,7 +3638,7 @@ type BlockedAt = (x: number, y: number) => boolean;
 
 #### `KnownLevel` — type
 
-`src/map/types.ts:237`
+`src/map/types.ts:231`
 
 The level keys the shipped map and its generated additions use, in play order.
 Documentation and a spell-check for the few switches that key off a deck — not
@@ -3652,7 +3652,7 @@ type KnownLevel = | "main1" | "duct1" | "duct2" | "main2" | (typeof GENERATED_LE
 
 #### `TransitionKind` — type
 
-`src/map/types.ts:254`
+`src/map/types.ts:248`
 
 Which board a transition tile lives on, which also decides how it triggers:
 `stairs` are walked over, `maintenance_access` (hatches/ladders) is entered
@@ -5132,7 +5132,7 @@ Top-level bootstrap modules.
 
 #### `BootScene` — class *(module-private)*
 
-`src/main.ts:41` · `extends Phaser.Scene`
+`src/main.ts:40` · `extends Phaser.Scene`
 
 Boot scene: loads the edplay map JSON and the three spritesheets, parses the
 map into the normalized model, stashes it in the registry, then hands off to
@@ -5163,7 +5163,7 @@ GameScene.
 | [AudioDirector](#class-audiodirector) | class | `src/systems/AudioDirector.ts:26` |
 | [BinaryHeap](#class-binaryheap) | class | `src/systems/Pathfinder.ts:277` |
 | [BlockedAt](#type-blockedat) | type | `src/map/TileBake.ts:42` |
-| [BootScene](#class-bootscene) | class | `src/main.ts:41` |
+| [BootScene](#class-bootscene) | class | `src/main.ts:40` |
 | [BossCore](#class-bosscore) | class | `src/entities/BossCore.ts:64` |
 | [BossCoreHud](#class-bosscorehud) | class | `src/ui/BossCoreHud.ts:44` |
 | [BuiltLevel](#interface-builtlevel) | interface | `src/scenes/game/LevelBuilder.ts:39` |
@@ -5180,7 +5180,7 @@ GameScene.
 | [ComplianceScene](#class-compliancescene) | class | `src/scenes/ComplianceScene.ts:23` |
 | [ComplianceView](#class-complianceview) | class | `src/ui/ComplianceView.ts:31` |
 | [ComplianceViewCallbacks](#interface-complianceviewcallbacks) | interface | `src/ui/ComplianceView.ts:24` |
-| [ComponentData](#interface-componentdata) | interface | `src/map/types.ts:156` |
+| [ComponentData](#interface-componentdata) | interface | `src/map/types.ts:150` |
 | [ConductBreach](#type-conductbreach) | type | `src/systems/Conduct.ts:26` |
 | [ConductInput](#interface-conductinput) | interface | `src/systems/Conduct.ts:46` |
 | [ConductMetrics](#interface-conductmetrics) | interface | `src/systems/Conduct.ts:95` |
@@ -5212,15 +5212,15 @@ GameScene.
 | [Drone](#class-drone) | class | `src/entities/Drone.ts:13` |
 | [DRONE_PATROL_SOUTH_COLLIDER](#const-drone-patrol-south-collider) | const | `src/entities/generated/droneCollider.ts:32` |
 | [EdAnimation](#interface-edanimation) | interface | `src/map/types.ts:35` |
-| [EdBoard](#interface-edboard) | interface | `src/map/types.ts:84` |
+| [EdBoard](#interface-edboard) | interface | `src/map/types.ts:78` |
 | [EdDataComponent](#interface-eddatacomponent) | interface | `src/map/types.ts:45` |
-| [EdDataStructure](#interface-eddatastructure) | interface | `src/map/types.ts:106` |
-| [EdDataTypes](#interface-eddatatypes) | interface | `src/map/types.ts:118` |
-| [EdEnumDef](#interface-edenumdef) | interface | `src/map/types.ts:112` |
-| [EdField](#interface-edfield) | interface | `src/map/types.ts:99` |
+| [EdDataStructure](#interface-eddatastructure) | interface | `src/map/types.ts:100` |
+| [EdDataTypes](#interface-eddatatypes) | interface | `src/map/types.ts:112` |
+| [EdEnumDef](#interface-edenumdef) | interface | `src/map/types.ts:106` |
+| [EdField](#interface-edfield) | interface | `src/map/types.ts:93` |
 | [EdKeyFrame](#interface-edkeyframe) | interface | `src/map/types.ts:27` |
-| [EdLevel](#interface-edlevel) | interface | `src/map/types.ts:93` |
-| [EdPlayFile](#interface-edplayfile) | interface | `src/map/types.ts:123` |
+| [EdLevel](#interface-edlevel) | interface | `src/map/types.ts:87` |
+| [EdPlayFile](#interface-edplayfile) | interface | `src/map/types.ts:117` |
 | [EdplayLoader](#class-edplayloader) | class | `src/map/EdplayLoader.ts:24` |
 | [EdSpriteRect](#interface-edspriterect) | interface | `src/map/types.ts:9` |
 | [EdSpriteSheet](#interface-edspritesheet) | interface | `src/map/types.ts:18` |
@@ -5244,15 +5244,15 @@ GameScene.
 | [FlashlightBeam](#interface-flashlightbeam) | interface | `src/ui/Lighting.ts:125` |
 | [FollowResult](#type-followresult) | type | `src/entities/Enforcer.ts:175` |
 | [FrameSize](#interface-framesize) | interface | `src/tools/collider/format.ts:28` |
-| [GameLayer](#interface-gamelayer) | interface | `src/map/types.ts:186` |
-| [GameLevel](#interface-gamelevel) | interface | `src/map/types.ts:191` |
-| [GameMap](#interface-gamemap) | interface | `src/map/types.ts:199` |
+| [GameLayer](#interface-gamelayer) | interface | `src/map/types.ts:180` |
+| [GameLevel](#interface-gamelevel) | interface | `src/map/types.ts:185` |
+| [GameMap](#interface-gamemap) | interface | `src/map/types.ts:193` |
 | [GameMode](#type-gamemode) | type | `src/systems/GameState.ts:20` |
 | [GameOverScene](#class-gameoverscene) | class | `src/scenes/GameOverScene.ts:12` |
 | [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:209` |
 | [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:144` |
-| [GameTile](#interface-gametile) | interface | `src/map/types.ts:162` |
-| [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:230` |
+| [GameTile](#interface-gametile) | interface | `src/map/types.ts:156` |
+| [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:224` |
 | [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:173` |
 | [GuardAnomaly](#interface-guardanomaly) | interface | `src/entities/Enforcer.ts:66` |
 | [GuardSkin](#interface-guardskin) | interface | `src/entities/GuardSkin.ts:11` |
@@ -5269,7 +5269,7 @@ GameScene.
 | [JournalEntryId](#type-journalentryid) | type | `src/systems/Journal.ts:23` |
 | [JournalState](#interface-journalstate) | interface | `src/systems/Journal.ts:360` |
 | [Kind](#type-kind) | type | `src/entities/Vent4Boss.ts:301` |
-| [KnownLevel](#type-knownlevel) | type | `src/map/types.ts:237` |
+| [KnownLevel](#type-knownlevel) | type | `src/map/types.ts:231` |
 | [Laser](#class-laser) | class | `src/entities/Laser.ts:28` |
 | [LaserKind](#type-laserkind) | type | `src/entities/Laser.ts:21` |
 | [LexiconCategory](#type-lexiconcategory) | type | `src/systems/Lexicon.ts:19` |
@@ -5311,7 +5311,7 @@ GameScene.
 | [OverlayId](#type-overlayid) | type | `src/scenes/game/OverlayGate.ts:19` |
 | [Palette](#interface-palette) | interface | `src/ui/MiniMapCanvas.ts:17` |
 | [Pane](#interface-pane) | interface | `src/ui/PauseMenuView.ts:68` |
-| [ParsedMap](#interface-parsedmap) | interface | `src/map/EdplayLoader.ts:161` |
+| [ParsedMap](#interface-parsedmap) | interface | `src/map/EdplayLoader.ts:154` |
 | [PathNode](#interface-pathnode) | interface | `src/systems/Pathfinder.ts:22` |
 | [PathOptions](#interface-pathoptions) | interface | `src/systems/Pathfinder.ts:27` |
 | [PatrolRoute](#type-patrolroute) | type | `src/systems/PatrolRoute.ts:26` |
@@ -5386,7 +5386,7 @@ GameScene.
 | [SpriteCollider](#interface-spritecollider) | interface | `src/entities/generated/droneCollider.ts:6` |
 | [SpriteCollider](#interface-spritecollider-2) | interface | `src/entities/generated/enforcerCollider.ts:6` |
 | [SpriteCollider](#interface-spritecollider-3) | interface | `src/entities/generated/playerCollider.ts:6` |
-| [SpriteFrame](#interface-spriteframe) | interface | `src/map/types.ts:144` |
+| [SpriteFrame](#interface-spriteframe) | interface | `src/map/types.ts:138` |
 | [Stance](#type-stance) | type | `src/entities/Player.ts:37` |
 | [SteamJet](#interface-steamjet) | interface | `src/entities/Vent4Boss.ts:59` |
 | [Surrenderable](#interface-surrenderable) | interface | `src/systems/Surrender.ts:53` |
@@ -5399,9 +5399,9 @@ GameScene.
 | [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:190` |
 | [TilePos](#interface-tilepos) | interface | `src/map/generate.ts:115` |
 | [TitleScene](#class-titlescene) | class | `src/scenes/TitleScene.ts:12` |
-| [Transition](#interface-transition) | interface | `src/map/types.ts:257` |
+| [Transition](#interface-transition) | interface | `src/map/types.ts:251` |
 | [TransitionGraph](#class-transitiongraph) | class | `src/systems/TransitionGraph.ts:27` |
-| [TransitionKind](#type-transitionkind) | type | `src/map/types.ts:254` |
+| [TransitionKind](#type-transitionkind) | type | `src/map/types.ts:248` |
 | [TribunalCallbacks](#interface-tribunalcallbacks) | interface | `src/ui/TribunalScreen.ts:46` |
 | [TribunalScene](#class-tribunalscene) | class | `src/scenes/TribunalScene.ts:19` |
 | [TribunalScreen](#class-tribunalscreen) | class | `src/ui/TribunalScreen.ts:51` |

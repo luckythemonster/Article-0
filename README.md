@@ -475,11 +475,7 @@ in real seconds so the balance they encode keeps its meaning.
   openable doors that happen never to block sight (`glassStatsFor` reads `VisionBlock`).
   Two panes on `main2`'s `walls` board are static rather than doors, so the grid reads
   the `glass` component off the blocking board's tiles as it builds, covering glass
-  placed directly on a blocking board. `main1`'s lobby frontage — row 41, the glazed wall
-  you meet walking north out of the spawn — is the same thing at scale: 34
-  `glass_wall_horizontal*` tiles with the four glass doors left as the ways through, so a
-  guard on the far side can watch you cross the whole lobby. `map/LobbyGlazing.ts` rebuilds
-  it if a map re-export ever loses the tile defs, and declines when it is already there.
+  placed directly on a blocking board.
 - Tile footprints: a placed tile can be bigger than the cell it sits on — doors are 1.5
   or 2.5 tiles in one axis, and those two `main2` panes are 1×2.5 nudged half a tile
   down. `map/footprint.ts` turns the authored `colSpan`/`rowSpan`/`offset` into the cells

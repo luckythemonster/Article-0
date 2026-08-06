@@ -166,13 +166,6 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
   A pane placed this way blocks (and glazes) every cell of its **footprint**, so the
   1×2.5 glass tiles read as full-height panes rather than the one cell they sit on —
   see below.
-  For a plain glazed *wall* rather than a door, use the `glass_wall_horizontal*` defs —
-  `_left0` / (unsuffixed, the middle) / `_right0`, drawn from the `WINDOWS_TERRAIN48`
-  sheet. They are 1×1, carry `glass` and no `door`, and tile into an east-west run: cap
-  each end, repeat the middle. `main1`'s lobby frontage on row 41 is built from them.
-  **Mind what a glazed line does to the level's connectivity** — a wall across a lobby is
-  one tile away from sealing the player into their spawn. `LobbyGlazing.test.ts` flood-fills
-  from the spawn for exactly this reason.
 - **`terminal.type`** values that mean something:
   - `log_cache` → opens the Doctrinal Compliance minigame. **Solving one is required to
     recover EIRA-7's logs, so a map needs at least one.** (`designateQualiaRack`
