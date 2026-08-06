@@ -596,6 +596,9 @@ export class PauseMenuView {
       readout.textContent = `${slider.value}%`;
       push();
     });
+    slider.addEventListener("change", () => {
+      getAudio().ping();
+    });
     row.append(label, slider, readout);
     node.appendChild(row);
 
@@ -610,6 +613,9 @@ export class PauseMenuView {
     mute.addEventListener("change", () => {
       current.muted = mute.checked;
       push();
+      if (!current.muted) {
+        getAudio().ping();
+      }
     });
     muteRow.append(muteLabel, mute);
     node.appendChild(muteRow);
