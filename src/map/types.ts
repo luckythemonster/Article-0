@@ -69,8 +69,14 @@ export interface EdTileDef {
 }
 
 export interface EdTile {
-  X: number;
-  Y: number;
+  /**
+   * Tile coordinates — **absent when zero**. The exporter drops any field at its
+   * default, so every board's west column has no `X` and its north row no `Y`.
+   * Declaring them required is what hid that: `EdplayLoader` read them straight
+   * through and produced `undefined` coordinates for 672 tiles of the shipped map.
+   */
+  X?: number;
+  Y?: number;
   Handle: number;
   BrushId?: string;
 }
