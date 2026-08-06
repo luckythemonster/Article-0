@@ -156,6 +156,15 @@ export function sightDistances(
   const { cos, sin, invCos, invSin, deltaX, deltaY, stepX, stepY } = dirs;
   if (invCos && invSin && deltaX && deltaY && stepX && stepY) {
     const maxStepsBase = Math.ceil(maxTiles) * 2 + 4;
+    // Optimization: Precalculate origin tiles and constant sub-expressions outside the hot loop
+    // to avoid 1,440 redundant floating-point additions/subtractions and 1,440 Math.floor calls per call.
+    const originIx = Math.floor(originX);
+    const originIy = Math.floor(originY);
+    const dx1 = originIx + 1 - originX;
+    const dx0 = originIx - originX;
+    const dy1 = originIy + 1 - originY;
+    const dy0 = originIy - originY;
+
     for (let i = 0; i < cos.length; i++) {
       const c = cos[i];
       const s = sin[i];
@@ -166,13 +175,13 @@ export function sightDistances(
       const invC = invCos[i];
       const invS = invSin[i];
 
-      let ix = Math.floor(originX);
-      let iy = Math.floor(originY);
+      let ix = originIx;
+      let iy = originIy;
 
       let nextX =
-        c === 0 ? Infinity : c > 0 ? (ix + 1 - originX) * invC : (ix - originX) * invC;
+        c === 0 ? Infinity : c > 0 ? dx1 * invC : dx0 * invC;
       let nextY =
-        s === 0 ? Infinity : s > 0 ? (iy + 1 - originY) * invS : (iy - originY) * invS;
+        s === 0 ? Infinity : s > 0 ? dy1 * invS : dy0 * invS;
 
       let steps = maxStepsBase;
       let dist = maxTiles;
