@@ -53,11 +53,18 @@ class MockElement {
   }
 
   scrollIntoView(): void {}
+
+  isFocused = false;
+  focus(): void {
+    this.isFocused = true;
+    (globalThis.document as any).activeElement = this;
+  }
 }
 
 beforeAll(() => {
   globalThis.document = {
     createElement: (tag: string) => new MockElement(tag) as any,
+    activeElement: null,
   } as any;
 });
 
@@ -159,5 +166,31 @@ describe("SelectList", () => {
     const consumed = list.onKey({ key: "End" } as KeyboardEvent);
     expect(consumed).toBe(true);
     expect(list.selected).toBe(2); // Last non-disabled is index 2
+  });
+
+  it("focuses listbox and updates selection when a row is clicked", () => {
+    const list = new SelectList(() => {}, "Test Click");
+    const rows: SelectListRow[] = [
+      { label: "Option 1" },
+      { label: "Option 2" },
+    ];
+
+    list.setRows(rows);
+    expect(list.selected).toBe(0);
+
+    // Get the second row mock element
+    const row2Node = list.node.children[1] as unknown as MockElement;
+    expect(row2Node).toBeDefined();
+
+    // Trigger the click event
+    const clickListeners = row2Node.listeners.get("click") ?? [];
+    expect(clickListeners.length).toBeGreaterThan(0);
+    clickListeners.forEach((listener) => listener());
+
+    // Selection should be updated, and the container listbox should be focused
+    expect(list.selected).toBe(1);
+    const listNode = list.node as unknown as MockElement;
+    expect(listNode.isFocused).toBe(true);
+    expect(globalThis.document.activeElement).toBe(listNode);
   });
 });

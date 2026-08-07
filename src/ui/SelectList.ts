@@ -70,6 +70,7 @@ export class SelectList {
             getAudio().ping();
           }
           this.select(i);
+          this.node.focus({ preventScroll: true });
           row.onActivate?.();
         });
       }
