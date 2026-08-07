@@ -42,8 +42,8 @@ export interface VfxSpec {
   /**
    * Render depth.
    *
-   * The ladder in play: guard cones 400, EMP zone 410, orderlies 440, bodies
-   * 450, the lighting overlay 700/701, the player 750.
+   * The ladder in play: ground shadows 300, guard cones 400, EMP zone 410,
+   * orderlies 440, bodies 450, the lighting overlay 700/701, the player 750.
    *
    * Effects sit **above** the lighting, at {@link VFX_DEPTH}, for the same
    * reason the player does: unlit space is fully opaque, so anything underneath
