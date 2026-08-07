@@ -373,7 +373,7 @@ export class PauseMenuView {
     for (const s of slots) {
       const remaining = activeRemaining(s.name, this.snap.active);
       const note = remaining > 0 ? `×${s.count}  ACTIVE ${Math.ceil(remaining)}s` : `×${s.count}`;
-      item(`  [${s.slot}] ${s.name}`, note, s.name);
+      item(`  ${s.name}`, note, s.name);
     }
 
     if (this.snap.active.flashlightOwned) {

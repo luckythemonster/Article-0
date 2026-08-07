@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
+  BATTERY_ITEM,
+  CHAFF_PACK_ITEM,
+  consumableSlots,
+  CONSUMABLE_ORDER,
+  countConsumables,
   enforcerStatsFor,
   ENFORCER_DEFAULTS,
   ESCORT_SPEED_MULTIPLIER,
@@ -9,13 +14,18 @@ import {
   HOLD_UP_REACH_TILES,
   HOLD_UP_RELEASE_ARC_DEGREES,
   HOLD_UP_RELEASE_TILES,
+  MAX_CONSUMABLES,
   paced,
   PLAYER_WALK_TILES,
+  RATION_PACK_ITEM,
+  SACK_LUNCH_ITEM,
   STAPLER_FIELD_MAX_CHARGES,
   STAPLER_FIELD_RANGE_TILES,
   STAPLER_PIN_DURATION,
   STUN_ROUND_DURATION,
   STUN_ROUND_REACH_TILES,
+  STUN_ROUNDS_ITEM,
+  THERMAL_GEL_ITEM,
   WEAPON_ARC_DEGREES,
 } from "./EntityStats";
 import type { ComponentData } from "../map/types";
@@ -89,5 +99,42 @@ describe("The hold-up — balance vs. the two weapons", () => {
     // Rowan's escort pace is the player's 3.2 tiles/s scaled by the multiplier; a
     // hostage slower than that would fall out of the hold on every straight.
     expect(ESCORT_WALK_TILES).toBeGreaterThan(paced(PLAYER_WALK_TILES) * ESCORT_SPEED_MULTIPLIER);
+  });
+});
+
+describe("consumableSlots — the item cursor's list", () => {
+  it("lists every distinct held type, even when that's all six at once", () => {
+    // MAX_CONSUMABLES (a total-unit cap) used to double as consumableSlots'
+    // truncation point (a distinct-type count) — harmless only because the old
+    // cap of 4 made holding 4+ distinct types impossible in the first place.
+    // One of each of the six known consumables is 6 units, comfortably under
+    // today's cap, and must come back as six slots, not get cut off early.
+    expect(CONSUMABLE_ORDER.length).toBe(6);
+    const oneOfEach = [...CONSUMABLE_ORDER];
+    expect(oneOfEach.length).toBeLessThanOrEqual(MAX_CONSUMABLES);
+
+    const slots = consumableSlots(oneOfEach);
+    expect(slots.map((s) => s.name)).toEqual([...CONSUMABLE_ORDER]);
+    expect(slots.every((s) => s.count === 1)).toBe(true);
+  });
+
+  it("skips types the player isn't carrying and numbers what's left in order", () => {
+    const slots = consumableSlots([THERMAL_GEL_ITEM, RATION_PACK_ITEM, THERMAL_GEL_ITEM]);
+    expect(slots).toEqual([
+      { slot: 1, name: THERMAL_GEL_ITEM, count: 2 },
+      { slot: 2, name: RATION_PACK_ITEM, count: 1 },
+    ]);
+  });
+
+  it("counts total units, not distinct types, against MAX_CONSUMABLES", () => {
+    const held = [
+      CHAFF_PACK_ITEM,
+      CHAFF_PACK_ITEM,
+      BATTERY_ITEM,
+      STUN_ROUNDS_ITEM,
+      SACK_LUNCH_ITEM,
+    ];
+    expect(countConsumables(held)).toBe(held.length);
+    expect(countConsumables(held)).toBeLessThanOrEqual(MAX_CONSUMABLES);
   });
 });

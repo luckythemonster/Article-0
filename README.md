@@ -43,7 +43,8 @@ npm run build    # tsc --noEmit + vite build
 | F | Shared Field — once charged (by staying near a silicate), merge for 3.7s and become undetectable |
 | R | Knock — rap on a wall to lure guards and orderlies to the noise |
 | Q | Hold up — with a weapon in hand, aim at an orderly: hands up, silent, and he walks ahead of you while you hold it |
-| 1 – 4 | Use the consumable in that slot (the **Sack Lunch** takes two presses: open, then drop) |
+| , / . | Cycle the selected consumable |
+| Enter | Use the selected consumable (the **Sack Lunch** takes two uses: open, then drop) |
 | C | Open the EIRA-7 codec |
 | Esc | Pause menu — objectives, journal, inventory, index, status, map, controls, settings, saves |
 
@@ -368,11 +369,11 @@ in real seconds so the balance they encode keeps its meaning.
   four-state machine — WANDER / INSPECT / SANITATION / WITNESSED — with two
   overrides the **Sack Lunch** triggers, below.
 - The Sack Lunch (Corporate Spec Ration): the one item you can put *down*, and
-  the only one with states. **Sealed** it is inventory; **opened** (first press
-  of its hotkey) it stays in hand, raising detection by 1.15× and the noise
+  the only one with states. **Sealed** it is inventory; **opened** (first use)
+  it stays in hand, raising detection by 1.15× and the noise
   profile, but flags Rowan to orderlies as an asset consuming rations — one
   reprimands him instead of reporting, and only raises the alarm if he is still
-  in view five seconds later. **Deployed** (second press) it drops on the floor
+  in view five seconds later. **Deployed** (second use) it drops on the floor
   as a work order: an orderly within six tiles with line of sight — or three
   tiles by scent, through walls — leaves its round, walks over, and spends six
   seconds sanitising it, with its witness radius halved and narrowed to a 90°
