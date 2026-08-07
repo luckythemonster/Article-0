@@ -32,7 +32,7 @@ const MODE_KEY = "gameMode";
  * minigame.
  *
  * `UIScene` runs in parallel and keeps updating regardless, so without this it
- * goes on polling the `[1]`–`[4]` consumable hotkeys behind an open overlay and
+ * goes on reading the item cursor's cycle/use keys behind an open overlay and
  * queues an `itemUseRequest` that `GameScene` then spends the instant play
  * resumes. One flag, published by whoever froze the sim, closes that for all four.
  */
@@ -41,6 +41,7 @@ export const SUSPENDED_KEY = "simSuspended";
 /** Registry keys scoped to a single infiltration; cleared when a new one begins. */
 const RUN_KEYS = [
   "inventory",
+  "selectedConsumable",
   "staplerFieldCharges",
   "objectives",
   "journal",

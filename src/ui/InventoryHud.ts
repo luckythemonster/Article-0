@@ -14,10 +14,11 @@ import { onResize } from "./resize";
 
 /**
  * A compact inventory readout pinned to the bottom-right of the screen, in three
- * sections: the held CONSUMABLES mapped to hotkeys [1]–[4] (with counts and, for
- * timed buffs, their remaining duration), the flashlight EQUIPMENT state, and
- * passive KEY ITEMS. Purely a display — it reads the inventory/active-item state
- * the scene publishes to the registry; GameScene owns spending the items.
+ * sections: the held CONSUMABLES (with counts and, for timed buffs, their
+ * remaining duration) with a cursor (▸) on whichever one `,`/`.` has selected
+ * and `Enter` would use, the flashlight EQUIPMENT state, and passive KEY ITEMS.
+ * Purely a display — it reads the inventory/active-item/selection state the
+ * scene publishes to the registry; GameScene owns spending the items.
  */
 export class InventoryHud {
   private readonly text: Phaser.GameObjects.Text;
@@ -40,10 +41,10 @@ export class InventoryHud {
     onResize(scene, (w, h) => this.text.setPosition(w - pad, h - pad));
   }
 
-  update(items: string[], active: ActiveItemsView): void {
+  update(items: string[], active: ActiveItemsView, selected: string | undefined): void {
     const lines: string[] = [];
 
-    // --- CONSUMABLES: dynamic hotkey slots [1]..[MAX] ---
+    // --- CONSUMABLES: the item cursor's list, in canonical order ---
     lines.push(`CONSUMABLES (${countConsumables(items)}/${MAX_CONSUMABLES})`);
     const slots = consumableSlots(items);
     if (slots.length === 0) lines.push("(none)");
@@ -59,7 +60,8 @@ export class InventoryHud {
               s.name === SACK_LUNCH_ITEM && active.sackLunchOpened
               ? " (OPENED)"
               : "";
-        lines.push(`[${s.slot}] ${s.name} ×${s.count}${status}`);
+        const cursor = s.name === selected ? "▸" : " ";
+        lines.push(`${cursor} ${s.name} ×${s.count}${status}`);
       }
     }
 
