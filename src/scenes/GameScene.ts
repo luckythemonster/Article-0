@@ -30,6 +30,7 @@ import { Cover } from "../entities/Cover";
 import { playVfx, EMP_BLAST, ELECTRONICS_SPARK, IMPACT } from "../entities/Vfx";
 import { buildAlertNetworkSnapshot, NoiseSpamTracker } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
+import { EntityShadows, type ShadowCaster } from "../ui/EntityShadows";
 import {
   missionFeatures,
   resumeFromSave,
@@ -251,6 +252,13 @@ export class GameScene extends Phaser.Scene {
   /** Refilled each frame and republished; see {@link RadarSnapshot}. */
   private readonly radarSnapshot = emptyRadarSnapshot();
   private lighting!: Lighting;
+  private entityShadows!: EntityShadows;
+  /**
+   * Refilled each frame and handed to {@link entityShadows}. Held rather than built
+   * per frame: the cast is three separate arrays that have to arrive as one list, and
+   * concatenating them every frame is a throwaway array a frame for the whole run.
+   */
+  private readonly shadowCasters: ShadowCaster[] = [];
   private grid!: CollisionGrid;
   private detection!: DetectionSystem;
   private alert = new AlertState();
@@ -441,6 +449,9 @@ export class GameScene extends Phaser.Scene {
     // DetectionSystem uses, so lit spots are visibly and mechanically hot; takes the
     // same collision grid the guards' sight tests use, so walls occlude identically.
     this.lighting = new Lighting(this, this.level, this.tileSize, this.grid);
+    // After the lighting, and reading from it: a shadow is thrown by the same fixtures
+    // the darkness is carved out for, so walking under a lamp swings it around.
+    this.entityShadows = new EntityShadows(this, this.lighting);
 
     // VENT-4 lives only in the vent core. Its continuous audio layers are
     // scene-independent, so silence them on every entry and re-arm to match a
@@ -480,6 +491,7 @@ export class GameScene extends Phaser.Scene {
     if (DEBUG_ALLOWED) {
       this.debug = new DebugOverlay(this, {
         lighting: this.lighting,
+        entityShadows: this.entityShadows,
         wallCollider: () => this.wallCollider,
         doorCollider: () => this.doorCollider,
         warpTargets: () => this.debugWarpLevels(),
@@ -503,6 +515,7 @@ export class GameScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.persistRunState();
       this.lighting.destroy();
+      this.entityShadows.destroy();
     });
 
     this.saveCheckpoint();
@@ -1479,6 +1492,11 @@ export class GameScene extends Phaser.Scene {
     const frozen = this.debug?.frozenWorld ?? false;
     const ctx = this.refreshSensing(concealed, compliant, thermalConcealed);
     const maxDetection = this.tickWorld(dt, ctx, frozen);
+    // After `tickWorld`, which is where the bodies were moved for the frame — a shadow
+    // placed before it would trail the feet it belongs to by one. Unconditional even
+    // when the world is frozen: the debug freeze holds the patrols still but leaves
+    // Rowan free to walk around and look at them, and his shadow has to come along.
+    this.updateEntityShadows();
 
     this.alert.update(frozen ? 0 : dt);
     if (this.alert.phase === "ALERT" && phaseBefore !== "ALERT") {
@@ -1636,6 +1654,22 @@ export class GameScene extends Phaser.Scene {
     this.playTimeMs += delta;
     this.registry.set("playTimeMs", this.playTimeMs);
     this.markExplored(dt);
+  }
+
+  /**
+   * Refills the caster list from this frame's cast and redraws the ground shadows.
+   *
+   * Rebuilt every frame rather than cached at level build: the rooftop siege pushes new
+   * guards into {@link guards} mid-level (see `onSiegeSpawn`), so a list captured once
+   * would leave every reinforcement floating.
+   */
+  private updateEntityShadows(): void {
+    const casters = this.shadowCasters;
+    casters.length = 0;
+    casters.push(this.player);
+    for (const guard of this.guards) casters.push(guard);
+    for (const orderly of this.orderlies) casters.push(orderly);
+    this.entityShadows.update(casters);
   }
 
   /**

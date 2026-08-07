@@ -52,6 +52,11 @@ const SHARED: Omit<Args, "input" | "out" | "exportName"> = {
  * facing south and 37×40 facing east), so guards use the traced extent to size
  * a *circle* (`GuardSkin.collisionRadiusTiles`) rather than feeding the AABB
  * straight to a physics body the way the player does.
+ *
+ * The orderly is here for neither of those reasons — he collides with nothing. He is
+ * traced so his ground shadow can be sized off his real silhouette like everyone else's
+ * (`ShadowShape` in `src/ui/EntityShadows.ts`), instead of being the one character in the
+ * game wearing a hand-typed number that stops being true the moment the art changes.
  */
 const TARGETS: ReadonlyArray<Pick<Args, "input" | "out" | "exportName">> = [
   {
@@ -68,6 +73,11 @@ const TARGETS: ReadonlyArray<Pick<Args, "input" | "out" | "exportName">> = [
     input: "public/assets/drone/patrol/south/0.png",
     out: "src/entities/generated/droneCollider.ts",
     exportName: "DRONE_PATROL_SOUTH_COLLIDER",
+  },
+  {
+    input: "public/assets/orderly/idle/south/0.png",
+    out: "src/entities/generated/orderlyCollider.ts",
+    exportName: "ORDERLY_IDLE_SOUTH_COLLIDER",
   },
 ];
 

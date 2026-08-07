@@ -11,6 +11,8 @@ import {
 import { moveCirclePx } from "../systems/GridMotion";
 import { LURE_SPECS, noticedLure, type DeployedLure } from "../systems/Deployables";
 import { DIRS_8, nearestDirection, type Dir8 } from "./directions";
+import { shadowShapeFor, type ShadowShape } from "../render/shadowShape";
+import { ORDERLY_IDLE_SOUTH_COLLIDER } from "./generated/orderlyCollider";
 import { alertMarker, speechMarker } from "./markers";
 import {
   ORDERLY_ANIM_FRAME_COUNTS,
@@ -124,6 +126,8 @@ export class Orderly {
   /** Pixel position — public for the same reason as {@link Enforcer.x}. */
   x: number;
   y: number;
+  /** Footprint the ground shadow is drawn from — see `EntityShadows`. */
+  readonly shadow: ShadowShape;
   private readonly spawnX: number;
   private readonly spawnY: number;
   private facing = 0;
@@ -182,6 +186,7 @@ export class Orderly {
     // paired so this division lands on 0.5 and the art is never resampled — see
     // ORDERLY_SOURCE_SIZE.
     this.body.setScale((tileSize * ORDERLY_DISPLAY_TILES) / ORDERLY_SOURCE_SIZE);
+    this.shadow = shadowShapeFor(ORDERLY_IDLE_SOUTH_COLLIDER, ORDERLY_DISPLAY_TILES, tileSize);
     this.body.play(orderlyAnimKey("idle", "south"));
 
     this.bang = alertMarker(scene, this.x, this.y, tileSize);
