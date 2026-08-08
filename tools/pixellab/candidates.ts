@@ -193,6 +193,80 @@ const SUBJECTS: Record<string, Subject> = {
       },
     ],
   },
+
+  /**
+   * The enforcer, reimagined. The shipped design — a blocky armoured hull under
+   * a rotating crown of camera-arms — reads as a war machine (a Sandcrawler
+   * sentry, not a station officer), and the brief is to replace that read with
+   * "clinical bureaucracy": an institutional inspection unit, not a tank.
+   *
+   * The functional silhouette can't change — a guard still needs a rotating
+   * element on top for the patrol-scan cycle to sweep, which the vision cone's
+   * art is keyed to (`Enforcer.ts`: "what the patrol-scan art depicts") — so
+   * every variant keeps *a* swiveling scanner, just recast as office/inspection
+   * equipment (a stamp arm, a barcode wand, a clipboard scanner) instead of a
+   * weapon mount. Drawn directly at 72px, the enforcer's existing canvas — no
+   * resolution change, only the design.
+   */
+  enforcer: {
+    size: 72,
+    floor: [22, 26, 33],
+    identity:
+      "A mobile compliance-enforcement unit patrolling a Commonwealth station: a boxy institutional " +
+      "chassis gliding low on a hidden base, no legs or wheels visible, a rotating inspection arm " +
+      "mounted on top that sweeps back and forth scanning for violations. Top-down view, single " +
+      "object, facing the viewer.",
+    variants: [
+      {
+        id: "1-sterile-kiosk",
+        intent: "Cream office-appliance plastic, hard red accents — reads as a checkpoint kiosk",
+        method: "fresh",
+        styling:
+          "Cream-white moulded plastic chassis with rounded institutional corners, a rotating " +
+          "scanner wand tipped in warning red, a small amber status screen on the front, thin red " +
+          "regulatory stripe along the base, flat clean panels with no visible weaponry.",
+        outline: "single color black outline",
+        shading: "basic shading",
+        detail: "medium detail",
+      },
+      {
+        id: "2-filing-cabinet",
+        intent: "Pale grey-green metal, boxier and heavier — a mobile filing cabinet with authority",
+        method: "fresh",
+        styling:
+          "Pale grey-green sheet-metal chassis shaped like a squat filing cabinet, a rotating " +
+          "stamped-badge arm on top with a blinking 'COMPLY' indicator light, rivet seams, " +
+          "no armour plating, bureaucratic rather than military bulk.",
+        outline: "single color black outline",
+        shading: "basic shading",
+        detail: "medium detail",
+      },
+      {
+        id: "3-clipboard-inspector",
+        intent: "Off-white with a literal clipboard-scanner arm — the most on-the-nose bureaucrat",
+        method: "fresh",
+        styling:
+          "Off-white chassis with pale blue accent panels, a large clipboard-shaped scanner plate " +
+          "on a swivel arm tipped with a red stamp, a small printed-form readout on the front, " +
+          "soft rounded edges throughout.",
+        outline: "single color black outline",
+        shading: "flat shading",
+        detail: "low detail",
+      },
+      {
+        id: "4-barcode-warden",
+        intent: "Dark cream chassis, a hot red scanner laser as the eye-catch in unlit rooms",
+        method: "fresh",
+        styling:
+          "Dark cream institutional chassis with a rotating barcode-scanner wand throwing a thin " +
+          "bright red laser line, a small screen showing a stern notice glyph, thin black-and-red " +
+          "hazard-tape trim for authority without armour.",
+        outline: "single color black outline",
+        shading: "basic shading",
+        detail: "low detail",
+      },
+    ],
+  },
 };
 
 async function main(): Promise<void> {
