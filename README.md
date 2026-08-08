@@ -686,7 +686,7 @@ top-down templates) and pulled in via its API. The player's set is reproducible
 from the command line — see *Regenerating the player sprite* below; the other
 three were generated before that tooling existed.
 
-- **Player** ("Rowan Ibarra", 48x48) — idle/walk/run cycles in all 8
+- **Player** ("Rowan Ibarra", 36x36) — idle/walk/run cycles in all 8
   directions (`public/assets/player/`, manifest at
   `public/assets/player/manifest.json`). `PlayerAnimations.ts` maps that frame
   layout to Phaser animation keys; facing matches the free 8-directional
@@ -706,34 +706,39 @@ three were generated before that tooling existed.
   for the reason in the next paragraph.
 
   The character itself is a specific design picked directly on pixellab.ai
-  ([character `17c7f0e3-...`](https://www.pixellab.ai/create-character/17c7f0e3-796b-47f9-9371-3761e53a09c8))
+  ([character `7b4ca7b4-...`](https://www.pixellab.ai/create-character/7b4ca7b4-7da9-4e10-8442-0d8f102619ce))
   and adopted as-is — its 8 rotations are used unmodified, not redrawn or
   regenerated, because the brief was "use this design," not "draw something
   like it." Only the crouched state and the seven animation cycles are built on
   top of it, the same way any character in this pipeline's `sheets`/`anims`
   works (`tools/pixellab/characters.ts`).
 
-The player's 48x48 frame size is load-bearing, not descriptive. The sprite is
+The player's 36x36 frame size is load-bearing, not descriptive. The sprite is
 drawn at `displaySize / PLAYER_SOURCE_SIZE`, and the camera runs at 2x zoom, so
-`48 / 48 * 2 = 2`: every source pixel covers an even 2x2 block of screen
-pixels, and the art is never resampled — deliberately chunkier than a 1:1
-ratio would give, because the adopted character's native resolution is lower
-than the sprite it replaced. That's the point of this design, not a
+`(32 * 1.125) / 36 * 2 = 2`: every source pixel covers an even 2x2 block of
+screen pixels, and the art is never resampled — deliberately chunkier than a
+1:1 ratio would give, because the adopted character's native resolution is
+lower than the sprite it replaced. That's the point of this design, not a
 regression: any pairing has to keep `(tileSize * displayTiles) / sourceSize *
 cameraZoom` a whole number or `pixelArt: true` (nearest-neighbour) starts
 resampling, and with `roundPixels` re-snapping the grid as the camera pans, a
 fractional ratio reads as a broken-up outline and crawling interior detail no
 matter how well the art is drawn. The frames used to be 88x88 (1.0909, not
-whole) and briefly 96x96 (a clean 1, but a redraw of the picked design rather
-than the design itself) before landing here.
+whole), then 96x96 (a clean 1, but a redraw of the picked design rather than
+the design itself), then a first adoption at 48x48 that kept the old 1.5
+display-tiles value unchanged and rendered nearly twice the previous
+footprint, before landing here.
 
-Display size is per sprite rather than one shared number, because "1.5 tiles"
-means different things for different art. The player and orderly are nominally
-~1.5 tiles tall; the guards are smaller, and deliberately. The guards' frames
-are nearly edge-to-edge robot, so at the same nominal size they
-were genuinely *wider than the doorways they patrol through*. The enforcer sits at
-1.15 tiles and the drone at 0.75 — see the collider note under *What's
-implemented*.
+`PLAYER_DISPLAY_TILES` is not carried over unchanged between characters —
+it's a pure scale knob, not art, and has to be re-picked whenever the source
+canvas changes so the *footprint* lands somewhere sane rather than whatever
+the old display size happens to produce at the new canvas. Display size is
+per sprite rather than one shared number for the same reason "1.5 tiles"
+would mean different things for different art anyway: the guards' frames are
+nearly edge-to-edge robot, so at a large nominal size they were genuinely
+*wider than the doorways they patrol through*. The player currently sits at
+1.125 tiles, the orderly at 1.5, the enforcer at 1.125, and the drone at 0.75
+— see the collider note under *What's implemented*.
 
 - **Enforcer** (72x72) — a blocky robotic sentry gliding on magnetic tracks
   with a rotating crown of camera-arms. It shipped with no animations, so its
@@ -844,7 +849,7 @@ sheet in `tools/pixellab/characters.ts`'s `sheets[].source`:
 Either way, `generate-player.ts` (or any other `main(SPEC)` entry point) then
 derives a crouched state from that sheet, generates all seven animations at
 the frame counts `PLAYER_ANIM_FRAME_COUNTS` expects, and re-canvases every
-frame onto the fixed 48x48 square. That last step crops through a *single*
+frame onto the fixed 36x36 square. That last step crops through a *single*
 bounding box shared by the whole set rather than each frame's own — cropping
 per frame would re-centre the character on every tick and destroy the walk
 cycle's weight shift. It only ever crops and pads; if the art does not fit, it

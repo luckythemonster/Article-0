@@ -2133,14 +2133,14 @@ const DIRS_8 = [ "south", "south-east", "east", "north-east", "north", "north-we
 | Key | Value | Notes |
 | --- | --- | --- |
 | `source` | `"public/assets/player/idle/south/0.png"` |  |
-| `frameWidth` | `48` |  |
-| `frameHeight` | `48` |  |
+| `frameWidth` | `36` |  |
+| `frameHeight` | `36` |  |
 | `epsilon` | `2` |  |
 | `inset` | `0` |  |
-| `aabb` | `{ width: 15, height: 33, offsetX: 16, offsetY: 8 }` |  |
-| `polygon` | `[ { x: 22, y: 8 }, { x: 27, y: 10 }, { x: 31, y: 24 }, { x: 28, y: 31 }, { x: 30, y: 41 }, { x: 26, y: 40 }, { x: 24, y…` |  |
-| `polygonFlat` | `[22, 8, 27, 10, 31, 24, 28, 31, 30, 41, 26, 40, 24, 32, 21, 40, 17, 41, 19, 31, 16, 29, 16, 23, 21, 9]` |  |
-| `matterPath` | `"22 8 27 10 31 24 28 31 30 41 26 40 24 32 21 40 17 41 19 31 16 29 16 23 21 9"` |  |
+| `aabb` | `{ width: 13, height: 25, offsetX: 11, offsetY: 6 }` |  |
+| `polygon` | `[ { x: 17, y: 6 }, { x: 24, y: 17 }, { x: 22, y: 31 }, { x: 18, y: 25 }, { x: 13, y: 31 }, { x: 11, y: 18 }, { x: 16, y…` |  |
+| `polygonFlat` | `[17, 6, 24, 17, 22, 31, 18, 25, 13, 31, 11, 18, 16, 7]` |  |
+| `matterPath` | `"17 6 24 17 22 31 18 25 13 31 11 18 16 7"` |  |
 
 ### Entities — Classes
 
@@ -3135,8 +3135,8 @@ type PersonAnomalyKind = "stunnedOrderly" | "pinnedOrderly" | "surrenderedOrderl
 **Module note** — the header comment on `src/entities/PlayerAnimations.ts`, which this declaration heads:
 
 Frame manifest for the player character sprite (PixelLab.ai character
-`17c7f0e3-796b-47f9-9371-3761e53a09c8`, "Rowan Ibarra" — high top-down,
-48x48, 8-direction template, adopted as-is). All 8 directions were exported
+`7b4ca7b4-7da9-4e10-8442-0d8f102619ce`, "Rowan Ibarra" — high top-down,
+36x36, 8-direction template, adopted as-is). All 8 directions were exported
 per animation, so the sprite's facing matches the free 8-directional
 movement exactly (no cardinal snapping).
 
