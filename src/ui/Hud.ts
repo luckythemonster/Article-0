@@ -1,8 +1,10 @@
 import Phaser from "phaser";
 import type { AlertPhase } from "../systems/AlertState";
 import { SETTLE_SECONDS, type ConductView } from "../systems/Conduct";
+import { BioMonitor } from "./BioMonitor";
 import { controlsHintLine } from "./Controls";
 import { FONT_MONO } from "./fonts";
+import { BIO_LABEL_TOP } from "./hudLayout";
 import { onResize } from "./resize";
 
 const PHASE_COLOR: Record<AlertPhase, string> = {
@@ -15,8 +17,9 @@ const PHASE_COLOR: Record<AlertPhase, string> = {
  * Heads-up display. The detection meter is framed as the facility's
  * **Subjectivity Risk Profile**: being seen means registering as a *subject*, so
  * the H (Harm/Vulnerability) and Y (Yield) axes climb while Q (Qualia) stays
- * pinned at 0 by the Non-Subject Status Act. A second bar tracks Rowan's
- * bio-integrity (health). Pinned to the camera; runs in the parallel UIScene.
+ * pinned at 0 by the Non-Subject Status Act. Beneath it, a {@link BioMonitor} traces
+ * Rowan's bio-integrity (health) as an EKG. Pinned to the camera; runs in the parallel
+ * UIScene.
  */
 export class Hud {
   private readonly phaseText: Phaser.GameObjects.Text;
@@ -24,7 +27,7 @@ export class Hud {
   private readonly hint: Phaser.GameObjects.Text;
   private readonly srpFill: Phaser.GameObjects.Rectangle;
   private readonly srpAxes: Phaser.GameObjects.Text;
-  private readonly hpFill: Phaser.GameObjects.Rectangle;
+  private readonly bio: BioMonitor;
 
   constructor(scene: Phaser.Scene) {
     const pad = 12;
@@ -58,21 +61,9 @@ export class Hud {
       .setScrollFactor(0)
       .setDepth(1000);
 
-    scene.add
-      .text(pad, pad + 80, "BIO-INTEGRITY", { fontFamily: FONT_MONO, fontSize: "11px", color: "#8899aa" })
-      .setScrollFactor(0)
-      .setDepth(1000);
-    scene.add
-      .rectangle(pad, pad + 96, 180, 10, 0x11202b)
-      .setOrigin(0, 0)
-      .setScrollFactor(0)
-      .setDepth(1000)
-      .setStrokeStyle(1, 0x2b4356);
-    this.hpFill = scene.add
-      .rectangle(pad + 1, pad + 97, 178, 8, 0x59d98e)
-      .setOrigin(0, 0)
-      .setScrollFactor(0)
-      .setDepth(1001);
+    // Owns its own heading and rate readout. Its height is part of the shared column
+    // budget in `hudLayout`, because `AlertNetworkHud` starts where it ends.
+    this.bio = new BioMonitor(scene, pad, pad + BIO_LABEL_TOP);
 
     this.hint = scene.add
       .text(pad, scene.scale.height - pad, controlsHintLine(), {
@@ -103,11 +94,16 @@ export class Hud {
     });
   }
 
+  /**
+   * @param deltaMs frame time, for the EKG sweep. 0 holds the trace still while an
+   *   overlay owns the screen — see the call site in `UIScene`.
+   */
   update(
     alert: { phase: AlertPhase },
     detection: number,
     hp: number,
     maxHp: number,
+    deltaMs: number,
     conduct?: ConductView,
   ): void {
     this.phaseText.setText(alert.phase).setColor(PHASE_COLOR[alert.phase]);
@@ -119,9 +115,7 @@ export class Hud {
     // Q is pinned at 0 by the NSSA; H (harm/vulnerability) and Y (yield) track risk.
     this.srpAxes.setText(`Q 0.00   H ${risk.toFixed(2)}   Y ${(risk * 0.8).toFixed(2)}`);
 
-    const frac = maxHp > 0 ? Phaser.Math.Clamp(hp / maxHp, 0, 1) : 0;
-    this.hpFill.width = Math.round(178 * frac);
-    this.hpFill.setFillStyle(frac > 0.5 ? 0x59d98e : frac > 0.25 ? 0xffb03b : 0xff3b3b);
+    this.bio.update(hp, maxHp, deltaMs);
   }
 
   /**
