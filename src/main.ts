@@ -33,8 +33,8 @@ import { preloadDeployedItems } from "./entities/DeployedItem";
 import { preloadVfx } from "./entities/Vfx";
 
 /**
- * Boot scene: loads the edplay map JSON and the three spritesheets, parses the
- * map into the normalized model, stashes it in the registry, then hands off to
+ * Boot scene: loads the edplay map JSON and its spritesheets, parses the map
+ * into the normalized model, stashes it in the registry, then hands off to
  * GameScene.
  */
 class BootScene extends Phaser.Scene {
@@ -44,11 +44,18 @@ class BootScene extends Phaser.Scene {
 
   preload(): void {
     this.load.json("edplay", "assets/edplay.json");
-    // Texture keys are the sheet filenames so they line up with the map's
-    // SpriteSheets[].RelativePath regardless of file ordering.
-    this.load.image("spritesheet_0.png", "assets/spritesheet_0.png");
-    this.load.image("spritesheet_1.png", "assets/spritesheet_1.png");
-    this.load.image("spritesheet_2.png", "assets/spritesheet_2.png");
+    // Sheet count and names come from the map itself rather than a fixed list,
+    // since edplay exports don't all ship the same number of sheets. Queuing these
+    // off the json's own filecomplete event still runs them as part of this same
+    // preload pass — Phaser folds files added during load into the active queue.
+    this.load.once("filecomplete-json-edplay", () => {
+      const raw = this.cache.json.get("edplay") as EdPlayFile;
+      for (const sheet of raw.SpriteSheets) {
+        // Texture keys are the sheet filenames so they line up with the map's
+        // SpriteSheets[].RelativePath regardless of file ordering.
+        this.load.image(sheet.RelativePath, `assets/${sheet.RelativePath}`);
+      }
+    });
 
     for (const anim of Object.keys(PLAYER_ANIM_FRAME_COUNTS) as PlayerAnimName[]) {
       for (const dir of DIRS_8) {
