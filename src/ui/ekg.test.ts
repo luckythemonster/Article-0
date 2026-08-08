@@ -3,6 +3,7 @@ import {
   advanceTrace,
   beatsPerMinute,
   createTrace,
+  flatlinePulse,
   pqrst,
   traceAmplitude,
   traceAngle,
@@ -115,6 +116,46 @@ describe("traceColor", () => {
     expect(traceColor(0.26)).toBe(0xffb03b);
     expect(traceColor(0.25)).toBe(0xff3b3b);
     expect(traceColor(0)).toBe(0xff3b3b);
+  });
+});
+
+describe("flatlinePulse", () => {
+  /** One second of the alarm, finely sampled. */
+  const sweep = (): number[] => {
+    const out: number[] = [];
+    for (let ms = 0; ms < 1000; ms += 1) out.push(flatlinePulse(ms));
+    return out;
+  };
+
+  it("stays within its alpha bounds", () => {
+    for (const a of sweep()) {
+      expect(a).toBeGreaterThanOrEqual(0.3 - 1e-9);
+      expect(a).toBeLessThanOrEqual(1 + 1e-9);
+    }
+  });
+
+  it("actually throbs across the full range", () => {
+    // The assertion that fails if the sine is ever flattened to a constant, or if the
+    // swing is tuned down far enough that the alarm stops reading as one.
+    const values = sweep();
+    expect(Math.min(...values)).toBeCloseTo(0.3, 2);
+    expect(Math.max(...values)).toBeCloseTo(1, 2);
+  });
+
+  it("cycles about once every 700ms", () => {
+    // Slow enough to read as a pulse rather than a flicker, fast enough to feel urgent
+    // across the ~1.2s the death hold gives it — call it two throbs before the card.
+    const period = 2 * Math.PI * 110;
+    expect(period).toBeGreaterThan(600);
+    expect(period).toBeLessThan(800);
+    expect(flatlinePulse(0)).toBeCloseTo(flatlinePulse(period), 6);
+    expect(flatlinePulse(250)).toBeCloseTo(flatlinePulse(250 + period), 6);
+  });
+
+  it("fails bright rather than invisible on junk", () => {
+    // An alarm that degrades to alpha 0 is worse than one stuck on.
+    expect(flatlinePulse(Number.NaN)).toBe(1);
+    expect(flatlinePulse(Number.POSITIVE_INFINITY)).toBe(1);
   });
 });
 

@@ -274,6 +274,14 @@ export class GameScene extends Phaser.Scene {
   private transitioning = false;
   /** Seconds the player has been cornered by a silicate during a full alert. */
   private captureProgress = 0;
+  /**
+   * Seconds since bio-integrity reached zero, or `null` while Rowan is alive.
+   *
+   * The run holds here for {@link PLAYER_DEFAULTS.deathHold} instead of cutting
+   * straight to the outcome screen, so the flatline on the bio-integrity dial is
+   * something the player watches rather than a single frame `endRun` throws away.
+   */
+  private dyingFor: number | null = null;
   /** Cooldown (seconds) remaining before the player can knock again. */
   private knockCooldown = 0;
   /** Run is a toggle (tap Space), not a hold — holding it alongside two direction
@@ -927,6 +935,20 @@ export class GameScene extends Phaser.Scene {
     this.scene.stop();
   }
 
+  /**
+   * The first frame of the death hold: stop Rowan, and cut the music.
+   *
+   * Silence rather than the capture sting, which {@link endRun} still owns and plays
+   * as the outcome card comes up. The alert loop running on over a flatline would say
+   * the facility is still hunting someone, which it is not — it is done. What the hold
+   * is for is the gap between those two facts.
+   */
+  private beginDeathHold(): void {
+    this.player.sprite.setVelocity(0, 0);
+    this.physics.pause();
+    getAudio().setMood("none");
+  }
+
   /** Ends the run: stops play + HUD and shows the outcome scene. */
   private endRun(mode: GameMode, sceneKey: string): void {
     setMode(this.registry, mode);
@@ -1418,7 +1440,11 @@ export class GameScene extends Phaser.Scene {
     // Debug hotkeys. A warp restarts the scene, so bail this frame.
     if (this.debug?.handleInput(this.player)) return;
 
-    this.updatePlayerFrame(dt, delta);
+    // Rowan stops moving the moment he's gone. `frozen` below deliberately leaves the
+    // player free to walk (it exists for the debug freeze-world, where that is the
+    // point), so it does not cover this: without the gate a held direction key keeps
+    // the walk cycle animating through the whole death hold.
+    if (this.dyingFor === null) this.updatePlayerFrame(dt, delta);
     this.updateInteractions(dt);
     this.updateSharedField(dt);
     this.updateActiveItems(dt);
@@ -1489,7 +1515,11 @@ export class GameScene extends Phaser.Scene {
     const phaseBefore = this.alert.phase;
     // Debug freeze-world holds every AI, hazard and timer still while leaving
     // the player free to walk. Read once so the frame is internally consistent.
-    const frozen = this.debug?.frozenWorld ?? false;
+    // The death hold rides the same flag: patrols, hazards and the alert clock all
+    // have to stop while the dial flatlines, and that is exactly what freeze-world
+    // already means. A second, near-identical freeze would only be a second thing to
+    // keep in sync.
+    const frozen = (this.debug?.frozenWorld ?? false) || this.dyingFor !== null;
     const ctx = this.refreshSensing(concealed, compliant, thermalConcealed);
     const maxDetection = this.tickWorld(dt, ctx, frozen);
     // After `tickWorld`, which is where the bodies were moved for the frame — a shadow
@@ -1533,7 +1563,24 @@ export class GameScene extends Phaser.Scene {
       this.player.hp = this.player.maxHp;
       this.captureProgress = 0;
     }
-    if (!captured && (!this.player.alive || this.captureProgress >= PLAYER_DEFAULTS.captureTime)) {
+    // The two fail paths used to share this branch, but only one of them has anything
+    // to show. Bio-integrity depletion holds for a beat so the dial's flatline is
+    // watchable; being cornered ends immediately, because Rowan is seized at full
+    // health and there is no readout there — a pause would just be latency.
+    if (!captured && !this.player.alive) {
+      if (this.dyingFor === null) {
+        this.dyingFor = 0;
+        this.beginDeathHold();
+      } else {
+        this.dyingFor += dt;
+      }
+      if (this.dyingFor >= PLAYER_DEFAULTS.deathHold) this.endRun("ALIGNED", "GameOverScene");
+      return;
+    }
+    // Cleared whenever Rowan is alive again (god mode) or the roof has taken over,
+    // so a hold can never sit armed behind a run that carried on.
+    this.dyingFor = null;
+    if (!captured && this.captureProgress >= PLAYER_DEFAULTS.captureTime) {
       this.endRun("ALIGNED", "GameOverScene");
       return;
     }

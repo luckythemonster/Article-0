@@ -55,6 +55,11 @@ const COLOR_OK = 0x59d98e;
 const COLOR_WARN = 0xffb03b;
 const COLOR_CRITICAL = 0xff3b3b;
 
+/** Alpha bounds of the flatline alarm, and the sine divisor that paces it. */
+const PULSE_DIM = 0.3;
+const PULSE_BRIGHT = 1;
+const PULSE_MS = 110;
+
 /** A finite `frac` in 0..1. Junk (NaN, ±Infinity) reads as flatlined, not as full. */
 function clampFrac(frac: number): number {
   if (!Number.isFinite(frac)) return 0;
@@ -127,6 +132,28 @@ export function traceAmplitude(frac: number): number {
 export function traceColor(frac: number): number {
   const f = clampFrac(frac);
   return f > 0.5 ? COLOR_OK : f > 0.25 ? COLOR_WARN : COLOR_CRITICAL;
+}
+
+/**
+ * The flatline alarm's alpha, from a wall clock.
+ *
+ * A dead trace is a ring that never changes, which at a glance is indistinguishable
+ * from a dial that has stopped being drawn. Throbbing it says the machine is still
+ * running and still reporting nothing, which is the worse news and the true one.
+ *
+ * A sine on `performance.now()` rather than accumulated frame time, matching the
+ * banner at `EncounterBand` and the correction tag at `BossCoreHud` — the HUD's other
+ * two alarms pulse this way, and an alarm that paces itself differently from the rest
+ * of the panel reads as a different machine. Being wall-clock also means it keeps
+ * throbbing while the sweep is frozen behind the pause menu, which is right: the
+ * player stopping the game does not stop the emergency.
+ */
+export function flatlinePulse(nowMs: number): number {
+  // Fails bright. An alarm that degrades to invisible is worse than one that sticks on.
+  if (!Number.isFinite(nowMs)) return PULSE_BRIGHT;
+  const mid = (PULSE_BRIGHT + PULSE_DIM) / 2;
+  const swing = (PULSE_BRIGHT - PULSE_DIM) / 2;
+  return mid + swing * Math.sin(nowMs / PULSE_MS);
 }
 
 /**

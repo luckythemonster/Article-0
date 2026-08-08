@@ -286,6 +286,15 @@ export interface PlayerStats {
   captureRadius: number;
   /** Seconds cornered before the capture (Alignment) completes. */
   captureTime: number;
+  /**
+   * Seconds the run holds after bio-integrity reaches zero, before the outcome screen.
+   *
+   * `endRun` stops the HUD scene the same frame it is called, so without this the
+   * flatline on the bio-integrity dial renders once and is gone — an entire death
+   * state nobody ever sees. Input is already dead through the hold, so it costs the
+   * player a beat and buys the one moment the readout exists for.
+   */
+  deathHold: number;
   /** Bio-integrity lost per hazard hit (e.g. a laser). */
   hazardDamage: number;
   /** Seconds of invulnerability after taking a hit. */
@@ -300,6 +309,7 @@ export const PLAYER_DEFAULTS: PlayerStats = {
   maxHp: 100,
   captureRadius: 1.3,
   captureTime: 0.7,
+  deathHold: 1.2,
   hazardDamage: 25,
   hitCooldown: 1.0,
 };
