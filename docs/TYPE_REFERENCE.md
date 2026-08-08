@@ -9,14 +9,14 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 | Area | Enums | Classes | Interfaces | Type aliases | Constants | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | [Systems](#systems) | 3 | 17 | 73 | 17 | 6 | 116 |
-| [Entities](#entities) | 0 | 17 | 16 | 13 | 4 | 50 |
+| [Entities](#entities) | 0 | 17 | 17 | 14 | 4 | 52 |
 | [Map](#map) | 0 | 3 | 26 | 3 | 1 | 33 |
 | [Scenes](#scenes) | 0 | 14 | 12 | 2 | 0 | 28 |
 | [UI](#ui) | 0 | 18 | 19 | 1 | 1 | 39 |
 | [Tools](#tools) | 0 | 0 | 6 | 1 | 0 | 7 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **71** | **152** | **37** | **12** | **275** |
+| **All** | **3** | **71** | **153** | **38** | **12** | **277** |
 
 ## Conventions
 
@@ -498,7 +498,7 @@ escalate straight to a base-wide alert instead.
 
 <a id="class-surrenderaim"></a>
 
-#### `SurrenderAim` — class
+#### `SurrenderAim<T extends Surrenderable>` — class
 
 `src/systems/Surrender.ts:187`
 
@@ -510,9 +510,9 @@ a `scene.restart()` destroys.
 
 | Member | Signature | Notes |
 | --- | --- | --- |
-| `target` | `get target(): Surrenderable \| null` | Who is currently at gunpoint, or null. |
+| `target` | `get target(): T \| null` | Who is currently at gunpoint, or null. |
 | `heldSeconds` | `get heldSeconds(): number` | How long the current hold has run. Resets to zero whenever the aim moves. |
-| `update` | `update<T extends Surrenderable>( dt: number, aiming: boolean, aimer: Aimer, candidates: readonly T[], world: SurrenderWorld, ): SurrenderResult<T>` | Advances the aim by one frame. `aiming` is the key *and* everything that gates it (a weapon in the bag, the roof's input lock). Passing false is how a hold is released — there is no separate release call, and there is deliberately nothing here that could forget to make one. |
+| `update` | `update( dt: number, aiming: boolean, aimer: Aimer, candidates: readonly T[], world: SurrenderWorld, ): SurrenderResult<T>` | Advances the aim by one frame. `aiming` is the key *and* everything that gates it (a weapon in the bag, the roof's input lock). Passing false is how a hold is released — there is no separate release call, and there is deliberately nothing here that could forget to make one. |
 
 *Plus 2 private members.*
 
@@ -2104,14 +2104,14 @@ const DIRS_8 = [ "south", "south-east", "east", "north-east", "north", "north-we
 | Key | Value | Notes |
 | --- | --- | --- |
 | `source` | `"public/assets/player/idle/south/0.png"` |  |
-| `frameWidth` | `96` |  |
-| `frameHeight` | `96` |  |
+| `frameWidth` | `48` |  |
+| `frameHeight` | `48` |  |
 | `epsilon` | `2` |  |
 | `inset` | `0` |  |
-| `aabb` | `{ width: 27, height: 45, offsetX: 33, offsetY: 24 }` |  |
-| `polygon` | `[ { x: 45, y: 24 }, { x: 52, y: 26 }, { x: 52, y: 32 }, { x: 60, y: 45 }, { x: 59, y: 57 }, { x: 54, y: 62 }, { x: 58,…` |  |
-| `polygonFlat` | `[45, 24, 52, 26, 52, 32, 60, 45, 59, 57, 54, 62, 58, 67, 33, 67, 40, 64, 34, 56, 33, 45, 36, 34, 42, 31, 44, 25]` |  |
-| `matterPath` | `"45 24 52 26 52 32 60 45 59 57 54 62 58 67 33 67 40 64 34 56 33 45 36 34 42 31 44 25"` |  |
+| `aabb` | `{ width: 15, height: 33, offsetX: 16, offsetY: 8 }` |  |
+| `polygon` | `[ { x: 22, y: 8 }, { x: 27, y: 10 }, { x: 31, y: 24 }, { x: 28, y: 31 }, { x: 30, y: 41 }, { x: 26, y: 40 }, { x: 24, y…` |  |
+| `polygonFlat` | `[22, 8, 27, 10, 31, 24, 28, 31, 30, 41, 26, 40, 24, 32, 21, 40, 17, 41, 19, 31, 16, 29, 16, 23, 21, 9]` |  |
+| `matterPath` | `"22 8 27 10 31 24 28 31 30 41 26 40 24 32 21 40 17 41 19 31 16 29 16 23 21 9"` |  |
 
 ### Entities — Classes
 
@@ -2176,7 +2176,7 @@ and hold timer are a `HoldTarget`, shared with `Terminal`.
 
 #### `Cover` — class
 
-`src/entities/Cover.ts:16`
+`src/entities/Cover.ts:17`
 
 A destructible cover tile — the map's `Destructible` cover field, wired up.
 
@@ -2397,7 +2397,7 @@ them to share names they shouldn't.
 
 #### `Orderly` — class
 
-`src/entities/Orderly.ts:121`
+`src/entities/Orderly.ts:123`
 
 A bystander, not a threat — the map's `orderlies` tiles carry no gameplay
 component (unlike guards/drones), so this is a distinct, lighter mechanic.
@@ -2771,7 +2771,7 @@ The tuning that actually differs between one guard's art and another's.
 
 #### `OrderlyContext` — interface
 
-`src/entities/Orderly.ts:25`
+`src/entities/Orderly.ts:27`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2895,6 +2895,22 @@ What happened inside the boss this frame, for the scene to apply/dress.
 | `overheating` | `boolean` | Heat is maxed during the purge — the scene applies periodic damage. |
 | `transition` | `Vent4Transition \| null` |  |
 
+<a id="interface-vfxspec"></a>
+
+#### `VfxSpec` — interface
+
+`src/entities/Vfx.ts:26`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `string` | Texture/animation key prefix, and the folder under `assets/vfx/`. |
+| `source` | `VfxSource` |  |
+| `frameCount` | `number` |  |
+| `frameRate` | `number` |  |
+| `frameSize` | `number` | Native pixel size of one frame. |
+| `displayTiles` | `number` | Height on screen, as a multiple of tile size. Paired with `frameSize` under the same rule the characters follow: `(tileSize * displayTiles) / frameSize * cameraZoom` has to be a whole number or the frames get resampled. `assertVfxScales` checks it. |
+| `depth` | `number` | Render depth. The ladder in play: guard cones 400, EMP zone 410, orderlies 440, bodies 450, the lighting overlay 700/701, the player 750. Effects sit **above** the lighting, at `VFX_DEPTH`, for the same reason the player does: unlit space is fully opaque, so anything underneath it is simply gone. An effect exists to tell you something landed, and one that vanishes because the room happens to be dark fails at the only job it has — you would fire a stun round into a dark corridor and get no feedback at all. Every one of these is player-triggered and lasts under a second, so nothing is revealed that the player did not just cause. |
+
 ### Entities — Type aliases
 
 <a id="type-dir8"></a>
@@ -2985,7 +3001,7 @@ type LaserKind = "scanner" | "beam";
 
 Frame manifest for the orderly sprite (generated via PixelLab.ai — a human
 orderly in a utilitarian jumpsuit with a diagnostic tablet, high top-down,
-84x84, `mannequin` template). Only idle and walk are needed — an orderly is
+96x96, `mannequin` template). Only idle and walk are needed — an orderly is
 a bystander, not a combatant, so it has no run/crouch.
 
 Frames live in public/assets/orderly/<anim>/<direction>/<frame>.png.
@@ -2998,7 +3014,7 @@ type OrderlyAnimName = "idle" | "walk";
 
 #### `OrderlyState` — type *(module-private)*
 
-`src/entities/Orderly.ts:75`
+`src/entities/Orderly.ts:77`
 
 What an orderly is currently doing.
 
@@ -3061,14 +3077,15 @@ type PersonAnomalyKind = "stunnedOrderly" | "pinnedOrderly" | "surrenderedOrderl
 
 #### `PlayerAnimName` — type
 
-`src/entities/PlayerAnimations.ts:18`
+`src/entities/PlayerAnimations.ts:19`
 
 **Module note** — the header comment on `src/entities/PlayerAnimations.ts`, which this declaration heads:
 
-Frame manifest for the player character sprite (generated via PixelLab.ai,
-"Rowan Ibarra" — high top-down, 96x96, 8-direction template). All 8
-directions were exported per animation, so the sprite's facing matches the
-free 8-directional movement exactly (no cardinal snapping).
+Frame manifest for the player character sprite (PixelLab.ai character
+`17c7f0e3-796b-47f9-9371-3761e53a09c8`, "Rowan Ibarra" — high top-down,
+48x48, 8-direction template, adopted as-is). All 8 directions were exported
+per animation, so the sprite's facing matches the free 8-directional
+movement exactly (no cardinal snapping).
 
 idle/walk/run come from the standing "Rowan Ibarra" character; crouch and
 crouch-walk come from a crouched state of that same character (same rig,
@@ -3128,6 +3145,18 @@ The boss's claim on this frame's interact key, for the scene's dispatcher.
 
 ```ts
 type Vent4InteractResult = EncounterInteractResult<Vent4Transition>;
+```
+
+<a id="type-vfxsource"></a>
+
+#### `VfxSource` — type
+
+`src/entities/Vfx.ts:20`
+
+Where an effect's frames come from.
+
+```ts
+type VfxSource = | { kind: "frames"; frame(index: number): string } /** A uniform grid in a single image. */ | { kind: "sheet"; path: string; frameSize: number };
 ```
 
 ---
@@ -3746,7 +3775,7 @@ rather than death: the record simply shows that no subject was harmed.
 
 #### `GameScene` — class
 
-`src/scenes/GameScene.ts:208` · `extends Phaser.Scene`
+`src/scenes/GameScene.ts:209` · `extends Phaser.Scene`
 
 The playable scene. Renders one level's tile art in board z-order, builds the
 wall collision, spawns the player and guards, and drives the stealth systems
@@ -4065,7 +4094,7 @@ three and no explicit reset method to keep in step with that.
 
 #### `GameSceneData` — interface *(module-private)*
 
-`src/scenes/GameScene.ts:143`
+`src/scenes/GameScene.ts:144`
 
 Data passed to `GameScene` when (re)starting for a level swap.
 
@@ -4189,7 +4218,7 @@ type OverlayId = "pause" | "codec" | "compliance" | "qualia";
 
 #### `Target` — type *(module-private)*
 
-`src/scenes/GameScene.ts:1184`
+`src/scenes/GameScene.ts:1190`
 
 ```ts
 type Target = { x: number; y: number; kind: "cover"; cover: Cover } | { x: number; y: number; kind: "orderly"; orderly: Orderly };
@@ -5095,7 +5124,7 @@ Top-level bootstrap modules.
 
 #### `BootScene` — class *(module-private)*
 
-`src/main.ts:39` · `extends Phaser.Scene`
+`src/main.ts:40` · `extends Phaser.Scene`
 
 Boot scene: loads the edplay map JSON and the three spritesheets, parses the
 map into the normalized model, stashes it in the registry, then hands off to
@@ -5126,7 +5155,7 @@ GameScene.
 | [AudioDirector](#class-audiodirector) | class | `src/systems/AudioDirector.ts:26` |
 | [BinaryHeap](#class-binaryheap) | class | `src/systems/Pathfinder.ts:259` |
 | [BlockedAt](#type-blockedat) | type | `src/map/TileBake.ts:41` |
-| [BootScene](#class-bootscene) | class | `src/main.ts:39` |
+| [BootScene](#class-bootscene) | class | `src/main.ts:40` |
 | [BossCore](#class-bosscore) | class | `src/entities/BossCore.ts:64` |
 | [BossCoreHud](#class-bosscorehud) | class | `src/ui/BossCoreHud.ts:44` |
 | [BuiltLevel](#interface-builtlevel) | interface | `src/scenes/game/LevelBuilder.ts:39` |
@@ -5154,7 +5183,7 @@ GameScene.
 | [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:615` |
 | [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:13` |
 | [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:35` |
-| [Cover](#class-cover) | class | `src/entities/Cover.ts:16` |
+| [Cover](#class-cover) | class | `src/entities/Cover.ts:17` |
 | [DebugHost](#interface-debughost) | interface | `src/scenes/game/DebugOverlay.ts:61` |
 | [DebugHud](#class-debughud) | class | `src/ui/DebugHud.ts:55` |
 | [DebugOverlay](#class-debugoverlay) | class | `src/scenes/game/DebugOverlay.ts:85` |
@@ -5212,8 +5241,8 @@ GameScene.
 | [GameMap](#interface-gamemap) | interface | `src/map/types.ts:193` |
 | [GameMode](#type-gamemode) | type | `src/systems/GameState.ts:20` |
 | [GameOverScene](#class-gameoverscene) | class | `src/scenes/GameOverScene.ts:12` |
-| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:208` |
-| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:143` |
+| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:209` |
+| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:144` |
 | [GameTile](#interface-gametile) | interface | `src/map/types.ts:156` |
 | [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:224` |
 | [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:173` |
@@ -5264,10 +5293,10 @@ GameScene.
 | [ObjectiveLine](#interface-objectiveline) | interface | `src/systems/Objectives.ts:166` |
 | [ObjectiveState](#interface-objectivestate) | interface | `src/systems/Objectives.ts:20` |
 | [OpenablePredicate](#type-openablepredicate) | type | `src/systems/GridMotion.ts:41` |
-| [Orderly](#class-orderly) | class | `src/entities/Orderly.ts:121` |
+| [Orderly](#class-orderly) | class | `src/entities/Orderly.ts:123` |
 | [OrderlyAnimName](#type-orderlyanimname) | type | `src/entities/OrderlyAnimations.ts:12` |
-| [OrderlyContext](#interface-orderlycontext) | interface | `src/entities/Orderly.ts:25` |
-| [OrderlyState](#type-orderlystate) | type | `src/entities/Orderly.ts:75` |
+| [OrderlyContext](#interface-orderlycontext) | interface | `src/entities/Orderly.ts:27` |
+| [OrderlyState](#type-orderlystate) | type | `src/entities/Orderly.ts:77` |
 | [Origin](#type-origin) | type | `src/tools/collider/format.ts:26` |
 | [OverlayConfig](#interface-overlayconfig) | interface | `src/scenes/game/OverlayGate.ts:21` |
 | [OverlayGate](#class-overlaygate) | class | `src/scenes/game/OverlayGate.ts:32` |
@@ -5286,7 +5315,7 @@ GameScene.
 | [PersonAnomalyKind](#type-personanomalykind) | type | `src/entities/Enforcer.ts:58` |
 | [Player](#class-player) | class | `src/entities/Player.ts:39` |
 | [PLAYER_IDLE_SOUTH_COLLIDER](#const-player-idle-south-collider) | const | `src/entities/generated/playerCollider.ts:32` |
-| [PlayerAnimName](#type-playeranimname) | type | `src/entities/PlayerAnimations.ts:18` |
+| [PlayerAnimName](#type-playeranimname) | type | `src/entities/PlayerAnimations.ts:19` |
 | [PlayerParams](#interface-playerparams) | interface | `src/systems/QualiaLock.ts:34` |
 | [PlayerStats](#interface-playerstats) | interface | `src/systems/EntityStats.ts:282` |
 | [Point](#interface-point) | interface | `src/tools/collider/rdp.ts:12` |
@@ -5356,7 +5385,7 @@ GameScene.
 | [SurrenderAim](#class-surrenderaim) | class | `src/systems/Surrender.ts:187` |
 | [SurrenderResult](#interface-surrenderresult) | interface | `src/systems/Surrender.ts:61` |
 | [SurrenderWorld](#interface-surrenderworld) | interface | `src/systems/Surrender.ts:33` |
-| [Target](#type-target) | type | `src/scenes/GameScene.ts:1184` |
+| [Target](#type-target) | type | `src/scenes/GameScene.ts:1190` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:16` |
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:199` |
 | [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:190` |
@@ -5384,6 +5413,8 @@ GameScene.
 | [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:46` |
 | [Vent4Transition](#interface-vent4transition) | interface | `src/systems/Vent4Core.ts:28` |
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |
+| [VfxSource](#type-vfxsource) | type | `src/entities/Vfx.ts:20` |
+| [VfxSpec](#interface-vfxspec) | interface | `src/entities/Vfx.ts:26` |
 | [WallBuffer](#class-wallbuffer) | class | `src/systems/CollisionGrid.ts:11` |
 | [WallRect](#interface-wallrect) | interface | `src/map/TileBake.ts:31` |
 | [WaveParams](#interface-waveparams) | interface | `src/systems/QualiaLock.ts:27` |
