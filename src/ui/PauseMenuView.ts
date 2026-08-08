@@ -643,13 +643,31 @@ export class PauseMenuView {
 
       rows.push({ label: "SAVE SLOTS", disabled: true });
       for (const { slot, data } of this.snap.saves) {
+        const index = rows.length;
+        const occupied = data !== null;
         rows.push({
-          label: `  ${SLOT_LABEL[slot]}`,
-          note: data ? `${data.level} · ${formatClock(data.playTimeMs)} · ${formatAgo(data.savedAt)}` : "EMPTY",
+          label:
+            occupied && confirming === index
+              ? `  Load ${SLOT_LABEL[slot]}?`
+              : `  ${SLOT_LABEL[slot]}`,
+          note:
+            occupied && confirming === index
+              ? "ENTER TO CONFIRM"
+              : data
+                ? `${data.level} · ${formatClock(data.playTimeMs)} · ${formatAgo(data.savedAt)}`
+                : "EMPTY",
           onActivate: () => {
-            // An occupied slot loads; an empty one has only the other verb.
-            if (data) this.cb.onLoad(slot);
-            else this.cb.onSave(slot);
+            if (occupied) {
+              if (confirming !== index) {
+                confirming = index;
+                render();
+                return;
+              }
+              confirming = -1;
+              this.cb.onLoad(slot);
+            } else {
+              this.cb.onSave(slot);
+            }
           },
         });
       }
@@ -678,8 +696,8 @@ export class PauseMenuView {
       }
 
       rows.push({ label: "", disabled: true });
-      const quitIndex = rows.length + 1;
       rows.push({ label: "  Resume infiltration", onActivate: () => this.cb.onResume() });
+      const quitIndex = rows.length;
       rows.push({
         label:
           confirming === quitIndex
@@ -698,7 +716,9 @@ export class PauseMenuView {
       // setRows resets the highlight; put it back so a re-render (a confirmation
       // prompt appearing) doesn't throw the player to the top of the list.
       list.setRows(rows);
-      list.select(keep);
+      if (keep >= 0 && keep < rows.length && !rows[keep].disabled) {
+        list.select(keep);
+      }
     };
 
     this.renderSystem = render;
