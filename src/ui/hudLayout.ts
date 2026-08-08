@@ -52,8 +52,11 @@ export const ENCOUNTER_BANNER_TOP = ENCOUNTER_TOP + 46;
  * the bio-integrity readout; `AlertNetworkHud` is a separate widget that has to start
  * underneath them and cannot see them. It used to carry a hardcoded `pad + 118`
  * annotated "below the SRP meter + bio-integrity bar" — correct only for as long as
- * nothing above it changed height, which is precisely what happened when that bar
- * became an EKG trace and grew by 18px.
+ * nothing above it changed height.
+ *
+ * Which it then did, twice: the bar became an EKG strip (+18px), and the strip became
+ * an 80px dial. Neither move touched `AlertNetworkHud`, because by then the number
+ * lived here.
  *
  * All offsets are from the HUD's 12px pad, which is the origin every widget in this
  * column already uses.
@@ -62,11 +65,11 @@ export const ENCOUNTER_BANNER_TOP = ENCOUNTER_TOP + 46;
 /** Heading of the bio-integrity readout. */
 export const BIO_LABEL_TOP = 80;
 
-/** Drop from that heading to the top of the framed trace window. */
-export const BIO_FRAME_TOP = 16;
+/** Drop from that heading to the top of the dial. */
+export const BIO_DIAL_TOP = 16;
 
-/** Height of the framed trace window itself. */
-export const BIO_FRAME_HEIGHT = 28;
+/** The dial is square: this is both its width and its height, bezel included. */
+export const BIO_DIAL_SIZE = 80;
 
 /** First y below the status column that another widget may claim. */
-export const STATUS_STACK_BOTTOM = BIO_LABEL_TOP + BIO_FRAME_TOP + BIO_FRAME_HEIGHT + 12;
+export const STATUS_STACK_BOTTOM = BIO_LABEL_TOP + BIO_DIAL_TOP + BIO_DIAL_SIZE + 12;

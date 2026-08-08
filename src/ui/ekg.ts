@@ -12,11 +12,19 @@
  * at zero it does the one thing a bar cannot, which is flatline.
  */
 
-/** Columns the sweep crosses per second. One column is one sample. */
-const SWEEP_PX_PER_SEC = 46;
+/**
+ * Samples the sweep crosses per second.
+ *
+ * Counted in samples rather than pixels because the trace is drawn around a dial: a
+ * sample is one step of arc, and how many pixels that is depends on the radius the
+ * widget picked. Over the ~163-sample ring {@link BioMonitor} builds, this is a
+ * revolution every ~3.5s — about 3.6 complexes around the dial at rest, and roughly
+ * nine once the rate is critical.
+ */
+const SWEEP_SAMPLES_PER_SEC = 46;
 
 /**
- * Columns blanked ahead of the write cursor.
+ * Samples blanked ahead of the write cursor.
  *
  * The erase gap on a bedside monitor: without it the cursor writes straight over the
  * previous sweep and there is no visible "now", just a waveform that changes in place.
@@ -122,6 +130,25 @@ export function traceColor(frac: number): number {
 }
 
 /**
+ * Where sample `index` of `count` sits on the dial, in radians.
+ *
+ * Starts at 12 o'clock and runs **counter-clockwise**. The trace is bent into a ring
+ * rather than scrolled along a line because a strip chart is our medical iconography —
+ * a player reads it as a hospital they already know. The facility watching Rowan is
+ * not working inside that paradigm, and running the sweep backwards is the cheapest
+ * way to say so: legible, but it takes a beat to place why it feels wrong.
+ *
+ * Screen y points down, which mirrors the usual sense of rotation — so it is
+ * *subtracting* the angle that runs counter-clockwise on screen. That inversion is
+ * easy to reintroduce by accident from inside a draw call, which is why the convention
+ * lives here with a test on it rather than inline in {@link BioMonitor}.
+ */
+export function traceAngle(index: number, count: number): number {
+  if (!Number.isFinite(index) || !Number.isFinite(count) || count <= 0) return -Math.PI / 2;
+  return -Math.PI / 2 - (index / count) * Math.PI * 2;
+}
+
+/**
  * The sweep's ring buffer.
  *
  * `samples[x]` is the amplitude drawn in column `x`, or `NaN` for a column inside the
@@ -155,9 +182,9 @@ export function advanceTrace(state: TraceState, dtSeconds: number, frac: number)
   if (!Number.isFinite(dtSeconds) || dtSeconds <= 0) return;
   const width = state.samples.length;
 
-  const advance = dtSeconds * SWEEP_PX_PER_SEC;
+  const advance = dtSeconds * SWEEP_SAMPLES_PER_SEC;
   const columns = Math.min(width, Math.floor(state.cursor + advance) - Math.floor(state.cursor));
-  const secondsPerColumn = 1 / SWEEP_PX_PER_SEC;
+  const secondsPerColumn = 1 / SWEEP_SAMPLES_PER_SEC;
   const beatsPerColumn = (beatsPerMinute(frac) / 60) * secondsPerColumn;
   const amplitude = traceAmplitude(frac);
   const flat = clampFrac(frac) <= 0;

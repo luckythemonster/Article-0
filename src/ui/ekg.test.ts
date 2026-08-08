@@ -5,6 +5,7 @@ import {
   createTrace,
   pqrst,
   traceAmplitude,
+  traceAngle,
   traceColor,
 } from "./ekg";
 
@@ -114,6 +115,52 @@ describe("traceColor", () => {
     expect(traceColor(0.26)).toBe(0xffb03b);
     expect(traceColor(0.25)).toBe(0xff3b3b);
     expect(traceColor(0)).toBe(0xff3b3b);
+  });
+});
+
+describe("traceAngle", () => {
+  /** Where a sample lands on a unit dial, in screen coordinates (y down). */
+  const at = (index: number, count = 120): { x: number; y: number } => {
+    const t = traceAngle(index, count);
+    return { x: Math.cos(t), y: Math.sin(t) };
+  };
+
+  it("starts at 12 o'clock", () => {
+    const p = at(0);
+    expect(p.x).toBeCloseTo(0, 10);
+    expect(p.y).toBeCloseTo(-1, 10); // screen y is down, so up is negative
+  });
+
+  it("runs counter-clockwise", () => {
+    // The assertion that actually pins the direction. A clockwise dial puts the
+    // quarter mark at 3 o'clock (x = +1) and every other property here still holds,
+    // so this is the one that fails if the sign of the angle is ever flipped.
+    const quarter = at(30);
+    expect(quarter.x).toBeCloseTo(-1, 10);
+    expect(quarter.y).toBeCloseTo(0, 10);
+
+    const half = at(60);
+    expect(half.x).toBeCloseTo(0, 10);
+    expect(half.y).toBeCloseTo(1, 10);
+  });
+
+  it("returns to the start after a full lap", () => {
+    const start = at(0);
+    const lap = at(120);
+    expect(lap.x).toBeCloseTo(start.x, 10);
+    expect(lap.y).toBeCloseTo(start.y, 10);
+  });
+
+  it("is continuous across the wrap", () => {
+    const before = at(119);
+    const after = at(120);
+    expect(Math.hypot(after.x - before.x, after.y - before.y)).toBeLessThan(0.1);
+  });
+
+  it("degrades to 12 o'clock on junk rather than emitting NaN", () => {
+    expect(traceAngle(Number.NaN, 120)).toBeCloseTo(-Math.PI / 2, 10);
+    expect(traceAngle(0, 0)).toBeCloseTo(-Math.PI / 2, 10);
+    expect(traceAngle(0, -5)).toBeCloseTo(-Math.PI / 2, 10);
   });
 });
 

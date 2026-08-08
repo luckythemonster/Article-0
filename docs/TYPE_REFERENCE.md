@@ -4322,25 +4322,27 @@ the camera zoom doesn't scale it (same pattern as `Hud`).
 
 #### `BioMonitor` — class
 
-`src/ui/BioMonitor.ts:38`
+`src/ui/BioMonitor.ts:63`
 
-Rowan's bio-integrity, as a bedside EKG.
+Rowan's bio-integrity, as an EKG bent into a dial.
 
-This was a fill bar for most of the project's life, stacked directly under the
-Subjectivity Risk Profile meter — two identical bars, which is what made the
-top-left block hard to read at a speed the game is actually played at. A trace
-separates them by shape before the player has read either label, and it suits what
-the facility is doing: monitoring a body while the statute denies it is a subject's.
+This was a fill bar, then a left-to-right strip. The strip read correctly and that
+was the problem: a scrolling trace is *our* medical iconography, so the player
+recognised a hospital instead of noticing an instrument. Wrapping it into a ring
+that sweeps counter-clockwise keeps everything the trace earned — rate, shape,
+colour, flatline — while making the machine itself unfamiliar, which is the whole
+point of a facility that will not call the body it is monitoring a subject's.
 
-The waveform itself lives in `ekg`. This class owns pixels only — the frame,
-the polyline, and the BPM readout beside the heading.
+The waveform lives in `ekg`, unchanged by the move: `advanceTrace` fills an
+index-addressed ring buffer, and whether index `i` means a column or an angle was
+always this file's business. Angles come from `traceAngle`.
 
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `constructor` | `constructor(scene: Phaser.Scene, x: number, y: number)` |  |
 | `update` | `update(hp: number, maxHp: number, deltaMs: number): void` | Steps the sweep and redraws it. @param deltaMs frame time. Callers pass 0 to hold the trace still — the sim is   suspended behind an overlay and a heart beating through the pause menu is a lie   about whether the game is running. |
 
-*Plus 8 private members.*
+*Plus 10 private members.*
 
 <a id="class-bosscorehud"></a>
 
@@ -5065,7 +5067,7 @@ all of which already expose public `x`/`y`.
 
 #### `TraceState` — interface
 
-`src/ui/ekg.ts:131`
+`src/ui/ekg.ts:158`
 
 The sweep's ring buffer.
 
@@ -5280,7 +5282,7 @@ GameScene.
 | [Args](#interface-args) | interface | `src/tools/collider/generate.ts:28` |
 | [AudioDirector](#class-audiodirector) | class | `src/systems/AudioDirector.ts:26` |
 | [BinaryHeap](#class-binaryheap) | class | `src/systems/Pathfinder.ts:277` |
-| [BioMonitor](#class-biomonitor) | class | `src/ui/BioMonitor.ts:38` |
+| [BioMonitor](#class-biomonitor) | class | `src/ui/BioMonitor.ts:63` |
 | [BlockedAt](#type-blockedat) | type | `src/map/TileBake.ts:42` |
 | [BootScene](#class-bootscene) | class | `src/main.ts:40` |
 | [BossCore](#class-bosscore) | class | `src/entities/BossCore.ts:64` |
@@ -5525,7 +5527,7 @@ GameScene.
 | [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:190` |
 | [TilePos](#interface-tilepos) | interface | `src/map/generate.ts:115` |
 | [TitleScene](#class-titlescene) | class | `src/scenes/TitleScene.ts:12` |
-| [TraceState](#interface-tracestate) | interface | `src/ui/ekg.ts:131` |
+| [TraceState](#interface-tracestate) | interface | `src/ui/ekg.ts:158` |
 | [Transition](#interface-transition) | interface | `src/map/types.ts:257` |
 | [TransitionGraph](#class-transitiongraph) | class | `src/systems/TransitionGraph.ts:27` |
 | [TransitionKind](#type-transitionkind) | type | `src/map/types.ts:254` |
