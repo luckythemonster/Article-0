@@ -20,6 +20,13 @@ export interface GuardSkin {
    * See {@link guardRadiusTiles} for how it's derived.
    */
   collisionRadiusTiles: number;
+  /**
+   * The traced south-frame silhouette. Kept rather than discarded after
+   * {@link collisionRadiusTiles} is taken off it, because the ground shadow needs the
+   * box itself — a width *and* a foot offset — and it needs them in px, which means
+   * deriving them at construction where the tile size is known rather than here.
+   */
+  collider: SpriteCollider;
   frameKey(dir: Dir8, frame: number): string;
   framePath(dir: Dir8, frame: number): string;
   animKey(dir: Dir8): string;
@@ -95,6 +102,7 @@ export function makeGuardSkin(spec: GuardSkinSpec): GuardSkin {
     displayTiles: spec.displayTiles,
     sourceSize: spec.sourceSize,
     collisionRadiusTiles: guardRadiusTiles(spec.collider, spec.displayTiles),
+    collider: spec.collider,
     frameKey: (dir, frame) => `${id}-patrol-${dir}-${frame}`,
     framePath: (dir, frame) => `assets/${id}/patrol/${dir}/${frame}.png`,
     animKey: (dir) => `${id}-patrol-${dir}`,

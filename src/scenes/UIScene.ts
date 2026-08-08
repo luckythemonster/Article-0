@@ -47,8 +47,12 @@ export class UIScene extends Phaser.Scene {
   private readonly alertView = { phase: "INFILTRATION" as AlertPhase };
   /** Which acts this map furnished; see `missionFeatures`. Constant for the run. */
   private features?: MissionFeatures;
-  /** Hotkeys [1]–[4], mapped dynamically to the held consumables each frame. */
-  private itemKeys!: Phaser.Input.Keyboard.Key[];
+  /** The item cursor: `,`/`.` move the selection, `Enter` uses it. */
+  private itemKeys!: {
+    prev: Phaser.Input.Keyboard.Key;
+    next: Phaser.Input.Keyboard.Key;
+    use: Phaser.Input.Keyboard.Key;
+  };
 
   constructor() {
     super("UIScene");
@@ -67,19 +71,29 @@ export class UIScene extends Phaser.Scene {
     if (DEBUG_ALLOWED) this.debug = new DebugHud(this);
 
     const K = Phaser.Input.Keyboard.KeyCodes;
-    this.itemKeys = [K.ONE, K.TWO, K.THREE, K.FOUR].map((c) => this.input.keyboard!.addKey(c));
+    const kb = this.input.keyboard!;
+    this.itemKeys = {
+      prev: kb.addKey(K.COMMA),
+      next: kb.addKey(K.PERIOD),
+      use: kb.addKey(K.ENTER),
+    };
   }
 
-  update(): void {
+  update(_time: number, delta: number): void {
     this.alertView.phase = (this.registry.get("alertPhase") as AlertPhase) ?? "INFILTRATION";
     const detection = (this.registry.get("detection") as number) ?? 0;
     const hp = (this.registry.get("playerHp") as number | undefined) ?? 0;
     const maxHp = (this.registry.get("playerMaxHp") as number | undefined) ?? 1;
+    // The EKG is the one HUD piece that animates on its own rather than off published
+    // state, so it needs the clock — and needs it stopped while an overlay owns the
+    // screen. This scene keeps updating behind the pause menu and both minigames; a
+    // heart beating there would say the run is still going when it is not.
     this.hud.update(
       this.alertView,
       detection,
       hp,
       maxHp,
+      isSuspended(this.registry) ? 0 : delta,
       this.registry.get("conduct") as ConductView | undefined,
     );
 
@@ -87,19 +101,35 @@ export class UIScene extends Phaser.Scene {
     if (radarSnapshot) this.radar.update(radarSnapshot);
 
     const items = (this.registry.get("inventory") as string[] | undefined) ?? [];
-    // Hotkeys [1]–[4] map to the held consumables in canonical slot order.
-    //
+
+    // The item cursor: `,`/`.` move the selection among held consumables (in
+    // canonical order), `Enter` uses whichever one is currently selected —
+    // the Metal-Gear-style cycle-then-confirm scheme, replacing a direct
+    // per-slot hotkey. The selection is normalised every frame (regardless of
+    // suspension, so the HUD never shows a stale pick) to whatever's still
+    // held; only the keys that move or spend it are gated below.
+    const slots = consumableSlots(items);
+    let selected = this.registry.get("selectedConsumable") as string | undefined;
+    if (!slots.some((s) => s.name === selected)) {
+      selected = slots[0]?.name;
+      if (selected) this.registry.set("selectedConsumable", selected);
+      else this.registry.remove("selectedConsumable");
+    }
     // Skipped while an overlay owns the screen. This scene keeps updating behind
-    // the pause menu, the codec and both minigames, so without the gate a number
-    // key pressed there queues an itemUseRequest that GameScene spends the moment
+    // the pause menu, the codec and both minigames, so without the gate a
+    // keypress there queues an itemUseRequest that GameScene spends the moment
     // play resumes — a consumable vanishing for no reason several seconds later.
-    // The pause menu uses 1–9 for its tabs, which would make that constant.
-    if (!isSuspended(this.registry)) {
-      const slots = consumableSlots(items);
-      for (let i = 0; i < this.itemKeys.length; i++) {
-        if (!Phaser.Input.Keyboard.JustDown(this.itemKeys[i])) continue;
-        const slot = slots.find((s) => s.slot === i + 1);
-        if (slot) this.registry.set("itemUseRequest", slot.name);
+    if (!isSuspended(this.registry) && slots.length > 0) {
+      const index = slots.findIndex((s) => s.name === selected);
+      if (Phaser.Input.Keyboard.JustDown(this.itemKeys.next)) {
+        selected = slots[(index + 1) % slots.length].name;
+        this.registry.set("selectedConsumable", selected);
+      } else if (Phaser.Input.Keyboard.JustDown(this.itemKeys.prev)) {
+        selected = slots[(index - 1 + slots.length) % slots.length].name;
+        this.registry.set("selectedConsumable", selected);
+      }
+      if (selected && Phaser.Input.Keyboard.JustDown(this.itemKeys.use)) {
+        this.registry.set("itemUseRequest", selected);
       }
     }
     const activeItems = (this.registry.get("activeItems") as ActiveItemsView | undefined) ?? {
@@ -110,7 +140,7 @@ export class UIScene extends Phaser.Scene {
       flashlightCharge: 1,
       sackLunchOpened: false,
     };
-    this.inventory.update(items, activeItems);
+    this.inventory.update(items, activeItems, selected);
 
     const network = this.registry.get("alertNetwork") as AlertNetworkSnapshot | undefined;
     if (network) this.network.update(network);

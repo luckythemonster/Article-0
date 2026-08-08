@@ -79,7 +79,14 @@ export function initialExplored(): ExploredState {
 
 export function isExploredState(v: unknown): v is ExploredState {
   if (typeof v !== "object" || v === null || Array.isArray(v)) return false;
-  return Object.values(v as Record<string, unknown>).every((s) => typeof s === "string");
+  const keys = Object.keys(v);
+  if (keys.length > 50) return false; // restrict maximum number of explored level maps to prevent DoS
+  return keys.every((lvl) => {
+    if (lvl === "__proto__" || lvl === "constructor") return false; // block prototype pollution keys
+    if (lvl.length >= 100 || !/^[a-zA-Z0-9_-]+$/.test(lvl)) return false; // validate level name format
+    const s = (v as Record<string, unknown>)[lvl];
+    return typeof s === "string" && s.length < 100000; // restrict maximum mask string length
+  });
 }
 
 // --- base64 --------------------------------------------------------------

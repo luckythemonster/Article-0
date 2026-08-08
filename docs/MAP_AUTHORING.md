@@ -163,6 +163,9 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
   is supported: the tile is a real openable door that never blocks line of sight. Glass on
   a blocking board (e.g. `walls`) becomes a static see-through obstacle instead. Set
   `VisionBlock` to `1`/`true` for frosted glazing that blocks sight like a wall.
+  A pane placed this way blocks (and glazes) every cell of its **footprint**, so the
+  1×2.5 glass tiles read as full-height panes rather than the one cell they sit on —
+  see below.
 - **`terminal.type`** values that mean something:
   - `log_cache` → opens the Doctrinal Compliance minigame. **Solving one is required to
     recover EIRA-7's logs, so a map needs at least one.** (`designateQualiaRack`
@@ -219,6 +222,14 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
    `relay_pedestals`, `relay_feed`, plus `substations` and `grates` for VENT-4. Only the
    hold-to-interact ones (`vault_nodes`, `relay_pedestals`, `relay_feed`, `substations`)
    are in `ENTITY_LAYERS`; the rest render as ordinary tile art.
+11. **A tile can be bigger than the cell it sits on.** `ColSpan`/`RowSpan` and
+   `OffsetX`/`OffsetY` describe a footprint the art is stretched over — doors are 1.5 or
+   2.5 tiles in one axis, and `main2`'s glass panes are 1×2.5 nudged half a tile down.
+   `src/map/footprint.ts` resolves that into cells (a cell counts as covered when its
+   *centre* falls inside the rectangle), and the tile bake, the wall bodies and the
+   collision grid all read it. So a wide tile on `walls` blocks all of itself, and a
+   1.5-wide door still only claims one cell because its 8px overhang misses both
+   neighbours' centres.
 
 ## 6. Minimum viable map
 

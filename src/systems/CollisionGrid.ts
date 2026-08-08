@@ -1,4 +1,6 @@
+import { footprintCells } from "../map/footprint";
 import type { GameLevel } from "../map/types";
+import { glassStatsFor, isGlass } from "./EntityStats";
 
 /**
  * A growable list of (dx, dy) point pairs, backed by one `Float32Array`.
@@ -56,6 +58,13 @@ export class WallBuffer {
  * predicate that matches what they are asking — {@link isBlocked} for anything physical
  * (movement, pathing, radar, knocking) and {@link blocksSight} for anything optical
  * (line-of-sight tests, vision cones, the darkness overlay's visibility polygon).
+ *
+ * Both are read off the tile as it was authored, in one pass: a blocking tile claims
+ * every cell of its {@link footprintCells} (a 1×2.5 pane blocks two cells, not the one
+ * it is placed on), and a `glass` component on it means those cells stop movement
+ * without stopping sight. Glazing used to be a second walk over the layers *after*
+ * construction, which could only downgrade cells the first walk had already blocked —
+ * so a pane wider than its own cell lost the rest of itself entirely.
  */
 export class CollisionGrid {
   readonly width: number;
@@ -70,19 +79,33 @@ export class CollisionGrid {
   /** Cells that stop movement but not sight — glazing. Only meaningful where blocked. */
   private readonly seeThrough: Uint8Array;
 
-  constructor(level: GameLevel, blockingLayers: string[] = ["walls"]) {
+  /** @param tileSize pixels per cell, for reading the tiles' authored footprints. */
+  constructor(level: GameLevel, blockingLayers: string[] = ["walls"], tileSize = 32) {
     this.width = level.width;
     this.height = level.height;
     this.blocked = new Uint8Array(this.width * this.height);
     this.seeThrough = new Uint8Array(this.width * this.height);
+    // Cells claimed by something that stops sight. Kept apart from `seeThrough`
+    // so the result doesn't depend on which of two overlapping tiles is placed
+    // first: an opaque tile anywhere over a cell wins, whatever the board order.
+    const opaque = new Uint8Array(this.width * this.height);
     for (const layer of level.layers) {
       if (!blockingLayers.includes(layer.name)) continue;
       for (const tile of layer.tiles) {
-        if (this.inBounds(tile.x, tile.y)) {
-          this.blocked[tile.y * this.width + tile.x] = 1;
+        // Clear glazing is a window: solid, but sight passes. Frosted glazing
+        // (`VisionBlock`) is just a wall that happens to be made of glass.
+        const components = tile.components ?? [];
+        const seeThrough = isGlass(components) && !glassStatsFor(components).visionBlock;
+        for (const cell of footprintCells(tile, tileSize)) {
+          if (!this.inBounds(cell.x, cell.y)) continue;
+          const i = cell.y * this.width + cell.x;
+          this.blocked[i] = 1;
+          if (seeThrough) this.seeThrough[i] = 1;
+          else opaque[i] = 1;
         }
       }
     }
+    for (let i = 0; i < opaque.length; i++) if (opaque[i] === 1) this.seeThrough[i] = 0;
   }
 
   inBounds(x: number, y: number): boolean {

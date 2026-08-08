@@ -10,6 +10,7 @@ import type { PatrolRoute } from "../systems/PatrolRoute";
 import { accrueDetection, canSense, type Eye } from "../systems/Sensing";
 import { angleDiff } from "../systems/angles";
 import { drawVisionCone, GUARD_CONE } from "../ui/VisionCone";
+import { shadowShapeFor, type ShadowShape } from "../render/shadowShape";
 import { type GuardSkin } from "./GuardSkin";
 import { DIRS_8, nearestDirection, type Dir8 } from "./directions";
 import { ENFORCER_SKIN } from "./EnforcerAnimations";
@@ -205,6 +206,8 @@ export class Enforcer {
    */
   x: number;
   y: number;
+  /** Footprint the ground shadow is drawn from — see `EntityShadows`. */
+  readonly shadow: ShadowShape;
   /** Heading the body is travelling along; drives which sprite direction plays. */
   private moveDir: number;
   private scanTimer = 0;
@@ -289,6 +292,9 @@ export class Enforcer {
     this.cone = scene.add.graphics().setDepth(400);
     this.body = scene.add.sprite(this.x, this.y, skin.frameKey("south", 0)).setDepth(450);
     this.body.setScale((tileSize * skin.displayTiles) / skin.sourceSize);
+    // Per skin rather than per class, so the drone's low splayed chassis gets its own
+    // footprint instead of an enforcer's without anyone writing a second line of code.
+    this.shadow = shadowShapeFor(skin.collider, skin.displayTiles, tileSize);
     this.body.play(skin.animKey("south"));
     this.bang = alertMarker(scene, this.x, this.y, tileSize);
   }

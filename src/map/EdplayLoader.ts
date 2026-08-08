@@ -113,8 +113,15 @@ export class EdplayLoader {
           const td = tileDefByHandle.get(t.Handle);
           const components = td ? resolveComponents(td) : [];
           const tile: GameTile = {
-            x: t.X,
-            y: t.Y,
+            // The exporter omits a coordinate that is zero, so `X`/`Y` are absent on
+            // every board's west column and north row — 672 tiles across the shipped
+            // map. Without the fallback those parse as `undefined` and then fail
+            // silently and differently in each consumer: the collision grid's bounds
+            // check rejects them, the wall-body mask writes to index `NaN`, and the
+            // tile bake draws at `NaN` pixels. The result is a level border that is
+            // invisible and that nothing collides with.
+            x: t.X ?? 0,
+            y: t.Y ?? 0,
             handle: t.Handle,
             ref: td?.Ref ?? String(t.Handle),
             frame: td ? resolveFrame(td) : undefined,

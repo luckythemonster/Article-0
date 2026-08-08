@@ -315,3 +315,30 @@ describe("smoothPath", () => {
     expect(clearCorridor(g, { x: 1, y: 1 }, { x: 3, y: 2 }, R)).toBe(false);
   });
 });
+
+describe("findPath benchmark", () => {
+  it("benchmarks execution time of findPath to document performance gains", () => {
+    const g = gridFrom([
+      "#########",
+      "#.......#",
+      "#.#####.#",
+      "#.#...#.#",
+      "#.#.#.#.#",
+      "#...#...#",
+      "#####.###",
+      "#.......#",
+      "#########",
+    ]);
+    const iterations = 5000;
+    const startNode = { x: 4, y: 3 };
+    const goalNode = { x: 1, y: 7 };
+
+    const start = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      findPath(g, startNode, goalNode, { radiusTiles: R });
+    }
+    const duration = performance.now() - start;
+    console.log(`[BENCHMARK] findPath (${iterations} iterations): ${duration.toFixed(2)}ms`);
+    expect(duration).toBeGreaterThan(0);
+  });
+});

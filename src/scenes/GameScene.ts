@@ -3,7 +3,7 @@ import type { GameLevel, GameMap, Transition } from "../map/types";
 import type { ParsedMap } from "../map/EdplayLoader";
 import { SensingContext } from "./game/SensingContext";
 import { DebugOverlay, type DebugWorld } from "./game/DebugOverlay";
-import { buildLevel, registerGlazing } from "./game/LevelBuilder";
+import { buildLevel } from "./game/LevelBuilder";
 import { NoiseEvents } from "./game/NoiseEvents";
 import { OverlayGate } from "./game/OverlayGate";
 import { SpriteAtlas } from "../map/SpriteAtlas";
@@ -30,6 +30,7 @@ import { Cover } from "../entities/Cover";
 import { playVfx, EMP_BLAST, ELECTRONICS_SPARK, IMPACT } from "../entities/Vfx";
 import { buildAlertNetworkSnapshot, NoiseSpamTracker } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
+import { EntityShadows, type ShadowCaster } from "../ui/EntityShadows";
 import {
   missionFeatures,
   resumeFromSave,
@@ -251,6 +252,13 @@ export class GameScene extends Phaser.Scene {
   /** Refilled each frame and republished; see {@link RadarSnapshot}. */
   private readonly radarSnapshot = emptyRadarSnapshot();
   private lighting!: Lighting;
+  private entityShadows!: EntityShadows;
+  /**
+   * Refilled each frame and handed to {@link entityShadows}. Held rather than built
+   * per frame: the cast is three separate arrays that have to arrive as one list, and
+   * concatenating them every frame is a throwaway array a frame for the whole run.
+   */
+  private readonly shadowCasters: ShadowCaster[] = [];
   private grid!: CollisionGrid;
   private detection!: DetectionSystem;
   private alert = new AlertState();
@@ -266,8 +274,20 @@ export class GameScene extends Phaser.Scene {
   private transitioning = false;
   /** Seconds the player has been cornered by a silicate during a full alert. */
   private captureProgress = 0;
+  /**
+   * Seconds since bio-integrity reached zero, or `null` while Rowan is alive.
+   *
+   * The run holds here for {@link PLAYER_DEFAULTS.deathHold} instead of cutting
+   * straight to the outcome screen, so the flatline on the bio-integrity dial is
+   * something the player watches rather than a single frame `endRun` throws away.
+   */
+  private dyingFor: number | null = null;
   /** Cooldown (seconds) remaining before the player can knock again. */
   private knockCooldown = 0;
+  /** Run is a toggle (tap Space), not a hold — holding it alongside two direction
+   * keys for a diagonal sprint asks a keyboard for 3 simultaneous keys, which some
+   * keyboards fail to report (N-key rollover/ghosting) and no code can work around. */
+  private runToggled = false;
   /** Cooldown for the Rail-Stapler's general-purpose field mode (outside VENT-4). */
   private staplerFieldCooldown = 0;
   /** The log-cache terminal whose breach launched the compliance puzzle. */
@@ -384,10 +404,9 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, worldW, worldH);
     this.cameras.main.setBackgroundColor("#05070a");
 
-    this.grid = new CollisionGrid(this.level, ["walls"]);
-    // Glass has to be re-marked see-through after the grid exists, and before
-    // anything reads sight off it.
-    registerGlazing(this.level, this.grid, this.tileSize);
+    // Reads each wall tile's authored footprint, so a pane wider than its own
+    // cell blocks all of it — and marks the glazed ones see-through as it goes.
+    this.grid = new CollisionGrid(this.level, ["walls"], this.tileSize);
     this.detection = new DetectionSystem(this.level, this.tileSize);
     this.sensing = this.buildSensingContext();
     // One object for the level rather than a literal per frame — the same reasoning
@@ -438,6 +457,9 @@ export class GameScene extends Phaser.Scene {
     // DetectionSystem uses, so lit spots are visibly and mechanically hot; takes the
     // same collision grid the guards' sight tests use, so walls occlude identically.
     this.lighting = new Lighting(this, this.level, this.tileSize, this.grid);
+    // After the lighting, and reading from it: a shadow is thrown by the same fixtures
+    // the darkness is carved out for, so walking under a lamp swings it around.
+    this.entityShadows = new EntityShadows(this, this.lighting);
 
     // VENT-4 lives only in the vent core. Its continuous audio layers are
     // scene-independent, so silence them on every entry and re-arm to match a
@@ -477,6 +499,7 @@ export class GameScene extends Phaser.Scene {
     if (DEBUG_ALLOWED) {
       this.debug = new DebugOverlay(this, {
         lighting: this.lighting,
+        entityShadows: this.entityShadows,
         wallCollider: () => this.wallCollider,
         doorCollider: () => this.doorCollider,
         warpTargets: () => this.debugWarpLevels(),
@@ -500,6 +523,7 @@ export class GameScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.persistRunState();
       this.lighting.destroy();
+      this.entityShadows.destroy();
     });
 
     this.saveCheckpoint();
@@ -616,8 +640,9 @@ export class GameScene extends Phaser.Scene {
    * A transition is a `scene.restart()`, and class-field initialisers do not
    * re-run on one — the instance is reused. Anything belonging to *this level*
    * rather than to the run has to be reset by hand here. Anything that should
-   * carry across — objectives, journal, inventory, HP, the play clock — is
-   * deliberately absent, and rides the registry instead.
+   * carry across — objectives, journal, inventory, HP, the play clock, conduct
+   * metrics, the flashlight's owned/on/charge state — is deliberately absent,
+   * and rides the registry instead.
    */
   private resetPerRun(): void {
     this.guards = [];
@@ -643,11 +668,16 @@ export class GameScene extends Phaser.Scene {
     this.conduct = new ConductState(
       this.registry.get("conductMetrics") as ConductMetrics | undefined,
     );
-    this.activeItems = new ActiveItemState();
+    // Owned/on/charge ride the registry snapshot published every frame for the
+    // HUD, so the flashlight survives a level swap instead of coming back full.
+    this.activeItems = new ActiveItemState(
+      this.registry.get("activeItems") as ActiveItemsView | undefined,
+    );
     this.transitioning = false;
     this.exploredCooldown = 0;
     this.captureProgress = 0;
     this.knockCooldown = 0;
+    this.runToggled = false;
     this.staplerFieldCooldown = 0;
     this.pendingCompliance = undefined;
     this.pendingQualia = undefined;
@@ -903,6 +933,20 @@ export class GameScene extends Phaser.Scene {
     this.scene.stop("UIScene");
     this.scene.start("TitleScene");
     this.scene.stop();
+  }
+
+  /**
+   * The first frame of the death hold: stop Rowan, and cut the music.
+   *
+   * Silence rather than the capture sting, which {@link endRun} still owns and plays
+   * as the outcome card comes up. The alert loop running on over a flatline would say
+   * the facility is still hunting someone, which it is not — it is done. What the hold
+   * is for is the gap between those two facts.
+   */
+  private beginDeathHold(): void {
+    this.player.sprite.setVelocity(0, 0);
+    this.physics.pause();
+    getAudio().setMood("none");
   }
 
   /** Ends the run: stops play + HUD and shows the outcome scene. */
@@ -1334,7 +1378,7 @@ export class GameScene extends Phaser.Scene {
       left: correction?.invertX ? right : left,
       right: correction?.invertX ? left : right,
       sneak: k.sneak.isDown,
-      run: k.run.isDown,
+      run: this.runToggled,
       // Marching a hostage slows Rowan and rules out a sprint. It lands here rather
       // than in `Player` for the reason the doc above gives, and it deliberately does
       // *not* touch the direction: the whole march is steered by walking normally,
@@ -1396,7 +1440,11 @@ export class GameScene extends Phaser.Scene {
     // Debug hotkeys. A warp restarts the scene, so bail this frame.
     if (this.debug?.handleInput(this.player)) return;
 
-    this.updatePlayerFrame(dt, delta);
+    // Rowan stops moving the moment he's gone. `frozen` below deliberately leaves the
+    // player free to walk (it exists for the debug freeze-world, where that is the
+    // point), so it does not cover this: without the gate a held direction key keeps
+    // the walk cycle animating through the whole death hold.
+    if (this.dyingFor === null) this.updatePlayerFrame(dt, delta);
     this.updateInteractions(dt);
     this.updateSharedField(dt);
     this.updateActiveItems(dt);
@@ -1467,9 +1515,18 @@ export class GameScene extends Phaser.Scene {
     const phaseBefore = this.alert.phase;
     // Debug freeze-world holds every AI, hazard and timer still while leaving
     // the player free to walk. Read once so the frame is internally consistent.
-    const frozen = this.debug?.frozenWorld ?? false;
+    // The death hold rides the same flag: patrols, hazards and the alert clock all
+    // have to stop while the dial flatlines, and that is exactly what freeze-world
+    // already means. A second, near-identical freeze would only be a second thing to
+    // keep in sync.
+    const frozen = (this.debug?.frozenWorld ?? false) || this.dyingFor !== null;
     const ctx = this.refreshSensing(concealed, compliant, thermalConcealed);
     const maxDetection = this.tickWorld(dt, ctx, frozen);
+    // After `tickWorld`, which is where the bodies were moved for the frame — a shadow
+    // placed before it would trail the feet it belongs to by one. Unconditional even
+    // when the world is frozen: the debug freeze holds the patrols still but leaves
+    // Rowan free to walk around and look at them, and his shadow has to come along.
+    this.updateEntityShadows();
 
     this.alert.update(frozen ? 0 : dt);
     if (this.alert.phase === "ALERT" && phaseBefore !== "ALERT") {
@@ -1506,7 +1563,24 @@ export class GameScene extends Phaser.Scene {
       this.player.hp = this.player.maxHp;
       this.captureProgress = 0;
     }
-    if (!captured && (!this.player.alive || this.captureProgress >= PLAYER_DEFAULTS.captureTime)) {
+    // The two fail paths used to share this branch, but only one of them has anything
+    // to show. Bio-integrity depletion holds for a beat so the dial's flatline is
+    // watchable; being cornered ends immediately, because Rowan is seized at full
+    // health and there is no readout there — a pause would just be latency.
+    if (!captured && !this.player.alive) {
+      if (this.dyingFor === null) {
+        this.dyingFor = 0;
+        this.beginDeathHold();
+      } else {
+        this.dyingFor += dt;
+      }
+      if (this.dyingFor >= PLAYER_DEFAULTS.deathHold) this.endRun("ALIGNED", "GameOverScene");
+      return;
+    }
+    // Cleared whenever Rowan is alive again (god mode) or the roof has taken over,
+    // so a hold can never sit armed behind a run that carried on.
+    this.dyingFor = null;
+    if (!captured && this.captureProgress >= PLAYER_DEFAULTS.captureTime) {
       this.endRun("ALIGNED", "GameOverScene");
       return;
     }
@@ -1594,6 +1668,11 @@ export class GameScene extends Phaser.Scene {
     // to land before the animation is picked (`setAnimation` reads `dir` inside that
     // call), and `readInput` has to already know whether a hold is live.
     this.updateHoldUp(dt);
+    // Space toggles running rather than being held, so a diagonal sprint never needs
+    // more than the two direction keys — see `runToggled`'s doc comment for why.
+    if (Phaser.Input.Keyboard.JustDown(this.keys.run)) {
+      this.runToggled = !this.runToggled;
+    }
     this.player.update(this.readInput(), dt);
     // Flashlight: L toggles the beam; feed its state to the lighting cone.
     if (Phaser.Input.Keyboard.JustDown(this.keys.flashlight)) {
@@ -1622,6 +1701,22 @@ export class GameScene extends Phaser.Scene {
     this.playTimeMs += delta;
     this.registry.set("playTimeMs", this.playTimeMs);
     this.markExplored(dt);
+  }
+
+  /**
+   * Refills the caster list from this frame's cast and redraws the ground shadows.
+   *
+   * Rebuilt every frame rather than cached at level build: the rooftop siege pushes new
+   * guards into {@link guards} mid-level (see `onSiegeSpawn`), so a list captured once
+   * would leave every reinforcement floating.
+   */
+  private updateEntityShadows(): void {
+    const casters = this.shadowCasters;
+    casters.length = 0;
+    casters.push(this.player);
+    for (const guard of this.guards) casters.push(guard);
+    for (const orderly of this.orderlies) casters.push(orderly);
+    this.entityShadows.update(casters);
   }
 
   /**

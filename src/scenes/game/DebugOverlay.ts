@@ -10,6 +10,7 @@ import { CERT_ITEM, PLAYER_DEFAULTS } from "../../systems/EntityStats";
 import { catalogedNames } from "../../systems/ItemCatalog";
 import type { DebugSnapshot } from "../../ui/DebugHud";
 import type { Lighting } from "../../ui/Lighting";
+import type { EntityShadows } from "../../ui/EntityShadows";
 
 /**
  * The developer debug mode: hotkeys, cheats, the world-space overlay, and the
@@ -60,6 +61,7 @@ export interface DebugWorld {
  */
 export interface DebugHost {
   lighting: Lighting;
+  entityShadows: EntityShadows;
   wallCollider: () => Phaser.Physics.Arcade.Collider | undefined;
   doorCollider: () => Phaser.Physics.Arcade.Collider | undefined;
   /** Level names the warp keys map to, in key order. */
@@ -196,6 +198,10 @@ export class DebugOverlay {
   setDarknessOff(off: boolean): void {
     this.darknessOff = off;
     this.host.lighting.setEnabled(!off);
+    // The ground shadows go with it. They are thrown by the same fixtures, so leaving
+    // them on would light the level flat while every character still carried a shadow
+    // pointing at a lamp the mode has just stopped drawing.
+    this.host.entityShadows.setEnabled(!off);
   }
 
   /** Moves the give-item selection by one, wrapping at either end. */

@@ -286,6 +286,15 @@ export interface PlayerStats {
   captureRadius: number;
   /** Seconds cornered before the capture (Alignment) completes. */
   captureTime: number;
+  /**
+   * Seconds the run holds after bio-integrity reaches zero, before the outcome screen.
+   *
+   * `endRun` stops the HUD scene the same frame it is called, so without this the
+   * flatline on the bio-integrity dial renders once and is gone — an entire death
+   * state nobody ever sees. Input is already dead through the hold, so it costs the
+   * player a beat and buys the one moment the readout exists for.
+   */
+  deathHold: number;
   /** Bio-integrity lost per hazard hit (e.g. a laser). */
   hazardDamage: number;
   /** Seconds of invulnerability after taking a hit. */
@@ -300,6 +309,7 @@ export const PLAYER_DEFAULTS: PlayerStats = {
   maxHp: 100,
   captureRadius: 1.3,
   captureTime: 0.7,
+  deathHold: 1.2,
   hazardDamage: 25,
   hitCooldown: 1.0,
 };
@@ -569,9 +579,10 @@ export const OPENED_RATION_NOISE = 0.1;
 // --- Item taxonomy -------------------------------------------------------
 
 /**
- * The consumables that map to hotkeys [1]–[4], in canonical slot order. Held
- * consumables fill slots dynamically (unheld names are skipped), so e.g. a
- * player holding only Thermal Gel + Medkit sees them as [1] and [2].
+ * The consumables selectable through the item cursor, in canonical display
+ * order. Held consumables fill the list dynamically (unheld names are
+ * skipped), so e.g. a player holding only Thermal Gel + Medkit sees just
+ * those two, in that order.
  */
 export const CONSUMABLE_ORDER = [
   CHAFF_PACK_ITEM,
@@ -583,9 +594,9 @@ export const CONSUMABLE_ORDER = [
 ] as const;
 
 /** Hard cap on the total number of consumables held at once. */
-export const MAX_CONSUMABLES = 4;
+export const MAX_CONSUMABLES = 8;
 
-/** True when an item name is one of the capped, hotkey-usable consumables. */
+/** True when an item name is one of the capped, cursor-selectable consumables. */
 export function isConsumable(name: string): boolean {
   return (CONSUMABLE_ORDER as readonly string[]).includes(name);
 }
@@ -599,7 +610,7 @@ export function isConsumable(name: string): boolean {
  * was invisible: the InventoryHud renders held items by filtering on this, so the Q0
  * compliance cert, the boss-critical Rail-Stapler and the vent-core chest's flavour
  * loot were all being handed to the player and never shown. `CONSUMABLE_ORDER` is the
- * list that genuinely has to stay curated — it drives the [1]–[4] hotkeys and the carry
+ * list that genuinely has to stay curated — it drives the item cursor and the carry
  * cap — so keying off its complement means a new item can't fail to appear.
  */
 export function isKeyItem(name: string): boolean {
@@ -611,9 +622,9 @@ export function countConsumables(items: string[]): number {
   return items.filter(isConsumable).length;
 }
 
-/** One occupied consumable hotkey slot. */
+/** One held, distinct consumable type, with its position in the display list. */
 export interface ConsumableSlot {
-  /** Hotkey number, 1..MAX_CONSUMABLES. */
+  /** 1-based position in the held-consumables list, for display only. */
   slot: number;
   /** The consumable item name. */
   name: string;
@@ -622,9 +633,13 @@ export interface ConsumableSlot {
 }
 
 /**
- * Maps held consumables to hotkey slots [1]..N (N ≤ {@link MAX_CONSUMABLES}) in
- * {@link CONSUMABLE_ORDER}, skipping names the player isn't carrying. Shared by
- * the inventory HUD and the UIScene hotkey reader so both agree on the mapping.
+ * Maps held consumables to a display list in {@link CONSUMABLE_ORDER} order,
+ * skipping names the player isn't carrying. Shared by the inventory HUD, the
+ * pause menu's INVENTORY tab, and the UIScene item cursor so all three agree
+ * on the ordering. Naturally bounded by `CONSUMABLE_ORDER.length` (one entry
+ * per distinct type) rather than {@link MAX_CONSUMABLES} (a total-*unit*
+ * cap) — the two are different quantities and conflating them would truncate
+ * the list wrongly once a player holds many distinct types at once.
  */
 export function consumableSlots(items: string[]): ConsumableSlot[] {
   const slots: ConsumableSlot[] = [];
@@ -632,7 +647,6 @@ export function consumableSlots(items: string[]): ConsumableSlot[] {
     const count = items.filter((i) => i === name).length;
     if (count === 0) continue;
     slots.push({ slot: slots.length + 1, name, count });
-    if (slots.length >= MAX_CONSUMABLES) break;
   }
   return slots;
 }

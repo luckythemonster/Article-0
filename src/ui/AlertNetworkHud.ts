@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import type { AlertNetworkSnapshot } from "../systems/AlertNetwork";
 import { FONT_MONO } from "./fonts";
+import { STATUS_STACK_BOTTOM } from "./hudLayout";
 
 /** Phase → readout label + colour for the network status line. */
 const STATUS: Record<string, { label: string; color: string }> = {
@@ -24,7 +25,9 @@ export class AlertNetworkHud {
 
   constructor(scene: Phaser.Scene) {
     const pad = 12;
-    const top = pad + 118; // below the SRP meter + bio-integrity bar
+    // Below the SRP meter and the bio-integrity trace. The budget is shared rather
+    // than repeated here — see `hudLayout`.
+    const top = pad + STATUS_STACK_BOTTOM;
 
     scene.add
       .text(pad, top, "NETWORK", {

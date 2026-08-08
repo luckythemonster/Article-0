@@ -9,14 +9,14 @@ import {
   type RayDirections,
 } from "../systems/Visibility";
 import { len } from "../systems/distance";
-
-/**
- * Size of the generated soft light-pool stamp texture, in px. Comfortably larger
- * than the biggest pool it has to cover (a 3.5-tile light is 224px across) so the
- * stamp is always scaled *down* — an upscaled gradient shows its own pixel steps,
- * which is a texture artefact masquerading as a lighting one.
- */
-const GRADIENT_SIZE = 256;
+import {
+  ensureRadialStamp,
+  ensureStampTexture,
+  RADIAL_STAMP_KEY,
+  RADIAL_STAMP_SIZE,
+} from "../render/stamps";
+import { falloff } from "../render/falloff";
+import { emptySample, sampleLightAt, type LightSample } from "../render/lightSampling";
 
 /** How dark the unlit level gets (0 = no darkening, 1 = black). */
 const DARK_ALPHA = 1;
@@ -31,21 +31,9 @@ const CONE_HALF_ANGLE = Math.PI / 6;
 const CONE_RANGE_TILES = 5.5;
 
 /**
- * Fraction of a light's reach that stays at full strength before the falloff starts.
- *
- * Every stamp shares the {@link falloff} curve: flat to the core, then a smoothstep
- * to nothing. The core is what keeps a pool *bright* — at 0 the light becomes a dim
- * smudge, which matters a lot now that unlit space is genuinely black rather than a
- * tint you could still read through.
- *
- * Half the radius is a deliberate balance. Against the old stacked-circle stamp it
- * keeps ~75% of the light while cutting the steepest part of the falloff from a slope
- * of ~320 (a step in all but name — the rim) to ~3. Almost all of the harshness came
- * from that near-discontinuity rather than from the plateau, so there is no need to
- * darken the level to be rid of it.
+ * The `POOL_CORE` from `src/render/falloff.ts` as it applies along the
+ * flashlight beam — kept longer so the beam stays useful at reach.
  */
-const POOL_CORE = 0.5;
-/** Same, along the flashlight beam — kept longer so the beam stays useful at reach. */
 const CONE_RANGE_CORE = 0.4;
 /** Same, across the beam: the middle of the cone is full strength, the sides fade. */
 const CONE_ANGLE_CORE = 0.5;
@@ -89,34 +77,19 @@ const PLAYER_LIGHT_TILES = 1.5;
 /** How far (px) the viewer must move before the visibility polygon is recast. */
 const RECAST_EPSILON = 0.5;
 
-/** Smooth 0→1 ramp with zero slope at both ends. */
-function smoothstep(t: number): number {
-  const u = t <= 0 ? 0 : t >= 1 ? 1 : t;
-  return u * u * (3 - 2 * u);
-}
-
-/**
- * Light strength at normalised distance `u` (0 at the source, 1 at its reach): full
- * out to `core`, then easing to nothing at the edge.
- *
- * Shared by every stamp so they all fade the same way. The shape matters more than it
- * looks: the previous stamps were built by stacking translucent circles, whose
- * composite happened to hold a flat 1.0 out to 60% of the radius and then fall off a
- * cliff over the last third — a plateau with a rim, which is what read as artificial
- * once the surrounding dark went fully opaque.
- */
-function falloff(u: number, core: number): number {
-  if (u <= core) return 1;
-  if (u >= 1) return 0;
-  return 1 - smoothstep((u - core) / (1 - core));
-}
-
 interface Light {
   x: number;
   y: number;
   radiusPx: number;
   flicker: boolean;
   phase: number;
+  /**
+   * Current brightness multiplier, 1 for a steady light and the flicker factor for a
+   * guttering one. Written by {@link Lighting.drawLights} where that factor is already
+   * being computed for the stamp, and read by {@link Lighting.sampleLight} so a shadow
+   * cast by a failing lamp gutters along with it.
+   */
+  intensity: number;
   /** The stamp erased at this light. One per light so all of them batch together. */
   stamp: Phaser.GameObjects.Image;
 }
@@ -194,6 +167,8 @@ export class Lighting {
   private dirty = true;
   /** Debug switch (see GameScene's `O` hotkey). */
   private enabled = true;
+  /** Scratch result for {@link sampleLight} — see the note there on why it is reused. */
+  private readonly sample: LightSample = emptySample();
 
   constructor(scene: Phaser.Scene, level: GameLevel, tileSize: number, grid: CollisionGrid) {
     const worldW = level.width * tileSize;
@@ -206,7 +181,7 @@ export class Lighting {
     this.dirs = rayDirections(SIGHT_RAYS);
     this.dist = new Float64Array(SIGHT_RAYS);
 
-    Lighting.ensureGradientTexture(scene);
+    ensureRadialStamp(scene);
     Lighting.ensureConeTexture(scene);
 
     const lightLayer = level.layers.find((l) => l.name === "light_sources");
@@ -218,16 +193,18 @@ export class Lighting {
         const y = (t.y + 0.5) * tileSize;
         // A stamp per light, positioned once. Static lights never touch it again.
         const stamp = scene.make
-          .image({ key: "light-gradient", add: false })
+          .image({ key: RADIAL_STAMP_KEY, add: false })
           .setOrigin(0.5)
           .setPosition(x, y)
-          .setScale((radiusPx * 2) / GRADIENT_SIZE);
+          .setScale((radiusPx * 2) / RADIAL_STAMP_SIZE);
         this.lights.push({
           x,
           y,
           radiusPx,
           flicker: s.type.includes("flick"),
           phase: Math.random() * Math.PI * 2,
+          // Steady until `drawLights` says otherwise, which it only does for flickers.
+          intensity: 1,
           stamp,
         });
         this.eraseList.push(stamp);
@@ -243,9 +220,9 @@ export class Lighting {
       .setScale(this.beamRangePx / CONE_SIZE);
 
     this.playerStamp = scene.make
-      .image({ key: "light-gradient", add: false })
+      .image({ key: RADIAL_STAMP_KEY, add: false })
       .setOrigin(0.5)
-      .setScale((PLAYER_LIGHT_TILES * tileSize * 2) / GRADIENT_SIZE);
+      .setScale((PLAYER_LIGHT_TILES * tileSize * 2) / RADIAL_STAMP_SIZE);
 
     this.rt = scene.add
       .renderTexture(0, 0, worldW, worldH)
@@ -320,6 +297,32 @@ export class Lighting {
   }
 
   /**
+   * How the point `(x, y)` is lit — see {@link sampleLightAt} for the arithmetic.
+   *
+   * Exists so `EntityShadows` can throw a character's shadow away from whatever is
+   * actually lighting them, off the same `light_sources` this overlay draws and the
+   * `DetectionSystem` scores. One source of truth: a spot that reads bright, plays
+   * dangerous *and* casts a long shadow, and retuning a light moves all three together.
+   *
+   * The result is a reused scratch object, valid only until the next call. The whole
+   * cast asks this every frame and none of them keep the answer.
+   *
+   * **Only the fixed `light_source` fixtures cast.** The two moving lights are left out
+   * deliberately:
+   *
+   * - Rowan's carried pool is dark-adapted eyes rather than something he emits — the
+   *   same reason {@link PLAYER_LIGHT_TILES} keeps it out of `DetectionSystem`. Letting
+   *   it cast would put a shadow under everyone he walks near, thrown by nothing.
+   * - The flashlight is rigidly attached to him, so his own shadow would sit pinned at
+   *   a fixed offset no matter how he moved — motionless relative to the only thing
+   *   that could reveal it was there. Worth revisiting for *other* casters lit by the
+   *   beam, which is a real effect and needs the cone's angular test to get right.
+   */
+  sampleLight(x: number, y: number): LightSample {
+    return sampleLightAt(this.lights, x, y, this.grid, this.tileSize, this.sample);
+  }
+
+  /**
    * Releases everything this overlay owns. Call on scene shutdown.
    *
    * The stamps are the reason this has to exist. They are built with
@@ -367,7 +370,8 @@ export class Lighting {
       // Gentle irregular pulse in both brightness and reach.
       const f =
         0.82 + 0.18 * Math.sin(this.time * 7 + l.phase) * Math.sin(this.time * 3.1 + l.phase);
-      l.stamp.setAlpha(f).setScale(((l.radiusPx * 2) / GRADIENT_SIZE) * (0.92 + 0.08 * f));
+      l.intensity = f;
+      l.stamp.setAlpha(f).setScale(((l.radiusPx * 2) / RADIAL_STAMP_SIZE) * (0.92 + 0.08 * f));
     }
 
     // Everything in one batched erase — each erase is a framebuffer round-trip, and
@@ -439,54 +443,6 @@ export class Lighting {
   }
 
   /**
-   * Builds (once) a stamp texture by evaluating `alphaAt` per pixel.
-   *
-   * Written pixel by pixel rather than by stacking translucent shapes, so the falloff
-   * is exactly {@link falloff} instead of whatever a pile of alpha-composited fills
-   * happens to add up to. Only the alpha channel carries meaning — these are masks
-   * `erase`d out of the darkness, never drawn — but the RGB is left white so the
-   * texture is also sane if it ever gets drawn normally.
-   *
-   * Filtered LINEAR, overriding the game-wide `pixelArt` NEAREST: a lighting mask is
-   * not sprite art, and nearest-neighbour sampling puts stair-steps in the gradient.
-   * The level art underneath keeps its crisp look regardless, since the darkness is a
-   * separate object layered above it.
-   */
-  private static ensureStampTexture(
-    scene: Phaser.Scene,
-    key: string,
-    size: number,
-    alphaAt: (x: number, y: number) => number,
-  ): void {
-    if (scene.textures.exists(key)) return;
-    const tex = scene.textures.createCanvas(key, size, size);
-    if (!tex) return;
-    const ctx = tex.getContext();
-    const img = ctx.createImageData(size, size);
-    const data = img.data;
-    for (let y = 0; y < size; y++) {
-      for (let x = 0; x < size; x++) {
-        const i = (y * size + x) * 4;
-        data[i] = 255;
-        data[i + 1] = 255;
-        data[i + 2] = 255;
-        data[i + 3] = Math.round(255 * alphaAt(x + 0.5, y + 0.5));
-      }
-    }
-    ctx.putImageData(img, 0, 0);
-    tex.refresh();
-    tex.setFilter(Phaser.Textures.FilterMode.LINEAR);
-  }
-
-  /** The soft radial light-pool stamp: full centre → clear edge. */
-  private static ensureGradientTexture(scene: Phaser.Scene): void {
-    const c = GRADIENT_SIZE / 2;
-    Lighting.ensureStampTexture(scene, "light-gradient", GRADIENT_SIZE, (x, y) =>
-      falloff(len(x - c, y - c) / c, POOL_CORE),
-    );
-  }
-
-  /**
    * The flashlight-cone stamp: a sector with its apex at the left edge (local origin)
    * opening toward +x, so the caller can pivot it at the player and point it along
    * their facing. Falls off both *along* the beam and *across* it — the second is what
@@ -494,7 +450,7 @@ export class Lighting {
    */
   private static ensureConeTexture(scene: Phaser.Scene): void {
     const apexY = CONE_SIZE / 2;
-    Lighting.ensureStampTexture(scene, "flashlight-cone", CONE_SIZE, (x, y) => {
+    ensureStampTexture(scene, "flashlight-cone", CONE_SIZE, (x, y) => {
       const dx = x;
       const dy = y - apexY;
       const reach = falloff(len(dx, dy) / CONE_SIZE, CONE_RANGE_CORE);

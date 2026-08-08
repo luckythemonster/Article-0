@@ -70,6 +70,7 @@ export class SelectList {
             getAudio().ping();
           }
           this.select(i);
+          this.node.focus({ preventScroll: true });
           row.onActivate?.();
         });
       }
@@ -131,7 +132,12 @@ export class SelectList {
         this.select(this.rows.findIndex((r) => !r.disabled));
         return true;
       case "End":
-        this.select(this.rows.length - 1);
+        for (let i = this.rows.length - 1; i >= 0; i--) {
+          if (!this.rows[i].disabled) {
+            this.select(i);
+            break;
+          }
+        }
         return true;
       case "Enter":
         this.activate();

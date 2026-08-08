@@ -37,13 +37,14 @@ npm run build    # tsc --noEmit + vite build
 | --- | --- |
 | WASD / Arrows | Move (free 8-directional) |
 | Shift | Sneak / crouch — slower, quieter; crouch on cover to hide |
-| Space | Run — faster but louder |
+| Space | Run — faster but louder; tap to toggle |
 | E | Contextual: open/close a door, hack a terminal (hold), search a chest (hold), or use a hatch/ladder |
 | L | Flashlight — the only way to see in the unlit levels, but it drains and makes you far easier to spot |
 | F | Shared Field — once charged (by staying near a silicate), merge for 3.7s and become undetectable |
 | R | Knock — rap on a wall to lure guards and orderlies to the noise |
 | Q | Hold up — with a weapon in hand, aim at an orderly: hands up, silent, and he walks ahead of you while you hold it |
-| 1 – 4 | Use the consumable in that slot (the **Sack Lunch** takes two presses: open, then drop) |
+| , / . | Cycle the selected consumable |
+| Enter | Use the selected consumable (the **Sack Lunch** takes two uses: open, then drop) |
 | C | Open the EIRA-7 codec |
 | Esc | Pause menu — objectives, journal, inventory, index, status, map, controls, settings, saves |
 
@@ -368,11 +369,11 @@ in real seconds so the balance they encode keeps its meaning.
   four-state machine — WANDER / INSPECT / SANITATION / WITNESSED — with two
   overrides the **Sack Lunch** triggers, below.
 - The Sack Lunch (Corporate Spec Ration): the one item you can put *down*, and
-  the only one with states. **Sealed** it is inventory; **opened** (first press
-  of its hotkey) it stays in hand, raising detection by 1.15× and the noise
+  the only one with states. **Sealed** it is inventory; **opened** (first use)
+  it stays in hand, raising detection by 1.15× and the noise
   profile, but flags Rowan to orderlies as an asset consuming rations — one
   reprimands him instead of reporting, and only raises the alarm if he is still
-  in view five seconds later. **Deployed** (second press) it drops on the floor
+  in view five seconds later. **Deployed** (second use) it drops on the floor
   as a work order: an orderly within six tiles with line of sight — or three
   tiles by scent, through walls — leaves its round, walks over, and spends six
   seconds sanitising it, with its witness radius halved and narrowed to a 90°
@@ -473,8 +474,16 @@ in real seconds so the balance they encode keeps its meaning.
   darkness overlay's visibility polygon). Clear glass is the case that needs it: the map's
   glass doors carry a `glass` component *alongside* their `door` one, so they are real
   openable doors that happen never to block sight (`glassStatsFor` reads `VisionBlock`).
-  Two panes on `main2`'s `walls` board are static rather than doors, so
-  `GameScene.registerGlazing` covers glass placed directly on a blocking board.
+  Two panes on `main2`'s `walls` board are static rather than doors, so the grid reads
+  the `glass` component off the blocking board's tiles as it builds, covering glass
+  placed directly on a blocking board.
+- Tile footprints: a placed tile can be bigger than the cell it sits on — doors are 1.5
+  or 2.5 tiles in one axis, and those two `main2` panes are 1×2.5 nudged half a tile
+  down. `map/footprint.ts` turns the authored `colSpan`/`rowSpan`/`offset` into the cells
+  it covers, and it is the one answer the tile bake, the wall bodies and the collision
+  grid all use. They each used to assume one cell at the tile's own coordinates, which
+  drew a 2.5-tile pane as a one-tile decal and left the other half of it with no
+  collision at all — you walked through the bottom of the glass.
 - Held items: `isKeyItem` is the complement of `CONSUMABLE_ORDER` rather than its own
   allowlist, so anything granted shows up under KEY ITEMS. It used to be a hardcoded
   pair, which silently hid the compliance cert, the two vent-core flavour items, and the
@@ -558,7 +567,7 @@ in real seconds so the balance they encode keeps its meaning.
 5. **The game loop & the fiction** — done: title / EIRA-7 codec / pause /
    outcome scenes, the four-act run (both log-cache nodes, VENT-4, NW-SMAC-01,
    the rooftop relay) ending on the Alignment Tribunal, a lose (Alignment /
-   capture), player bio-integrity, the SRP-framed HUD,
+   capture), player bio-integrity on an EKG trace, the SRP-framed HUD,
    multi-slot saves + continue, synthesised adaptive audio, the **Shared
    Field (WX-9)** capstone, and the nine-tab **pause menu** — with the journal
    and index that give the run's vocabulary and its argument somewhere to live.

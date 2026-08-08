@@ -129,6 +129,7 @@ The map carries no player component, so these defaults are used directly.
 | `maxHp` | 100 | - | Full bio-integrity (health) |
 | `captureRadius` | 1.3 | tiles | Capture distance with line of sight during full alert |
 | `captureTime` | 0.7 | seconds | Time cornered before capture completes |
+| `deathHold` | 1.2 | seconds | Run holds after bio-integrity hits zero, so the dial's flatline is watchable before the outcome screen. Depletion only — being cornered ends immediately |
 | `hazardDamage` | 25 | - | Bio-integrity lost per hazard hit (laser, steam, etc.) |
 | `hitCooldown` | 1.0 | seconds | Invulnerability after taking a hit |
 

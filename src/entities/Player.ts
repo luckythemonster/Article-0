@@ -16,6 +16,7 @@ import {
   paced,
 } from "../systems/EntityStats";
 import { PLAYER_IDLE_SOUTH_COLLIDER } from "./generated/playerCollider";
+import { shadowShapeFor, type ShadowShape } from "../render/shadowShape";
 import { len } from "../systems/distance";
 
 /**
@@ -38,6 +39,8 @@ type Stance = "standing" | "crouching-down" | "crouched" | "standing-up";
 
 export class Player {
   readonly sprite: Phaser.Physics.Arcade.Sprite;
+  /** Footprint the ground shadow is drawn from — see `EntityShadows`. */
+  readonly shadow: ShadowShape;
   /** Facing angle in radians; updated as the player moves. */
   facing = -Math.PI / 2; // start facing "up"
   private readonly walkSpeed: number;
@@ -71,6 +74,9 @@ export class Player {
     // non-integer factor — the exact thing this division is arranged to avoid.
     const displaySize = tileSize * PLAYER_DISPLAY_TILES;
     this.sprite.setScale(displaySize / PLAYER_SOURCE_SIZE);
+    // Off the same trace the body below is sized from, so the shadow sits under the
+    // boots rather than under wherever the padded frame happens to put its centre.
+    this.shadow = shadowShapeFor(PLAYER_IDLE_SOUTH_COLLIDER, PLAYER_DISPLAY_TILES, tileSize);
     const body = this.sprite.body as Phaser.Physics.Arcade.Body;
     const { width, height, offsetX, offsetY } = PLAYER_IDLE_SOUTH_COLLIDER.aabb;
     body.setSize(width, height);
@@ -99,9 +105,9 @@ export class Player {
   }
 
   /**
-   * True while actually sprinting — moving, upright, with run held. Not just the key
-   * state: standing still on Space isn't running. Read by the conduct rules, where a
-   * sprint is one of the things that stops you reading as staff.
+   * True while actually sprinting — moving, upright, with run toggled on. Not just
+   * the key state: standing still with run toggled on isn't running. Read by the
+   * conduct rules, where a sprint is one of the things that stops you reading as staff.
    */
   get running(): boolean {
     return this.runningNow;

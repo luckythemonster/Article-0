@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { CollisionGrid, WallBuffer } from "./CollisionGrid";
-import type { GameLevel } from "../map/types";
+import type { ComponentData, GameLevel, GameTile } from "../map/types";
 
 /** A 5×5 level with a wall column at x=2 for y=0..2. */
 function level(): GameLevel {
@@ -73,6 +73,87 @@ describe("CollisionGrid", () => {
       const g = new CollisionGrid(level());
       expect(g.blocksSight(-1, 0)).toBe(true);
       expect(g.blocksSight(99, 0)).toBe(true);
+    });
+  });
+
+  describe("authored footprints", () => {
+    /** A 6×6 level whose `walls` board holds one tile, described by span/offset. */
+    function paneLevel(t: Partial<GameTile> & { x: number; y: number }): GameLevel {
+      return {
+        name: "t",
+        width: 6,
+        height: 6,
+        layers: [{ name: "walls", tiles: [{ colSpan: 1, rowSpan: 1, offsetX: 0, offsetY: 0, components: [], ...t }] }],
+      } as unknown as GameLevel;
+    }
+
+    /** A `glass` component, optionally frosted. */
+    function glass(visionBlock = false): ComponentData[] {
+      return [{ type: "glass", values: { VisionBlock: visionBlock ? "1" : "0" } }];
+    }
+
+    it("blocks every cell a 1×2.5 pane covers, not just the one it is placed on", () => {
+      const g = new CollisionGrid(paneLevel({ x: 2, y: 1, rowSpan: 2.5, offsetY: 16 }), ["walls"], 32);
+      expect(g.isBlocked(2, 1)).toBe(true);
+      expect(g.isBlocked(2, 2)).toBe(true);
+      // and nothing beyond it
+      expect(g.isBlocked(2, 0)).toBe(false);
+      expect(g.isBlocked(2, 3)).toBe(false);
+    });
+
+    it("lets sight through every cell of a clear glass pane", () => {
+      const level = paneLevel({ x: 2, y: 1, rowSpan: 2.5, offsetY: 16, components: glass() });
+      const g = new CollisionGrid(level, ["walls"], 32);
+      for (const y of [1, 2]) {
+        expect(g.isBlocked(2, y)).toBe(true);
+        expect(g.blocksSight(2, y)).toBe(false);
+      }
+      expect(g.hasLineOfSight(0, 1, 5, 1)).toBe(true);
+      expect(g.hasLineOfSight(0, 2, 5, 2)).toBe(true);
+    });
+
+    it("treats frosted glazing as a wall — VisionBlock stops sight over the whole pane", () => {
+      const level = paneLevel({ x: 2, y: 1, rowSpan: 2.5, offsetY: 16, components: glass(true) });
+      const g = new CollisionGrid(level, ["walls"], 32);
+      for (const y of [1, 2]) {
+        expect(g.isBlocked(2, y)).toBe(true);
+        expect(g.blocksSight(2, y)).toBe(true);
+      }
+      expect(g.hasLineOfSight(0, 1, 5, 1)).toBe(false);
+    });
+
+    it("lets an opaque tile win a cell it shares with a pane, whichever is placed first", () => {
+      const pane = { x: 2, y: 1, colSpan: 1, rowSpan: 2.5, offsetX: 0, offsetY: 16, components: glass() };
+      const wall = { x: 2, y: 2, colSpan: 1, rowSpan: 1, offsetX: 0, offsetY: 0, components: [] };
+      for (const tiles of [[pane, wall], [wall, pane]]) {
+        const g = new CollisionGrid(
+          { name: "t", width: 6, height: 6, layers: [{ name: "walls", tiles }] } as unknown as GameLevel,
+          ["walls"],
+          32,
+        );
+        // The pane's own cell still sees through; the shared cell does not.
+        expect(g.blocksSight(2, 1)).toBe(false);
+        expect(g.blocksSight(2, 2)).toBe(true);
+      }
+    });
+
+    it("ignores glass on a board that isn't blocking", () => {
+      const g = new CollisionGrid(
+        {
+          name: "t",
+          width: 6,
+          height: 6,
+          layers: [
+            { name: "walls", tiles: [{ x: 2, y: 1, colSpan: 1, rowSpan: 1, offsetX: 0, offsetY: 0, components: [] }] },
+            { name: "cover", tiles: [{ x: 2, y: 1, colSpan: 1, rowSpan: 1, offsetX: 0, offsetY: 0, components: glass() }] },
+          ],
+        } as unknown as GameLevel,
+        ["walls"],
+        32,
+      );
+      // A decorative pane on a non-blocking board must not punch a sight hole
+      // through the wall underneath it.
+      expect(g.blocksSight(2, 1)).toBe(true);
     });
   });
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { mergeWallRects, type WallRect } from "./TileBake";
+import { mergeWallRects, wallCells, type WallRect } from "./TileBake";
+import type { GameLevel, GameTile, SpriteFrame } from "./types";
 
 /** Builds a blocked-cell predicate from an ASCII map ('#' = blocked). */
 function gridOf(rows: string[]): { width: number; height: number; blocked: (x: number, y: number) => boolean } {
@@ -114,6 +115,69 @@ describe("mergeWallRects — correctness", () => {
       }
       expectExactCover(rows);
     }
+  });
+});
+
+describe("wallCells", () => {
+  const frame = {} as SpriteFrame;
+
+  /** An 8×8 level whose `walls` board holds the given tiles. */
+  function level(tiles: (Partial<GameTile> & { x: number; y: number })[], name = "walls"): GameLevel {
+    return {
+      name: "t",
+      width: 8,
+      height: 8,
+      layers: [
+        {
+          name,
+          tiles: tiles.map((t) => ({
+            frame,
+            colSpan: 1,
+            rowSpan: 1,
+            offsetX: 0,
+            offsetY: 0,
+            components: [],
+            ...t,
+          })),
+        },
+      ],
+    } as unknown as GameLevel;
+  }
+
+  /** Solid cells as sorted "x,y" strings. */
+  function solidCells(l: GameLevel): string[] {
+    const mask = wallCells(l, 32);
+    const out: string[] = [];
+    for (let y = 0; y < l.height; y++) {
+      for (let x = 0; x < l.width; x++) if (mask[y * l.width + x] === 1) out.push(`${x},${y}`);
+    }
+    return out.sort();
+  }
+
+  it("marks the placed cell of a plain wall tile", () => {
+    expect(solidCells(level([{ x: 3, y: 4 }]))).toEqual(["3,4"]);
+  });
+
+  it("marks both cells of a 1×2.5 pane", () => {
+    // The `main2` glass jambs: the lower cell used to have no body under it, so
+    // the player walked through half the pane.
+    expect(solidCells(level([{ x: 3, y: 2, rowSpan: 2.5, offsetY: 16 }]))).toEqual(["3,2", "3,3"]);
+  });
+
+  it("merges a pane into a single tall rectangle", () => {
+    const l = level([{ x: 3, y: 2, rowSpan: 2.5, offsetY: 16 }]);
+    const mask = wallCells(l, 32);
+    const rects = mergeWallRects(l.width, l.height, (x, y) => mask[y * l.width + x] === 1);
+    expect(rects).toEqual([{ x: 3, y: 2, w: 1, h: 2 }]);
+  });
+
+  it("skips frameless tiles and boards that aren't walls", () => {
+    expect(solidCells(level([{ x: 3, y: 4, frame: undefined }]))).toEqual([]);
+    expect(solidCells(level([{ x: 3, y: 4 }], "cover"))).toEqual([]);
+  });
+
+  it("clips a footprint that runs off the level", () => {
+    expect(solidCells(level([{ x: 0, y: 0, rowSpan: 2.5, offsetY: -16 }]))).toEqual(["0,0"]);
   });
 });
 

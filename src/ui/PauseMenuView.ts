@@ -373,7 +373,7 @@ export class PauseMenuView {
     for (const s of slots) {
       const remaining = activeRemaining(s.name, this.snap.active);
       const note = remaining > 0 ? `×${s.count}  ACTIVE ${Math.ceil(remaining)}s` : `×${s.count}`;
-      item(`  [${s.slot}] ${s.name}`, note, s.name);
+      item(`  ${s.name}`, note, s.name);
     }
 
     if (this.snap.active.flashlightOwned) {
@@ -596,6 +596,9 @@ export class PauseMenuView {
       readout.textContent = `${slider.value}%`;
       push();
     });
+    slider.addEventListener("change", () => {
+      getAudio().ping();
+    });
     row.append(label, slider, readout);
     node.appendChild(row);
 
@@ -610,6 +613,9 @@ export class PauseMenuView {
     mute.addEventListener("change", () => {
       current.muted = mute.checked;
       push();
+      if (!current.muted) {
+        getAudio().ping();
+      }
     });
     muteRow.append(muteLabel, mute);
     node.appendChild(muteRow);
