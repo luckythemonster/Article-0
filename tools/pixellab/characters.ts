@@ -12,16 +12,20 @@ import type { CharacterSpec } from "./pipeline";
 export const PLAYER: CharacterSpec = {
   id: "player",
   /**
-   * 48, matching PixelLab character `17c7f0e3-796b-47f9-9371-3761e53a09c8`'s
+   * 36, matching PixelLab character `7b4ca7b4-7da9-4e10-8442-0d8f102619ce`'s
    * own native size exactly — this design is *adopted*, not redrawn, so its
    * pixel density is whatever it already is.
    *
-   * `(32 * 1.5) / 48 * 2` = exactly 2: two screen pixels per source pixel,
-   * still a whole number so the art stays crisp, just chunkier than the
-   * previous 96-canvas take (net factor 1). That's the point — the brief was
-   * a lower-resolution sprite, not a same-resolution reskin.
+   * A previous adoption (character `17c7f0e3-...`, canvas 48) left
+   * `PLAYER_DISPLAY_TILES` at its old value of 1.5 unchanged, which happened to
+   * satisfy the whole-number rule but rendered the body at ~85% of its 48px
+   * canvas — nearly double the ~46px-tall footprint the sprite had before that
+   * swap. `displayTiles` is a pure scale knob, not art, so it has to be
+   * re-picked per character rather than carried over: see
+   * `PLAYER_DISPLAY_TILES` in `src/entities/PlayerAnimations.ts` for the
+   * recalibrated value and the arithmetic that goes with this canvas.
    */
-  canvas: 48,
+  canvas: 36,
   templateId: "mannequin",
   view: "high top-down",
 
@@ -34,7 +38,7 @@ export const PLAYER: CharacterSpec = {
        * one) is a reinterpretation; this is the design itself. The character
        * already carries all 8 rotations.
        */
-      source: { from: "existing", characterId: "17c7f0e3-796b-47f9-9371-3761e53a09c8" },
+      source: { from: "existing", characterId: "7b4ca7b4-7da9-4e10-8442-0d8f102619ce" },
     },
     {
       // Derived from the standing sheet rather than generated separately, so the
@@ -76,9 +80,15 @@ export const PLAYER: CharacterSpec = {
    * Neither crouched action asks for breathing. Requesting it produced a visible
    * effect drawn around the head — a puff, then a spiked halo — rather than a
    * shift in the shoulders. A held crouch reads as settled because of the pose.
+   *
+   * This character's idle dropped "breathing" for the same reason: at this
+   * character's native 36px canvas it consistently drew a small pale blob
+   * floating just above the head, detached from the body — the same artifact,
+   * not a coincidence — and no amount of re-rolling individual directions made
+   * it go away, because the word itself was producing it every time.
    */
   anims: [
-    { name: "idle", sheet: "standing", action: "standing still, breathing, weight shifting slightly", frameCount: 4, keepFirstFrame: false },
+    { name: "idle", sheet: "standing", action: "standing still, relaxed, weight shifting slightly", frameCount: 4, keepFirstFrame: false },
     { name: "walk", sheet: "standing", action: "walking forward at a steady pace", frameCount: 4, keepFirstFrame: false },
     { name: "run", sheet: "standing", action: "running forward urgently, leaning into the stride", frameCount: 4, keepFirstFrame: false },
     { name: "crouch", sheet: "crouched", action: "holding a deep low crouch the entire time, never rising or straightening, staying at the same low height throughout", frameCount: 4, keepFirstFrame: false, endFrameSheet: "crouched" },

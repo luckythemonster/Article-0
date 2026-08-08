@@ -1,8 +1,8 @@
 import { type Dir8 } from "./directions";
 /**
  * Frame manifest for the player character sprite (PixelLab.ai character
- * `17c7f0e3-796b-47f9-9371-3761e53a09c8`, "Rowan Ibarra" — high top-down,
- * 48x48, 8-direction template, adopted as-is). All 8 directions were exported
+ * `7b4ca7b4-7da9-4e10-8442-0d8f102619ce`, "Rowan Ibarra" — high top-down,
+ * 36x36, 8-direction template, adopted as-is). All 8 directions were exported
  * per animation, so the sprite's facing matches the free 8-directional
  * movement exactly (no cardinal snapping).
  *
@@ -32,23 +32,30 @@ export type PlayerAnimName =
  * `displaySize / PLAYER_SOURCE_SIZE`, and the game camera runs at 2x zoom, so
  * the number of screen pixels one source pixel covers is:
  *
- *     (tileSize * 1.5) / PLAYER_SOURCE_SIZE * zoom  =  48 / 48 * 2  =  2
+ *     (tileSize * PLAYER_DISPLAY_TILES) / PLAYER_SOURCE_SIZE * zoom
+ *       = (32 * 1.125) / 36 * 2  =  2
  *
  * A whole number, so every source pixel lands on an even 2x2 block of screen
- * pixels and the art is never resampled — the same rule as always, just at a
- * different (intentionally lower) source resolution: 48 is the native size of
- * the PixelLab character this sprite was built from, adopted as-is rather than
- * redrawn to a finer canvas. Any non-whole result breaks the rule: the frames
- * used to be 88x88, which worked out to 1.0909 screen pixels per source pixel,
- * and with `pixelArt: true` (nearest-neighbour) that meant most pixels got one
- * screen pixel while every eleventh got two, with `roundPixels` re-snapping the
+ * pixels and the art is never resampled. 36 is this PixelLab character's
+ * native size, adopted as-is rather than redrawn to a finer canvas — but
+ * `PLAYER_DISPLAY_TILES` was *not* carried over unchanged from the previous
+ * character: it was recalibrated (1.5 -> 1.125) so the body's on-screen
+ * footprint lands near its historical size rather than whatever the new
+ * canvas happens to produce at the old display size. `displayTiles` is a pure
+ * scale knob, not art, and has to be re-picked per character — see the canvas
+ * comment on `PLAYER` in `tools/pixellab/characters.ts` for the fuller story.
+ *
+ * Any non-whole result breaks the rule: the frames used to be 88x88, which
+ * worked out to 1.0909 screen pixels per source pixel, and with
+ * `pixelArt: true` (nearest-neighbour) that meant most pixels got one screen
+ * pixel while every eleventh got two, with `roundPixels` re-snapping the
  * whole grid as the camera panned — the character read as a smudge no matter
  * how well it was drawn.
  *
  * So: if this changes, the frames on disk must change with it, and the product
  * with the display size and the camera zoom must stay a whole number.
  */
-export const PLAYER_SOURCE_SIZE = 48;
+export const PLAYER_SOURCE_SIZE = 36;
 
 /**
  * Display height as a multiple of tile size.
@@ -56,7 +63,7 @@ export const PLAYER_SOURCE_SIZE = 48;
  * Paired with {@link PLAYER_SOURCE_SIZE} above: together they are what make the
  * scale come out whole. See `src/render/pixelScale.ts`.
  */
-export const PLAYER_DISPLAY_TILES = 1.5;
+export const PLAYER_DISPLAY_TILES = 1.125;
 
 /** Frame count per animation (same across all 8 directions). */
 export const PLAYER_ANIM_FRAME_COUNTS: Record<PlayerAnimName, number> = {
