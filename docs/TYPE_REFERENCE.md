@@ -159,11 +159,12 @@ below) modulate sweep speed, steam, and thermal behaviour on the boss side.
 
 #### `CONSUMABLE_ORDER` — const
 
-`src/systems/EntityStats.ts:576`
+`src/systems/EntityStats.ts:587`
 
-The consumables that map to hotkeys [1]–[4], in canonical slot order. Held
-consumables fill slots dynamically (unheld names are skipped), so e.g. a
-player holding only Thermal Gel + Medkit sees them as [1] and [2].
+The consumables selectable through the item cursor, in canonical display
+order. Held consumables fill the list dynamically (unheld names are
+skipped), so e.g. a player holding only Thermal Gel + Medkit sees just
+those two, in that order.
 
 ```ts
 const CONSUMABLE_ORDER = [ CHAFF_PACK_ITEM, THERMAL_GEL_ITEM, RATION_PACK_ITEM, BATTERY_ITEM, STUN_ROUNDS_ITEM, SACK_LUNCH_ITEM, ] as const;
@@ -200,7 +201,7 @@ const MANUAL_SLOTS = ["1", "2", "3"] as const;
 Registry keys scoped to a single infiltration; cleared when a new one begins.
 
 ```ts
-const RUN_KEYS = [ "inventory", "staplerFieldCharges", "objectives", "journal", "explored", "playTimeMs", "detection", "alertPhase", "radar", "alertNetwork", "playerHp", "sharedField", "activeItems", "vent4", "vent4State", "vent4Transmit", "smac", "smacState", "relay", "relayState", "conductMetrics", "pauseRequest", "mapSnapshot", SUSPENDED_KEY, ] as const;
+const RUN_KEYS = [ "inventory", "selectedConsumable", "staplerFieldCharges", "objectives", "journal", "explored", "playTimeMs", "detection", "alertPhase", "radar", "alertNetwork", "playerHp", "sharedField", "activeItems", "vent4", "vent4State", "vent4Transmit", "smac", "smacState", "relay", "relayState", "conductMetrics", "pauseRequest", "mapSnapshot", SUSPENDED_KEY, ] as const;
 ```
 
 <a id="const-terminal-defaults"></a>
@@ -765,13 +766,13 @@ Snapshot published to the registry for the HUD and the codec.
 
 #### `ConsumableSlot` — interface
 
-`src/systems/EntityStats.ts:615`
+`src/systems/EntityStats.ts:626`
 
-One occupied consumable hotkey slot.
+One held, distinct consumable type, with its position in the display list.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `slot` | `number` | Hotkey number, 1..MAX_CONSUMABLES. |
+| `slot` | `number` | 1-based position in the held-consumables list, for display only. |
 | `name` | `string` | The consumable item name. |
 | `count` | `number` | How many of it are held. |
 
@@ -1180,6 +1181,7 @@ The player's wave adds an exponential-decay envelope (the DAMPING control).
 | `maxHp` | `number` | Full bio-integrity (health). |
 | `captureRadius` | `number` | Tiles: a silicate this close, with line of sight, during a full alert seizes you. |
 | `captureTime` | `number` | Seconds cornered before the capture (Alignment) completes. |
+| `deathHold` | `number` | Seconds the run holds after bio-integrity reaches zero, before the outcome screen. `endRun` stops the HUD scene the same frame it is called, so without this the flatline on the bio-integrity dial renders once and is gone — an entire death state nobody ever sees. Input is already dead through the hold, so it costs the player a beat and buys the one moment the readout exists for. |
 | `hazardDamage` | `number` | Bio-integrity lost per hazard hit (e.g. a laser). |
 | `hitCooldown` | `number` | Seconds of invulnerability after taking a hit. |
 
@@ -1366,7 +1368,7 @@ Unit ray directions, split into parallel arrays so casting allocates nothing.
 
 #### `RelayStats` — interface
 
-`src/systems/EntityStats.ts:836`
+`src/systems/EntityStats.ts:850`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1540,7 +1542,7 @@ Serializable mid-fight state, so re-entering the level doesn't restart the boss.
 
 #### `SmacStats` — interface
 
-`src/systems/EntityStats.ts:764`
+`src/systems/EntityStats.ts:778`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1737,7 +1739,7 @@ Serializable fight progress — kept in the registry across level swaps.
 
 #### `Vent4Stats` — interface
 
-`src/systems/EntityStats.ts:640`
+`src/systems/EntityStats.ts:654`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3838,7 +3840,7 @@ each frame.
 | `create` | `create(): void` |  |
 | `update` | `update(_time: number, delta: number): void` |  |
 
-*Plus 128 private members.*
+*Plus 130 private members.*
 
 <a id="class-noiseevents"></a>
 
@@ -4269,7 +4271,7 @@ type OverlayId = "pause" | "codec" | "compliance" | "qualia";
 
 #### `Target` — type *(module-private)*
 
-`src/scenes/GameScene.ts:1212`
+`src/scenes/GameScene.ts:1234`
 
 ```ts
 type Target = { x: number; y: number; kind: "cover"; cover: Cover } | { x: number; y: number; kind: "orderly"; orderly: Orderly };
@@ -4322,7 +4324,7 @@ the camera zoom doesn't scale it (same pattern as `Hud`).
 
 #### `BioMonitor` — class
 
-`src/ui/BioMonitor.ts:63`
+`src/ui/BioMonitor.ts:64`
 
 Rowan's bio-integrity, as an EKG bent into a dial.
 
@@ -4473,18 +4475,19 @@ UIScene.
 
 #### `InventoryHud` — class
 
-`src/ui/InventoryHud.ts:22`
+`src/ui/InventoryHud.ts:23`
 
 A compact inventory readout pinned to the bottom-right of the screen, in three
-sections: the held CONSUMABLES mapped to hotkeys [1]–[4] (with counts and, for
-timed buffs, their remaining duration), the flashlight EQUIPMENT state, and
-passive KEY ITEMS. Purely a display — it reads the inventory/active-item state
-the scene publishes to the registry; GameScene owns spending the items.
+sections: the held CONSUMABLES (with counts and, for timed buffs, their
+remaining duration) with a cursor (▸) on whichever one `,`/`.` has selected
+and `Enter` would use, the flashlight EQUIPMENT state, and passive KEY ITEMS.
+Purely a display — it reads the inventory/active-item/selection state the
+scene publishes to the registry; GameScene owns spending the items.
 
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `constructor` | `constructor(scene: Phaser.Scene)` |  |
-| `update` | `update(items: string[], active: ActiveItemsView): void` |  |
+| `update` | `update(items: string[], active: ActiveItemsView, selected: string \| undefined): void` |  |
 
 *Plus 2 private members.*
 
@@ -5067,7 +5070,7 @@ all of which already expose public `x`/`y`.
 
 #### `TraceState` — interface
 
-`src/ui/ekg.ts:158`
+`src/ui/ekg.ts:185`
 
 The sweep's ring buffer.
 
@@ -5282,7 +5285,7 @@ GameScene.
 | [Args](#interface-args) | interface | `src/tools/collider/generate.ts:28` |
 | [AudioDirector](#class-audiodirector) | class | `src/systems/AudioDirector.ts:26` |
 | [BinaryHeap](#class-binaryheap) | class | `src/systems/Pathfinder.ts:277` |
-| [BioMonitor](#class-biomonitor) | class | `src/ui/BioMonitor.ts:63` |
+| [BioMonitor](#class-biomonitor) | class | `src/ui/BioMonitor.ts:64` |
 | [BlockedAt](#type-blockedat) | type | `src/map/TileBake.ts:42` |
 | [BootScene](#class-bootscene) | class | `src/main.ts:40` |
 | [BossCore](#class-bosscore) | class | `src/entities/BossCore.ts:64` |
@@ -5309,8 +5312,8 @@ GameScene.
 | [ConductState](#class-conductstate) | class | `src/systems/Conduct.ts:112` |
 | [ConductView](#interface-conductview) | interface | `src/systems/Conduct.ts:246` |
 | [ConeStyle](#interface-conestyle) | interface | `src/ui/VisionCone.ts:28` |
-| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:576` |
-| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:615` |
+| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:587` |
+| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:626` |
 | [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:13` |
 | [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:35` |
 | [Cover](#class-cover) | class | `src/entities/Cover.ts:17` |
@@ -5385,7 +5388,7 @@ GameScene.
 | [HoldTarget](#class-holdtarget) | class | `src/entities/HoldTarget.ts:35` |
 | [Hud](#class-hud) | class | `src/ui/Hud.ts:24` |
 | [InputState](#interface-inputstate) | interface | `src/entities/Player.ts:297` |
-| [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:22` |
+| [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:23` |
 | [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:137` |
 | [ItemInfo](#interface-iteminfo) | interface | `src/systems/ItemCatalog.ts:48` |
 | [JournalEntry](#interface-journalentry) | interface | `src/systems/Journal.ts:43` |
@@ -5475,7 +5478,7 @@ GameScene.
 | [RelayMsg](#interface-relaymsg) | interface | `src/systems/RelayCore.ts:46` |
 | [RelaySnapshot](#interface-relaysnapshot) | interface | `src/systems/RelayCore.ts:40` |
 | [RelayState](#enum-relaystate) | enum | `src/systems/RelayCore.ts:18` |
-| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:836` |
+| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:850` |
 | [RelayTickResult](#interface-relaytickresult) | interface | `src/entities/RoofRelay.ts:56` |
 | [RelayTransition](#interface-relaytransition) | interface | `src/systems/RelayCore.ts:35` |
 | [RelayView](#interface-relayview) | interface | `src/systems/RelayCore.ts:55` |
@@ -5505,7 +5508,7 @@ GameScene.
 | [SmacMsg](#interface-smacmsg) | interface | `src/systems/SmacCore.ts:72` |
 | [SmacSnapshot](#interface-smacsnapshot) | interface | `src/systems/SmacCore.ts:63` |
 | [SmacState](#enum-smacstate) | enum | `src/systems/SmacCore.ts:38` |
-| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:764` |
+| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:778` |
 | [SmacTickResult](#interface-smactickresult) | interface | `src/entities/BossCore.ts:56` |
 | [SmacTransition](#interface-smactransition) | interface | `src/systems/SmacCore.ts:57` |
 | [SmacView](#interface-smacview) | interface | `src/systems/SmacCore.ts:94` |
@@ -5521,13 +5524,13 @@ GameScene.
 | [SurrenderAim](#class-surrenderaim) | class | `src/systems/Surrender.ts:187` |
 | [SurrenderResult](#interface-surrenderresult) | interface | `src/systems/Surrender.ts:61` |
 | [SurrenderWorld](#interface-surrenderworld) | interface | `src/systems/Surrender.ts:33` |
-| [Target](#type-target) | type | `src/scenes/GameScene.ts:1212` |
+| [Target](#type-target) | type | `src/scenes/GameScene.ts:1234` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:16` |
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:199` |
 | [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:190` |
 | [TilePos](#interface-tilepos) | interface | `src/map/generate.ts:115` |
 | [TitleScene](#class-titlescene) | class | `src/scenes/TitleScene.ts:12` |
-| [TraceState](#interface-tracestate) | interface | `src/ui/ekg.ts:158` |
+| [TraceState](#interface-tracestate) | interface | `src/ui/ekg.ts:185` |
 | [Transition](#interface-transition) | interface | `src/map/types.ts:257` |
 | [TransitionGraph](#class-transitiongraph) | class | `src/systems/TransitionGraph.ts:27` |
 | [TransitionKind](#type-transitionkind) | type | `src/map/types.ts:254` |
@@ -5546,7 +5549,7 @@ GameScene.
 | [Vent4PhysicsSystem](#class-vent4physicssystem) | class | `src/systems/Vent4PhysicsSystem.ts:63` |
 | [Vent4Snapshot](#interface-vent4snapshot) | interface | `src/systems/Vent4Core.ts:34` |
 | [Vent4State](#enum-vent4state) | enum | `src/systems/Vent4Core.ts:17` |
-| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:640` |
+| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:654` |
 | [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:46` |
 | [Vent4Transition](#interface-vent4transition) | interface | `src/systems/Vent4Core.ts:28` |
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |

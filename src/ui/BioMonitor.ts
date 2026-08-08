@@ -3,6 +3,7 @@ import {
   advanceTrace,
   beatsPerMinute,
   createTrace,
+  flatlinePulse,
   traceAngle,
   traceColor,
   type TraceState,
@@ -130,7 +131,11 @@ export class BioMonitor {
     advanceTrace(this.trace, deltaMs / 1000, frac);
 
     const color = traceColor(frac);
-    this.draw(color);
+    // Flatlined, not merely critical: the alarm is for a heart that has stopped, and
+    // it must not start throbbing while there is still one to read.
+    const flatlined = frac <= 0;
+    const pulse = flatlined ? flatlinePulse(performance.now()) : 1;
+    this.draw(color, flatlined ? pulse : null);
 
     const bpm = frac > 0 ? `${Math.round(beatsPerMinute(frac))}` : "---";
     if (bpm !== this.lastBpm) {
@@ -143,6 +148,11 @@ export class BioMonitor {
       this.bpmUnit.setColor(hex);
       this.lastColor = color;
     }
+    // The readout alarms with the ring rather than sitting steady inside it — half a
+    // pulsing instrument reads as a rendering bug, not as an alarm. Set every frame
+    // (unlike the text and colour, which are memoised) because it changes every frame.
+    this.bpmValue.setAlpha(pulse);
+    this.bpmUnit.setAlpha(pulse);
   }
 
   /** Screen position of sample `i`, at its amplitude. */
@@ -164,8 +174,16 @@ export class BioMonitor {
    * A `NaN` sample is the erase gap ahead of the head and ends the current sub-path;
    * stroking through it would draw a chord back across the dial to whatever the
    * previous revolution left there.
+   *
+   * @param pulse when flatlined, the alarm alpha every band takes instead of the age
+   *   ramp — `null` while there is still a heartbeat. The fade describes a sweep:
+   *   where the head is and which way it went. A flat trace has no such structure for
+   *   it to describe, so keeping the ramp there would leave a ring that both fades and
+   *   throbs and reads as neither. Overriding it makes dead and alive differ in shape
+   *   rather than only in colour. The erase gap still breaks the ring, so the machine
+   *   is visibly still sweeping and still finding nothing.
    */
-  private draw(color: number): void {
+  private draw(color: number, pulse: number | null): void {
     const g = this.graphics;
     const n = this.trace.samples.length;
     const head = Math.floor(this.trace.cursor);
@@ -177,6 +195,7 @@ export class BioMonitor {
     const perBand = n / FADE_BANDS;
     for (let band = FADE_BANDS - 1; band >= 0; band--) {
       const alpha =
+        pulse ??
         FADE_NEWEST - ((FADE_NEWEST - FADE_OLDEST) * band) / Math.max(1, FADE_BANDS - 1);
       g.lineStyle(1, color, alpha);
 
