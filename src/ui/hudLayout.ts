@@ -44,3 +44,29 @@ export const ENCOUNTER_TOP =
 export const ENCOUNTER_BAR_TOP = ENCOUNTER_TOP + 18;
 export const ENCOUNTER_STATUS_TOP = ENCOUNTER_TOP + 30;
 export const ENCOUNTER_BANNER_TOP = ENCOUNTER_TOP + 46;
+
+/**
+ * The top-left status column, below the phase heading.
+ *
+ * Same problem as the directive above, one column over. `Hud` owns the SRP meter and
+ * the bio-integrity readout; `AlertNetworkHud` is a separate widget that has to start
+ * underneath them and cannot see them. It used to carry a hardcoded `pad + 118`
+ * annotated "below the SRP meter + bio-integrity bar" — correct only for as long as
+ * nothing above it changed height, which is precisely what happened when that bar
+ * became an EKG trace and grew by 18px.
+ *
+ * All offsets are from the HUD's 12px pad, which is the origin every widget in this
+ * column already uses.
+ */
+
+/** Heading of the bio-integrity readout. */
+export const BIO_LABEL_TOP = 80;
+
+/** Drop from that heading to the top of the framed trace window. */
+export const BIO_FRAME_TOP = 16;
+
+/** Height of the framed trace window itself. */
+export const BIO_FRAME_HEIGHT = 28;
+
+/** First y below the status column that another widget may claim. */
+export const STATUS_STACK_BOTTOM = BIO_LABEL_TOP + BIO_FRAME_TOP + BIO_FRAME_HEIGHT + 12;

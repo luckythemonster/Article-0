@@ -70,16 +70,21 @@ export class UIScene extends Phaser.Scene {
     this.itemKeys = [K.ONE, K.TWO, K.THREE, K.FOUR].map((c) => this.input.keyboard!.addKey(c));
   }
 
-  update(): void {
+  update(_time: number, delta: number): void {
     this.alertView.phase = (this.registry.get("alertPhase") as AlertPhase) ?? "INFILTRATION";
     const detection = (this.registry.get("detection") as number) ?? 0;
     const hp = (this.registry.get("playerHp") as number | undefined) ?? 0;
     const maxHp = (this.registry.get("playerMaxHp") as number | undefined) ?? 1;
+    // The EKG is the one HUD piece that animates on its own rather than off published
+    // state, so it needs the clock — and needs it stopped while an overlay owns the
+    // screen. This scene keeps updating behind the pause menu and both minigames; a
+    // heart beating there would say the run is still going when it is not.
     this.hud.update(
       this.alertView,
       detection,
       hp,
       maxHp,
+      isSuspended(this.registry) ? 0 : delta,
       this.registry.get("conduct") as ConductView | undefined,
     );
 

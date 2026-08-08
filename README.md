@@ -566,7 +566,7 @@ in real seconds so the balance they encode keeps its meaning.
 5. **The game loop & the fiction** — done: title / EIRA-7 codec / pause /
    outcome scenes, the four-act run (both log-cache nodes, VENT-4, NW-SMAC-01,
    the rooftop relay) ending on the Alignment Tribunal, a lose (Alignment /
-   capture), player bio-integrity, the SRP-framed HUD,
+   capture), player bio-integrity on an EKG trace, the SRP-framed HUD,
    multi-slot saves + continue, synthesised adaptive audio, the **Shared
    Field (WX-9)** capstone, and the nine-tab **pause menu** — with the journal
    and index that give the run's vocabulary and its argument somewhere to live.
