@@ -12,42 +12,29 @@ import type { CharacterSpec } from "./pipeline";
 export const PLAYER: CharacterSpec = {
   id: "player",
   /**
-   * 96 is what makes the player's display scale exactly 0.5, so at the camera's
-   * 2x zoom one source pixel covers exactly one screen pixel and the art is
-   * never resampled. See `PLAYER_SOURCE_SIZE` in
-   * `src/entities/PlayerAnimations.ts` for the full arithmetic.
+   * 48, matching PixelLab character `17c7f0e3-796b-47f9-9371-3761e53a09c8`'s
+   * own native size exactly — this design is *adopted*, not redrawn, so its
+   * pixel density is whatever it already is.
    *
-   * This stays 96 across the second redesign below — the footprint didn't
-   * change, only the reference art did, so none of this arithmetic moves.
+   * `(32 * 1.5) / 48 * 2` = exactly 2: two screen pixels per source pixel,
+   * still a whole number so the art stays crisp, just chunkier than the
+   * previous 96-canvas take (net factor 1). That's the point — the brief was
+   * a lower-resolution sprite, not a same-resolution reskin.
    */
-  canvas: 96,
+  canvas: 48,
   templateId: "mannequin",
   view: "high top-down",
 
   sheets: [
     {
       name: "standing",
-      source: {
-        from: "reference",
-        displayName: "Rowan Ibarra",
-        /**
-         * Matches the prompt on PixelLab character `17c7f0e3-796b-47f9-9371-3761e53a09c8`,
-         * a design picked directly off the PixelLab site in place of the original
-         * generated candidate. That character is native 48x48 with a 33px-tall
-         * body — too small a multiple of itself to hit this project's ~46px
-         * on-screen body height at any whole pixel-scale factor, so the `south`
-         * reference was redrawn up to 70px via one `/resize` call before being
-         * rotated here (a single-image redraw, not a full-set rescale — see
-         * `rescale.ts` for when that heavier tool is the right one instead).
-         * 70px was reached by measuring the redraw's body bbox and iterating
-         * (68 -> 43px, 73 -> 50px, 70 -> 46px, matching the original footprint
-         * exactly).
-         */
-        description:
-          "Rowan Ibarra, a weary human orderly in a Commonwealth self-model alignment center. Pale " +
-          "bone-white and light grey jumpsuit with dark charcoal harness straps, bright cyan " +
-          "interface cables, badge NW-ORD-3A on the chest, strong value contrast, crisp black outline.",
-      },
+      /**
+       * Adopted exactly as it exists on PixelLab — no rotation call, no
+       * redraw. The brief was "use this one", and a redraw (even a faithful
+       * one) is a reinterpretation; this is the design itself. The character
+       * already carries all 8 rotations.
+       */
+      source: { from: "existing", characterId: "17c7f0e3-796b-47f9-9371-3761e53a09c8" },
     },
     {
       // Derived from the standing sheet rather than generated separately, so the

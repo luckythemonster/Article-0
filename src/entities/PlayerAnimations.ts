@@ -1,9 +1,10 @@
 import { type Dir8 } from "./directions";
 /**
- * Frame manifest for the player character sprite (generated via PixelLab.ai,
- * "Rowan Ibarra" — high top-down, 96x96, 8-direction template). All 8
- * directions were exported per animation, so the sprite's facing matches the
- * free 8-directional movement exactly (no cardinal snapping).
+ * Frame manifest for the player character sprite (PixelLab.ai character
+ * `17c7f0e3-796b-47f9-9371-3761e53a09c8`, "Rowan Ibarra" — high top-down,
+ * 48x48, 8-direction template, adopted as-is). All 8 directions were exported
+ * per animation, so the sprite's facing matches the free 8-directional
+ * movement exactly (no cardinal snapping).
  *
  * idle/walk/run come from the standing "Rowan Ibarra" character; crouch and
  * crouch-walk come from a crouched state of that same character (same rig,
@@ -31,20 +32,23 @@ export type PlayerAnimName =
  * `displaySize / PLAYER_SOURCE_SIZE`, and the game camera runs at 2x zoom, so
  * the number of screen pixels one source pixel covers is:
  *
- *     (tileSize * 1.5) / PLAYER_SOURCE_SIZE * zoom  =  48 / 96 * 2  =  1
+ *     (tileSize * 1.5) / PLAYER_SOURCE_SIZE * zoom  =  48 / 48 * 2  =  2
  *
- * Exactly 1. Every source pixel lands on exactly one screen pixel, and the art
- * is never resampled. Any other canvas size breaks that: the frames used to be
- * 88x88, which works out to 1.0909 screen pixels per source pixel, and with
- * `pixelArt: true` (nearest-neighbour) that means most pixels get one screen
- * pixel while every eleventh gets two. `roundPixels` then re-snaps the whole
- * grid as the camera pans, so the outline breaks up and interior detail crawls
- * — the character reads as a smudge no matter how well it is drawn.
+ * A whole number, so every source pixel lands on an even 2x2 block of screen
+ * pixels and the art is never resampled — the same rule as always, just at a
+ * different (intentionally lower) source resolution: 48 is the native size of
+ * the PixelLab character this sprite was built from, adopted as-is rather than
+ * redrawn to a finer canvas. Any non-whole result breaks the rule: the frames
+ * used to be 88x88, which worked out to 1.0909 screen pixels per source pixel,
+ * and with `pixelArt: true` (nearest-neighbour) that meant most pixels got one
+ * screen pixel while every eleventh got two, with `roundPixels` re-snapping the
+ * whole grid as the camera panned — the character read as a smudge no matter
+ * how well it was drawn.
  *
  * So: if this changes, the frames on disk must change with it, and the product
  * with the display size and the camera zoom must stay a whole number.
  */
-export const PLAYER_SOURCE_SIZE = 96;
+export const PLAYER_SOURCE_SIZE = 48;
 
 /**
  * Display height as a multiple of tile size.

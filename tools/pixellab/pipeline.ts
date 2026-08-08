@@ -63,11 +63,15 @@ export type Direction = (typeof DIRECTIONS)[number];
  * `reference` rotates a chosen south-facing sprite into eight directions.
  * `state` applies a text edit to another sheet's rotations, which keeps the rig,
  * outfit and palette identical — the way to get a crouched pose that cannot
- * drift away from the standing one it transitions to.
+ * drift away from the standing one it transitions to. `existing` adopts a
+ * character already sitting in the PixelLab account exactly as it is — no
+ * generation call at all — for when the brief is "use this design", not
+ * "draw something like it".
  */
 export type SheetSource =
   | { from: "reference"; description: string; displayName: string }
-  | { from: "state"; of: string; edit: string; stateName: string };
+  | { from: "state"; of: string; edit: string; stateName: string }
+  | { from: "existing"; characterId: string };
 
 export interface SheetSpec {
   /** Name animations refer to this sheet by. */
@@ -192,6 +196,13 @@ export async function run(spec: CharacterSpec, options: RunOptions): Promise<voi
 async function createSheets(spec: CharacterSpec, options: RunOptions, state: State): Promise<void> {
   for (const sheet of spec.sheets) {
     if (state.sheets[sheet.name]) continue;
+
+    if (sheet.source.from === "existing") {
+      console.log(`Adopting existing character ${sheet.source.characterId} for "${sheet.name}"...\n`);
+      state.sheets[sheet.name] = sheet.source.characterId;
+      writeState(options.statePath, state);
+      continue;
+    }
 
     let created: { background_job_id: string; character_id: string };
     if (sheet.source.from === "reference") {

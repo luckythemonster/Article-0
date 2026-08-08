@@ -28,8 +28,12 @@ describe("screenPixelsPerSourcePixel", () => {
 });
 
 describe("the shipped character sprites", () => {
-  it("renders the player one source pixel to one screen pixel", () => {
-    expect(screenPixelsPerSourcePixel(PLAYER_DISPLAY_TILES, PLAYER_SOURCE_SIZE)).toBe(1);
+  it("renders the player two screen pixels to one source pixel", () => {
+    // Deliberately chunkier than the others: the player's source art is
+    // adopted at its own native 48px rather than redrawn to a finer canvas,
+    // so its source pixels are visibly bigger on screen. Still a whole
+    // number, so still crisp — see PLAYER_SOURCE_SIZE.
+    expect(screenPixelsPerSourcePixel(PLAYER_DISPLAY_TILES, PLAYER_SOURCE_SIZE)).toBe(2);
   });
 
   it("renders the drone one source pixel to one screen pixel", () => {
