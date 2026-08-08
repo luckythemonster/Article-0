@@ -16,6 +16,9 @@ export const PLAYER: CharacterSpec = {
    * 2x zoom one source pixel covers exactly one screen pixel and the art is
    * never resampled. See `PLAYER_SOURCE_SIZE` in
    * `src/entities/PlayerAnimations.ts` for the full arithmetic.
+   *
+   * This stays 96 across the second redesign below — the footprint didn't
+   * change, only the reference art did, so none of this arithmetic moves.
    */
   canvas: 96,
   templateId: "mannequin",
@@ -27,11 +30,23 @@ export const PLAYER: CharacterSpec = {
       source: {
         from: "reference",
         displayName: "Rowan Ibarra",
+        /**
+         * Matches the prompt on PixelLab character `17c7f0e3-796b-47f9-9371-3761e53a09c8`,
+         * a design picked directly off the PixelLab site in place of the original
+         * generated candidate. That character is native 48x48 with a 33px-tall
+         * body — too small a multiple of itself to hit this project's ~46px
+         * on-screen body height at any whole pixel-scale factor, so the `south`
+         * reference was redrawn up to 70px via one `/resize` call before being
+         * rotated here (a single-image redraw, not a full-set rescale — see
+         * `rescale.ts` for when that heavier tool is the right one instead).
+         * 70px was reached by measuring the redraw's body bbox and iterating
+         * (68 -> 43px, 73 -> 50px, 70 -> 46px, matching the original footprint
+         * exactly).
+         */
         description:
-          "Rowan Ibarra, a weary human orderly aboard a Commonwealth station. Pale bone-white and " +
-          "light grey jumpsuit with dark charcoal harness straps, bright cyan interface cables, " +
-          "badge NW-ORD-3A on the chest, heavy slouched posture under high gravity, strong value " +
-          "contrast, crisp black outline.",
+          "Rowan Ibarra, a weary human orderly in a Commonwealth self-model alignment center. Pale " +
+          "bone-white and light grey jumpsuit with dark charcoal harness straps, bright cyan " +
+          "interface cables, badge NW-ORD-3A on the chest, strong value contrast, crisp black outline.",
       },
     },
     {
