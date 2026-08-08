@@ -80,9 +80,15 @@ export const PLAYER: CharacterSpec = {
    * Neither crouched action asks for breathing. Requesting it produced a visible
    * effect drawn around the head — a puff, then a spiked halo — rather than a
    * shift in the shoulders. A held crouch reads as settled because of the pose.
+   *
+   * This character's idle dropped "breathing" for the same reason: at this
+   * character's native 36px canvas it consistently drew a small pale blob
+   * floating just above the head, detached from the body — the same artifact,
+   * not a coincidence — and no amount of re-rolling individual directions made
+   * it go away, because the word itself was producing it every time.
    */
   anims: [
-    { name: "idle", sheet: "standing", action: "standing still, breathing, weight shifting slightly", frameCount: 4, keepFirstFrame: false },
+    { name: "idle", sheet: "standing", action: "standing still, relaxed, weight shifting slightly", frameCount: 4, keepFirstFrame: false },
     { name: "walk", sheet: "standing", action: "walking forward at a steady pace", frameCount: 4, keepFirstFrame: false },
     { name: "run", sheet: "standing", action: "running forward urgently, leaning into the stride", frameCount: 4, keepFirstFrame: false },
     { name: "crouch", sheet: "crouched", action: "holding a deep low crouch the entire time, never rising or straightening, staying at the same low height throughout", frameCount: 4, keepFirstFrame: false, endFrameSheet: "crouched" },
