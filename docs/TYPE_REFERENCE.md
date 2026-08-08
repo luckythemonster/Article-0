@@ -2133,14 +2133,14 @@ const DIRS_8 = [ "south", "south-east", "east", "north-east", "north", "north-we
 | Key | Value | Notes |
 | --- | --- | --- |
 | `source` | `"public/assets/player/idle/south/0.png"` |  |
-| `frameWidth` | `96` |  |
-| `frameHeight` | `96` |  |
+| `frameWidth` | `48` |  |
+| `frameHeight` | `48` |  |
 | `epsilon` | `2` |  |
 | `inset` | `0` |  |
-| `aabb` | `{ width: 27, height: 45, offsetX: 33, offsetY: 24 }` |  |
-| `polygon` | `[ { x: 45, y: 24 }, { x: 52, y: 26 }, { x: 52, y: 32 }, { x: 60, y: 45 }, { x: 59, y: 57 }, { x: 54, y: 62 }, { x: 58,…` |  |
-| `polygonFlat` | `[45, 24, 52, 26, 52, 32, 60, 45, 59, 57, 54, 62, 58, 67, 33, 67, 40, 64, 34, 56, 33, 45, 36, 34, 42, 31, 44, 25]` |  |
-| `matterPath` | `"45 24 52 26 52 32 60 45 59 57 54 62 58 67 33 67 40 64 34 56 33 45 36 34 42 31 44 25"` |  |
+| `aabb` | `{ width: 15, height: 33, offsetX: 16, offsetY: 8 }` |  |
+| `polygon` | `[ { x: 22, y: 8 }, { x: 27, y: 10 }, { x: 31, y: 24 }, { x: 28, y: 31 }, { x: 30, y: 41 }, { x: 26, y: 40 }, { x: 24, y…` |  |
+| `polygonFlat` | `[22, 8, 27, 10, 31, 24, 28, 31, 30, 41, 26, 40, 24, 32, 21, 40, 17, 41, 19, 31, 16, 29, 16, 23, 21, 9]` |  |
+| `matterPath` | `"22 8 27 10 31 24 28 31 30 41 26 40 24 32 21 40 17 41 19 31 16 29 16 23 21 9"` |  |
 
 ### Entities — Classes
 
@@ -3130,14 +3130,15 @@ type PersonAnomalyKind = "stunnedOrderly" | "pinnedOrderly" | "surrenderedOrderl
 
 #### `PlayerAnimName` — type
 
-`src/entities/PlayerAnimations.ts:18`
+`src/entities/PlayerAnimations.ts:19`
 
 **Module note** — the header comment on `src/entities/PlayerAnimations.ts`, which this declaration heads:
 
-Frame manifest for the player character sprite (generated via PixelLab.ai,
-"Rowan Ibarra" — high top-down, 96x96, 8-direction template). All 8
-directions were exported per animation, so the sprite's facing matches the
-free 8-directional movement exactly (no cardinal snapping).
+Frame manifest for the player character sprite (PixelLab.ai character
+`17c7f0e3-796b-47f9-9371-3761e53a09c8`, "Rowan Ibarra" — high top-down,
+48x48, 8-direction template, adopted as-is). All 8 directions were exported
+per animation, so the sprite's facing matches the free 8-directional
+movement exactly (no cardinal snapping).
 
 idle/walk/run come from the standing "Rowan Ibarra" character; crouch and
 crouch-walk come from a crouched state of that same character (same rig,
@@ -5451,7 +5452,7 @@ GameScene.
 | [PersonAnomalyKind](#type-personanomalykind) | type | `src/entities/Enforcer.ts:59` |
 | [Player](#class-player) | class | `src/entities/Player.ts:40` |
 | [PLAYER_IDLE_SOUTH_COLLIDER](#const-player-idle-south-collider) | const | `src/entities/generated/playerCollider.ts:32` |
-| [PlayerAnimName](#type-playeranimname) | type | `src/entities/PlayerAnimations.ts:18` |
+| [PlayerAnimName](#type-playeranimname) | type | `src/entities/PlayerAnimations.ts:19` |
 | [PlayerParams](#interface-playerparams) | interface | `src/systems/QualiaLock.ts:34` |
 | [PlayerStats](#interface-playerstats) | interface | `src/systems/EntityStats.ts:282` |
 | [Point](#interface-point) | interface | `src/tools/collider/rdp.ts:12` |

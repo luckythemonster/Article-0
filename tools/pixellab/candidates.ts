@@ -193,6 +193,91 @@ const SUBJECTS: Record<string, Subject> = {
       },
     ],
   },
+
+  /**
+   * The enforcer, reimagined — take two. The shipped design reads as a war
+   * machine (a Sandcrawler sentry, not a station officer), and the brief is
+   * "clinical bureaucracy": an institutional inspection unit, not a tank.
+   *
+   * The first pass (see git history) got the material right but lost the
+   * *stature* — every variant came back as a small wheeled/tracked vehicle,
+   * because nothing in the identity anchored scale or upright posture. This
+   * pass says so explicitly: same tall, heavy-torso proportions as the
+   * shipped sentry (imposing, roughly filling the frame the way it does
+   * today), gliding rather than rolling — a standing officer, not a car.
+   *
+   * The functional silhouette still can't change — a guard needs a rotating
+   * element on top for the patrol-scan cycle to sweep, which the vision cone's
+   * art is keyed to (`Enforcer.ts`: "what the patrol-scan art depicts") — so
+   * every variant keeps *a* swiveling scanner, just recast as office/inspection
+   * equipment instead of a weapon mount. Drawn directly at 72px, the
+   * enforcer's existing canvas — no resolution change, only the design.
+   */
+  enforcer: {
+    size: 72,
+    floor: [22, 26, 33],
+    identity:
+      "An imposing compliance-enforcement sentry patrolling a Commonwealth station, tall and " +
+      "upright with the same heavy-torso stature and imposing scale as a security guard robot — " +
+      "NOT a small vehicle, car, train, or rover, and no wheels or tracked treads visible: a tall " +
+      "boxy institutional torso gliding upright above the floor, with a rotating inspection arm " +
+      "mounted on top that sweeps back and forth scanning for violations. Top-down view, single " +
+      "object filling most of the frame, facing the viewer, portrait proportions (taller than wide).",
+    variants: [
+      {
+        id: "1-sterile-sentry",
+        intent: "Cream institutional plastic over a tall armoured-adjacent torso, hard red accents",
+        method: "fresh",
+        styling:
+          "Cream-white moulded panelling over a tall rigid torso shell, broad shoulders narrowing " +
+          "to a base, a rotating scanner wand tipped in warning red mounted where a camera-crown " +
+          "would sit, a small amber status screen on the chest, thin red regulatory stripe, no " +
+          "visible weaponry but unmistakably guard-sized.",
+        outline: "single color black outline",
+        shading: "basic shading",
+        detail: "medium detail",
+      },
+      {
+        id: "2-filing-tower",
+        intent: "Pale grey-green metal, tall and column-like — a standing filing tower with authority",
+        method: "fresh",
+        styling:
+          "Pale grey-green sheet-metal chassis shaped like a tall standing filing cabinet or server " +
+          "tower, a rotating stamped-badge arm on top with a blinking 'COMPLY' indicator light, " +
+          "rivet seams, no armour plating, bureaucratic rather than military bulk but still " +
+          "shoulder-height and imposing.",
+        outline: "single color black outline",
+        shading: "basic shading",
+        detail: "medium detail",
+      },
+      {
+        id: "3-clipboard-officer",
+        intent: "Off-white humanoid-proportioned torso with a clipboard-scanner arm — on-the-nose bureaucrat",
+        method: "fresh",
+        styling:
+          "Off-white chassis built on the same broad-shouldered, narrow-based torso silhouette as a " +
+          "sentry robot, pale blue accent panels, a large clipboard-shaped scanner plate on a " +
+          "swivel arm tipped with a red stamp, a small printed-form readout on the chest, soft " +
+          "rounded edges but a tall, guard-height frame.",
+        outline: "single color black outline",
+        shading: "flat shading",
+        detail: "low detail",
+      },
+      {
+        id: "4-barcode-warden",
+        intent: "Dark cream tall torso, a hot red scanner laser as the eye-catch in unlit rooms",
+        method: "fresh",
+        styling:
+          "Dark cream institutional torso, tall and rigid like the shipped sentry's armour but " +
+          "unarmoured, a rotating barcode-scanner wand throwing a thin bright red laser line from " +
+          "the top mount, a small chest screen showing a stern notice glyph, thin black-and-red " +
+          "hazard-tape trim for authority without armour.",
+        outline: "single color black outline",
+        shading: "basic shading",
+        detail: "low detail",
+      },
+    ],
+  },
 };
 
 async function main(): Promise<void> {

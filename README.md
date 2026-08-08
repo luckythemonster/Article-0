@@ -686,7 +686,7 @@ top-down templates) and pulled in via its API. The player's set is reproducible
 from the command line — see *Regenerating the player sprite* below; the other
 three were generated before that tooling existed.
 
-- **Player** ("Rowan Ibarra", 96x96) — idle/walk/run cycles in all 8
+- **Player** ("Rowan Ibarra", 48x48) — idle/walk/run cycles in all 8
   directions (`public/assets/player/`, manifest at
   `public/assets/player/manifest.json`). `PlayerAnimations.ts` maps that frame
   layout to Phaser animation keys; facing matches the free 8-directional
@@ -705,22 +705,31 @@ three were generated before that tooling existed.
   carried entirely by the art — the sprite is never squashed by a scale factor,
   for the reason in the next paragraph.
 
-The player's 96x96 frame size is load-bearing, not descriptive. The sprite is
+  The character itself is a specific design picked directly on pixellab.ai
+  ([character `17c7f0e3-...`](https://www.pixellab.ai/create-character/17c7f0e3-796b-47f9-9371-3761e53a09c8))
+  and adopted as-is — its 8 rotations are used unmodified, not redrawn or
+  regenerated, because the brief was "use this design," not "draw something
+  like it." Only the crouched state and the seven animation cycles are built on
+  top of it, the same way any character in this pipeline's `sheets`/`anims`
+  works (`tools/pixellab/characters.ts`).
+
+The player's 48x48 frame size is load-bearing, not descriptive. The sprite is
 drawn at `displaySize / PLAYER_SOURCE_SIZE`, and the camera runs at 2x zoom, so
-`48 / 96 * 2 = 1`: exactly one screen pixel per source pixel, and the art is
-never resampled. The frames used to be 88x88, which works out to 1.0909 screen
-pixels per source pixel — and with `pixelArt: true` (nearest-neighbour) that
-means most pixels get one screen pixel while every eleventh gets two, with
-`roundPixels` re-snapping the whole grid as the camera pans. The result was a
-broken-up outline and crawling interior detail: the character read as a smudge
-regardless of how well it was drawn. If any of the three numbers changes, their
-product must stay whole. The same reasoning is why crouching no longer scales
-the sprite to 0.8x — that put the art straight back onto a fractional factor.
+`48 / 48 * 2 = 2`: every source pixel covers an even 2x2 block of screen
+pixels, and the art is never resampled — deliberately chunkier than a 1:1
+ratio would give, because the adopted character's native resolution is lower
+than the sprite it replaced. That's the point of this design, not a
+regression: any pairing has to keep `(tileSize * displayTiles) / sourceSize *
+cameraZoom` a whole number or `pixelArt: true` (nearest-neighbour) starts
+resampling, and with `roundPixels` re-snapping the grid as the camera pans, a
+fractional ratio reads as a broken-up outline and crawling interior detail no
+matter how well the art is drawn. The frames used to be 88x88 (1.0909, not
+whole) and briefly 96x96 (a clean 1, but a redraw of the picked design rather
+than the design itself) before landing here.
 
 Display size is per sprite rather than one shared number, because "1.5 tiles"
-means different things for different art. The player and orderly are ~1.5 tiles
-tall; the guards are smaller, and deliberately. The player's 96x96 sheet is
-mostly padding, so Rowan's body is only ~0.5 tiles across; the guards' frames
+means different things for different art. The player and orderly are nominally
+~1.5 tiles tall; the guards are smaller, and deliberately. The guards' frames
 are nearly edge-to-edge robot, so at the same nominal size they
 were genuinely *wider than the doorways they patrol through*. The enforcer sits at
 1.15 tiles and the drone at 0.75 — see the collider note under *What's
@@ -812,28 +821,35 @@ wired up.
 `PIXELLAB_API_KEY` (never committed — get one at
 [pixellab.ai](https://www.pixellab.ai/)).
 
-Rotating and animating a character costs far more than drawing one frame of it,
-so the cheap step goes first. `npm run gen:candidates -- --out <dir>` draws
-several south-facing variants of the same character and lays them out on a
-contact sheet at 1x and 3x over a dark floor swatch — a sprite that has to read
-in unlit rooms cannot be judged against a white background, and 1x is the only
-size that tells you the truth.
+A character sheet's first rotation comes into being one of two ways, chosen per
+sheet in `tools/pixellab/characters.ts`'s `sheets[].source`:
 
-Then, with the winner:
+- **`from: "reference"`** rotates a hand-picked south-facing sprite into 8
+  directions. Rotating and animating a character costs far more than drawing
+  one frame of it, so the cheap step goes first: `npm run gen:candidates --
+  --out <dir>` draws several south-facing variants of the same character and
+  lays them out on a contact sheet at 1x and 3x over a dark floor swatch — a
+  sprite that has to read in unlit rooms cannot be judged against a white
+  background, and 1x is the only size that tells you the truth. Then, with the
+  winner: `PIXELLAB_API_KEY=... npm run gen:player -- --reference
+  <candidate>.png`.
+- **`from: "existing"`** adopts a character already sitting in the PixelLab
+  account by ID, exactly as it is — no generation call, no redraw. This is
+  what the player uses today: the design was picked directly on pixellab.ai
+  rather than drafted through `gen:candidates`, so the brief was "use this
+  one," and a redraw (even a faithful one) is a reinterpretation of it, not
+  the thing itself. Running `PIXELLAB_API_KEY=... npm run gen:player` with no
+  `--reference` is enough — the character ID lives in the spec.
 
-```
-PIXELLAB_API_KEY=... npm run gen:player -- --reference <candidate>.png
-npm run gen:colliders
-```
-
-`generate-player.ts` rotates the reference into 8 directions, derives a crouched
-state from that same character, generates all seven animations at the frame
-counts `PLAYER_ANIM_FRAME_COUNTS` expects, and re-canvases every frame onto the
-fixed 96x96 square. That last step crops through a *single* bounding box shared
-by the whole set rather than each frame's own — cropping per frame would
-re-centre the character on every tick and destroy the walk cycle's weight shift.
-It only ever crops and pads; if the art does not fit, it throws instead of
-scaling.
+Either way, `generate-player.ts` (or any other `main(SPEC)` entry point) then
+derives a crouched state from that sheet, generates all seven animations at
+the frame counts `PLAYER_ANIM_FRAME_COUNTS` expects, and re-canvases every
+frame onto the fixed 48x48 square. That last step crops through a *single*
+bounding box shared by the whole set rather than each frame's own — cropping
+per frame would re-centre the character on every tick and destroy the walk
+cycle's weight shift. It only ever crops and pads; if the art does not fit, it
+throws instead of scaling. Afterwards, always run `npm run gen:colliders` —
+see below.
 
 Generation is slow and costs credits, so progress is checkpointed to a state
 file after each completed unit of work. Re-running resumes rather than

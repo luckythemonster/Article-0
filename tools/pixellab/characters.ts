@@ -12,27 +12,29 @@ import type { CharacterSpec } from "./pipeline";
 export const PLAYER: CharacterSpec = {
   id: "player",
   /**
-   * 96 is what makes the player's display scale exactly 0.5, so at the camera's
-   * 2x zoom one source pixel covers exactly one screen pixel and the art is
-   * never resampled. See `PLAYER_SOURCE_SIZE` in
-   * `src/entities/PlayerAnimations.ts` for the full arithmetic.
+   * 48, matching PixelLab character `17c7f0e3-796b-47f9-9371-3761e53a09c8`'s
+   * own native size exactly — this design is *adopted*, not redrawn, so its
+   * pixel density is whatever it already is.
+   *
+   * `(32 * 1.5) / 48 * 2` = exactly 2: two screen pixels per source pixel,
+   * still a whole number so the art stays crisp, just chunkier than the
+   * previous 96-canvas take (net factor 1). That's the point — the brief was
+   * a lower-resolution sprite, not a same-resolution reskin.
    */
-  canvas: 96,
+  canvas: 48,
   templateId: "mannequin",
   view: "high top-down",
 
   sheets: [
     {
       name: "standing",
-      source: {
-        from: "reference",
-        displayName: "Rowan Ibarra",
-        description:
-          "Rowan Ibarra, a weary human orderly aboard a Commonwealth station. Pale bone-white and " +
-          "light grey jumpsuit with dark charcoal harness straps, bright cyan interface cables, " +
-          "badge NW-ORD-3A on the chest, heavy slouched posture under high gravity, strong value " +
-          "contrast, crisp black outline.",
-      },
+      /**
+       * Adopted exactly as it exists on PixelLab — no rotation call, no
+       * redraw. The brief was "use this one", and a redraw (even a faithful
+       * one) is a reinterpretation; this is the design itself. The character
+       * already carries all 8 rotations.
+       */
+      source: { from: "existing", characterId: "17c7f0e3-796b-47f9-9371-3761e53a09c8" },
     },
     {
       // Derived from the standing sheet rather than generated separately, so the
@@ -43,9 +45,19 @@ export const PLAYER: CharacterSpec = {
         from: "state",
         of: "standing",
         stateName: "crouched",
+        /**
+         * "Deeply", "dramatically", "much shorter than standing" is deliberate
+         * repetition, not padding. A first attempt at this character's crouch
+         * (5px shorter than standing, 15%) was too subtle a pose for the
+         * animation model to hold — cycles kept drifting back toward the
+         * standing height mid-loop even with `endFrameSheet` anchoring them.
+         * Asking for an unambiguously lower silhouette here is what the
+         * animation step actually needs to have something to hold onto.
+         */
         edit:
-          "crouched low to the ground, knees deeply bent, torso lowered and compact, head tucked " +
-          "down, sneaking stance",
+          "crouching very low to the ground in a deep sneak, knees sharply bent, torso dropped " +
+          "dramatically lower than standing height, head tucked well down, weight low and centred — " +
+          "much shorter than the standing pose, not a slight lean",
       },
     },
   ],
@@ -69,8 +81,8 @@ export const PLAYER: CharacterSpec = {
     { name: "idle", sheet: "standing", action: "standing still, breathing, weight shifting slightly", frameCount: 4, keepFirstFrame: false },
     { name: "walk", sheet: "standing", action: "walking forward at a steady pace", frameCount: 4, keepFirstFrame: false },
     { name: "run", sheet: "standing", action: "running forward urgently, leaning into the stride", frameCount: 4, keepFirstFrame: false },
-    { name: "crouch", sheet: "crouched", action: "holding a low crouch, staying low and still throughout", frameCount: 4, keepFirstFrame: false, endFrameSheet: "crouched" },
-    { name: "crouch-walk", sheet: "crouched", action: "creeping forward one full stride while staying crouched low throughout", frameCount: 6, keepFirstFrame: false, endFrameSheet: "crouched" },
+    { name: "crouch", sheet: "crouched", action: "holding a deep low crouch the entire time, never rising or straightening, staying at the same low height throughout", frameCount: 4, keepFirstFrame: false, endFrameSheet: "crouched" },
+    { name: "crouch-walk", sheet: "crouched", action: "creeping forward one full stride while staying deeply crouched and low the entire time, never rising toward standing", frameCount: 6, keepFirstFrame: false, endFrameSheet: "crouched" },
     { name: "crouch-down", sheet: "standing", action: "lowering from standing into a low crouch", frameCount: 8, keepFirstFrame: true, endFrameSheet: "crouched", oneShot: true },
     { name: "crouch-up", sheet: "crouched", action: "rising from a low crouch back up to standing", frameCount: 8, keepFirstFrame: true, endFrameSheet: "standing", oneShot: true },
   ],

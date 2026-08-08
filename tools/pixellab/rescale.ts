@@ -92,6 +92,9 @@ async function main(): Promise<void> {
 /** Re-renders one frame at the spec's canvas size. */
 async function redraw(spec: CharacterSpec, sourcePath: string, from: number): Promise<Uint8Array> {
   const sheet = spec.sheets[0].source;
+  if (sheet.from === "existing") {
+    throw new Error("rescale.ts cannot redraw an \"existing\" sheet — it has no description to redraw with");
+  }
   const description = sheet.from === "reference" ? sheet.description : sheet.edit;
 
   const result = (await post("/resize", {

@@ -1,12 +1,13 @@
 /**
- * Regenerates the player character's full sprite set from a single south-facing
- * reference frame.
+ * Regenerates the player character's full sprite set.
  *
- *     PIXELLAB_API_KEY=... npx tsx tools/pixellab/generate-player.ts \
- *       --reference candidate.png
+ *     PIXELLAB_API_KEY=... npx tsx tools/pixellab/generate-player.ts
  *
  * What Rowan is lives in `./characters`; the pipeline that builds him lives in
- * `./pipeline`. Pick the reference with `candidates.ts` first — rotating and
+ * `./pipeline`. The standing sheet is currently an *adopted* PixelLab
+ * character (`from: "existing"`), so no `--reference` is needed — that flag
+ * only matters if `PLAYER.sheets[0].source` goes back to `from: "reference"`,
+ * in which case pick the reference with `candidates.ts` first: rotating and
  * animating a character costs far more than drawing one frame of it.
  *
  * Afterwards, always run `npm run gen:colliders` — the physics body is traced
