@@ -45,9 +45,19 @@ export const PLAYER: CharacterSpec = {
         from: "state",
         of: "standing",
         stateName: "crouched",
+        /**
+         * "Deeply", "dramatically", "much shorter than standing" is deliberate
+         * repetition, not padding. A first attempt at this character's crouch
+         * (5px shorter than standing, 15%) was too subtle a pose for the
+         * animation model to hold — cycles kept drifting back toward the
+         * standing height mid-loop even with `endFrameSheet` anchoring them.
+         * Asking for an unambiguously lower silhouette here is what the
+         * animation step actually needs to have something to hold onto.
+         */
         edit:
-          "crouched low to the ground, knees deeply bent, torso lowered and compact, head tucked " +
-          "down, sneaking stance",
+          "crouching very low to the ground in a deep sneak, knees sharply bent, torso dropped " +
+          "dramatically lower than standing height, head tucked well down, weight low and centred — " +
+          "much shorter than the standing pose, not a slight lean",
       },
     },
   ],
@@ -71,8 +81,8 @@ export const PLAYER: CharacterSpec = {
     { name: "idle", sheet: "standing", action: "standing still, breathing, weight shifting slightly", frameCount: 4, keepFirstFrame: false },
     { name: "walk", sheet: "standing", action: "walking forward at a steady pace", frameCount: 4, keepFirstFrame: false },
     { name: "run", sheet: "standing", action: "running forward urgently, leaning into the stride", frameCount: 4, keepFirstFrame: false },
-    { name: "crouch", sheet: "crouched", action: "holding a low crouch, staying low and still throughout", frameCount: 4, keepFirstFrame: false, endFrameSheet: "crouched" },
-    { name: "crouch-walk", sheet: "crouched", action: "creeping forward one full stride while staying crouched low throughout", frameCount: 6, keepFirstFrame: false, endFrameSheet: "crouched" },
+    { name: "crouch", sheet: "crouched", action: "holding a deep low crouch the entire time, never rising or straightening, staying at the same low height throughout", frameCount: 4, keepFirstFrame: false, endFrameSheet: "crouched" },
+    { name: "crouch-walk", sheet: "crouched", action: "creeping forward one full stride while staying deeply crouched and low the entire time, never rising toward standing", frameCount: 6, keepFirstFrame: false, endFrameSheet: "crouched" },
     { name: "crouch-down", sheet: "standing", action: "lowering from standing into a low crouch", frameCount: 8, keepFirstFrame: true, endFrameSheet: "crouched", oneShot: true },
     { name: "crouch-up", sheet: "crouched", action: "rising from a low crouch back up to standing", frameCount: 8, keepFirstFrame: true, endFrameSheet: "standing", oneShot: true },
   ],
