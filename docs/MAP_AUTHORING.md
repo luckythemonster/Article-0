@@ -168,15 +168,31 @@ Three things worth knowing:
   *player* collides with; guards, pathfinding and line of sight keep working in
   whole cells. Every inset in the shipped map is ≤0.4, so a cell's centre never
   leaves the box and no cell is lost. Doors have worked this way all along.
-- **Direction is one switch.** `PADDING_DIRECTION` in `src/map/footprint.ts` reads
-  padding as an inset; flip it to `"OUTSET"` if the editor means the opposite.
+- **Direction is confirmed as an inset.** `PADDING_DIRECTION` in
+  `src/map/footprint.ts` reads padding as pulling the collision box in from the
+  named edge, per the map author.
 
 Turn on the debug overlay (`?debug`, backtick, `V`) to see it: red fills are the
 coarse grid, cyan outlines are the real collider rectangles.
 
-`CollisionMode` on a TileDef is **parsed and ignored**. It only ever appears as `1`
-on 15 `walls` defs, the editor exports no enum for it, and acting on a guess would
-change collision on a lot of wall.
+#### `CollisionMode`: a per-tile solid override
+
+The board's `Collision` field (above) sets the default; a TileDef's
+`CollisionMode` is that same three-way choice (default / ignore / wall) at the
+*tile* level, for a prop that should collide wherever it's dragged regardless of
+the board it lands on. Only the confirmed value is read:
+
+| `CollisionMode` | Meaning |
+| --- | --- |
+| `1` | Solid, regardless of the board's own `Collision`. |
+| absent | Defers to the board. |
+| anything else | Not handled — the editor's "ignore" state has never appeared in an export, so its numeric encoding is unconfirmed. Treated the same as absent rather than guessed. |
+
+`isForcedSolid` (`src/map/types.ts`) is the single place this is read; `CollisionGrid`
+and `TileBake`'s `wallCells`/`wallBodyRects` all check it alongside the board's own
+solidity. On the shipped map this changes nothing today — the 15 defs that carry it
+are all already placed on `walls` — it only matters the day one of them, or a future
+prop, ends up on a board that isn't otherwise solid.
 
 ### Lasers are found by ref, not by board
 

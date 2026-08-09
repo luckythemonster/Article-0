@@ -33,7 +33,7 @@ import {
   isSingleCell,
   type Rect,
 } from "./footprint";
-import { blockingLayerNames, type GameLevel } from "./types";
+import { blockingLayerNames, isForcedSolid, type GameLevel } from "./types";
 
 /** An axis-aligned run of blocked cells, in tile coordinates. */
 export interface WallRect {
@@ -191,9 +191,12 @@ export function wallCells(level: GameLevel, tileSize: number): Uint8Array {
   const solid = new Uint8Array(width * height);
   const blocking = blockingLayerNames(level);
   for (const layer of level.layers) {
-    if (!blocking.includes(layer.name)) continue;
+    const boardBlocks = blocking.includes(layer.name);
     for (const tile of layer.tiles) {
       if (!tile.frame) continue;
+      // Solid by the board's say-so, or by the tile's own override — see
+      // `isForcedSolid`.
+      if (!boardBlocks && !isForcedSolid(tile)) continue;
       // Tiles with authored collider bounds get their own precise body instead
       // of a cell in the merge mask — see `buildWallBodies`.
       if (!hasPlainCollider(tile)) continue;
@@ -263,9 +266,10 @@ export function wallBodyRects(level: GameLevel, tileSize: number): Rect[] {
 
   const blocking = blockingLayerNames(level);
   for (const layer of level.layers) {
-    if (!blocking.includes(layer.name)) continue;
+    const boardBlocks = blocking.includes(layer.name);
     for (const tile of layer.tiles) {
       if (!tile.frame || hasPlainCollider(tile)) continue;
+      if (!boardBlocks && !isForcedSolid(tile)) continue;
       const r = colliderRect(tile, tileSize);
       if (!Number.isFinite(r.x) || !Number.isFinite(r.y)) continue;
       rects.push(r);
