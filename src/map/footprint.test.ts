@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { footprintCells, footprintCentre, isSingleCell } from "./footprint";
+import {
+  colliderRect,
+  footprintCells,
+  footprintCentre,
+  hasPlainCollider,
+  isSingleCell,
+} from "./footprint";
 import type { GameTile } from "./types";
 
 /** A placed tile with the span/offset fields the editor authors. */
@@ -75,5 +81,85 @@ describe("footprintCentre", () => {
   it("is the cell centre plus the authored offset", () => {
     expect(footprintCentre(tile(18, 19, 1, 2.5, 0, 16), 32)).toEqual({ x: 592, y: 640 });
     expect(footprintCentre(tile(0, 0), 32)).toEqual({ x: 16, y: 16 });
+  });
+});
+
+/** A placed tile carrying authored collider padding. */
+function padded(
+  pad: { Left?: number; Top?: number; Right?: number; Bottom?: number },
+  colSpan = 1,
+  rowSpan = 1,
+  offsetX = 0,
+  offsetY = 0,
+): GameTile {
+  return { x: 2, y: 3, colSpan, rowSpan, offsetX, offsetY, collider: pad } as unknown as GameTile;
+}
+
+describe("colliderRect", () => {
+  it("returns the plain footprint when the tile declares no bounds", () => {
+    expect(colliderRect(tile(2, 3), 32)).toEqual({ x: 64, y: 96, w: 32, h: 32 });
+  });
+
+  it("insets a wall from the bottom, leaving the strip in front walkable", () => {
+    // The dominant case in the shipped map: `Bottom: 0.4` on ~1,600 wall tiles.
+    expect(colliderRect(padded({ Bottom: 0.4 }), 32)).toEqual({
+      x: 64,
+      y: 96,
+      w: 32,
+      h: 32 - 0.4 * 32,
+    });
+  });
+
+  it("insets each side independently", () => {
+    expect(colliderRect(padded({ Left: 0.25 }), 32)).toEqual({ x: 72, y: 96, w: 24, h: 32 });
+    expect(colliderRect(padded({ Top: 0.25 }), 32)).toEqual({ x: 64, y: 104, w: 32, h: 24 });
+    expect(colliderRect(padded({ Right: 0.25 }), 32)).toEqual({ x: 64, y: 96, w: 24, h: 32 });
+  });
+
+  it("narrows a door jamb from both sides at once", () => {
+    // `door_single_vertical1`: 1×1.5, nudged down 4px, jambs pulled in 0.2 each.
+    const r = colliderRect(padded({ Left: 0.2, Right: 0.2 }, 1, 1.5, 0, 4), 32);
+    expect(r.x).toBeCloseTo(64 + 6.4);
+    expect(r.y).toBeCloseTo(96 + 4 - 8);
+    expect(r.w).toBeCloseTo(32 - 12.8);
+    expect(r.h).toBeCloseTo(48);
+  });
+
+  it("scales the inset with the tile size, like every other authored offset", () => {
+    expect(colliderRect(padded({ Bottom: 0.5 }), 16).h).toBe(8);
+  });
+
+  it("never produces an inside-out box", () => {
+    // Padding that eats the whole tile would otherwise give a negative width, and
+    // Arcade reads that as a body you can stand inside.
+    const r = colliderRect(padded({ Left: 0.8, Right: 0.8 }), 32);
+    expect(r.w).toBeGreaterThan(0);
+    expect(r.h).toBeGreaterThan(0);
+  });
+
+  it("keeps every cell the footprint claimed, for all the shipped insets", () => {
+    // Why the coarse grid can ignore padding entirely: an inset of 0.4 or less
+    // never moves a cell's centre out of the box, so pathfinding, sight and guard
+    // vision keep working in whole cells while the player's body gets the detail.
+    for (const side of ["Left", "Top", "Right", "Bottom"] as const) {
+      const t = padded({ [side]: 0.4 });
+      const r = colliderRect(t, 32);
+      const centreX = (t.x + 0.5) * 32;
+      const centreY = (t.y + 0.5) * 32;
+      expect(centreX > r.x && centreX < r.x + r.w, `${side} keeps centre in x`).toBe(true);
+      expect(centreY > r.y && centreY < r.y + r.h, `${side} keeps centre in y`).toBe(true);
+    }
+  });
+});
+
+describe("hasPlainCollider", () => {
+  it("is true with no padding, and for padding that is all zeroes", () => {
+    expect(hasPlainCollider(tile(1, 1))).toBe(true);
+    expect(hasPlainCollider(padded({}))).toBe(true);
+    expect(hasPlainCollider(padded({ Left: 0 }))).toBe(true);
+  });
+
+  it("is false once any side is padded", () => {
+    expect(hasPlainCollider(padded({ Bottom: 0.4 }))).toBe(false);
   });
 });

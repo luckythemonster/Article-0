@@ -271,6 +271,23 @@ export class Player {
     return this.sprite.y;
   }
 
+  /**
+   * Where the player *will* be drawn this frame, for anything rendering from their
+   * position.
+   *
+   * Arcade integrates the body during its own `UPDATE` step but only writes the
+   * result onto the sprite in `POST_UPDATE`, after `Scene.update()` has run. So
+   * anything reading `sprite.x` from scene update is a physics step behind — while
+   * the camera, which follows at render time, is not. For a light cast from the
+   * player that mismatch is a lag that varies with the frame delta, which is judder.
+   * The body's centre is the position everything else will agree on a moment later.
+   */
+  get eye(): { x: number; y: number } {
+    const body = this.sprite.body as Phaser.Physics.Arcade.Body | null;
+    if (!body) return { x: this.sprite.x, y: this.sprite.y };
+    return { x: body.center.x, y: body.center.y };
+  }
+
   /** Registers every player animation once per scene. */
   private static ensureAnimations(scene: Phaser.Scene): void {
     for (const anim of Object.keys(PLAYER_ANIM_FRAME_COUNTS) as PlayerAnimName[]) {

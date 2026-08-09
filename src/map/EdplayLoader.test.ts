@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { EdplayLoader, type ParsedMap } from "./EdplayLoader";
-import { wallCells } from "./TileBake";
+import { wallBodyRects, wallCells } from "./TileBake";
 import { CollisionGrid } from "../systems/CollisionGrid";
-import type { EdPlayFile, GameLevel } from "./types";
+import { blockingLayerNames, type EdPlayFile, type GameLevel } from "./types";
 
 /**
  * The exporter omits any field sitting at its default, so a tile at column 0 has no
@@ -71,18 +71,45 @@ describe("the shipped map's level borders", () => {
     expect(bad).toEqual([]);
   });
 
+  /**
+   * Which cells have *some* body over them — merged whole-cell rectangles and
+   * per-tile collider rectangles alike.
+   *
+   * Cell-for-cell equality between the grid and the body mask stopped being the
+   * right invariant once tiles could declare their own bounds: a padded wall's
+   * body deliberately covers only part of its cell. What still has to hold — and
+   * what these tests are really for — is that no blocked cell is left with
+   * nothing under it, which is the failure that lets a player walk through a
+   * level border.
+   */
+  function bodyCoverage(level: GameLevel, tileSize: number): Uint8Array {
+    const covered = new Uint8Array(level.width * level.height);
+    for (const r of wallBodyRects(level, tileSize)) {
+      const x0 = Math.floor(r.x / tileSize);
+      const y0 = Math.floor(r.y / tileSize);
+      const x1 = Math.ceil((r.x + r.w) / tileSize) - 1;
+      const y1 = Math.ceil((r.y + r.h) / tileSize) - 1;
+      for (let y = Math.max(0, y0); y <= Math.min(level.height - 1, y1); y++) {
+        for (let x = Math.max(0, x0); x <= Math.min(level.width - 1, x1); x++) {
+          covered[y * level.width + x] = 1;
+        }
+      }
+    }
+    return covered;
+  }
+
   it("blocks the west column and north row of main1, with bodies to match", () => {
     const main1 = parsed.map.levels.find((l) => l.name === "main1") as GameLevel;
-    const grid = new CollisionGrid(main1, ["walls"], 32);
-    const bodies = wallCells(main1, 32);
+    const grid = new CollisionGrid(main1, blockingLayerNames(main1), 32);
+    const covered = bodyCoverage(main1, 32);
 
     for (let y = 0; y < main1.height; y++) {
       expect(grid.isBlocked(0, y), `(0,${y}) should block`).toBe(true);
-      expect(bodies[y * main1.width], `(0,${y}) needs a body`).toBe(1);
+      expect(covered[y * main1.width], `(0,${y}) needs a body`).toBe(1);
     }
     for (let x = 0; x < main1.width; x++) {
       expect(grid.isBlocked(x, 0), `(${x},0) should block`).toBe(true);
-      expect(bodies[x], `(${x},0) needs a body`).toBe(1);
+      expect(covered[x], `(${x},0) needs a body`).toBe(1);
     }
   });
 
@@ -96,19 +123,27 @@ describe("the shipped map's level borders", () => {
     expect(bodies.reduce((a: number, v: number) => a + v, 0)).toBe(526);
   });
 
-  it("keeps the collision grid and the collision bodies in exact agreement", () => {
-    // Two independent walks over the same board; a disagreement means the player and
-    // the guards are moving through different levels.
+  it("leaves no blocked cell without a body, and no body outside a blocked cell", () => {
+    // Two independent walks over the same boards; a disagreement means the player and
+    // the guards are moving through different levels. Stated as coverage rather than
+    // equality because a padded tile's body is smaller than its cell by design — the
+    // cell is still blocked for the guards, and still has something in it for the
+    // player to hit.
     for (const level of parsed.map.levels) {
-      const grid = new CollisionGrid(level, ["walls"], 32);
-      const bodies = wallCells(level, 32);
-      const mismatch: string[] = [];
+      const grid = new CollisionGrid(level, blockingLayerNames(level), 32);
+      const covered = bodyCoverage(level, 32);
+      const uncovered: string[] = [];
+      const stray: string[] = [];
       for (let y = 0; y < level.height; y++) {
         for (let x = 0; x < level.width; x++) {
-          if (grid.isBlocked(x, y) !== (bodies[y * level.width + x] === 1)) mismatch.push(`${x},${y}`);
+          const blocked = grid.isBlocked(x, y);
+          const hasBody = covered[y * level.width + x] === 1;
+          if (blocked && !hasBody) uncovered.push(`${x},${y}`);
+          if (!blocked && hasBody) stray.push(`${x},${y}`);
         }
       }
-      expect(mismatch, `${level.name} grid/body mismatch`).toEqual([]);
+      expect(uncovered, `${level.name}: blocked cells with no body`).toEqual([]);
+      expect(stray, `${level.name}: bodies outside any blocked cell`).toEqual([]);
     }
   });
 });

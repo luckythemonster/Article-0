@@ -62,10 +62,38 @@ export interface EdTileDef {
   CellAnchor?: number;
   TintColor?: number;
   BackgroundColor?: number;
+  /**
+   * Per-side inset of the collision box from the footprint rectangle, in
+   * **fractions of a cell**. Absent sides are zero, and the whole field is
+   * dropped by the exporter when nothing is set.
+   *
+   * A property of the *art*, not the placement: `tdCement_4X5_10` carries
+   * `Bottom: 0.4` and is used on `walls`, `building` and `roof` alike. So this
+   * says what shape the tile is when it collides, never whether it collides —
+   * that is {@link EdBoard.Collision}'s job.
+   */
+  ColliderPadding?: EdColliderPadding;
+  /**
+   * Authored, parsed, and deliberately not acted on.
+   *
+   * Only ever `1`, on 15 `walls` defs. The editor doesn't export an enum for it
+   * (`DataTypes.EnumDefs` carries the gameplay enums only), so its meaning isn't
+   * recoverable from the file, and guessing would change collision on a lot of
+   * wall. Declared so it's visibly known-about rather than merely unnoticed.
+   */
+  CollisionMode?: number;
   DataComponents: EdDataComponent[];
   Handle: number;
   Ref: string;
   Id: string;
+}
+
+/** Collider inset per side, in fractions of a cell. Absent side = no inset. */
+export interface EdColliderPadding {
+  Left?: number;
+  Top?: number;
+  Right?: number;
+  Bottom?: number;
 }
 
 export interface EdTile {
@@ -88,6 +116,12 @@ export interface EdBoard {
   Tiles: EdTile[];
   IsVisible: boolean;
   Id: string;
+  /**
+   * What this board's tiles do physically: `1` solid, `2` marker/trigger, absent
+   * for boards the author never classified. This is the authored answer to "which
+   * boards block", replacing a hardcoded `["walls"]` — see {@link SOLID_COLLISION}.
+   */
+  Collision?: number;
 }
 
 export interface EdLevel {
@@ -181,11 +215,19 @@ export interface GameTile {
   /** Present only for tiles whose TileDef carries a DataComponent. */
   entityType?: string;
   components: ComponentData[];
+  /**
+   * Per-side collider inset in fractions of a cell, when the art declares one.
+   * Resolved by {@link colliderRect}; absent means the collider is the whole
+   * footprint, which is what every generated tile and every un-padded def wants.
+   */
+  collider?: EdColliderPadding;
 }
 
 export interface GameLayer {
   name: string;
   tiles: GameTile[];
+  /** The board's authored {@link EdBoard.Collision}, when it declared one. */
+  collision?: number;
 }
 
 export interface GameLevel {
@@ -247,6 +289,53 @@ export type KnownLevel =
   | "duct2"
   | "main2"
   | (typeof GENERATED_LEVELS)[number];
+
+// ---------------------------------------------------------------------------
+// What blocks
+// ---------------------------------------------------------------------------
+
+/** The {@link EdBoard.Collision} value that means "these tiles are solid". */
+export const SOLID_COLLISION = 1;
+
+/**
+ * Solid boards the map didn't classify, by name.
+ *
+ * `fence` is the rooftop perimeter — 145 tiles, 141 of them carrying authored
+ * collider bounds — and it carries no `Collision` value, so nothing else would
+ * make it stop anybody. Delete this the day the board is marked `Collision: 1` in
+ * the editor; it exists to spare the author a re-export, not to override them.
+ */
+export const EXTRA_SOLID_BOARDS: readonly string[] = ["fence"];
+
+/**
+ * Solid boards whose tiles stop movement but not sight.
+ *
+ * Chain-link is the obvious case. `cover` is the load-bearing one: it became
+ * solid when the engine started reading `Collision`, and making it *opaque* as
+ * well would silently rewrite guard vision across the whole map — cover's job is
+ * to dampen detection and conceal a crouching player, which is a different
+ * mechanic from occlusion and stays that way.
+ */
+export const SEE_THROUGH_BOARDS: readonly string[] = ["cover", "fence"];
+
+/**
+ * The boards that block movement on a level, from the map's own metadata.
+ *
+ * Falls back to `["walls"]` when no board on the level declares `Collision` at
+ * all — an older export, a generated level, or a test fixture — so the engine
+ * behaves exactly as it did before any of this was read.
+ */
+export function blockingLayerNames(level: GameLevel): string[] {
+  const declared = level.layers.filter((l) => l.collision !== undefined);
+  if (declared.length === 0) {
+    return level.layers.filter((l) => l.name === "walls" || isExtraSolid(l.name)).map((l) => l.name);
+  }
+  return level.layers
+    .filter((l) => l.collision === SOLID_COLLISION || isExtraSolid(l.name))
+    .map((l) => l.name);
+}
+
+const isExtraSolid = (name: string): boolean => EXTRA_SOLID_BOARDS.includes(name);
 
 /**
  * True for a name the engine *would* generate a level under.

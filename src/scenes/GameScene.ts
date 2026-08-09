@@ -118,7 +118,7 @@ import { ENFORCER_SKIN } from "../entities/EnforcerAnimations";
 import { RelayState, type RelayTransition } from "../systems/RelayCore";
 import { ROOF_ARRAY_LEVEL } from "../map/RoofArrayLevel";
 import { Encounters } from "./game/Encounters";
-import { isInteractTransition } from "../map/types";
+import { blockingLayerNames, isInteractTransition } from "../map/types";
 import { planFor, type MapPlan } from "../map/MapPlan";
 import { getAudio } from "../systems/AudioDirector";
 import { saveGame, clearSave, loadGame, type SlotId } from "../systems/SaveGame";
@@ -406,7 +406,9 @@ export class GameScene extends Phaser.Scene {
 
     // Reads each wall tile's authored footprint, so a pane wider than its own
     // cell blocks all of it — and marks the glazed ones see-through as it goes.
-    this.grid = new CollisionGrid(this.level, ["walls"], this.tileSize);
+    // Which boards block is the map's own call now (`Collision: 1`), not a
+    // hardcoded `["walls"]`, so cover and the roof's fence stop the player too.
+    this.grid = new CollisionGrid(this.level, blockingLayerNames(this.level), this.tileSize);
     this.detection = new DetectionSystem(this.level, this.tileSize);
     this.sensing = this.buildSensingContext();
     // One object for the level rather than a literal per frame — the same reasoning
@@ -1693,10 +1695,17 @@ export class GameScene extends Phaser.Scene {
       getAudio().door();
       this.knockCooldown = KNOCK_COOLDOWN;
     }
+    // Cast from where the body actually is, not from the sprite Arcade has yet to
+    // move — see `Player.eye`. The camera follows the post-physics position at
+    // render time, so reading the sprite here leaves the darkness a step behind the
+    // level, by a margin that changes with the frame delta.
+    const eye = this.player.eye;
     this.lighting.update(
       dt,
-      this.player,
-      this.activeItems.flashlightBeamActive ? this.player : null,
+      eye,
+      this.activeItems.flashlightBeamActive
+        ? { x: eye.x, y: eye.y, facing: this.player.facing }
+        : null,
     );
     this.playTimeMs += delta;
     this.registry.set("playTimeMs", this.playTimeMs);
@@ -2444,6 +2453,7 @@ export class GameScene extends Phaser.Scene {
       guards: this.guards,
       sensors: this.sensors,
       tileSize: this.tileSize,
+      level: this.level,
       levelName: this.level.name,
       captureProgress: this.captureProgress,
       inventory: (this.registry.get("inventory") as string[] | undefined) ?? [],

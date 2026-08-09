@@ -16,6 +16,7 @@ import {
   RADIAL_STAMP_SIZE,
 } from "../render/stamps";
 import { falloff } from "../render/falloff";
+import { snapToPixel } from "../render/pixelScale";
 import { emptySample, sampleLightAt, type LightSample } from "../render/lightSampling";
 
 /** How dark the unlit level gets (0 = no darkening, 1 = black). */
@@ -73,9 +74,6 @@ const SHADOW_FEATHER_STEPS = 2;
  * eyes-adjusting-to-the-dark, which undercuts the point of the darkness being opaque.
  */
 const PLAYER_LIGHT_TILES = 1.5;
-
-/** How far (px) the viewer must move before the visibility polygon is recast. */
-const RECAST_EPSILON = 0.5;
 
 interface Light {
   x: number;
@@ -257,16 +255,20 @@ export class Lighting {
     if (!this.enabled) return;
     this.time += dt;
 
-    const viewerMoved =
-      Math.abs(viewer.x - this.lastViewX) > RECAST_EPSILON ||
-      Math.abs(viewer.y - this.lastViewY) > RECAST_EPSILON;
+    // Everything downstream works from the snapped origin, so the halo and the fan
+    // agree with each other and with the level under them.
+    const eye = snapToPixel(viewer.x, viewer.y);
+    // Recast when the snapped origin changes, not on a sub-pixel threshold: below a
+    // whole pixel the result is identical, so the old epsilon deadband only bought a
+    // lag that showed up as one more step.
+    const viewerMoved = eye.x !== this.lastViewX || eye.y !== this.lastViewY;
 
     // The light texture depends on the lights, the beam, and — since Rowan carries a
     // pool of his own — on where he is standing. Flickering lights animate and the
     // beam tracks him; otherwise the last composite stands.
     const beamOn = beam !== null;
     if (this.dirty || viewerMoved || this.hasFlicker || beamOn || this.lastBeamOn) {
-      this.drawLights(viewer, beam);
+      this.drawLights(eye, beam);
     }
     this.lastBeamOn = beamOn;
 
@@ -275,22 +277,24 @@ export class Lighting {
     // the fan only reaches as far as the camera can see. The camera keeps easing
     // toward the player for a few frames after they stop, and a resize changes the
     // view outright — both have to re-extend the fan.
+    // `worldView` is floored by Phaser regardless of `roundPixels`, so these are
+    // already whole pixels and an exact comparison is the honest one.
     const v = this.camera.worldView;
     const moved =
       viewerMoved ||
-      Math.abs(v.x - this.lastCamX) > RECAST_EPSILON ||
-      Math.abs(v.y - this.lastCamY) > RECAST_EPSILON ||
+      v.x !== this.lastCamX ||
+      v.y !== this.lastCamY ||
       v.width !== this.lastCamW ||
       v.height !== this.lastCamH;
     if (this.dirty || moved || this.grid.revision !== this.lastRevision) {
-      this.lastViewX = viewer.x;
-      this.lastViewY = viewer.y;
+      this.lastViewX = eye.x;
+      this.lastViewY = eye.y;
       this.lastCamX = v.x;
       this.lastCamY = v.y;
       this.lastCamW = v.width;
       this.lastCamH = v.height;
       this.lastRevision = this.grid.revision;
-      this.drawShadows(viewer.x, viewer.y);
+      this.drawShadows(eye.x, eye.y);
     }
 
     this.dirty = false;
@@ -378,8 +382,13 @@ export class Lighting {
     // doing them one stamp at a time is what made this unaffordable.
     const list = this.eraseList;
     list.push(this.playerStamp.setPosition(viewer.x, viewer.y));
-    // The flashlight: a forward-facing bright cone carved into the dark.
-    if (beam) list.push(this.coneStamp.setPosition(beam.x, beam.y).setRotation(beam.facing));
+    // The flashlight: a forward-facing bright cone carved into the dark. Snapped
+    // like the halo and the fan — it is emitted from the same eye, and a cone that
+    // slides while they step would just move the disagreement somewhere else.
+    if (beam) {
+      const at = snapToPixel(beam.x, beam.y);
+      list.push(this.coneStamp.setPosition(at.x, at.y).setRotation(beam.facing));
+    }
     this.rt.erase(list);
     list.length = this.lightCount;
   }

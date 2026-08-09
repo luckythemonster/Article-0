@@ -52,6 +52,74 @@ export function isSingleCell(tile: GameTile): boolean {
   );
 }
 
+/**
+ * Which way `ColliderPadding` runs.
+ *
+ * `INSET` reads `{Bottom: 0.4}` as "the solid box stops 0.4 of a cell short of the
+ * footprint's bottom edge", leaving the lower 40% of the cell walkable — the
+ * reading that matches the art, where a wall's collision hugs the drawn face and
+ * the floor in front of it is standable. `OUTSET` is the opposite: the box grows
+ * past the footprint by that much.
+ *
+ * A single switch on purpose. The editor exports the numbers but not their
+ * convention, so if the tile editor turns out to mean the other thing, this is the
+ * one line that changes and every collider in the map follows it.
+ */
+export const PADDING_DIRECTION: "INSET" | "OUTSET" = "INSET";
+
+/** A rectangle in pixels. */
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * The rectangle a tile actually collides with, in pixels.
+ *
+ * The footprint rectangle — the same one {@link footprintCells} resolves to cells
+ * — adjusted per side by the tile's authored {@link GameTile.collider}. A tile
+ * with no collider data returns its footprint unchanged, so this is safe to call
+ * for everything and generated levels behave exactly as they always have.
+ *
+ * Deliberately *not* fed back into `footprintCells`: the grid stays whole-cell.
+ * Every padded def in the shipped map keeps every one of its cells under this
+ * adjustment (the insets are all ≤0.4, so a cell's centre never leaves the box),
+ * so the coarse grid loses nothing by ignoring the padding — and pathfinding,
+ * line of sight and guard vision all keep working in whole cells.
+ */
+export function colliderRect(tile: GameTile, tileSize: number): Rect {
+  const w = (tile.colSpan ?? 1) * tileSize;
+  const h = (tile.rowSpan ?? 1) * tileSize;
+  const centre = footprintCentre(tile, tileSize);
+  const x = centre.x - w / 2;
+  const y = centre.y - h / 2;
+
+  const pad = tile.collider;
+  if (!pad) return { x, y, w, h };
+
+  const sign = PADDING_DIRECTION === "INSET" ? 1 : -1;
+  const left = (pad.Left ?? 0) * tileSize * sign;
+  const top = (pad.Top ?? 0) * tileSize * sign;
+  const right = (pad.Right ?? 0) * tileSize * sign;
+  const bottom = (pad.Bottom ?? 0) * tileSize * sign;
+
+  // Guard the degenerate case rather than emitting an inside-out body: padding
+  // that eats the whole tile would otherwise produce a negative width, and Arcade
+  // treats that as a body you can stand inside.
+  const outW = Math.max(1, w - left - right);
+  const outH = Math.max(1, h - top - bottom);
+  return { x: x + left, y: y + top, w: outW, h: outH };
+}
+
+/** True when a tile's collider is exactly its footprint — no authored padding. */
+export function hasPlainCollider(tile: GameTile): boolean {
+  const pad = tile.collider;
+  if (!pad) return true;
+  return !pad.Left && !pad.Top && !pad.Right && !pad.Bottom;
+}
+
 /** Centre of a tile's footprint rectangle, in pixels. */
 export function footprintCentre(
   tile: GameTile,
