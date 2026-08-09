@@ -182,10 +182,14 @@ export class EdplayLoader {
             offsetY: td?.OffsetY ?? 0,
             entityType: components.length > 0 ? components[0].type : undefined,
             components,
+            // Sits on the TileDef beside ColSpan, so it resolves through `Handle`
+            // and every placement of a def shares one collider — which is exactly
+            // what "this piece of art is solid *here*" means.
+            collider: td?.ColliderPadding,
           };
           return tile;
         });
-        return { name: board.Name, tiles };
+        return { name: board.Name, tiles, collision: board.Collision };
       });
 
       return {

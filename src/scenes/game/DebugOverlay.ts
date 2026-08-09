@@ -6,6 +6,8 @@ import type { AlertState } from "../../systems/AlertState";
 import type { CollisionGrid } from "../../systems/CollisionGrid";
 import type { ConductState } from "../../systems/Conduct";
 import type { DetectionSystem } from "../../systems/DetectionSystem";
+import { colliderRect, hasPlainCollider } from "../../map/footprint";
+import { blockingLayerNames, type GameLevel } from "../../map/types";
 import { CERT_ITEM, PLAYER_DEFAULTS } from "../../systems/EntityStats";
 import { catalogedNames } from "../../systems/ItemCatalog";
 import type { DebugSnapshot } from "../../ui/DebugHud";
@@ -46,6 +48,8 @@ export interface DebugWorld {
   guards: readonly Enforcer[];
   sensors: readonly Sensor[];
   tileSize: number;
+  /** The level itself, so the overlay can draw authored collider bounds. */
+  level: GameLevel;
   levelName: string;
   captureProgress: number;
   /** Current inventory, for the certified readout. */
@@ -248,6 +252,24 @@ export class DebugOverlay {
           g.fillStyle(0xffb03b, Math.min(0.25, (m - 1) * 0.3));
           g.fillRect(tx * ts, ty * ts, ts, ts);
         }
+      }
+    }
+
+    // Authored collider bounds (cyan outline). The red fills above are the coarse
+    // grid, which is still whole-cell — where a tile declares its own bounds these
+    // two deliberately disagree, and drawing only the fills would quietly claim the
+    // player collides with a whole cell they can in fact walk into.
+    const blocking = blockingLayerNames(w.level);
+    g.lineStyle(1, 0x39d3ff, 0.7);
+    for (const layer of w.level.layers) {
+      if (!blocking.includes(layer.name)) continue;
+      for (const tile of layer.tiles) {
+        if (!tile.frame || hasPlainCollider(tile)) continue;
+        if (tile.x < minTx - 2 || tile.x > maxTx + 2 || tile.y < minTy - 2 || tile.y > maxTy + 2) {
+          continue;
+        }
+        const r = colliderRect(tile, ts);
+        g.strokeRect(r.x, r.y, r.w, r.h);
       }
     }
 

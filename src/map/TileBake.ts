@@ -25,8 +25,15 @@
  */
 
 import type Phaser from "phaser";
-import { footprintCells, footprintCentre, isSingleCell } from "./footprint";
-import type { GameLevel } from "./types";
+import {
+  colliderRect,
+  footprintCells,
+  footprintCentre,
+  hasPlainCollider,
+  isSingleCell,
+  type Rect,
+} from "./footprint";
+import { blockingLayerNames, type GameLevel } from "./types";
 
 /** An axis-aligned run of blocked cells, in tile coordinates. */
 export interface WallRect {
@@ -182,10 +189,14 @@ export function bakeTileLayers(
 export function wallCells(level: GameLevel, tileSize: number): Uint8Array {
   const { width, height } = level;
   const solid = new Uint8Array(width * height);
+  const blocking = blockingLayerNames(level);
   for (const layer of level.layers) {
-    if (layer.name !== "walls") continue;
+    if (!blocking.includes(layer.name)) continue;
     for (const tile of layer.tiles) {
       if (!tile.frame) continue;
+      // Tiles with authored collider bounds get their own precise body instead
+      // of a cell in the merge mask — see `buildWallBodies`.
+      if (!hasPlainCollider(tile)) continue;
       for (const cell of footprintCells(tile, tileSize)) {
         // `>= 0` and `< width` both pass for NaN, so a tile with a non-finite
         // coordinate used to reach the write and land on `solid[NaN]` — a silent
@@ -217,16 +228,48 @@ export function buildWallBodies(
   level: GameLevel,
   tileSize: number,
 ): Phaser.GameObjects.GameObject[] {
-  const { width, height } = level;
-  const solid = wallCells(level, tileSize);
-
-  const rects = mergeWallRects(width, height, (x, y) => solid[y * width + x] === 1);
-
-  return rects.map((r) => {
-    const w = r.w * tileSize;
-    const h = r.h * tileSize;
-    const zone = scene.add.zone(r.x * tileSize + w / 2, r.y * tileSize + h / 2, w, h);
+  return wallBodyRects(level, tileSize).map((r) => {
+    const zone = scene.add.zone(r.x + r.w / 2, r.y + r.h / 2, r.w, r.h);
     scene.physics.add.existing(zone, true);
     return zone;
   });
+}
+
+/**
+ * Every collision rectangle a level needs, in pixels.
+ *
+ * Split out of {@link buildWallBodies} for the same reason {@link wallCells} was:
+ * this is the geometry, and it should be testable without standing up a Phaser
+ * scene.
+ *
+ * Two kinds of rectangle come out. Tiles whose art declares no bounds of its own
+ * go through {@link mergeWallRects} as whole cells, which is most of a level and
+ * where the merge win lives. Tiles carrying authored `ColliderPadding` each get a
+ * rectangle of exactly their own shape — they can't join the merge, because it
+ * works in whole cells and the entire point of these is an edge that doesn't fall
+ * on one.
+ */
+export function wallBodyRects(level: GameLevel, tileSize: number): Rect[] {
+  const { width, height } = level;
+  const solid = wallCells(level, tileSize);
+  const rects: Rect[] = mergeWallRects(width, height, (x, y) => solid[y * width + x] === 1).map(
+    (r) => ({
+      x: r.x * tileSize,
+      y: r.y * tileSize,
+      w: r.w * tileSize,
+      h: r.h * tileSize,
+    }),
+  );
+
+  const blocking = blockingLayerNames(level);
+  for (const layer of level.layers) {
+    if (!blocking.includes(layer.name)) continue;
+    for (const tile of layer.tiles) {
+      if (!tile.frame || hasPlainCollider(tile)) continue;
+      const r = colliderRect(tile, tileSize);
+      if (!Number.isFinite(r.x) || !Number.isFinite(r.y)) continue;
+      rects.push(r);
+    }
+  }
+  return rects;
 }

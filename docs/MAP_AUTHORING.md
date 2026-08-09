@@ -77,7 +77,7 @@ entities draw their own sprites.
 | Board | What the engine does | Component |
 | --- | --- | --- |
 | `spawn` | **First tile only** = player start. Extra tiles ignored. Falls back to level centre. | — |
-| `walls` | Collision grid + static physics bodies + blocks sight. Tile presence is enough. | — |
+| `walls` | Collision grid + static physics bodies + blocks sight. Tile presence is enough. **Not the only solid board** — see §3.2. | — |
 | `floor` | Nothing special — just art. (Only `VentCoreLevel` looks it up, for prototypes.) | — |
 | `enforcers` | **One `Enforcer` for the whole board.** Its tiles are that guard's ordered patrol waypoints, not a headcount — see §3.1. | `enforcer` (read from the first tile), optional |
 | `drones` | Same, for one `Drone` — identical AI, different skin. | `enforcer` (read from the first tile), optional |
@@ -121,6 +121,62 @@ Practical notes for authoring:
 - A leg A* can't solve is skipped, and the loop picks the waypoint up next time round, so a
   route temporarily severed by a locked door degrades rather than wedging the guard.
 - Want more guards on a level? That needs a second guard board, not more tiles on this one.
+
+### 3.2 What blocks: the board says so, the tile says what shape
+
+Solidity is the **board's** `Collision` field, not a hardcoded list of names:
+
+| `Collision` | Meaning |
+| --- | --- |
+| `1` | Solid. Tiles block movement. |
+| `2` | Marker/trigger. Never blocks. |
+| absent | Not classified — treated as not solid. |
+
+On NW-SMAC-01 that makes `walls`, `cover` and `winches` solid. **`cover` blocking is
+new**: a server rack you could walk through read as a bug, so crates and desks are
+obstacles now as well as concealment.
+
+Two rules layered on top:
+
+- **`fence` blocks regardless** (`EXTRA_SOLID_BOARDS` in `src/map/types.ts`). The
+  roof's perimeter carries no `Collision` value but is plainly meant to stop you.
+  Set `Collision: 1` on it and this exception can be deleted.
+- **`cover` and `fence` block movement without blocking sight**
+  (`SEE_THROUGH_BOARDS`), reusing the channel clear glazing already uses. You see
+  over a crate and through chain-link, and cover keeps concealing rather than
+  occluding.
+
+If **no** board on a level declares `Collision` — an older export, a generated
+level — the engine falls back to `["walls"]` and behaves exactly as it always did.
+
+#### `ColliderPadding`: the shape of a solid tile
+
+A TileDef may carry `ColliderPadding` — `{Left?, Top?, Right?, Bottom?}` in
+**fractions of a cell** — which insets its collision box from the footprint
+rectangle. `{Bottom: 0.4}` on a 1×1 wall gives a 32×19.2px body, leaving the lower
+40% of the cell walkable, so collision hugs the drawn face instead of claiming the
+floor in front of it.
+
+Three things worth knowing:
+
+- **It describes the art, not the placement.** `tdCement_4X5_10` carries
+  `Bottom: 0.4` and is used on `walls`, `building` *and* `roof`. Padding never
+  decides whether a tile is solid — only what shape it is when it is. That is why
+  solidity is the board's call: keying it off padding would make the rooftop deck
+  solid, and `roof_array` has no `walls` board to fall back on.
+- **The collision grid stays whole-cell.** Padding refines the static bodies the
+  *player* collides with; guards, pathfinding and line of sight keep working in
+  whole cells. Every inset in the shipped map is ≤0.4, so a cell's centre never
+  leaves the box and no cell is lost. Doors have worked this way all along.
+- **Direction is one switch.** `PADDING_DIRECTION` in `src/map/footprint.ts` reads
+  padding as an inset; flip it to `"OUTSET"` if the editor means the opposite.
+
+Turn on the debug overlay (`?debug`, backtick, `V`) to see it: red fills are the
+coarse grid, cyan outlines are the real collider rectangles.
+
+`CollisionMode` on a TileDef is **parsed and ignored**. It only ever appears as `1`
+on 15 `walls` defs, the editor exports no enum for it, and acting on a guess would
+change collision on a lot of wall.
 
 ### Lasers are found by ref, not by board
 
@@ -309,7 +365,9 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
    *centre* falls inside the rectangle), and the tile bake, the wall bodies and the
    collision grid all read it. So a wide tile on `walls` blocks all of itself, and a
    1.5-wide door still only claims one cell because its 8px overhang misses both
-   neighbours' centres.
+   neighbours' centres. A tile can also be *smaller* than its footprint —
+   `ColliderPadding` insets the collision box without moving the art or the cells
+   the grid claims (§3.2).
 
 ## 6. Minimum viable map
 
