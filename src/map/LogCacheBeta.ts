@@ -6,6 +6,7 @@ import {
   hasTileAt,
   MissingProto,
   mustProto,
+  protoTile,
   requireClear,
   type TilePos,
 } from "./generate";
@@ -77,20 +78,44 @@ export function appendLogCacheBeta(map: GameMap, host: string | null): boolean {
   if (terminals.tiles.some(isBetaTerminal)) return true;
 
   try {
-    requireClear(hostLevel, host, [BETA_TERMINAL, ...BETA_BEAMS]);
-
-    const terminalProto = mustProto(map, "terminals", (r) => r === "terminal0");
-    const beamProto = mustProto(map, "doors", (r) => r.toLowerCase().includes("laser"));
-
-    terminals.tiles.push(
-      cloneWithComponent(terminalProto, BETA_TERMINAL.x, BETA_TERMINAL.y, "terminal", {
-        type: BETA_TYPE,
-      }),
+    // A cache the author already put on this deck *is* node BETA — retyping it beats
+    // standing a second one a few tiles away, which is what injecting unconditionally
+    // did to NW-SMAC-01's crawlspace: two log caches in one room, one of them ours.
+    const authored = terminals.tiles.findIndex((t) =>
+      t.components.some(
+        (c) => c.type === "terminal" && (c.values.type ?? "").toLowerCase() === "log_cache",
+      ),
     );
+    const at =
+      authored >= 0
+        ? { x: terminals.tiles[authored].x, y: terminals.tiles[authored].y }
+        : BETA_TERMINAL;
 
-    const lasers = ensureLayer(hostLevel, "lasers");
-    for (const b of BETA_BEAMS) {
-      if (!hasTileAt(lasers, b.x, b.y)) lasers.tiles.push(cloneTile(beamProto, b.x, b.y));
+    // Beams flank the node at the same offsets either way; they're decoration on the
+    // approach, so it's no loss if the room can't take them.
+    const beams = BETA_BEAMS.map((b) => ({
+      x: at.x + (b.x - BETA_TERMINAL.x),
+      y: at.y + (b.y - BETA_TERMINAL.y),
+    }));
+    requireClear(hostLevel, host, authored >= 0 ? [at] : [at, ...beams]);
+
+    if (authored >= 0) {
+      const t = terminals.tiles[authored];
+      terminals.tiles[authored] = cloneWithComponent(t, t.x, t.y, "terminal", { type: BETA_TYPE });
+    } else {
+      const terminalProto = mustProto(map, "terminals", (r) => r === "terminal0");
+      terminals.tiles.push(
+        cloneWithComponent(terminalProto, at.x, at.y, "terminal", { type: BETA_TYPE }),
+      );
+    }
+
+    const beamProto = protoTile(map, "doors", (r) => r.toLowerCase().includes("laser"));
+    if (beamProto) {
+      const lasers = ensureLayer(hostLevel, "lasers");
+      for (const b of beams) {
+        if (b.x < 0 || b.y < 0 || b.x >= hostLevel.width || b.y >= hostLevel.height) continue;
+        if (!hasTileAt(lasers, b.x, b.y)) lasers.tiles.push(cloneTile(beamProto, b.x, b.y));
+      }
     }
     return true;
   } catch (e) {

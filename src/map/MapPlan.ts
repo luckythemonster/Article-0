@@ -1,4 +1,4 @@
-import { isGeneratedLevel, type GameMap } from "./types";
+import type { GameMap } from "./types";
 
 /**
  * What shape a map is: where a run starts, where it ends, and whether the engine can graft
@@ -36,7 +36,11 @@ function candidates(map: GameMap): GameMap["levels"] {
   // run into one would be circular. Filtering them here also keeps planFor stable if it is
   // re-run after generation, which `GameScene.mapPlan()` does whenever the registry key is
   // missing.
-  return map.levels.filter((l) => !isGeneratedLevel(l.name));
+  //
+  // Keyed on the flag the generator sets rather than the name, because a map may
+  // author its own `vent_core` — and one the author drew is ordinary content that
+  // should be as eligible to host a run as any other level.
+  return map.levels.filter((l) => !l.generated);
 }
 
 /** True when a level carries a board of this name with at least one tile on it. */

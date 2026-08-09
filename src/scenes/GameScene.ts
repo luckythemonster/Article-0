@@ -118,7 +118,7 @@ import { ENFORCER_SKIN } from "../entities/EnforcerAnimations";
 import { RelayState, type RelayTransition } from "../systems/RelayCore";
 import { ROOF_ARRAY_LEVEL } from "../map/RoofArrayLevel";
 import { Encounters } from "./game/Encounters";
-import { isGeneratedLevel } from "../map/types";
+import { isInteractTransition } from "../map/types";
 import { planFor, type MapPlan } from "../map/MapPlan";
 import { getAudio } from "../systems/AudioDirector";
 import { saveGame, clearSave, loadGame, type SlotId } from "../systems/SaveGame";
@@ -1914,8 +1914,7 @@ export class GameScene extends Phaser.Scene {
       this.beginTransition(tr);
       return;
     }
-    const hatch =
-      tr && tr.kind === "maintenance_access" && this.transitionArmed ? tr : undefined;
+    const hatch = tr && isInteractTransition(tr.kind) && this.transitionArmed ? tr : undefined;
 
     // A hold-up claims Rowan's hands: he cannot work a panel, empty a chest, swing a
     // door or fire the Stapler while pointing a weapon at somebody. Masking both E
@@ -2416,12 +2415,14 @@ export class GameScene extends Phaser.Scene {
    * hardcoded so the warps work on any map.
    */
   private debugWarpLevels(): string[] {
-    const names = this.map.levels.map((l) => l.name);
     // Authored decks first, in map order, then the generated ones — so the warp keys
     // follow the run's shape and a new generated level lands on the end rather than
     // shuffling every key the player has already learned.
-    const authored = names.filter((n) => !isGeneratedLevel(n));
-    const generated = names.filter(isGeneratedLevel);
+    //
+    // Split on the flag the generator sets, not the name: a map that authored its own
+    // `vent_core` wrote a deck of its own, and it belongs in its own running order.
+    const authored = this.map.levels.filter((l) => !l.generated).map((l) => l.name);
+    const generated = this.map.levels.filter((l) => l.generated).map((l) => l.name);
     return [...authored, ...generated].slice(0, DEBUG_WARP_SLOTS);
   }
 

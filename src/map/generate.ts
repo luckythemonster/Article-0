@@ -118,6 +118,117 @@ export interface TilePos {
 }
 
 /**
+ * Fixture anchors read from a board, falling back to a generator's constants.
+ *
+ * The bridge between the two kinds of level. A level the engine generated has no
+ * such board, so it falls through to the hardcoded layout the generator placed
+ * to — byte-identical to reading the constant directly. A level the *map*
+ * authored carries the board (put there by `AdoptAuthored`), and drives the same
+ * mechanic off its own geometry instead of coordinates picked for a different
+ * arena entirely.
+ */
+export function anchorsFrom(
+  level: GameLevel,
+  board: string,
+  fallback: readonly TilePos[],
+): TilePos[] {
+  const tiles = level.layers.find((l) => l.name === board)?.tiles ?? [];
+  return tiles.length > 0 ? tiles.map((t) => ({ x: t.x, y: t.y })) : fallback.map((p) => ({ ...p }));
+}
+
+/** {@link anchorsFrom} for a mechanic with exactly one anchor. */
+export function anchorFrom(level: GameLevel, board: string, fallback: TilePos): TilePos {
+  return anchorsFrom(level, board, [fallback])[0];
+}
+
+/**
+ * `count` positions spread evenly around `anchor` at roughly `radius` tiles,
+ * each nudged to the nearest spot `accept` allows.
+ *
+ * How a fixture the map didn't author gets a home: the generated arenas place
+ * pitons and drips at coordinates hand-picked for their own geometry, which say
+ * nothing about someone else's arena. Deterministic — same map in, same layout
+ * out — so a saved run doesn't find its grip points moved on reload.
+ */
+export function spreadAround(
+  anchor: TilePos,
+  count: number,
+  radius: number,
+  accept: (p: TilePos) => boolean,
+  phase = 0,
+): TilePos[] {
+  const out: TilePos[] = [];
+  const taken = new Set<string>();
+  for (let i = 0; i < count; i++) {
+    const a = phase + (2 * Math.PI * i) / count;
+    const ideal = {
+      x: Math.round(anchor.x + radius * Math.cos(a)),
+      y: Math.round(anchor.y + radius * Math.sin(a)),
+    };
+    const found = nearestAccepted(ideal, accept, taken);
+    if (!found) continue;
+    taken.add(`${found.x},${found.y}`);
+    out.push(found);
+  }
+  return out;
+}
+
+/**
+ * A predicate for "somewhere a player could stand" — in bounds, nothing solid,
+ * and on floor where the level has a `floor` board to judge by. Levels that pave
+ * themselves with something else (the roof uses `roof`/`platform`) are judged on
+ * what's solid alone.
+ */
+export function standableIn(level: GameLevel): (p: TilePos) => boolean {
+  const blocked = blockedTiles(level);
+  const floor = new Set(
+    (level.layers.find((l) => l.name === "floor")?.tiles ?? []).map((t) => `${t.x},${t.y}`),
+  );
+  return (p) => {
+    if (p.x < 0 || p.y < 0 || p.x >= level.width || p.y >= level.height) return false;
+    const k = `${p.x},${p.y}`;
+    if (blocked.has(k)) return false;
+    return floor.size > 0 ? floor.has(k) : true;
+  };
+}
+
+/**
+ * The open tile nearest the middle of everywhere a player can stand — a level's
+ * "main room" for the purpose of dropping a fixture into it.
+ */
+export function openCentre(level: GameLevel): TilePos | undefined {
+  const open = standableIn(level);
+  const tiles: TilePos[] = [];
+  for (let y = 0; y < level.height; y++) {
+    for (let x = 0; x < level.width; x++) if (open({ x, y })) tiles.push({ x, y });
+  }
+  if (tiles.length === 0) return undefined;
+  const cx = Math.round(tiles.reduce((s, p) => s + p.x, 0) / tiles.length);
+  const cy = Math.round(tiles.reduce((s, p) => s + p.y, 0) / tiles.length);
+  return spreadAround({ x: cx, y: cy }, 1, 0, open)[0];
+}
+
+/** Square-spiral outward from `from` for the first spot `accept` allows. */
+function nearestAccepted(
+  from: TilePos,
+  accept: (p: TilePos) => boolean,
+  taken: Set<string>,
+  maxRing = 8,
+): TilePos | undefined {
+  for (let r = 0; r <= maxRing; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (r > 0 && Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const p = { x: from.x + dx, y: from.y + dy };
+        if (taken.has(`${p.x},${p.y}`)) continue;
+        if (accept(p)) return p;
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
  * Up to `limit` distinct framed floor tiles, for texture variety.
  *
  * Generated floors cycle through these deterministically rather than picking at random,
@@ -210,6 +321,16 @@ export function hasTileAt(layer: GameLayer, x: number, y: number): boolean {
 export function requireClear(level: GameLevel, host: string, at: readonly TilePos[]): void {
   const blocked = blockedTiles(level);
   for (const p of at) {
+    // Off the edge counts as blocked. Without this an out-of-bounds coordinate
+    // reads as "clear" purely because nothing put a wall there, and the generator
+    // reports success while placing its fixtures where no player can reach them —
+    // which is exactly what the vault did on a map shorter than the one its
+    // coordinates were picked for.
+    if (p.x < 0 || p.y < 0 || p.x >= level.width || p.y >= level.height) {
+      throw new MissingProto(
+        `(${p.x},${p.y}) is outside "${host}" (${level.width}x${level.height})`,
+      );
+    }
     if (blocked.has(`${p.x},${p.y}`)) {
       throw new MissingProto(`(${p.x},${p.y}) is blocked on "${host}"`);
     }

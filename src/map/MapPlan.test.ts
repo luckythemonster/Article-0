@@ -3,18 +3,22 @@ import { planFor } from "./MapPlan";
 import { VENT_CORE_LEVEL } from "./VentCoreLevel";
 import type { GameMap } from "./types";
 
-/** A map of levels, each described as `name -> boards that carry at least one tile`. */
-function mapOf(levels: [string, string[]][]): GameMap {
+/**
+ * A map of levels, each described as `name -> boards that carry at least one tile`,
+ * with an optional third element marking the level as engine-generated.
+ */
+function mapOf(levels: [string, string[], boolean?][]): GameMap {
   return {
     name: "t",
     tileWidth: 32,
     tileHeight: 32,
     sheetTextureKeys: [],
-    levels: levels.map(([name, boards]) => ({
+    levels: levels.map(([name, boards, generated]) => ({
       name,
       width: 40,
       height: 45,
       layers: boards.map((b) => ({ name: b, tiles: [{ x: 1, y: 1 }] })),
+      generated,
     })),
   } as unknown as GameMap;
 }
@@ -130,11 +134,25 @@ describe("planFor", () => {
       mapOf([
         ["main1", ["spawn"]],
         ["duct2", ["maintenance_access"]],
-        [VENT_CORE_LEVEL, ["spawn", "extraction", "maintenance_access", "floor"]],
+        [VENT_CORE_LEVEL, ["spawn", "extraction", "maintenance_access", "floor"], true],
       ]),
     );
     expect(plan.startLevel).toBe("main1");
     expect(plan.extractionLevel).not.toBe(VENT_CORE_LEVEL);
     expect(plan.ventCoreHost).toBe("duct2");
+  });
+
+  it("does point at a vent_core the map authored itself", () => {
+    // The exclusion is about not routing a run into something the *engine* built.
+    // A level the author drew is ordinary content, whatever they chose to call it —
+    // and NW-SMAC-01 draws its own `vent_core`.
+    const plan = planFor(
+      mapOf([
+        ["main1", ["spawn"]],
+        [VENT_CORE_LEVEL, ["extraction", "floor"]],
+      ]),
+    );
+    expect(plan.startLevel).toBe("main1");
+    expect(plan.extractionLevel).toBe(VENT_CORE_LEVEL);
   });
 });

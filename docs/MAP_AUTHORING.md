@@ -132,17 +132,76 @@ A `lasers` board is therefore a convention, not a requirement.
 - `vertical` in the ref → vertical beam; otherwise horizontal.
 - Footprint comes from the tile's `ColSpan` / `RowSpan`.
 
-### Transitions are matched by coordinate across levels
+### Transitions: number them, or align them
 
-`TransitionGraph` uses `TRANSITION_BOARDS = ["stairs", "maintenance_access"]`. A transition
-tile at `(x, y)` links to whichever *other* level has a tile on the **same-named board at
-the same `(x, y)`**, and the player arrives at that coordinate. There is an affinity
-tie-break when several levels share coordinates.
+There are two ways to link levels, and **the numbered one is strongly preferred.**
+
+#### 1. Numbered pairs (explicit, recommended)
+
+Name the two ends `hatch<N>` and `ladder<N>` — the *tile ref*, not the board — and they
+link, whatever board they sit on and wherever they sit:
+
+```
+main1  hatch1  (38,27)   <->  duct1  ladder1  (38,27)
+main2  ladder3 (5,1)     <->  roof_array  hatch3  (6,30)     <- coordinates need not match
+```
+
+The number is the link. The player arrives at the partner tile's coordinate, so the two
+ends are free to sit wherever each level's geometry wants them. Exactly two ends per
+number: one end is ignored, and three or more is ambiguous, so nothing is linked.
+
+The match is anchored (`^(hatch|ladder)\d+$`), which is why intra-level ramp art called
+`stairs_up_east2` or `stair_rail_top_left1` never becomes an accidental level exit.
+
+#### 2. Coordinate matching (implicit, legacy)
+
+`TRANSITION_BOARDS = ["stairs", "maintenance_access", "roof_access"]`. A tile at `(x, y)`
+links to whichever *other* level has a tile on the **same-named board at the same
+`(x, y)`**, and the player arrives at that coordinate. There is an affinity tie-break when
+several levels share coordinates, and a ragged-cluster fallback for a tile whose twin is
+missing — which needs the two levels to share at least one coordinate on that board, so it
+cannot rescue a pair that lines up nowhere.
 
 **Paired stairs and hatches must therefore sit at identical tile coordinates in both
-levels.** This is the easiest thing to get wrong and it fails silently.
+levels.** This is the easiest thing to get wrong and it fails silently. Number them
+instead.
+
+A numbered pair wins over coordinate matching for the same tile.
+
+### If the extraction level has no way in
+
+`graftExtractionEntrance` (`src/map/AdoptAuthored.ts`) is the safety net: when the
+extraction level has no `stairs` or `maintenance_access` tile at all, and some other level
+has a stair whose coordinate nothing answers, the engine joins those two with a grafted
+`hatch9`/`ladder9` pair, landing the player on the nearest tile they can stand on. It is a
+net, not a feature — author the entrance and it never fires.
 
 ## 4. Component fields — read vs ignored
+
+### Naming: the loader normalises, within limits
+
+Component names below are the engine's. The editor doesn't spell them consistently across
+exports — NW-SMAC-01 ships `Terminal`, `Container`, `LightSource` — so `EdplayLoader`
+lowercases every `DataType` and maps the ones that genuinely differ:
+
+| Editor emits | Engine reads |
+| --- | --- |
+| `Container` | `chest` |
+| `LightSource` | `light_source` |
+| `Sensors` | `sensor` |
+| `AudioHazard` | `audio_hazard` |
+| `Cover.Height` | `cover.type` |
+
+Field names are left alone apart from the identity fields `Type` / `State` / `Key`, which
+lowercase — the tuning fields (`SightRange`, `HackTime`, `ThermalBleed`, …) keep the
+editor's PascalCase, because that is what the engine has always read them as.
+
+This matters more than it looks: an unrecognised component reads as *absent*, silently. A
+map whose terminals are spelled in a way the loader doesn't know has no terminals at all,
+which means no log caches, which means a run that cannot be won — with nothing logged
+anywhere. If you add a component type to the editor, add it here.
+
+### Read vs ignored
 
 Fields in the ignored column are authored (and sometimes even parsed) but never acted on.
 
@@ -204,8 +263,9 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
    a level with no `light_sources` board is navigable only by flashlight and radar. Three of
    the shipped map's five levels are in that state.
 8. **Level order matters too**, separately from board order: the debug warp keys `1`–`6` map
-   to your levels in authored order, with the generated `vent_core` and `roof_array` last.
-   Put the levels you iterate on most near the front.
+   to your levels in authored order, with engine-*generated* levels last. "Generated" is a
+   flag the generator sets, not the level's name — a `vent_core` you authored sorts with
+   your own levels. Put the ones you iterate on most near the front.
 9. **The engine appends four things to your map at boot**, each of which will quietly
    decline if your map can't host it — see `src/map/generate.ts` and the flags
    `hasVentCore` / `hasLogBeta` / `hasVault` / `hasRoof`:
@@ -213,15 +273,35 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
    - the NW-SMAC-01 vault's fixtures and the `roof_array` level graft onto
      `MapPlan.extractionLevel`.
 
-   All four place tiles at **hardcoded coordinates** picked for the shipped map, and each
-   checks those coordinates are unblocked before using them. On a different map they will
-   usually be walls, the generator will decline, and the objectives, the codec and the win
-   condition all adjust to whatever did generate. A map that wants those acts needs either
-   open floor at those coordinates or its own generator.
-10. **Board names the generated acts claim**: `vault_core`, `vault_nodes`, `vault_racks`,
-   `relay_pedestals`, `relay_feed`, plus `substations` and `grates` for VENT-4. Only the
-   hold-to-interact ones (`vault_nodes`, `relay_pedestals`, `relay_feed`, `substations`)
-   are in `ENTITY_LAYERS`; the rest render as ordinary tile art.
+   The vault and BETA prefer their hardcoded coordinates and fall back to a layout derived
+   from the host's own open floor when those don't fit; BETA retypes a `log_cache` terminal
+   the host already has rather than standing a second one. `requireClear` rejects anything
+   off the edge of the level as well as anything solid — an out-of-bounds coordinate used
+   to read as "clear" and place fixtures where no player could reach them.
+10. **Author `vent_core` / `roof_array` yourself and the engine adopts them** instead of
+   generating (`src/map/AdoptAuthored.ts`). It reads what you placed and derives the rest:
+
+   | Engine board | Taken from |
+   | --- | --- |
+   | `substations` | `energy` tiles reffed `substation_energy*` — **moved** off `energy` |
+   | `vent_hub` | the `VENT-4` tile whose ref contains `chassis` |
+   | `steam` | `VENT-4` tiles reffed `Steam_Vent1` |
+   | `relay_pedestals` | `terminals` reffed `calibration_pedestal*` — **moved** off `terminals` |
+   | `relay_dish` | the `uplink` tile |
+   | `siege_mouths` | the roof's `entities` tiles |
+   | `winches` | your board of that name, as-is |
+   | `pitons`, `drips`, `columns`, `grates`, `relay_feed`, `searchlights` | derived |
+
+   **Every one of these is overridable**: place a board yourself and the adopter leaves it
+   alone. The derived layouts are a floor, not a ceiling. An arena with no chassis, or a
+   roof with no dish, is declined outright rather than reported as a boss that isn't there.
+
+   Board names the acts claim, generated or adopted: `vault_core`, `vault_nodes`,
+   `vault_racks`, `relay_pedestals`, `relay_feed`, `relay_dish`, `siege_mouths`,
+   `searchlights`, `substations`, `grates`, `vent_hub`, `steam`, `pitons`, `drips`,
+   `columns`. Only the hold-to-interact ones (`vault_nodes`, `relay_pedestals`,
+   `relay_feed`, `substations`) are in `ENTITY_LAYERS`; the rest render as ordinary tile
+   art, and the marker-only ones aren't drawn at all.
 11. **A tile can be bigger than the cell it sits on.** `ColSpan`/`RowSpan` and
    `OffsetX`/`OffsetY` describe a footprint the art is stretched over — doors are 1.5 or
    2.5 tiles in one axis, and `main2`'s glass panes are 1×2.5 nudged half a tile down.

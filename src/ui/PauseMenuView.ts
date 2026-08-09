@@ -7,6 +7,7 @@ import { formatAgo, formatClock } from "./format";
 import { JOURNAL_ENTRIES, type JournalState } from "../systems/Journal";
 import { lexiconByCategory, lexiconEntry, type LexiconContext } from "../systems/Lexicon";
 import { itemInfo } from "../systems/ItemCatalog";
+import { ROOF_ARRAY_LEVEL } from "../map/RoofArrayLevel";
 import { flashlightIconPath, ITEM_ICON_PATHS } from "../systems/ItemIcons";
 import {
   objectiveLines,
@@ -298,7 +299,8 @@ export class PauseMenuView {
         // extraction deck, as before.
         [
           "Extraction",
-          (this.snap.features.hasRoof ? "roof_array" : this.snap.features.extractionLevel) || "—",
+          (this.snap.features.hasRoof ? ROOF_ARRAY_LEVEL : this.snap.features.extractionLevel) ||
+            "—",
         ],
         ["Elapsed", formatClock(this.snap.playTimeMs)],
       ]),

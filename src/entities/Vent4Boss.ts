@@ -16,6 +16,7 @@ import {
 import { Vent4PhysicsSystem, type Vent4Forces } from "../systems/Vent4PhysicsSystem";
 import { STAPLER_ITEM, VENT4_DEFAULTS, paced, type Vent4Stats } from "../systems/EntityStats";
 import { PressureSubStation } from "./PressureSubStation";
+import { anchorFrom, anchorsFrom, type TilePos } from "../map/generate";
 import {
   HUB_CENTER_TILE,
   VENT_CORE_COLUMNS,
@@ -85,6 +86,9 @@ export class Vent4Boss {
   private readonly subs: PressureSubStation[] = [];
   private readonly grates = new Set<string>();
   private readonly winches: { x: number; y: number }[];
+  /** Grip points and thermal-zero tiles, from the level's boards or the generated layout. */
+  private readonly pitons: TilePos[];
+  private readonly drips: TilePos[];
   private readonly winchProgress: number[];
   private readonly jets: SteamJet[];
   private readonly caps: { x: number; y: number }[];
@@ -133,13 +137,27 @@ export class Vent4Boss {
     });
 
     this.core = new Vent4Core(stats, restore);
-    this.hub = { x: HUB_CENTER_TILE.x * ts, y: HUB_CENTER_TILE.y * ts };
+    // Anchors come from the level's own boards when it has them — an authored
+    // arena is laid out nothing like the generated one, and these coordinates
+    // decide where the suction pulls from and what you can hold onto. A generated
+    // arena has no such boards and falls through to the constants it was built to.
+    // `HUB_CENTER_TILE` names a pixel centre (20.5 = the middle of the 3×3 hub
+    // block), while a board tile names its own cell. The half-tile either side is
+    // what makes the two conventions land on the same pixel.
+    const hubTile = anchorFrom(level, "vent_hub", {
+      x: HUB_CENTER_TILE.x - 0.5,
+      y: HUB_CENTER_TILE.y - 0.5,
+    });
+    const hubCentre = { x: hubTile.x + 0.5, y: hubTile.y + 0.5 };
+    this.pitons = anchorsFrom(level, "pitons", VENT_CORE_PITONS);
+    this.drips = anchorsFrom(level, "drips", VENT_CORE_DRIPS);
+    this.hub = { x: hubCentre.x * ts, y: hubCentre.y * ts };
     this.physics = new Vent4PhysicsSystem(
       {
         hub: this.hub,
-        columns: VENT_CORE_COLUMNS.map(toPx),
-        pitons: VENT_CORE_PITONS.map(toPx),
-        drips: VENT_CORE_DRIPS.map(toPx),
+        columns: anchorsFrom(level, "columns", VENT_CORE_COLUMNS).map(toPx),
+        pitons: this.pitons.map(toPx),
+        drips: this.drips.map(toPx),
       },
       ts,
       stats,
@@ -155,19 +173,22 @@ export class Vent4Boss {
     const grateLayer = level.layers.find((l) => l.name === "grates");
     for (const tile of grateLayer?.tiles ?? []) this.grates.add(`${tile.x},${tile.y}`);
 
-    this.winches = VENT_CORE_WINCHES.map(toPx);
-    this.winchProgress = VENT_CORE_WINCHES.map(() => 0);
-    this.jets = VENT_CORE_STEAM.map(toPx).map((p, i) => ({
-      x: p.x,
-      y: p.y,
-      active: false,
-      timer: 0.8 + i * 0.45,
-      crossing: false,
-    }));
+    const winchTiles = anchorsFrom(level, "winches", VENT_CORE_WINCHES);
+    this.winches = winchTiles.map(toPx);
+    this.winchProgress = winchTiles.map(() => 0);
+    this.jets = anchorsFrom(level, "steam", VENT_CORE_STEAM)
+      .map(toPx)
+      .map((p, i) => ({
+        x: p.x,
+        y: p.y,
+        active: false,
+        timer: 0.8 + i * 0.45,
+        crossing: false,
+      }));
 
     // Core capacitors sit on the hub's corner tiles, exposed while JAMMED.
-    const hx = HUB_CENTER_TILE.x;
-    const hy = HUB_CENTER_TILE.y;
+    const hx = hubCentre.x;
+    const hy = hubCentre.y;
     this.caps = [
       { x: (hx - 1) * ts, y: (hy - 1) * ts },
       { x: (hx + 1) * ts, y: (hy - 1) * ts },
@@ -323,7 +344,7 @@ export class Vent4Boss {
       });
       const piton = this.physics.nearestPiton(ptx * ts, pty * ts, PITON_RANGE_TILES);
       if (piton !== null) {
-        const p = VENT_CORE_PITONS[piton];
+        const p = this.pitons[piton];
         consider("piton", piton, len(p.x + 0.5 - ptx, p.y + 0.5 - pty), PITON_RANGE_TILES);
       }
     }
@@ -752,7 +773,7 @@ export class Vent4Boss {
       g.lineStyle(2, used ? 0x3a4654 : 0xcfe0f0, 1);
       g.strokeCircle(w.x, w.y + ts * 0.05, ts * 0.14);
     });
-    for (const p of VENT_CORE_PITONS) {
+    for (const p of this.pitons) {
       const x = (p.x + 0.5) * ts;
       const y = (p.y + 0.5) * ts;
       g.fillStyle(0x39d3ff, 0.9);
@@ -760,7 +781,7 @@ export class Vent4Boss {
       g.lineStyle(1, 0x2b4356, 1);
       g.strokeCircle(x, y, ts * 0.3);
     }
-    for (const d of VENT_CORE_DRIPS) {
+    for (const d of this.drips) {
       const x = (d.x + 0.5) * ts;
       const y = (d.y + 0.5) * ts;
       g.fillStyle(0x4fd8ff, 0.35);
