@@ -1,5 +1,6 @@
 import type { GameMap, GameTile } from "./types";
 import {
+  blockedTiles,
   cloneTile,
   cloneWithComponent,
   ensureLayer,
@@ -109,11 +110,25 @@ export function appendLogCacheBeta(map: GameMap, host: string | null): boolean {
       );
     }
 
-    const beamProto = protoTile(map, "doors", (r) => r.toLowerCase().includes("laser"));
+    // The host's own lasers first, so the beams read as the same fixture family the
+    // level already uses; any laser on the map otherwise, for a host with none of its
+    // own. `doors` was the shipped map's laser-tagged board — this one puts lasers on
+    // their own `lasers` board, which is what `blockingLayerNames`/`TRANSITION_BOARDS`
+    // and every other laser reader already assume.
+    const beamProto =
+      protoTile(map, "lasers", undefined, host) ?? protoTile(map, "lasers");
     if (beamProto) {
       const lasers = ensureLayer(hostLevel, "lasers");
+      // The promoted terminal's own clearance was checked above, but not the beams'
+      // — a promoted terminal keeps whatever offsets the constants describe, and
+      // nothing says a wall doesn't sit at one of them on this particular crawlspace
+      // (it does, on NW-SMAC-01's). Individually, not via `requireClear`: a beam
+      // that can't fit is exactly the "no loss" case above, not a reason to lose the
+      // terminal promotion along with it.
+      const blocked = blockedTiles(hostLevel);
       for (const b of beams) {
         if (b.x < 0 || b.y < 0 || b.x >= hostLevel.width || b.y >= hostLevel.height) continue;
+        if (blocked.has(`${b.x},${b.y}`)) continue;
         if (!hasTileAt(lasers, b.x, b.y)) lasers.tiles.push(cloneTile(beamProto, b.x, b.y));
       }
     }

@@ -4,22 +4,19 @@ import { EdplayLoader, type ParsedMap } from "./EdplayLoader";
 import { planFor } from "./MapPlan";
 import type { EdPlayFile, GameMap } from "./types";
 import { TransitionGraph } from "../systems/TransitionGraph";
-import { STAPLER_ITEM } from "../systems/EntityStats";
-import { chestStatsFor } from "../systems/EntityStats";
-import {
-  appendVentCore,
-  VENT_CORE_ENTRY,
-  VENT_CORE_LEVEL,
-  VENT_CORE_SUBSTATIONS,
-  ventCoreGrateTiles,
-} from "./VentCoreLevel";
+import { appendVentCore, VENT_CORE_LEVEL } from "./VentCoreLevel";
 
 /**
- * Integration test on the real shipped map: the synthetic arena must slot into
- * the parsed model exactly like an authored level, and must not disturb any
- * existing transition link.
+ * Integration test on the real shipped map.
+ *
+ * NW-SMAC-01 authors its own `vent_core`, so `appendVentCore` takes the *adopt*
+ * path (`src/map/AdoptAuthored.ts`) rather than generating one from scratch —
+ * the generator's own board list, wall-ring geometry and hatch coordinate never
+ * come into play here. `AdoptAuthored.test.ts` covers that mechanism on hand-made
+ * fixtures; this file's job is to check the real data actually goes through it
+ * correctly, one level up.
  */
-describe("VentCoreLevel", () => {
+describe("VentCoreLevel — real map, adopt path", () => {
   let parsed: ParsedMap;
 
   beforeAll(() => {
@@ -30,60 +27,74 @@ describe("VentCoreLevel", () => {
     appendVentCore(parsed.map, planFor(parsed.map).ventCoreHost);
   });
 
-  it("appends the level with every expected board", () => {
+  it("adopts the authored level rather than generating one", () => {
     const level = parsed.map.levels.find((l) => l.name === VENT_CORE_LEVEL);
     expect(level).toBeDefined();
+    // The authored dimensions, not the generator's fixed 40×45.
+    expect(level!.width).toBe(48);
+    expect(level!.height).toBe(36);
     const names = level!.layers.map((l) => l.name);
     for (const board of [
+      "VENT-4",
       "floor",
-      "grates",
-      "cover",
-      "light_sources",
       "walls",
-      "maintenance_access",
-      "substations",
+      "catwalks",
+      "stairs",
+      "ramps",
       "items",
-      "spawn",
+      "winches",
+      "energy",
+      "substations",
+      "vent_hub",
+      "steam",
+      "columns",
+      "pitons",
+      "drips",
+      "grates",
     ]) {
-      expect(names).toContain(board);
+      expect(names, board).toContain(board);
     }
-    expect(level!.width).toBe(40);
-    expect(level!.height).toBe(45);
   });
 
-  it("links duct2 (18,34) to vent_core and back, exactly", () => {
+  it("links duct2 to vent_core by the real coordinate the map authored, on foot", () => {
+    // duct2's stairs and vent_core's stairs share (43,1) — no injected hatch, no
+    // (18,34): the old generator's entry point describes an arena this map doesn't
+    // have. This one connects on a `stairs` board, so it triggers on contact.
     const graph = new TransitionGraph(parsed.map);
-    expect(graph.at("duct2", VENT_CORE_ENTRY.x, VENT_CORE_ENTRY.y)).toEqual({
+    expect(graph.at("duct2", 43, 1)).toEqual({
       toLevel: VENT_CORE_LEVEL,
-      toX: VENT_CORE_ENTRY.x,
-      toY: VENT_CORE_ENTRY.y,
-      kind: "maintenance_access",
+      toX: 43,
+      toY: 1,
+      kind: "stairs",
     });
-    expect(graph.at(VENT_CORE_LEVEL, VENT_CORE_ENTRY.x, VENT_CORE_ENTRY.y)).toEqual({
+    expect(graph.at(VENT_CORE_LEVEL, 43, 1)).toEqual({
       toLevel: "duct2",
-      toX: VENT_CORE_ENTRY.x,
-      toY: VENT_CORE_ENTRY.y,
-      kind: "maintenance_access",
+      toX: 43,
+      toY: 1,
+      kind: "stairs",
     });
   });
 
-  it("leaves the existing duct2 <-> main1 links untouched", () => {
+  it("leaves duct2's own link to duct1 untouched", () => {
+    // duct2's sibling link on this map is to duct1, not main1 — this map's route is
+    // main1 -> duct1 -> duct2 -> vent_core, with no direct duct2/main1 link at all.
     const graph = new TransitionGraph(parsed.map);
-    expect(graph.at("duct2", 2, 34)?.toLevel).toBe("main1");
-    expect(graph.at("duct2", 35, 34)?.toLevel).toBe("main1");
-    expect(graph.at("main1", 2, 34)?.toLevel).toBe("duct2");
-    expect(graph.at("main1", 35, 34)?.toLevel).toBe("duct2");
+    expect(graph.at("duct2", 1, 1)?.toLevel).toBe("duct1");
+    expect(graph.at("duct1", 1, 1)?.toLevel).toBe("duct2");
   });
 
-  it("is idempotent (the parsed map is registry-cached and must not grow twice)", () => {
+  it("is idempotent — the registry-cached map must not grow twice", () => {
     const levelCount = parsed.map.levels.length;
-    const duct2Access = parsed.map.levels
-      .find((l) => l.name === "duct2")!
-      .layers.find((l) => l.name === "maintenance_access")!;
-    const accessCount = duct2Access.tiles.length;
+    const substationCount = parsed.map.levels
+      .find((l) => l.name === VENT_CORE_LEVEL)!
+      .layers.find((l) => l.name === "substations")!.tiles.length;
     appendVentCore(parsed.map, planFor(parsed.map).ventCoreHost);
     expect(parsed.map.levels.length).toBe(levelCount);
-    expect(duct2Access.tiles.length).toBe(accessCount);
+    expect(
+      parsed.map.levels
+        .find((l) => l.name === VENT_CORE_LEVEL)!
+        .layers.find((l) => l.name === "substations")!.tiles.length,
+    ).toBe(substationCount);
   });
 
   it("paints only frames the parse already registered", () => {
@@ -96,39 +107,29 @@ describe("VentCoreLevel", () => {
     }
   });
 
-  it("places three framed sub-stations and a stapler chest", () => {
+  it("extracts the five authored sub-stations off the energy board, framed", () => {
+    // Moved off `energy` (not cloned) so the tile bake stops painting them where
+    // the entity now draws its own sprite — see AdoptAuthored.adoptVentCore.
     const level = parsed.map.levels.find((l) => l.name === VENT_CORE_LEVEL)!;
     const subs = level.layers.find((l) => l.name === "substations")!.tiles;
-    expect(subs.map((t) => ({ x: t.x, y: t.y }))).toEqual(VENT_CORE_SUBSTATIONS);
-    for (const s of subs) expect(s.frame).toBeDefined();
-
-    const chest = level.layers.find((l) => l.name === "items")!.tiles[0];
-    expect(chest.components.some((c) => c.type === "chest")).toBe(true);
-    expect(chestStatsFor(chest.components).items).toEqual([
-      STAPLER_ITEM,
-      "Sealant Tape",
-      "Q0 Filter Mask",
+    expect(subs.map((t) => ({ x: t.x, y: t.y }))).toEqual([
+      { x: 10, y: 4 },
+      { x: 9, y: 31 },
+      { x: 44, y: 7 },
+      { x: 33, y: 33 },
+      { x: 44, y: 15 },
     ]);
+    for (const s of subs) expect(s.frame).toBeDefined();
+    // The fusion core is not a sub-station and stays on `energy`.
+    const energy = level.layers.find((l) => l.name === "energy")!.tiles;
+    expect(energy.some((t) => t.ref === "VENT-4_fusion_core")).toBe(true);
   });
 
-  it("keeps the walls closed and the hatch inside them", () => {
+  it("anchors the hub on the authored VENT-4 chassis", () => {
     const level = parsed.map.levels.find((l) => l.name === VENT_CORE_LEVEL)!;
-    const walls = new Set(
-      level.layers.find((l) => l.name === "walls")!.tiles.map((t) => `${t.x},${t.y}`),
-    );
-    for (let x = 6; x <= 34; x++) {
-      expect(walls.has(`${x},6`)).toBe(true);
-      expect(walls.has(`${x},36`)).toBe(true);
-    }
-    for (let y = 6; y <= 36; y++) {
-      expect(walls.has(`6,${y}`)).toBe(true);
-      expect(walls.has(`34,${y}`)).toBe(true);
-    }
-    expect(walls.has(`${VENT_CORE_ENTRY.x},${VENT_CORE_ENTRY.y}`)).toBe(false);
-    // Grates never sit on blocked or entity tiles.
-    for (const g of ventCoreGrateTiles()) {
-      expect(walls.has(`${g.x},${g.y}`)).toBe(false);
-    }
+    const hub = level.layers.find((l) => l.name === "vent_hub")!.tiles;
+    expect(hub).toHaveLength(1);
+    expect({ x: hub[0].x, y: hub[0].y }).toEqual({ x: 22, y: 18 });
   });
 
   describe("when the map can't host it", () => {
@@ -167,9 +168,9 @@ describe("VentCoreLevel", () => {
       expect(m.levels).toHaveLength(1);
     });
 
-    it("reports true for the shipped map, which can host it", () => {
+    it("reports true for the shipped map, which adopts its own arena", () => {
       expect(planFor(parsed.map).ventCoreHost).toBe("duct2");
-      // Already generated in beforeAll, so this is the idempotent path.
+      // Already adopted in beforeAll, so this is the idempotent path.
       expect(appendVentCore(parsed.map, "duct2")).toBe(true);
     });
   });
