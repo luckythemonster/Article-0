@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { EdplayLoader, type ParsedMap } from "./EdplayLoader";
 import { wallBodyRects, wallCells } from "./TileBake";
+import { hasPlainCollider } from "./footprint";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { blockingLayerNames, type EdPlayFile, type GameLevel } from "./types";
 
@@ -113,14 +114,20 @@ describe("the shipped map's level borders", () => {
     }
   });
 
-  it("turns every wall tile on main1 into a collision cell", () => {
-    // main1's walls board holds 526 tiles, all 1×1 — the count TileBake's own doc
-    // table quotes. Before the fix this produced 442, the 84 border tiles silently lost.
+  it("turns every plain wall tile on main1 into exactly one collision cell", () => {
+    // main1's walls board holds 792 tiles, all 1×1. 336 of them carry authored collider
+    // padding (`ColliderPadding` — see footprint.ts) and are deliberately excluded from
+    // this coarse mask: they get their own precise body from `wallBodyRects` instead,
+    // covered by the "no blocked cell without a body" test below. What this test still
+    // has to hold is the original regression — before the NaN fix this produced 442, the
+    // 84 border tiles (no X on the west column, no Y on the north row) silently lost.
     const main1 = parsed.map.levels.find((l) => l.name === "main1") as GameLevel;
     const walls = main1.layers.find((l) => l.name === "walls")!;
+    expect(walls.tiles).toHaveLength(792);
+    const plain = walls.tiles.filter((t) => hasPlainCollider(t));
+    expect(plain).toHaveLength(456);
     const bodies = wallCells(main1, 32);
-    expect(walls.tiles).toHaveLength(526);
-    expect(bodies.reduce((a: number, v: number) => a + v, 0)).toBe(526);
+    expect(bodies.reduce((a: number, v: number) => a + v, 0)).toBe(plain.length);
   });
 
   it("leaves no blocked cell without a body, and no body outside a blocked cell", () => {
