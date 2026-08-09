@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isPixelPerfect, screenPixelsPerSourcePixel } from "./pixelScale";
+import { isPixelPerfect, screenPixelsPerSourcePixel, snapToPixel } from "./pixelScale";
 import { PLAYER_DISPLAY_TILES, PLAYER_SOURCE_SIZE } from "../entities/PlayerAnimations";
 import { DRONE_SKIN } from "../entities/DroneAnimations";
 import { ENFORCER_SKIN } from "../entities/EnforcerAnimations";
@@ -94,5 +94,43 @@ describe("the one-shot effects", () => {
       "impact",
       "smoke-plume",
     ]);
+  });
+});
+
+describe("snapToPixel", () => {
+  it("floors to whole world pixels, matching how Phaser places sprites", () => {
+    expect(snapToPixel(100, 200)).toEqual({ x: 100, y: 200 });
+    expect(snapToPixel(100.4, 200.6)).toEqual({ x: 100, y: 200 });
+    expect(snapToPixel(100.999, 200.999)).toEqual({ x: 100, y: 200 });
+  });
+
+  it("floors rather than rounds, so it agrees with Camera.preRender", () => {
+    // Rounding would send .5 up and .6 to the next pixel, putting the darkness back
+    // on a different lattice from the camera — which is the whole bug.
+    expect(snapToPixel(10.5, 10.5)).toEqual({ x: 10, y: 10 });
+    expect(snapToPixel(10.6, 10.6)).toEqual({ x: 10, y: 10 });
+  });
+
+  it("floors toward negative infinity past the west and north edges", () => {
+    expect(snapToPixel(-0.2, -0.2)).toEqual({ x: -1, y: -1 });
+    expect(snapToPixel(-1, -1)).toEqual({ x: -1, y: -1 });
+  });
+
+  it("is stable — snapping an already-snapped point changes nothing", () => {
+    const once = snapToPixel(412.37, 88.91);
+    expect(snapToPixel(once.x, once.y)).toEqual(once);
+  });
+
+  it("advances by whole pixels across a smooth sweep, never fractionally", () => {
+    // What the recast key relies on: the snapped origin only ever changes in whole
+    // steps, so an exact comparison is a complete test for "the fan would differ".
+    let prev = snapToPixel(0, 0);
+    for (let i = 1; i <= 400; i++) {
+      const next = snapToPixel(i * 0.37, 0);
+      expect(Number.isInteger(next.x)).toBe(true);
+      expect(next.x - prev.x).toBeLessThanOrEqual(1);
+      expect(next.x).toBeGreaterThanOrEqual(prev.x);
+      prev = next;
+    }
   });
 });

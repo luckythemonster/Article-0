@@ -1695,10 +1695,17 @@ export class GameScene extends Phaser.Scene {
       getAudio().door();
       this.knockCooldown = KNOCK_COOLDOWN;
     }
+    // Cast from where the body actually is, not from the sprite Arcade has yet to
+    // move — see `Player.eye`. The camera follows the post-physics position at
+    // render time, so reading the sprite here leaves the darkness a step behind the
+    // level, by a margin that changes with the frame delta.
+    const eye = this.player.eye;
     this.lighting.update(
       dt,
-      this.player,
-      this.activeItems.flashlightBeamActive ? this.player : null,
+      eye,
+      this.activeItems.flashlightBeamActive
+        ? { x: eye.x, y: eye.y, facing: this.player.facing }
+        : null,
     );
     this.playTimeMs += delta;
     this.registry.set("playTimeMs", this.playTimeMs);
