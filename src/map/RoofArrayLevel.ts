@@ -12,6 +12,7 @@ import {
   wallRing,
   type TilePos,
 } from "./generate";
+import { adoptRoofArray } from "./AdoptAuthored";
 
 /**
  * The rooftop relay — Act IV's level, generated in code and appended at boot like the
@@ -112,10 +113,12 @@ const ROOF_LIGHTS: TilePos[] = [
  *
  * @param host the level the ladder rises from — `MapPlan.extractionLevel`, the same
  *   deck the vault stands on. Null skips generation.
- * @returns whether the level was generated.
+ * @returns whether the run has a completable roof — generated here, or adopted
+ *   from one the map authored itself.
  */
 export function appendRoofArray(map: GameMap, host: string | null): boolean {
-  if (map.levels.some((l) => l.name === ROOF_ARRAY_LEVEL)) return true;
+  const authored = map.levels.find((l) => l.name === ROOF_ARRAY_LEVEL);
+  if (authored) return adoptRoofArray(map, authored);
   if (host === null) return false;
   const hostLevel = map.levels.find((l) => l.name === host);
   if (!hostLevel) return false;
@@ -184,5 +187,6 @@ function buildRoofArray(map: GameMap, hostLevel: GameMap["levels"][number]): voi
     width: 40,
     height: 45,
     layers,
+    generated: true,
   });
 }

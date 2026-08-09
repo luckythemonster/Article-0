@@ -11,6 +11,7 @@ import {
   wallRing,
   type TilePos,
 } from "./generate";
+import { adoptVentCore } from "./AdoptAuthored";
 import { STAPLER_ITEM } from "../systems/EntityStats";
 
 /**
@@ -166,10 +167,16 @@ export function ventCoreGrateTiles(): TilePos[] {
  * boot down for any map that wasn't the shipped one.
  *
  * @param host level to graft onto — `MapPlan.ventCoreHost`. Null skips generation.
- * @returns whether the arena was generated.
+ * @returns whether the run has a fightable VENT-4 — generated here, or adopted
+ *   from one the map authored itself.
  */
 export function appendVentCore(map: GameMap, host: string | null): boolean {
-  if (map.levels.some((l) => l.name === VENT_CORE_LEVEL)) return true;
+  // A map that drew its own arena keeps it; we wire that one up instead. This
+  // used to return a bare `true`, which claimed a boss for any level that merely
+  // shared the name — objectives and codec lines and all — while the runtime
+  // found an empty room.
+  const authored = map.levels.find((l) => l.name === VENT_CORE_LEVEL);
+  if (authored) return adoptVentCore(authored);
   if (host === null) return false;
 
   const hostLevel = map.levels.find((l) => l.name === host);
@@ -254,5 +261,6 @@ function buildVentCore(map: GameMap, host: string, hostLevel: GameLevel): void {
     width: 40,
     height: 45,
     layers,
+    generated: true,
   });
 }

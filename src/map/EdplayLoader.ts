@@ -11,6 +11,55 @@ import type {
 } from "./types";
 
 /**
+ * Component names the editor emits, mapped to the ones the engine reads.
+ *
+ * The tile editor doesn't guarantee a stable spelling for these across exports:
+ * NW-SMAC-01 ships `Terminal` / `Container` / `LightSource` where the engine has
+ * always looked for `terminal` / `chest` / `light_source`. Nothing warned about
+ * it, because an unrecognised component simply reads as absent — so every door,
+ * chest, light, cover pad and terminal in the map quietly stopped being one, and
+ * with no terminals there were no log caches and no way to win the run.
+ *
+ * Case is handled by lowercasing; this table is only for the names that genuinely
+ * differ. Unknown components pass through lowercased, which is the right default:
+ * a component the engine doesn't read costs nothing by keeping its own name.
+ */
+const COMPONENT_ALIASES: Record<string, string> = {
+  container: "chest",
+  lightsource: "light_source",
+  sensors: "sensor",
+  audiohazard: "audio_hazard",
+};
+
+/**
+ * Field names per component, likewise. The engine's own convention is lowercase
+ * for the handful of identity fields (`type`, `state`, `key`) and the editor's
+ * PascalCase for tuning values, so lowercasing everything would break
+ * `SightRange` and friends — only the identity fields are rewritten.
+ *
+ * `Cover.Height` is the one true rename: it carries `low` / `high`, which is
+ * exactly what the engine calls a cover tile's `type`.
+ */
+const FIELD_ALIASES: Record<string, string> = {
+  type: "type",
+  state: "state",
+  key: "key",
+  height: "type",
+};
+
+const canonicalComponent = (name: string): string => {
+  const lower = name.toLowerCase();
+  return COMPONENT_ALIASES[lower] ?? lower;
+};
+
+const canonicalField = (component: string, field: string): string => {
+  const lower = field.toLowerCase();
+  // `Height` only means `type` on cover; leave any other component's alone.
+  if (lower === "height" && canonicalComponent(component) !== "cover") return field;
+  return FIELD_ALIASES[lower] ?? field;
+};
+
+/**
  * Parses the raw edplay.json export into the engine's normalized {@link GameMap}.
  *
  * The heavy lifting is index-building + resolution:
@@ -95,15 +144,16 @@ export class EdplayLoader {
     const resolveComponents = (td: EdTileDef): ComponentData[] => {
       return td.DataComponents.map((dc) => {
         const defaults = defaultsByType.get(dc.DataType) ?? {};
-        const values: Record<string, string> = { ...defaults };
+        const values: Record<string, string> = {};
+        for (const [k, v] of Object.entries(defaults)) values[canonicalField(dc.DataType, k)] = v;
         for (const v of dc.Variables) {
           const val = v.Values[0];
           // The map author left most values null -> keep the schema default.
           if (val !== null && val !== undefined && val !== "") {
-            values[v.Name] = String(val);
+            values[canonicalField(dc.DataType, v.Name)] = String(val);
           }
         }
-        return { type: dc.DataType, values };
+        return { type: canonicalComponent(dc.DataType), values };
       });
     };
 

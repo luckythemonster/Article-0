@@ -17,6 +17,7 @@ import {
 import { drawVisionCone, type ConeStyle } from "../ui/VisionCone";
 import { accrueDetection, canSense, type Eye } from "../systems/Sensing";
 import { HoldFixture, nearestFixture } from "./HoldFixture";
+import { anchorFrom, anchorsFrom, type TilePos } from "../map/generate";
 import type { EnforcerContext } from "./Enforcer";
 import type { EncounterInteractResult } from "./EncounterTypes";
 
@@ -74,6 +75,8 @@ export class RoofRelay {
 
   /** Pixel centre of the dish — the Shared Field witness anchor up here. */
   readonly dish: { x: number; y: number };
+  /** Where siege waves land, in rotation — the roof's own board, or the generated catwalks. */
+  private readonly siegeMouths: TilePos[];
 
   /** 0..1, highest of the searchlights — feeds the scene's detection readout. */
   detection = 0;
@@ -117,8 +120,15 @@ export class RoofRelay {
       }
     }
 
-    this.dish = px(DISH_CENTER_TILE);
-    for (const mount of ROOF_SEARCHLIGHTS.slice(0, stats.searchlightCount)) {
+    // Same board-or-constant bridge the arena uses: an authored roof puts its dish
+    // and its siege mouths where its own geometry wants them, a generated one has
+    // neither board and keeps the layout it was built to.
+    this.dish = px(anchorFrom(level, "relay_dish", DISH_CENTER_TILE));
+    this.siegeMouths = anchorsFrom(level, "siege_mouths", ROOF_CATWALKS);
+    for (const mount of anchorsFrom(level, "searchlights", ROOF_SEARCHLIGHTS).slice(
+      0,
+      stats.searchlightCount,
+    )) {
       this.lights.push({ ...px(mount), gfx: scene.add.graphics().setDepth(400) });
     }
     this.eye = {
@@ -173,7 +183,7 @@ export class RoofRelay {
     while (this.core.takeWave()) {
       const at: { x: number; y: number }[] = [];
       for (let i = 0; i < this.stats.waveSize; i++) {
-        at.push(ROOF_CATWALKS[(this.waveIndex + i) % ROOF_CATWALKS.length]);
+        at.push(this.siegeMouths[(this.waveIndex + i) % this.siegeMouths.length]);
       }
       this.waveIndex += this.stats.waveSize;
       (res.spawnAt ??= []).push(...at);

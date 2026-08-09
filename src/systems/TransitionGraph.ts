@@ -1,7 +1,16 @@
 import type { GameMap, Transition, TransitionKind } from "../map/types";
 
 /** Boards whose tiles move the player to another level. */
-const TRANSITION_BOARDS: TransitionKind[] = ["stairs", "maintenance_access"];
+const TRANSITION_BOARDS: TransitionKind[] = ["stairs", "maintenance_access", "roof_access"];
+
+/**
+ * Refs that name one end of an explicitly numbered access pair, e.g. `hatch3`
+ * and `ladder3`. Anchored on purpose: the map is full of intra-level ramp art
+ * (`stairs_up_east2`, `stair_rail_top_left1`, …) on `catwalks` / `ramps` /
+ * `upper_ramps`, and a loose `/stair|ladder/` would turn every one of them into
+ * a level exit.
+ */
+const NUMBERED_ACCESS = /^(hatch|ladder)(\d+)$/i;
 
 const key = (x: number, y: number): string => `${x},${y}`;
 
@@ -103,6 +112,51 @@ export class TransitionGraph {
       }
 
       this.byLevel.set(level.name, lookup);
+    }
+
+    this.linkNumberedPairs(map);
+  }
+
+  /**
+   * Explicitly numbered access pairs — `hatch3` links to `ladder3`, wherever
+   * either happens to sit.
+   *
+   * Collected across *every* board, because a map may file one end somewhere the
+   * engine doesn't otherwise read: NW-SMAC-01 puts `main1`'s `hatch1` on the
+   * `entities` board, which left the start level with no exit at all under
+   * coordinate matching alone. The number is the author declaring the link
+   * outright, so it beats coordinate matching and — unlike it — still works when
+   * the two ends disagree on (x,y), as the roof pair does (main2 (5,1) vs
+   * roof_array (6,30)).
+   */
+  private linkNumberedPairs(map: GameMap): void {
+    type End = { level: string; x: number; y: number; kind: TransitionKind };
+    const byNumber = new Map<string, End[]>();
+
+    for (const level of map.levels) {
+      for (const layer of level.layers) {
+        for (const t of layer.tiles) {
+          const m = NUMBERED_ACCESS.exec(t.ref);
+          if (!m) continue;
+          // A numbered tile on a real transition board keeps that board's trigger
+          // style; one filed elsewhere is treated as a hatch, so it prompts on E
+          // rather than teleporting the player who merely walks over it.
+          const kind = (TRANSITION_BOARDS as string[]).includes(layer.name)
+            ? (layer.name as TransitionKind)
+            : "maintenance_access";
+          byNumber.set(m[2], [...(byNumber.get(m[2]) ?? []), { level: level.name, x: t.x, y: t.y, kind }]);
+        }
+      }
+    }
+
+    for (const ends of byNumber.values()) {
+      // Exactly two ends in two different levels, or it isn't a pair and we have
+      // no basis for guessing which way it runs.
+      if (ends.length !== 2) continue;
+      const [a, b] = ends;
+      if (a.level === b.level) continue;
+      this.byLevel.get(a.level)?.set(key(a.x, a.y), { toLevel: b.level, toX: b.x, toY: b.y, kind: a.kind });
+      this.byLevel.get(b.level)?.set(key(b.x, b.y), { toLevel: a.level, toX: a.x, toY: a.y, kind: b.kind });
     }
   }
 

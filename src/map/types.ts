@@ -194,6 +194,13 @@ export interface GameLevel {
   height: number;
   /** Layers in board (z) order: index 0 draws first / lowest. */
   layers: GameLayer[];
+  /**
+   * Set by the generator that built this level. A map is free to author a level
+   * called `vent_core` itself — NW-SMAC-01 does — and that one is authored
+   * content like any other, so the name alone can't answer "did the engine make
+   * this?". Only the level that was actually generated carries the flag.
+   */
+  generated?: boolean;
 }
 
 export interface GameMap {
@@ -241,17 +248,33 @@ export type KnownLevel =
   | "main2"
   | (typeof GENERATED_LEVELS)[number];
 
-/** True for a level the engine builds itself, so a plan must never route into it. */
+/**
+ * True for a name the engine *would* generate a level under.
+ *
+ * Note what this is not: a test for whether a given level was generated. A map may
+ * author its own `vent_core` — NW-SMAC-01 does — and that one is authored content
+ * that should route like any other deck. Routing and warp order therefore key off
+ * {@link GameLevel.generated}, the flag the generator actually sets. This stays as
+ * the answer to "is this name spoken for?", which is a question about the name.
+ */
 export function isGeneratedLevel(name: string): boolean {
   return (GENERATED_LEVELS as readonly string[]).includes(name);
 }
 
 /**
  * Which board a transition tile lives on, which also decides how it triggers:
- * `stairs` are walked over, `maintenance_access` (hatches/ladders) is entered
- * with the interact key.
+ * `stairs` are walked over, `maintenance_access` and `roof_access`
+ * (hatches/ladders) are entered with the interact key.
  */
-export type TransitionKind = "stairs" | "maintenance_access";
+export type TransitionKind = "stairs" | "maintenance_access" | "roof_access";
+
+/**
+ * True for transitions entered with the interact key rather than walked over.
+ * Hatches and ladders prompt; stairs trigger on contact.
+ */
+export function isInteractTransition(kind: TransitionKind): boolean {
+  return kind !== "stairs";
+}
 
 /** Where a transition tile leads: the destination level and arrival tile. */
 export interface Transition {

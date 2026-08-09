@@ -1,12 +1,15 @@
-import type { GameMap } from "./types";
+import type { GameLevel, GameMap } from "./types";
 import {
   cloneTile,
   ensureLayer,
   hasTileAt,
   MissingProto,
   mustProto,
+  openCentre,
   protoTile,
   requireClear,
+  spreadAround,
+  standableIn,
   type TilePos,
 } from "./generate";
 
@@ -74,6 +77,72 @@ export const VAULT_COVER: TilePos[] = [
   { x: 32, y: 40 },
 ];
 
+interface VaultLayout {
+  core: TilePos;
+  nodes: TilePos[];
+  racks: TilePos[];
+  cover: TilePos[];
+}
+
+/**
+ * Where the vault's furniture goes on this particular host.
+ *
+ * The constants above describe a 40×45 deck, and every one of them was picked by
+ * hand against it. Somewhere else they land in walls or — worse, and the actual
+ * bug on NW-SMAC-01, whose `main2` is only 36 tall — off the map entirely, where
+ * `requireClear` used to wave them through because nothing had put a wall out at
+ * y=42. So: use the authored layout when it genuinely fits, and otherwise rebuild
+ * the same *shape* around whatever open room the host does have.
+ *
+ * The one invariant the derived layout must keep is the one the fixed layout was
+ * arranged for: **every rack further from the core than the nearest node**, so
+ * charging the Shared Field costs a walk across the auditing beams instead of
+ * being free next to the thing you are auditing.
+ */
+function vaultLayout(level: GameLevel, host: string): VaultLayout {
+  const authored: VaultLayout = {
+    core: VAULT_CORE,
+    nodes: VAULT_NODES,
+    racks: VAULT_RACKS,
+    cover: VAULT_COVER,
+  };
+  try {
+    requireClear(level, host, [
+      authored.core,
+      ...authored.nodes,
+      ...authored.racks,
+      ...authored.cover,
+    ]);
+    return authored;
+  } catch (e) {
+    if (!(e instanceof MissingProto)) throw e;
+  }
+
+  const centre = openCentre(level);
+  if (!centre) throw new MissingProto(`"${host}" has nowhere open to stand the core`);
+  const open = standableIn(level);
+  const ring = (count: number, radius: number, phase: number): TilePos[] =>
+    spreadAround(centre, count, radius, open, phase);
+
+  // NODE_RING < COVER_RING < RACK_RING preserves the ordering the fixed layout
+  // encodes; the phases stagger the three rings so they don't stack up on one axis.
+  const layout: VaultLayout = {
+    core: centre,
+    nodes: ring(4, NODE_RING, Math.PI / 4),
+    cover: ring(4, COVER_RING, 0),
+    racks: ring(4, RACK_RING, Math.PI / 4),
+  };
+  if (layout.nodes.length === 0 || layout.racks.length === 0) {
+    throw new MissingProto(`"${host}" has no room to ring the core`);
+  }
+  return layout;
+}
+
+/** Radii, in tiles, of the three rings a derived vault is laid out on. */
+const NODE_RING = 4;
+const COVER_RING = 6;
+const RACK_RING = 8;
+
 /**
  * Injects the vault fixtures into `host`. Idempotent, and silent when it can't run.
  *
@@ -91,7 +160,10 @@ export function appendAlignmentVault(map: GameMap, host: string | null): boolean
   if (core.tiles.length > 0) return true;
 
   try {
-    requireClear(hostLevel, host, [VAULT_CORE, ...VAULT_NODES, ...VAULT_RACKS, ...VAULT_COVER]);
+    const { core: coreAt, nodes: nodesAt, racks: racksAt, cover: coverAt } = vaultLayout(
+      hostLevel,
+      host,
+    );
 
     // `alignment_terminal` is a six-keyframe fixture the map places on main1's
     // light_sources board and the engine has never used for anything. It is the one
@@ -104,23 +176,23 @@ export function appendAlignmentVault(map: GameMap, host: string | null): boolean
     const rackProto = mustProto(map, "cover", (r) => r === "cover0");
     const lightProto = mustProto(map, "light_sources", (r) => r.includes("light_source"));
 
-    core.tiles.push(cloneTile(coreProto, VAULT_CORE.x, VAULT_CORE.y));
+    core.tiles.push(cloneTile(coreProto, coreAt.x, coreAt.y));
 
     const nodes = ensureLayer(hostLevel, "vault_nodes");
-    for (const n of VAULT_NODES) nodes.tiles.push(cloneTile(nodeProto, n.x, n.y));
+    for (const n of nodesAt) nodes.tiles.push(cloneTile(nodeProto, n.x, n.y));
 
     const racks = ensureLayer(hostLevel, "vault_racks");
-    for (const r of VAULT_RACKS) racks.tiles.push(cloneTile(rackProto, r.x, r.y));
+    for (const r of racksAt) racks.tiles.push(cloneTile(rackProto, r.x, r.y));
 
     // Cover and light join the boards the level already has, so they behave exactly as
     // authored cover and authored fixtures do — no special-casing downstream.
     const cover = ensureLayer(hostLevel, "cover");
-    for (const c of VAULT_COVER) {
+    for (const c of coverAt) {
       if (!hasTileAt(cover, c.x, c.y)) cover.tiles.push(cloneTile(rackProto, c.x, c.y));
     }
     const lights = ensureLayer(hostLevel, "light_sources");
-    if (!hasTileAt(lights, VAULT_CORE.x, VAULT_CORE.y)) {
-      lights.tiles.push(cloneTile(lightProto, VAULT_CORE.x, VAULT_CORE.y));
+    if (!hasTileAt(lights, coreAt.x, coreAt.y)) {
+      lights.tiles.push(cloneTile(lightProto, coreAt.x, coreAt.y));
     }
     return true;
   } catch (e) {

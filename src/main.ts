@@ -5,6 +5,7 @@ import { appendLogCacheBeta } from "./map/LogCacheBeta";
 import { appendAlignmentVault } from "./map/AlignmentVault";
 import { appendRoofArray } from "./map/RoofArrayLevel";
 import { appendDestructibleCover } from "./map/DestructibleCover";
+import { graftExtractionEntrance } from "./map/AdoptAuthored";
 import { planFor } from "./map/MapPlan";
 import type { EdPlayFile } from "./map/types";
 import { GameScene } from "./scenes/GameScene";
@@ -96,6 +97,10 @@ class BootScene extends Phaser.Scene {
     // and the roof is up a ladder from it.
     const hasVault = appendAlignmentVault(parsed.map, plan.extractionLevel);
     const hasRoof = appendRoofArray(parsed.map, plan.extractionLevel);
+    // A map can author an extraction deck with no way in — NW-SMAC-01 does — which
+    // strands the win condition. Runs after the acts so it sees every board they
+    // added, and before the first GameScene caches the TransitionGraph.
+    graftExtractionEntrance(parsed.map, plan.extractionLevel);
     // Best-effort: gives the destructible-cover mechanic something real to break in a
     // playthrough. Doesn't gate anything, so no flag is stashed for it.
     appendDestructibleCover(parsed.map, plan.startLevel);
