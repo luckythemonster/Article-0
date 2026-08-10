@@ -49,7 +49,8 @@ boots normally. Consequences worth knowing:
 - No VENT-4 boss, and the optional objective line is omitted rather than shown as something
   the player cannot complete.
 - **No Q0 compliance cert**, since that is the reward for silencing VENT-4 — so compliance
-  will never survive an EVASION sweep on that map (see the compliance section of the README).
+  will never survive an EVASION sweep on that map (see
+  [compliance in the README](../README.md#how-it-plays)).
 
 ### Prototype refs (cosmetic)
 
