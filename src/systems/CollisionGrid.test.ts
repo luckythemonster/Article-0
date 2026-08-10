@@ -193,6 +193,78 @@ describe("CollisionGrid", () => {
     });
   });
 
+  describe("padded origin/endpoint cells — precise sight blocking", () => {
+    // Mirrors the real turbine-hub support posts: a wall tile whose collider is
+    // inset from the bottom, leaving a walkable strip in front of it that shares
+    // the tile's own grid cell (2,1). Solid portion: x∈[2,3), y∈[1,1.7).
+    function paddedWallLevel(): GameLevel {
+      return {
+        name: "t",
+        width: 6,
+        height: 6,
+        layers: [
+          {
+            name: "walls",
+            tiles: [
+              {
+                x: 2,
+                y: 1,
+                colSpan: 1,
+                rowSpan: 1,
+                offsetX: 0,
+                offsetY: 0,
+                components: [],
+                collider: { Bottom: 0.3 },
+              },
+            ],
+          },
+        ],
+      } as unknown as GameLevel;
+    }
+
+    it("exposes the tile's precise collider rect, in tile units, for its own cell", () => {
+      const g = new CollisionGrid(paddedWallLevel());
+      const r = g.paddedRectAt(2, 1);
+      expect(r).toBeDefined();
+      expect(r!.x).toBeCloseTo(2);
+      expect(r!.y).toBeCloseTo(1);
+      expect(r!.w).toBeCloseTo(1);
+      expect(r!.h).toBeCloseTo(0.7);
+    });
+
+    it("returns undefined for a plain wall — the coarse grid is already exact there", () => {
+      const g = new CollisionGrid(level()); // the 5x5 plain wall-column fixture
+      expect(g.paddedRectAt(2, 1)).toBeUndefined();
+    });
+
+    it("blocks sight from a viewer standing in the tile's own walkable margin toward its solid portion", () => {
+      const g = new CollisionGrid(paddedWallLevel());
+      // Standing at (2.5, 1.9): inside cell (2,1), in the open bottom 30% of the
+      // tile. Looking toward (2.5, 0.5) crosses straight through the solid 70%.
+      expect(g.hasLineOfSight(2.5, 1.9, 2.5, 0.5)).toBe(false);
+    });
+
+    it("does not block sight along the tile's own open margin", () => {
+      const g = new CollisionGrid(paddedWallLevel());
+      expect(g.hasLineOfSight(2.5, 1.9, 2.5, 4)).toBe(true);
+    });
+
+    it("blocks sight when both endpoints share the padded cell and the segment crosses the solid portion", () => {
+      const g = new CollisionGrid(paddedWallLevel());
+      expect(g.hasLineOfSight(2.1, 1.75, 2.9, 1.05)).toBe(false);
+    });
+
+    it("keeps sight open when both endpoints share the padded cell but stay in the open margin", () => {
+      const g = new CollisionGrid(paddedWallLevel());
+      expect(g.hasLineOfSight(2.1, 1.9, 2.9, 1.75)).toBe(true);
+    });
+
+    it("leaves a plain wall's endpoint-skip behaviour untouched — the pre-existing regression case", () => {
+      const g = new CollisionGrid(level());
+      expect(g.hasLineOfSight(0, 1, 4, 1)).toBe(false); // crosses the plain wall at x=2
+    });
+  });
+
   describe("wallsNear", () => {
     /** Every blocked cell in a radius, brute-forced, as sorted "dx,dy" strings. */
     function brute(g: CollisionGrid, cx: number, cy: number, r: number): string[] {

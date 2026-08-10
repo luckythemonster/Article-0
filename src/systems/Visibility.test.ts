@@ -47,6 +47,36 @@ function sealedLevel(): GameLevel {
   } as unknown as GameLevel;
 }
 
+/**
+ * A 6×6 level whose only wall is a tile with an authored, inset collider at
+ * (2,1) — mirrors the VENT-4 turbine-hub support posts: solid on the top 70%
+ * of the cell (y∈[1,1.7)), walkable on the bottom 30% (y∈[1.7,2)).
+ */
+function paddedWallLevel(): GameLevel {
+  return {
+    name: "padded",
+    width: 6,
+    height: 6,
+    layers: [
+      {
+        name: "walls",
+        tiles: [
+          {
+            x: 2,
+            y: 1,
+            colSpan: 1,
+            rowSpan: 1,
+            offsetX: 0,
+            offsetY: 0,
+            components: [],
+            collider: { Bottom: 0.3 },
+          },
+        ],
+      },
+    ],
+  } as unknown as GameLevel;
+}
+
 describe("rayDirections", () => {
   it("builds unit directions starting along +x", () => {
     const d = rayDirections(4);
@@ -125,6 +155,25 @@ describe("rayDistance", () => {
     // Origin is inside the wall column; the ray still escapes eastward.
     expect(rayDistance(g, 2.5, 1.5, 1, 0, 3)).toBe(3);
   });
+
+  describe("origin cell has authored collider padding (the thin-wall sight leak)", () => {
+    it("stops at the solid portion when the origin stands in the tile's own walkable margin", () => {
+      const g = new CollisionGrid(paddedWallLevel());
+      // Standing at (2.5, 1.9): inside cell (2,1), in the open bottom 30%.
+      // Heading north crosses the solid top 70% at y=1.7 — 0.2 tiles away.
+      expect(rayDistance(g, 2.5, 1.9, 0, -1, 10, 0)).toBeCloseTo(0.2, 5);
+    });
+
+    it("does not block heading along the tile's own open margin", () => {
+      const g = new CollisionGrid(paddedWallLevel());
+      expect(rayDistance(g, 2.5, 1.9, 0, 1, 3, 0)).toBe(3);
+    });
+
+    it("still sees out of a *plain* wall tile — the no-clip case above is unaffected", () => {
+      const g = new CollisionGrid(level());
+      expect(rayDistance(g, 2.5, 1.5, 1, 0, 3)).toBe(3);
+    });
+  });
 });
 
 describe("sightDistances", () => {
@@ -141,6 +190,40 @@ describe("sightDistances", () => {
     const dirs = rayDirections(64);
     const out = sightDistances(g, 1.5, 1.5, 20, dirs, new Float64Array(64));
     for (let i = 0; i < 64; i++) expect(out[i]).toBeLessThan(20);
+  });
+
+  describe("origin cell has authored collider padding (the thin-wall sight leak)", () => {
+    it("blocks the ray toward the solid portion at the same distance rayDistance reports", () => {
+      const g = new CollisionGrid(paddedWallLevel());
+      const dirs = rayDirections(SIGHT_RAYS);
+      const out = new Float64Array(SIGHT_RAYS);
+      sightDistances(g, 2.5, 1.9, 10, dirs, out);
+      // Index 3*SIGHT_RAYS/4 is unit direction (0,-1) — due "north", toward the
+      // solid portion of the standing tile.
+      const i = (3 * SIGHT_RAYS) / 4;
+      expect(out[i]).toBeCloseTo(rayDistance(g, 2.5, 1.9, dirs.cos[i], dirs.sin[i], 10), 9);
+      expect(out[i]).toBeLessThan(1); // was 10 (the cap) before this fix
+    });
+
+    it("leaves the ray along the open margin unaffected", () => {
+      const g = new CollisionGrid(paddedWallLevel());
+      const dirs = rayDirections(SIGHT_RAYS);
+      const out = new Float64Array(SIGHT_RAYS);
+      sightDistances(g, 2.5, 1.9, 3, dirs, out);
+      // Index SIGHT_RAYS/4 is unit direction (0,1) — due "south", along the
+      // tile's own walkable margin.
+      expect(out[SIGHT_RAYS / 4]).toBe(3);
+    });
+
+    it("fast path and fallback path still agree with a padded origin cell", () => {
+      const g = new CollisionGrid(paddedWallLevel());
+      const dirs = rayDirections(SIGHT_RAYS);
+      const outFast = new Float64Array(SIGHT_RAYS);
+      const outFallback = new Float64Array(SIGHT_RAYS);
+      sightDistances(g, 2.5, 1.9, 10, dirs, outFast);
+      sightDistances(g, 2.5, 1.9, 10, { cos: dirs.cos, sin: dirs.sin }, outFallback);
+      for (let i = 0; i < SIGHT_RAYS; i++) expect(outFast[i]).toBeCloseTo(outFallback[i], 9);
+    });
   });
 });
 
