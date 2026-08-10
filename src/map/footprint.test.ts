@@ -5,6 +5,7 @@ import {
   footprintCentre,
   hasPlainCollider,
   isSingleCell,
+  raySlabIntersect,
 } from "./footprint";
 import type { GameTile } from "./types";
 
@@ -149,6 +150,45 @@ describe("colliderRect", () => {
       expect(centreX > r.x && centreX < r.x + r.w, `${side} keeps centre in x`).toBe(true);
       expect(centreY > r.y && centreY < r.y + r.h, `${side} keeps centre in y`).toBe(true);
     }
+  });
+});
+
+describe("raySlabIntersect", () => {
+  const rect = { x: 10, y: 10, w: 4, h: 4 }; // [10,14) x [10,14)
+
+  it("finds the near-face distance for a ray heading straight at the rect", () => {
+    expect(raySlabIntersect(0, 12, 1, 0, rect)).toBe(10);
+  });
+
+  it("returns undefined when the ray heads away from the rect", () => {
+    expect(raySlabIntersect(0, 12, -1, 0, rect)).toBeUndefined();
+  });
+
+  it("returns undefined when the ray is parallel and outside the rect's band", () => {
+    expect(raySlabIntersect(0, 20, 1, 0, rect)).toBeUndefined();
+  });
+
+  it("returns 0 when the origin already lies inside the rect", () => {
+    expect(raySlabIntersect(12, 12, 1, 0, rect)).toBe(0);
+  });
+
+  it("handles a diagonal ray that clips a corner", () => {
+    // Aimed at (10,10), the rect's corner — enters exactly there.
+    const t = raySlabIntersect(0, 0, 10, 10, rect);
+    expect(t).toBeCloseTo(1);
+  });
+
+  it("misses a diagonal ray that passes just outside the corner", () => {
+    // By the time x reaches the rect's left edge (x=10), y has already climbed
+    // past its top edge (y=14) — the ray has cleared the corner.
+    expect(raySlabIntersect(0, 0, 9, 14, rect)).toBeUndefined();
+  });
+
+  it("handles an axis-aligned ray along an edge that grazes without entering", () => {
+    // y=10 exactly is inside the [10,14) band (lo <= o), so this ray does clip it.
+    expect(raySlabIntersect(0, 10, 1, 0, rect)).toBe(10);
+    // Just above the band misses entirely.
+    expect(raySlabIntersect(0, 14.5, 1, 0, rect)).toBeUndefined();
   });
 });
 

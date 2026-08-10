@@ -1,4 +1,4 @@
-import { footprintCells } from "../map/footprint";
+import { colliderRect, footprintCells, hasPlainCollider, raySlabIntersect, type Rect } from "../map/footprint";
 import { isForcedSolid, SEE_THROUGH_BOARDS, type GameLevel } from "../map/types";
 import { glassStatsFor, isGlass } from "./EntityStats";
 
@@ -78,6 +78,12 @@ export class CollisionGrid {
   private readonly blocked: Uint8Array;
   /** Cells that stop movement but not sight — glazing. Only meaningful where blocked. */
   private readonly seeThrough: Uint8Array;
+  /**
+   * Precise solid rect (tile units), for opaque cells whose tile carries
+   * authored `ColliderPadding` — a sparse index, only ever a handful of cells
+   * map-wide. See {@link paddedRectAt}.
+   */
+  private readonly paddedRect = new Map<number, Rect>();
 
   /** @param tileSize pixels per cell, for reading the tiles' authored footprints. */
   constructor(level: GameLevel, blockingLayers: string[] = ["walls"], tileSize = 32) {
@@ -89,6 +95,10 @@ export class CollisionGrid {
     // so the result doesn't depend on which of two overlapping tiles is placed
     // first: an opaque tile anywhere over a cell wins, whatever the board order.
     const opaque = new Uint8Array(this.width * this.height);
+    // Cells claimed by a *plain*-collider opaque tile — takes precedence over
+    // any padded rect recorded for the same cell, same "wins regardless of
+    // placement order" reasoning as `opaque` above.
+    const plainOpaque = new Uint8Array(this.width * this.height);
     for (const layer of level.layers) {
       const boardBlocks = blockingLayers.includes(layer.name);
       // Some boards are solid without being opaque: you see over a crate and
@@ -103,16 +113,26 @@ export class CollisionGrid {
         const components = tile.components ?? [];
         const seeThrough =
           boardSeeThrough || (isGlass(components) && !glassStatsFor(components).visionBlock);
+        const plain = hasPlainCollider(tile);
         for (const cell of footprintCells(tile, tileSize)) {
           if (!this.inBounds(cell.x, cell.y)) continue;
           const i = cell.y * this.width + cell.x;
           this.blocked[i] = 1;
           if (seeThrough) this.seeThrough[i] = 1;
-          else opaque[i] = 1;
+          else {
+            opaque[i] = 1;
+            if (plain) {
+              plainOpaque[i] = 1;
+            } else {
+              const px = colliderRect(tile, tileSize);
+              this.paddedRect.set(i, { x: px.x / tileSize, y: px.y / tileSize, w: px.w / tileSize, h: px.h / tileSize });
+            }
+          }
         }
       }
     }
     for (let i = 0; i < opaque.length; i++) if (opaque[i] === 1) this.seeThrough[i] = 0;
+    for (let i = 0; i < plainOpaque.length; i++) if (plainOpaque[i] === 1) this.paddedRect.delete(i);
   }
 
   inBounds(x: number, y: number): boolean {
@@ -187,6 +207,26 @@ export class CollisionGrid {
   }
 
   /**
+   * The precise solid rectangle (tile units) of a padded, sight-blocking tile
+   * occupying this cell — `undefined` for the overwhelming majority of cells,
+   * where the coarse whole-cell {@link blocksSight} is already exact.
+   *
+   * Exists for the one place the coarse grid can't answer correctly: a wall
+   * with authored `ColliderPadding` leaves part of its own cell walkable (the
+   * physics body is inset — see `footprint.ts`'s `colliderRect`), so a viewer
+   * can legitimately stand inside that "opaque" cell. {@link hasLineOfSight}
+   * and `Visibility.rayDistance`/`sightDistances` skip testing the ray's own
+   * origin/endpoint cell (so debug no-clip embedded in an ordinary wall can
+   * still see out) — without this, that skip would also let sight leak
+   * straight through the *solid* part of a thin padded wall the viewer is
+   * standing against.
+   */
+  paddedRectAt(tileX: number, tileY: number): Rect | undefined {
+    if (!this.inBounds(tileX, tileY)) return undefined;
+    return this.paddedRect.get(tileY * this.width + tileX);
+  }
+
+  /**
    * Line-of-sight test between two tile coordinates using a supercover DDA walk.
    * Returns true if no blocked tile lies strictly between the endpoints.
    */
@@ -196,15 +236,34 @@ export class CollisionGrid {
     const ix1 = Math.floor(x1);
     const iy1 = Math.floor(y1);
 
+    // The DDA walk below ignores the two endpoint cells outright (see the loop
+    // comment). Test each one's precise collider shape first, so a padded
+    // wall's solid portion still blocks a viewer standing in its walkable
+    // margin — see `paddedRectAt`.
+    const segDx = x1 - x0;
+    const segDy = y1 - y0;
+    const r0 = this.paddedRectAt(ix0, iy0);
+    if (r0) {
+      const t = raySlabIntersect(x0, y0, segDx, segDy, r0);
+      if (t !== undefined && t <= 1) return false;
+    }
+    if (ix1 !== ix0 || iy1 !== iy0) {
+      const r1 = this.paddedRectAt(ix1, iy1);
+      if (r1) {
+        const t = raySlabIntersect(x0, y0, segDx, segDy, r1);
+        if (t !== undefined && t <= 1) return false;
+      }
+    }
+
     const dx = Math.abs(ix1 - ix0);
     const dy = Math.abs(iy1 - iy0);
     const sx = ix0 < ix1 ? 1 : -1;
     const sy = iy0 < iy1 ? 1 : -1;
     let err = dx - dy;
 
-    // Walk from source to target; ignore the two endpoints themselves.
-    // A blocked cell anywhere in between breaks sight.
-    // Safety cap avoids pathological loops.
+    // Walk from source to target; ignore the two endpoints themselves (their
+    // precise shape was already checked above). A blocked cell anywhere in
+    // between breaks sight. Safety cap avoids pathological loops.
     let steps = dx + dy + 2;
     while (steps-- > 0) {
       if (ix0 === ix1 && iy0 === iy1) return true;

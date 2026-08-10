@@ -1,3 +1,4 @@
+import { raySlabIntersect } from "../map/footprint";
 import type { CollisionGrid } from "./CollisionGrid";
 
 /**
@@ -84,8 +85,11 @@ export function rayDirections(rayCount: number = SIGHT_RAYS): RayDirections {
  *
  * An Amanatides–Woo grid walk: step boundary to boundary, stopping at the first
  * blocked cell, then carrying `reveal` further so the wall itself is lit. The
- * origin cell is never tested, so standing inside a wall (debug no-clip) still
- * sees out.
+ * origin cell's coarse "blocked" bit is never tested, so standing inside a
+ * wall (debug no-clip) still sees out — but if the origin cell holds a *padded*
+ * wall (see {@link CollisionGrid.paddedRectAt}), its precise collider shape is
+ * checked instead, so a viewer standing in that wall's walkable margin doesn't
+ * get free sight through its solid portion.
  *
  * @param reveal how far past the blocking face the ray carries, in tiles.
  *   Defaults to {@link WALL_REVEAL_TILES} for the darkness overlay, which wants
@@ -104,6 +108,12 @@ export function rayDistance(
 ): number {
   let ix = Math.floor(originX);
   let iy = Math.floor(originY);
+
+  const originPadded = grid.paddedRectAt(ix, iy);
+  if (originPadded) {
+    const t = raySlabIntersect(originX, originY, dirX, dirY, originPadded);
+    if (t !== undefined && t < maxTiles) return Math.min(t + reveal, maxTiles);
+  }
 
   const stepX = dirX > 0 ? 1 : -1;
   const stepY = dirY > 0 ? 1 : -1;
@@ -164,10 +174,23 @@ export function sightDistances(
     const dx0 = originIx - originX;
     const dy1 = originIy + 1 - originY;
     const dy0 = originIy - originY;
+    // Same origin for every ray this call, so resolved once — see
+    // `rayDistance`'s doc comment for why a padded origin cell needs its
+    // precise shape checked instead of the coarse walk's blanket skip.
+    const originPadded = grid.paddedRectAt(originIx, originIy);
 
     for (let i = 0; i < cos.length; i++) {
       const c = cos[i];
       const s = sin[i];
+
+      if (originPadded) {
+        const t = raySlabIntersect(originX, originY, c, s, originPadded);
+        if (t !== undefined && t < maxTiles) {
+          out[i] = Math.min(t + WALL_REVEAL_TILES, maxTiles);
+          continue;
+        }
+      }
+
       const sX = stepX[i];
       const sY = stepY[i];
       const dX = deltaX[i];

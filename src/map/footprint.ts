@@ -119,6 +119,44 @@ export function hasPlainCollider(tile: GameTile): boolean {
   return !pad.Left && !pad.Top && !pad.Right && !pad.Bottom;
 }
 
+/**
+ * Smallest `t >= 0` such that `(ox, oy) + t * (dx, dy)` lands inside `rect`, or
+ * `undefined` if the ray never enters it (for `t >= 0`).
+ *
+ * Standard slab method. `(dx, dy)` need not be normalized — `t` comes out in
+ * whatever unit `dx`/`dy` already are, since `origin`/`rect` share that unit
+ * with them. Exists so the sight-ray walks in {@link CollisionGrid} and
+ * {@link Visibility} can test a padded tile's *precise* collider box, not just
+ * "is this whole cell opaque" — see {@link CollisionGrid.paddedRectAt}.
+ */
+export function raySlabIntersect(
+  ox: number,
+  oy: number,
+  dx: number,
+  dy: number,
+  rect: Rect,
+): number | undefined {
+  let tMin = 0;
+  let tMax = Infinity;
+  const axes: [number, number, number, number][] = [
+    [ox, dx, rect.x, rect.w],
+    [oy, dy, rect.y, rect.h],
+  ];
+  for (const [o, d, lo, len] of axes) {
+    if (d === 0) {
+      if (o < lo || o > lo + len) return undefined;
+      continue;
+    }
+    let t1 = (lo - o) / d;
+    let t2 = (lo + len - o) / d;
+    if (t1 > t2) [t1, t2] = [t2, t1];
+    tMin = Math.max(tMin, t1);
+    tMax = Math.min(tMax, t2);
+    if (tMin > tMax) return undefined;
+  }
+  return tMax < 0 ? undefined : tMin;
+}
+
 /** Centre of a tile's footprint rectangle, in pixels. */
 export function footprintCentre(
   tile: GameTile,
