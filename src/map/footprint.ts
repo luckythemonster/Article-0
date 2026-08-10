@@ -53,17 +53,16 @@ export function isSingleCell(tile: GameTile): boolean {
 }
 
 /**
- * Which way `ColliderPadding` runs.
+ * Which way `ColliderPadding` runs — confirmed with the map author as an inset.
  *
- * `INSET` reads `{Bottom: 0.4}` as "the solid box stops 0.4 of a cell short of the
+ * `{Bottom: 0.4}` reads as "the solid box stops 0.4 of a cell short of the
  * footprint's bottom edge", leaving the lower 40% of the cell walkable — the
  * reading that matches the art, where a wall's collision hugs the drawn face and
- * the floor in front of it is standable. `OUTSET` is the opposite: the box grows
- * past the footprint by that much.
+ * the floor in front of it is standable.
  *
- * A single switch on purpose. The editor exports the numbers but not their
- * convention, so if the tile editor turns out to mean the other thing, this is the
- * one line that changes and every collider in the map follows it.
+ * Still a single named switch rather than the arithmetic inlined below: if a
+ * future export ever means the opposite for some tile family, this is the one
+ * line that changes and every collider in the map follows it.
  */
 export const PADDING_DIRECTION: "INSET" | "OUTSET" = "INSET";
 

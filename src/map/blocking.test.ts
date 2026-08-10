@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { blockingLayerNames } from "./types";
-import type { GameLevel } from "./types";
+import { blockingLayerNames, isForcedSolid } from "./types";
+import type { GameLevel, GameTile } from "./types";
 
 /** A level of named boards, each with an optional authored `Collision` value. */
 function levelOf(boards: [string, number | undefined][]): GameLevel {
@@ -33,7 +33,9 @@ describe("blockingLayerNames", () => {
   it("does not block boards marked as markers, or left unclassified", () => {
     // The roof deck: `roof` and `platform` carry collider padding because the *art*
     // does, but they are the floor you stand on. Blocking them would make the level
-    // unplayable, which is why solidity is the board's call and not the tile's.
+    // unplayable, which is why this defaults to the board's call. A tile can still
+    // opt itself in via `isForcedSolid` — that's layered on by the consumers
+    // (`CollisionGrid`, `TileBake`), not by this function.
     const names = blockingLayerNames(
       levelOf([
         ["roof", undefined],
@@ -66,5 +68,22 @@ describe("blockingLayerNames", () => {
 
   it("returns nothing for a level with no solid board at all", () => {
     expect(blockingLayerNames(levelOf([["floor", undefined]]))).toEqual([]);
+  });
+});
+
+describe("isForcedSolid", () => {
+  const tile = (collisionMode?: number): GameTile =>
+    ({ x: 1, y: 1, collisionMode }) as unknown as GameTile;
+
+  it("is true only for the confirmed 'wall' collision mode, 1", () => {
+    expect(isForcedSolid(tile(1))).toBe(true);
+  });
+
+  it("is false when absent, or for any other value", () => {
+    expect(isForcedSolid(tile(undefined))).toBe(false);
+    // "ignore"'s numeric encoding has never been observed in an export — treated
+    // as unhandled rather than guessed, same as any value that isn't 1.
+    expect(isForcedSolid(tile(0))).toBe(false);
+    expect(isForcedSolid(tile(2))).toBe(false);
   });
 });

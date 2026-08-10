@@ -157,6 +157,42 @@ describe("CollisionGrid", () => {
     });
   });
 
+  describe("per-tile solid override", () => {
+    it("blocks a tile on a non-blocking board when its collisionMode forces it", () => {
+      const decorative: GameLevel = {
+        name: "t",
+        width: 5,
+        height: 5,
+        layers: [
+          {
+            name: "props",
+            tiles: [
+              { x: 3, y: 3, collisionMode: 1 } as unknown as GameTile,
+              { x: 4, y: 4 } as unknown as GameTile,
+            ],
+          },
+        ],
+      } as unknown as GameLevel;
+      // "props" is not in the blocking list — only the forced tile should collide.
+      const g = new CollisionGrid(decorative, ["walls"], 32);
+      expect(g.isBlocked(3, 3)).toBe(true);
+      expect(g.isBlocked(4, 4)).toBe(false);
+    });
+
+    it("doesn't need the override on a board that's already blocking", () => {
+      // Redundant on this map today (every CollisionMode:1 def sits on `walls`
+      // already), and this is the case that proves it: no double-counting, no
+      // change in behaviour just because both say solid.
+      const g = new CollisionGrid({
+        name: "t",
+        width: 5,
+        height: 5,
+        layers: [{ name: "walls", tiles: [{ x: 2, y: 1, collisionMode: 1 } as unknown as GameTile] }],
+      } as unknown as GameLevel);
+      expect(g.isBlocked(2, 1)).toBe(true);
+    });
+  });
+
   describe("wallsNear", () => {
     /** Every blocked cell in a radius, brute-forced, as sorted "dx,dy" strings. */
     function brute(g: CollisionGrid, cx: number, cy: number, r: number): string[] {

@@ -186,6 +186,7 @@ export class EdplayLoader {
             // and every placement of a def shares one collider — which is exactly
             // what "this piece of art is solid *here*" means.
             collider: td?.ColliderPadding,
+            collisionMode: td?.CollisionMode,
           };
           return tile;
         });

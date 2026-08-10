@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mergeWallRects, wallCells, type WallRect } from "./TileBake";
+import { mergeWallRects, wallBodyRects, wallCells, type WallRect } from "./TileBake";
 import type { GameLevel, GameTile, SpriteFrame } from "./types";
 
 /** Builds a blocked-cell predicate from an ASCII map ('#' = blocked). */
@@ -178,6 +178,59 @@ describe("wallCells", () => {
 
   it("clips a footprint that runs off the level", () => {
     expect(solidCells(level([{ x: 0, y: 0, rowSpan: 2.5, offsetY: -16 }]))).toEqual(["0,0"]);
+  });
+
+  it("still marks a tile solid on a non-wall board when collisionMode forces it", () => {
+    // "cover" isn't blocking on this fixture (no board declares `collision`, so
+    // blockingLayerNames falls back to `["walls"]` alone) — the tile's own
+    // override is what puts it in the mask.
+    expect(
+      solidCells(level([{ x: 3, y: 4, collisionMode: 1 } as Partial<GameTile> & { x: number; y: number }], "cover")),
+    ).toEqual(["3,4"]);
+  });
+});
+
+describe("wallBodyRects — per-tile override", () => {
+  const frame = {} as SpriteFrame;
+
+  /** An 8×8 level with one padded tile on the given board. */
+  function level(board: string): GameLevel {
+    return {
+      name: "t",
+      width: 8,
+      height: 8,
+      layers: [
+        {
+          name: board,
+          tiles: [
+            {
+              x: 3,
+              y: 4,
+              frame,
+              colSpan: 1,
+              rowSpan: 1,
+              offsetX: 0,
+              offsetY: 0,
+              components: [],
+              collider: { Bottom: 0.4 },
+              collisionMode: 1,
+            } as unknown as GameTile,
+          ],
+        },
+      ],
+    } as unknown as GameLevel;
+  }
+
+  it("gives a forced-solid tile its own precise rect, even off the blocking boards", () => {
+    // "cover" isn't in blockingLayerNames on this fixture — collisionMode alone
+    // puts this padded tile's rect into the result.
+    const rects = wallBodyRects(level("cover"), 32);
+    expect(rects).toEqual([{ x: 96, y: 128, w: 32, h: 32 - 0.4 * 32 }]);
+  });
+
+  it("gives the same rect when the board would have blocked it anyway", () => {
+    const rects = wallBodyRects(level("walls"), 32);
+    expect(rects).toEqual([{ x: 96, y: 128, w: 32, h: 32 - 0.4 * 32 }]);
   });
 });
 

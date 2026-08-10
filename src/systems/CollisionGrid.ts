@@ -1,5 +1,5 @@
 import { footprintCells } from "../map/footprint";
-import { SEE_THROUGH_BOARDS, type GameLevel } from "../map/types";
+import { isForcedSolid, SEE_THROUGH_BOARDS, type GameLevel } from "../map/types";
 import { glassStatsFor, isGlass } from "./EntityStats";
 
 /**
@@ -90,11 +90,14 @@ export class CollisionGrid {
     // first: an opaque tile anywhere over a cell wins, whatever the board order.
     const opaque = new Uint8Array(this.width * this.height);
     for (const layer of level.layers) {
-      if (!blockingLayers.includes(layer.name)) continue;
+      const boardBlocks = blockingLayers.includes(layer.name);
       // Some boards are solid without being opaque: you see over a crate and
       // through chain-link. Same channel glazing uses, decided per board.
       const boardSeeThrough = SEE_THROUGH_BOARDS.includes(layer.name);
       for (const tile of layer.tiles) {
+        // A tile can be solid on its own say-so even when its board isn't — an
+        // author dragging a wall-textured prop onto a decorative board.
+        if (!boardBlocks && !isForcedSolid(tile)) continue;
         // Clear glazing is a window: solid, but sight passes. Frosted glazing
         // (`VisionBlock`) is just a wall that happens to be made of glass.
         const components = tile.components ?? [];

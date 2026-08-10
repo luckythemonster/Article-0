@@ -74,12 +74,17 @@ export interface EdTileDef {
    */
   ColliderPadding?: EdColliderPadding;
   /**
-   * Authored, parsed, and deliberately not acted on.
+   * A per-tile solidity override: `1` means this tile collides regardless of
+   * what board it ends up placed on. The editor's layer inspector offers the
+   * same three-way choice (default / ignore / wall) at the *board* level — see
+   * {@link EdBoard.Collision} — and this is that choice's tile-level twin, for
+   * an author who drags a wall-textured prop onto an otherwise decorative board
+   * and still wants it solid.
    *
-   * Only ever `1`, on 15 `walls` defs. The editor doesn't export an enum for it
-   * (`DataTypes.EnumDefs` carries the gameplay enums only), so its meaning isn't
-   * recoverable from the file, and guessing would change collision on a lot of
-   * wall. Declared so it's visibly known-about rather than merely unnoticed.
+   * Only the `1` ("wall") case is confirmed and read — see
+   * {@link WALL_COLLISION_MODE}. No TileDef in any export seen so far uses
+   * "ignore", so its numeric encoding isn't known; guessing it would risk
+   * silently un-solidifying a tile on a board that's supposed to block.
    */
   CollisionMode?: number;
   DataComponents: EdDataComponent[];
@@ -221,6 +226,8 @@ export interface GameTile {
    * footprint, which is what every generated tile and every un-padded def wants.
    */
   collider?: EdColliderPadding;
+  /** The tile's {@link EdTileDef.CollisionMode}, when its def declared one. */
+  collisionMode?: number;
 }
 
 export interface GameLayer {
@@ -336,6 +343,20 @@ export function blockingLayerNames(level: GameLevel): string[] {
 }
 
 const isExtraSolid = (name: string): boolean => EXTRA_SOLID_BOARDS.includes(name);
+
+/**
+ * The {@link EdTileDef.CollisionMode} value that means "this tile collides,
+ * wherever it's placed" — the confirmed one of the editor's three per-tile
+ * states. Named apart from {@link SOLID_COLLISION} even though both happen to
+ * be `1` today: one is a board's default, the other a tile's override, and
+ * nothing says the export can't diverge them later.
+ */
+export const WALL_COLLISION_MODE = 1;
+
+/** True when a tile is solid regardless of which board it's placed on. */
+export function isForcedSolid(tile: GameTile): boolean {
+  return tile.collisionMode === WALL_COLLISION_MODE;
+}
 
 /**
  * True for a name the engine *would* generate a level under.
