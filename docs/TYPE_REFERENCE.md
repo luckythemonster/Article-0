@@ -349,10 +349,11 @@ so a pane wider than its own cell lost the rest of itself entirely.
 | `blocksSight` | `blocksSight(tileX: number, tileY: number): boolean` | Blocks line of sight. Everything that blocks movement also blocks sight *unless* it was registered as see-through. Out of bounds blocks sight, which is also what stops the ray walks in `hasLineOfSight` and `Visibility.rayDistance` running away. |
 | `setBlocked` | `setBlocked(tileX: number, tileY: number, blocked: boolean, seeThrough = false): void` | Marks a tile blocked or clear at runtime — used by doors, which block movement, radar and enforcer pathing while closed and clear all of it the instant they open. Out-of-bounds writes are ignored. @param seeThrough when blocking, let sight through anyway (clear glazing). Ignored   when clearing a cell, since an open cell blocks nothing either way. |
 | `wallsNear` | `wallsNear(cx: number, cy: number, radius: number, out: WallBuffer): WallBuffer` | Blocked-tile offsets within a circular radius (in tiles) of a centre point, as (dx, dy) relative to that centre, appended to `out`. Used by the radar to sample nearby terrain without scanning the whole level each frame. Fills a caller-owned `WallBuffer` rather than returning a fresh array because this runs every frame: a 10-tile radar radius sweeps 441 cells and can report a few hundred of them, and one `{ dx, dy }` per report at 60fps is a steady stream of short-lived objects for something that is only ever read and thrown away within the frame. |
+| `paddedRectAt` | `paddedRectAt(tileX: number, tileY: number): Rect \| undefined` | The precise solid rectangle (tile units) of a padded, sight-blocking tile occupying this cell — `undefined` for the overwhelming majority of cells, where the coarse whole-cell `blocksSight` is already exact. Exists for the one place the coarse grid can't answer correctly: a wall with authored `ColliderPadding` leaves part of its own cell walkable (the physics body is inset — see `footprint.ts`'s `colliderRect`), so a viewer can legitimately stand inside that "opaque" cell. `hasLineOfSight` and `Visibility.rayDistance`/`sightDistances` skip testing the ray's own origin/endpoint cell (so debug no-clip embedded in an ordinary wall can still see out) — without this, that skip would also let sight leak straight through the *solid* part of a thin padded wall the viewer is standing against. |
 | `hasLineOfSight` | `hasLineOfSight(x0: number, y0: number, x1: number, y1: number): boolean` | Line-of-sight test between two tile coordinates using a supercover DDA walk. Returns true if no blocked tile lies strictly between the endpoints. |
 | `lineOfSightPx` | `lineOfSightPx(x0: number, y0: number, x1: number, y1: number, tileSize: number): boolean` | `hasLineOfSight` for callers working in pixel space — divides both endpoints by `tileSize` before delegating. Used by guards checking sight to a noise's pixel origin. |
 
-*Plus 2 private members.*
+*Plus 3 private members.*
 
 <a id="class-conductstate"></a>
 
@@ -1326,7 +1327,7 @@ Anything the radar can plot: a guard or a camera.
 
 #### `RayDirections` — interface
 
-`src/systems/Visibility.ts:40`
+`src/systems/Visibility.ts:41`
 
 Unit ray directions, split into parallel arrays so casting allocates nothing.
 
@@ -5536,7 +5537,7 @@ GameScene.
 | [RadarSnapshot](#interface-radarsnapshot) | interface | `src/systems/Radar.ts:33` |
 | [RadarUnit](#interface-radarunit) | interface | `src/systems/Radar.ts:17` |
 | [Range](#type-range) | type | `src/systems/QualiaLock.ts:43` |
-| [RayDirections](#interface-raydirections) | interface | `src/systems/Visibility.ts:40` |
+| [RayDirections](#interface-raydirections) | interface | `src/systems/Visibility.ts:41` |
 | [Rect](#interface-rect) | interface | `src/map/footprint.ts:70` |
 | [RelayCore](#class-relaycore) | class | `src/systems/RelayCore.ts:75` |
 | [RelayHud](#class-relayhud) | class | `src/ui/RelayHud.ts:23` |
