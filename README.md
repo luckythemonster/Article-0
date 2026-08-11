@@ -35,9 +35,10 @@ npm test         # vitest, covers the pure systems
 | Key | Action |
 | --- | --- |
 | WASD / Arrows | Move (free 8-directional) |
-| Shift | Sneak / crouch — slower, quieter; crouch on cover to hide |
+| Shift | Sneak / crouch — slower, quieter; crouch to squeeze into cover and hide |
 | Space | Run — faster but louder; tap to toggle |
-| E | Contextual: open/close a door, hack a terminal (hold), search a chest (hold), or use a hatch/ladder |
+| X | Press against a wall or cover — slide along it; hold a direction at the end of a wall to peek round the corner |
+| E | Contextual: open/close a door, hack a terminal (hold), search a chest (hold), use a hatch/ladder, or vault low cover |
 | L | Flashlight — the only way to see in the unlit levels, but it drains and makes you far easier to spot |
 | F | Shared Field — once charged (by staying near a silicate), merge for 3.7s and become undetectable |
 | R | Knock — rap on a wall to lure guards and orderlies to the noise |
@@ -102,8 +103,20 @@ sight and the detection meter fills; fill it completely and the base goes to **A
 chases you while it can see you and paths to your last known tile the moment it can't,
 then sweeps the search points around it before returning to its patrol. Break line of
 sight and the alert decays back through **EVASION** to **INFILTRATION**. Standing in a
-light pool fills the meter faster; standing on cover slows it (0.4×), and crouching on
-cover breaks line of sight entirely — a "HIDDEN" marker confirms it.
+light pool fills the meter faster; standing on cover slows it (0.4×), and getting into or
+behind cover breaks line of sight entirely — a "HIDDEN" marker confirms it.
+
+**Getting into cover** is four verbs, and they trade off against each other. **Crouch**
+(*Shift*) and cover stops being solid to you: you can squeeze under a desk or into a rack
+row, slow and quiet, and you stay hidden while you're in there — guards read the same
+tiles as walls, so they can't follow you in, and you won't stand back up until you're
+clear of it. **Press** (*X*) puts your back against the nearest wall or cover face and
+slides you along it; a server rack hides you standing, a crate only if you're also
+crouched, and against a plain wall you're simply a smaller thing to notice (0.6×). Keep
+holding a direction once the wall runs out and Rowan **peeks** round the corner: the
+darkness opens past it and the map fills in, while his body stays where it was — so you
+see the patrol before it sees you. And **vault** (*E*) hops a low crate in one motion:
+fast, and four times as loud as crawling through the same tile.
 
 **Compliance** is the other way past a guard, and it is the opposite of hiding. This
 place runs on conformance, so if you walk normally, touch nothing you shouldn't and set
@@ -115,7 +128,7 @@ it is behaviour, not geometry:
 | Breach | What does it |
 | --- | --- |
 | `RUNNING` | Sprinting (**Space**) |
-| `SNEAKING` | Crouching (**Shift**) — skulking is its own kind of conspicuous |
+| `SNEAKING` | Crouching (**Shift**) or pressed against a wall (**X**) — skulking is its own kind of conspicuous |
 | `UNAUTHORIZED` | Working a terminal or a silicate rack |
 | `TAMPERING` | Searching a chest, knocking on walls (**R**) |
 | `HOSTILE` | A stun dart, an EMP Grenade burst, a weapon pointed at somebody (**Q**) |

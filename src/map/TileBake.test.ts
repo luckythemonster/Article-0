@@ -225,12 +225,45 @@ describe("wallBodyRects — per-tile override", () => {
     // "cover" isn't in blockingLayerNames on this fixture — collisionMode alone
     // puts this padded tile's rect into the result.
     const rects = wallBodyRects(level("cover"), 32);
-    expect(rects).toEqual([{ x: 96, y: 128, w: 32, h: 32 - 0.4 * 32 }]);
+    expect(rects.crawlable).toEqual([{ x: 96, y: 128, w: 32, h: 32 - 0.4 * 32 }]);
   });
 
   it("gives the same rect when the board would have blocked it anyway", () => {
     const rects = wallBodyRects(level("walls"), 32);
-    expect(rects).toEqual([{ x: 96, y: 128, w: 32, h: 32 - 0.4 * 32 }]);
+    expect(rects.walls).toEqual([{ x: 96, y: 128, w: 32, h: 32 - 0.4 * 32 }]);
+  });
+
+  it("files cover into the crawlable group and everything else into walls", () => {
+    // Same tile, same rect, different group — which is the whole point of the
+    // split: only the crawlable group's collider is switched off by a crouch.
+    expect(wallBodyRects(level("cover"), 32).walls).toEqual([]);
+    expect(wallBodyRects(level("walls"), 32).crawlable).toEqual([]);
+  });
+
+  it("keeps cover out of the wall merge rather than absorbing it into a run", () => {
+    // Plain (unpadded) cover sitting flush against a plain wall. Merged as one
+    // mask these would collapse into a single 2×1 rectangle and could never be
+    // told apart again, so the two groups are built from separate walks.
+    const l = {
+      name: "t",
+      width: 4,
+      height: 4,
+      layers: [
+        {
+          name: "walls",
+          collision: 1,
+          tiles: [{ x: 1, y: 1, frame: {}, colSpan: 1, rowSpan: 1 } as unknown as GameTile],
+        },
+        {
+          name: "cover",
+          collision: 1,
+          tiles: [{ x: 2, y: 1, frame: {}, colSpan: 1, rowSpan: 1 } as unknown as GameTile],
+        },
+      ],
+    } as unknown as GameLevel;
+    const rects = wallBodyRects(l, 32);
+    expect(rects.walls).toEqual([{ x: 32, y: 32, w: 32, h: 32 }]);
+    expect(rects.crawlable).toEqual([{ x: 64, y: 32, w: 32, h: 32 }]);
   });
 });
 

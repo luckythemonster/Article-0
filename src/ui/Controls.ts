@@ -19,9 +19,23 @@ export interface ControlBinding {
 
 export const CONTROLS: readonly ControlBinding[] = [
   { key: "WASD / Arrows", action: "Move (free 8-directional)", hint: "WASD move" },
-  { key: "Shift", action: "Sneak — slower and quieter; crouch on cover to hide", hint: "Shift sneak" },
+  {
+    key: "Shift",
+    action: "Sneak — slower and quieter; crouch to squeeze into cover and hide",
+    hint: "Shift sneak",
+  },
   { key: "Space", action: "Run — faster but louder; tap to toggle", hint: "Space run" },
-  { key: "E", action: "Interact: doors, terminals, chests, hatches (hold where needed)", hint: "E interact" },
+  {
+    key: "X",
+    action:
+      "Press against a wall or cover — slide along it, and hold a direction at the end to peek round the corner",
+    hint: "X press",
+  },
+  {
+    key: "E",
+    action: "Interact: doors, terminals, chests, hatches, vault low cover (hold where needed)",
+    hint: "E interact",
+  },
   { key: "L", action: "Flashlight — the only way to see in the unlit levels" },
   { key: "F", action: "Shared Field — once charged, merge and become undetectable", hint: "F shared-field" },
   { key: "R", action: "Knock — lure guards and orderlies to a wall" },

@@ -68,6 +68,8 @@ export interface DebugHost {
   entityShadows: EntityShadows;
   wallCollider: () => Phaser.Physics.Arcade.Collider | undefined;
   doorCollider: () => Phaser.Physics.Arcade.Collider | undefined;
+  /** The cover bodies a crouch already switches off — no-clip has to as well. */
+  coverCollider: () => Phaser.Physics.Arcade.Collider | undefined;
   /** Level names the warp keys map to, in key order. */
   warpTargets: () => string[];
   /** Restart the scene on another level. */
@@ -214,13 +216,17 @@ export class DebugOverlay {
     this.selectedItemIndex = (this.selectedItemIndex + delta + n) % n;
   }
 
-  /** Toggles no-clip by enabling/disabling the player's wall+door colliders. */
+  /** Toggles no-clip by enabling/disabling the player's wall+door+cover colliders. */
   setNoClip(on: boolean, player: Player): void {
     this.noClip = on;
     const wall = this.host.wallCollider();
     const door = this.host.doorCollider();
+    const cover = this.host.coverCollider();
     if (wall) wall.active = !on;
     if (door) door.active = !on;
+    // Left to the scene's own crouch rule the rest of the time, which re-asserts
+    // it every frame — so this only has to not fight it while no-clip is on.
+    if (cover) cover.active = !on;
     const body = player.sprite.body as Phaser.Physics.Arcade.Body;
     body.checkCollision.none = on;
     player.sprite.setCollideWorldBounds(!on);

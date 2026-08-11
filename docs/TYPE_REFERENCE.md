@@ -8,15 +8,15 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 
 | Area | Enums | Classes | Interfaces | Type aliases | Constants | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| [Systems](#systems) | 3 | 17 | 73 | 18 | 6 | 117 |
+| [Systems](#systems) | 3 | 17 | 77 | 18 | 6 | 121 |
 | [Entities](#entities) | 0 | 17 | 18 | 14 | 5 | 54 |
-| [Map](#map) | 0 | 3 | 29 | 3 | 1 | 36 |
+| [Map](#map) | 0 | 3 | 30 | 3 | 1 | 37 |
 | [Scenes](#scenes) | 0 | 14 | 12 | 2 | 0 | 28 |
 | [UI](#ui) | 0 | 20 | 21 | 1 | 1 | 43 |
 | [Tools](#tools) | 0 | 0 | 6 | 1 | 0 | 7 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **73** | **162** | **39** | **13** | **290** |
+| **All** | **3** | **73** | **167** | **39** | **13** | **295** |
 
 ## Conventions
 
@@ -159,7 +159,7 @@ below) modulate sweep speed, steam, and thermal behaviour on the boss side.
 
 #### `CONSUMABLE_ORDER` — const
 
-`src/systems/EntityStats.ts:587`
+`src/systems/EntityStats.ts:655`
 
 The consumables selectable through the item cursor, in canonical display
 order. Held consumables fill the list dynamically (unheld names are
@@ -683,6 +683,19 @@ Everything the alert-network HUD needs to draw one frame.
 | `target` | `{ x: number; y: number } \| null` | Last known player tile, or null when the network has lost the trail. |
 | `countdown` | `number` | Seconds until the network relaxes to the next-calmer phase. |
 
+<a id="interface-bodyextent"></a>
+
+#### `BodyExtent` — interface
+
+`src/systems/WallPress.ts:24`
+
+Half-extents of the pressing body, in tiles.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `halfW` | `number` |  |
+| `halfH` | `number` |  |
+
 <a id="interface-cheststats"></a>
 
 #### `ChestStats` — interface
@@ -767,7 +780,7 @@ Snapshot published to the registry for the HUD and the codec.
 
 #### `ConsumableSlot` — interface
 
-`src/systems/EntityStats.ts:626`
+`src/systems/EntityStats.ts:694`
 
 One held, distinct consumable type, with its position in the display list.
 
@@ -1186,6 +1199,51 @@ The player's wave adds an exponential-decay envelope (the DAMPING control).
 | `hazardDamage` | `number` | Bio-integrity lost per hazard hit (e.g. a laser). |
 | `hitCooldown` | `number` | Seconds of invulnerability after taking a hit. |
 
+<a id="interface-pressside"></a>
+
+#### `PressSide` — interface
+
+`src/systems/WallPress.ts:50`
+
+Which way along a face the body can travel, and what it can see from the end of it.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `open` | `boolean` | True while the wall still backs the body a step further along the face. False means the run ends here — the body stops, and `lean` is what the input turns into instead. |
+| `lean` | `{ x: number; y: number } \| null` | Offset (tiles) from the body to where the eye reaches when leaning past this end of the wall, or null when the wall continues (nothing to lean past). |
+
+<a id="interface-pressstate"></a>
+
+#### `PressState` — interface
+
+`src/systems/WallPress.ts:65`
+
+Everything `Player` needs to hold a face for one frame.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `surface` | `PressSurface` |  |
+| `tx` | `number` | Unit tangent of the face — the axis movement is projected onto. |
+| `ty` | `number` |  |
+| `neg` | `PressSide` | Travel and peek in the tangent's negative direction. |
+| `pos` | `PressSide` | Travel and peek in the tangent's positive direction. |
+
+<a id="interface-presssurface"></a>
+
+#### `PressSurface` — interface
+
+`src/systems/WallPress.ts:30`
+
+One solid face the body can hold itself against.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `nx` | `number` | Unit normal, pointing from the face out toward open space — i.e. toward the player. Axis-aligned, so exactly one of the two is non-zero. |
+| `ny` | `number` |  |
+| `wallX` | `number` | The solid cell being pressed. |
+| `wallY` | `number` |  |
+| `flush` | `number` | The fractional tile coordinate the body's centre holds on the normal's axis to sit flush against the face — an X when the normal is horizontal, a Y when it is vertical. `Player` pulls toward this rather than snapping, so latching on reads as leaning back into the wall rather than teleporting to it. |
+
 <a id="interface-puzzlestate"></a>
 
 #### `PuzzleState` — interface
@@ -1369,7 +1427,7 @@ Unit ray directions, split into parallel arrays so casting allocates nothing.
 
 #### `RelayStats` — interface
 
-`src/systems/EntityStats.ts:850`
+`src/systems/EntityStats.ts:918`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1543,7 +1601,7 @@ Serializable mid-fight state, so re-entering the level doesn't restart the boss.
 
 #### `SmacStats` — interface
 
-`src/systems/EntityStats.ts:778`
+`src/systems/EntityStats.ts:846`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1740,7 +1798,7 @@ Serializable fight progress — kept in the registry across level swaps.
 
 #### `Vent4Stats` — interface
 
-`src/systems/EntityStats.ts:654`
+`src/systems/EntityStats.ts:722`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2487,7 +2545,7 @@ frightened.
 
 #### `Player` — class
 
-`src/entities/Player.ts:40`
+`src/entities/Player.ts:45`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -2500,6 +2558,9 @@ frightened.
 | `hp` | `hp = PLAYER_DEFAULTS.maxHp` |  |
 | `crouched` | `get crouched(): boolean` | True only once *fully* crouched — not during the lower/rise transitions. Cover concealment keys off this, so tapping Shift can't grant an instant hide before Rowan has actually gone to ground. |
 | `running` | `get running(): boolean` | True while actually sprinting — moving, upright, with run toggled on. Not just the key state: standing still with run toggled on isn't running. Read by the conduct rules, where a sprint is one of the things that stops you reading as staff. |
+| `pressed` | `get pressed(): boolean` | True while holding a face — read by the concealment and conduct rules. |
+| `pressedSurface` | `get pressedSurface(): PressState \| null` | The face currently held, for the concealment rules to ask what it is made of. |
+| `peeking` | `get peeking(): boolean` | True once actually leaning past a corner. Keyed off the eased lean rather than the input, so the HUD reads the same thing the sightline does. |
 | `alive` | `get alive(): boolean` |  |
 | `takeDamage` | `takeDamage(amount: number): boolean` | Applies damage unless still within the post-hit invulnerability window. Returns true if the hit landed (so callers can trigger feedback/SFX). |
 | `heal` | `heal(amount: number): void` | Restores bio-integrity, capped at `maxHp` (Medkit). |
@@ -2509,7 +2570,7 @@ frightened.
 | `y` | `get y(): number` |  |
 | `eye` | `get eye(): { x: number; y: number }` | Where the player *will* be drawn this frame, for anything rendering from their position. Arcade integrates the body during its own `UPDATE` step but only writes the result onto the sprite in `POST_UPDATE`, after `Scene.update()` has run. So anything reading `sprite.x` from scene update is a physics step behind — while the camera, which follows at render time, is not. For a light cast from the player that mismatch is a lag that varies with the frame delta, which is judder. The body's centre is the position everything else will agree on a moment later. |
 
-*Plus 10 private members.*
+*Plus 19 private members.*
 
 <a id="class-pressuresubstation"></a>
 
@@ -2785,7 +2846,7 @@ The tuning that actually differs between one guard's art and another's.
 
 #### `InputState` — interface
 
-`src/entities/Player.ts:314`
+`src/entities/Player.ts:475`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2796,6 +2857,8 @@ The tuning that actually differs between one guard's art and another's.
 | `run` | `boolean` |  |
 | `sneak` | `boolean` |  |
 | `escorting` | `boolean` | Marching someone at gunpoint: slower, and no sprinting. Arrives through `GameScene.readInput` rather than off a key, because it is a consequence of the hold rather than an input — the same funnel NW-SMAC-01's axis inversion and the roof's input lock use, and for the same reason. |
+| `press` | `PressState \| null` | The wall face to hold this frame, or null to move freely. Resolved by the scene (which owns the collision grid) and handed over as plain geometry, so `Player` never queries the world itself — the same funnel `escorting` above arrives through, and for the same reason: it is a consequence of where Rowan is standing rather than a key someone pressed. |
+| `canStand` | `boolean` | False while there is no headroom to stand up into — squeezed under cover. Holds the crouch rather than blocking the rise, so Rowan straightens up on his own the moment he is clear. |
 
 <a id="interface-investigation"></a>
 
@@ -3189,7 +3252,7 @@ type SmacInteractResult = EncounterInteractResult<SmacTransition>;
 
 #### `Stance` — type *(module-private)*
 
-`src/entities/Player.ts:38`
+`src/entities/Player.ts:43`
 
 Standing ⇄ crouched is a small state machine rather than an instant pose
 swap: entering/leaving the crouch plays a one-shot lower/rise transition
@@ -3603,6 +3666,25 @@ A single placed tile in the normalized model.
 | `collider` *(opt)* | `EdColliderPadding` | Per-side collider inset in fractions of a cell, when the art declares one. Resolved by `colliderRect`; absent means the collider is the whole footprint, which is what every generated tile and every un-padded def wants. |
 | `collisionMode` *(opt)* | `number` | The tile's `EdTileDef.CollisionMode`, when its def declared one. |
 
+<a id="interface-levelbodyrects"></a>
+
+#### `LevelBodyRects` — interface
+
+`src/map/TileBake.ts:263`
+
+A level's collision rectangles, split by who they stop.
+
+`walls` stop everyone. `crawlable` stop a standing player and nobody else —
+the scene switches their collider off while Rowan is crouched, which is the
+squeeze. They are kept apart here, rather than filtered at the scene, because
+the merge below works in whole cells: cover merged into a wall run could not
+afterwards be told back apart.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `walls` | `Rect[]` |  |
+| `crawlable` | `Rect[]` |  |
+
 <a id="interface-mapplan"></a>
 
 #### `MapPlan` — interface
@@ -3688,7 +3770,7 @@ A resolved rectangle inside one of the spritesheet PNGs.
 
 #### `Transition` — interface
 
-`src/map/types.ts:390`
+`src/map/types.ts:412`
 
 Where a transition tile leads: the destination level and arrival tile.
 
@@ -3759,7 +3841,7 @@ type KnownLevel = | "main1" | "duct1" | "duct2" | "main2" | (typeof GENERATED_LE
 
 #### `TransitionKind` — type
 
-`src/map/types.ts:379`
+`src/map/types.ts:401`
 
 Which board a transition tile lives on, which also decides how it triggers:
 `stairs` are walked over, `maintenance_access` and `roof_access`
@@ -3825,7 +3907,7 @@ whichever flag while the overlay is up and stops this scene.
 
 #### `DebugOverlay` — class
 
-`src/scenes/game/DebugOverlay.ts:91`
+`src/scenes/game/DebugOverlay.ts:93`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -3840,7 +3922,7 @@ whichever flag while the overlay is up and stops this scene.
 | `handleInput` | `handleInput(player: Player): boolean` | Reads the debug hotkeys for the frame and applies them. Returns `true` if a warp was triggered (the scene is restarting, so the caller should bail). |
 | `setEnabled` | `setEnabled(on: boolean, player: Player): void` | Master switch. Disabling clears every cheat for a clean return to play. |
 | `setDarknessOff` | `setDarknessOff(off: boolean): void` | Hides/restores the darkness + line-of-sight overlay so the level can be read. |
-| `setNoClip` | `setNoClip(on: boolean, player: Player): void` | Toggles no-clip by enabling/disabling the player's wall+door colliders. |
+| `setNoClip` | `setNoClip(on: boolean, player: Player): void` | Toggles no-clip by enabling/disabling the player's wall+door+cover colliders. |
 | `draw` | `draw(w: DebugWorld): void` | Draws the world-space overlay: blocked tiles, detection tint, LOS, navigation. |
 | `snapshot` | `snapshot(w: DebugWorld): DebugSnapshot` | Snapshot of live state for the DebugHud (published to the registry). |
 
@@ -3890,7 +3972,7 @@ rather than death: the record simply shows that no subject was harmed.
 
 #### `GameScene` — class
 
-`src/scenes/GameScene.ts:210` · `extends Phaser.Scene`
+`src/scenes/GameScene.ts:217` · `extends Phaser.Scene`
 
 The playable scene. Renders one level's tile art in board z-order, builds the
 wall collision, spawns the player and guards, and drives the stealth systems
@@ -3903,7 +3985,7 @@ each frame.
 | `create` | `create(): void` |  |
 | `update` | `update(_time: number, delta: number): void` |  |
 
-*Plus 130 private members.*
+*Plus 142 private members.*
 
 <a id="class-noiseevents"></a>
 
@@ -3997,7 +4079,7 @@ is up and stops this scene.
 
 #### `SensingContext` — class
 
-`src/scenes/game/SensingContext.ts:44`
+`src/scenes/game/SensingContext.ts:48`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -4096,6 +4178,7 @@ The live contents of a level, handed back to the scene to drive.
 | `lasers` | `Laser[]` |  |
 | `coverTiles` | `Cover[]` | Cover tiles the map (or a generator) marks `Destructible` — the rest of the `cover` board stays baked art with no entity, exactly as before. |
 | `wallBodies` | `Phaser.GameObjects.GameObject[]` | Static bodies for the walls, merged into as few rectangles as possible. |
+| `coverBodies` | `Phaser.GameObjects.GameObject[]` | Static bodies for the cover board — solid to a standing player, switched off while he is crouched so he can squeeze into them. See `CRAWLABLE_BOARDS`. |
 | `doorBodies` | `Phaser.GameObjects.GameObject[]` | Arcade bodies for the closed doors, for the player collider. |
 
 <a id="interface-codecdata"></a>
@@ -4137,6 +4220,7 @@ the moment the scene rebuilt one.
 | `entityShadows` | `EntityShadows` |  |
 | `wallCollider` | `() => Phaser.Physics.Arcade.Collider \| undefined` |  |
 | `doorCollider` | `() => Phaser.Physics.Arcade.Collider \| undefined` |  |
+| `coverCollider` | `() => Phaser.Physics.Arcade.Collider \| undefined` | The cover bodies a crouch already switches off — no-clip has to as well. |
 | `warpTargets` | `() => string[]` | Level names the warp keys map to, in key order. |
 | `warpTo` | `(levelName: string) => void` | Restart the scene on another level. |
 | `giveItem` | `(name: string) => void` | Grants one unit of an item, for testing weapons/items without playing to their chest. |
@@ -4211,7 +4295,7 @@ three and no explicit reset method to keep in step with that.
 
 #### `GameSceneData` — interface *(module-private)*
 
-`src/scenes/GameScene.ts:145`
+`src/scenes/GameScene.ts:152`
 
 Data passed to `GameScene` when (re)starting for a level swap.
 
@@ -4283,8 +4367,10 @@ The long-lived collaborators the context points at, fixed for a level.
 | `flashlightOn` | `() => boolean` | True while the flashlight beam is lit — it makes Rowan far easier to spot. |
 | `thermalMasked` | `() => boolean` | True while Thermal Gel is masking body heat. |
 | `rationOpened` | `() => boolean` | True while a held Sack Lunch is open — crinkling packaging, organic scent. |
+| `pressed` | `() => boolean` | True while Rowan is flat against a wall face — a smaller thing to notice. |
 | `flashlightMultiplier` | `number` | Extra detection multipliers applied on top of the map's lights. |
 | `rationMultiplier` | `number` |  |
+| `pressMultiplier` | `number` | Below 1, unlike the two above: pressing *reduces* how fast you fill a meter. |
 | `coverTilesNear` | `(tileX: number, tileY: number, radiusTiles: number) => { x: number; y: number }[]` |  |
 | `isGuardDoor` | `(tileX: number, tileY: number) => boolean` |  |
 | `setDoorOpen` | `(tileX: number, tileY: number, open: boolean) => void` |  |
@@ -4335,7 +4421,7 @@ type OverlayId = "pause" | "codec" | "compliance" | "qualia";
 
 #### `Target` — type *(module-private)*
 
-`src/scenes/GameScene.ts:1236`
+`src/scenes/GameScene.ts:1269`
 
 ```ts
 type Target = { x: number; y: number; kind: "cover"; cover: Cover } | { x: number; y: number; kind: "orderly"; orderly: Orderly };
@@ -5351,6 +5437,7 @@ GameScene.
 | [BinaryHeap](#class-binaryheap) | class | `src/systems/Pathfinder.ts:277` |
 | [BioMonitor](#class-biomonitor) | class | `src/ui/BioMonitor.ts:64` |
 | [BlockedAt](#type-blockedat) | type | `src/map/TileBake.ts:49` |
+| [BodyExtent](#interface-bodyextent) | interface | `src/systems/WallPress.ts:24` |
 | [BootScene](#class-bootscene) | class | `src/main.ts:41` |
 | [BossCore](#class-bosscore) | class | `src/entities/BossCore.ts:64` |
 | [BossCoreHud](#class-bosscorehud) | class | `src/ui/BossCoreHud.ts:44` |
@@ -5376,14 +5463,14 @@ GameScene.
 | [ConductState](#class-conductstate) | class | `src/systems/Conduct.ts:112` |
 | [ConductView](#interface-conductview) | interface | `src/systems/Conduct.ts:246` |
 | [ConeStyle](#interface-conestyle) | interface | `src/ui/VisionCone.ts:28` |
-| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:587` |
-| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:626` |
+| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:655` |
+| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:694` |
 | [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:13` |
 | [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:35` |
 | [Cover](#class-cover) | class | `src/entities/Cover.ts:17` |
 | [DebugHost](#interface-debughost) | interface | `src/scenes/game/DebugOverlay.ts:66` |
 | [DebugHud](#class-debughud) | class | `src/ui/DebugHud.ts:55` |
-| [DebugOverlay](#class-debugoverlay) | class | `src/scenes/game/DebugOverlay.ts:91` |
+| [DebugOverlay](#class-debugoverlay) | class | `src/scenes/game/DebugOverlay.ts:93` |
 | [DebugSnapshot](#interface-debugsnapshot) | interface | `src/ui/DebugHud.ts:16` |
 | [DebugUnitView](#interface-debugunitview) | interface | `src/ui/DebugHud.ts:7` |
 | [DebugWorld](#interface-debugworld) | interface | `src/scenes/game/DebugOverlay.ts:42` |
@@ -5441,8 +5528,8 @@ GameScene.
 | [GameMap](#interface-gamemap) | interface | `src/map/types.ts:255` |
 | [GameMode](#type-gamemode) | type | `src/systems/GameState.ts:20` |
 | [GameOverScene](#class-gameoverscene) | class | `src/scenes/GameOverScene.ts:12` |
-| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:210` |
-| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:145` |
+| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:217` |
+| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:152` |
 | [GameTile](#interface-gametile) | interface | `src/map/types.ts:201` |
 | [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:286` |
 | [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:173` |
@@ -5453,7 +5540,7 @@ GameScene.
 | [HoldFixture](#class-holdfixture) | class | `src/entities/HoldFixture.ts:24` |
 | [HoldTarget](#class-holdtarget) | class | `src/entities/HoldTarget.ts:35` |
 | [Hud](#class-hud) | class | `src/ui/Hud.ts:24` |
-| [InputState](#interface-inputstate) | interface | `src/entities/Player.ts:314` |
+| [InputState](#interface-inputstate) | interface | `src/entities/Player.ts:475` |
 | [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:23` |
 | [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:137` |
 | [ItemInfo](#interface-iteminfo) | interface | `src/systems/ItemCatalog.ts:48` |
@@ -5464,6 +5551,7 @@ GameScene.
 | [KnownLevel](#type-knownlevel) | type | `src/map/types.ts:293` |
 | [Laser](#class-laser) | class | `src/entities/Laser.ts:28` |
 | [LaserKind](#type-laserkind) | type | `src/entities/Laser.ts:21` |
+| [LevelBodyRects](#interface-levelbodyrects) | interface | `src/map/TileBake.ts:263` |
 | [LexiconCategory](#type-lexiconcategory) | type | `src/systems/Lexicon.ts:19` |
 | [LexiconContext](#interface-lexiconcontext) | interface | `src/systems/Lexicon.ts:257` |
 | [LexiconEntry](#interface-lexiconentry) | interface | `src/systems/Lexicon.ts:30` |
@@ -5515,12 +5603,15 @@ GameScene.
 | [PauseScene](#class-pausescene) | class | `src/scenes/PauseScene.ts:32` |
 | [PauseSnapshot](#interface-pausesnapshot) | interface | `src/ui/PauseMenuView.ts:39` |
 | [PersonAnomalyKind](#type-personanomalykind) | type | `src/entities/Enforcer.ts:59` |
-| [Player](#class-player) | class | `src/entities/Player.ts:40` |
+| [Player](#class-player) | class | `src/entities/Player.ts:45` |
 | [PLAYER_IDLE_SOUTH_COLLIDER](#const-player-idle-south-collider) | const | `src/entities/generated/playerCollider.ts:32` |
 | [PlayerAnimName](#type-playeranimname) | type | `src/entities/PlayerAnimations.ts:19` |
 | [PlayerParams](#interface-playerparams) | interface | `src/systems/QualiaLock.ts:34` |
 | [PlayerStats](#interface-playerstats) | interface | `src/systems/EntityStats.ts:282` |
 | [Point](#interface-point) | interface | `src/tools/collider/rdp.ts:12` |
+| [PressSide](#interface-pressside) | interface | `src/systems/WallPress.ts:50` |
+| [PressState](#interface-pressstate) | interface | `src/systems/WallPress.ts:65` |
+| [PressSurface](#interface-presssurface) | interface | `src/systems/WallPress.ts:30` |
 | [PressureSubStation](#class-pressuresubstation) | class | `src/entities/PressureSubStation.ts:17` |
 | [PuzzleState](#interface-puzzlestate) | interface | `src/systems/Compliance.ts:50` |
 | [QualiaLockConfig](#interface-qualialockconfig) | interface | `src/systems/QualiaLock.ts:46` |
@@ -5545,7 +5636,7 @@ GameScene.
 | [RelayMsg](#interface-relaymsg) | interface | `src/systems/RelayCore.ts:46` |
 | [RelaySnapshot](#interface-relaysnapshot) | interface | `src/systems/RelayCore.ts:40` |
 | [RelayState](#enum-relaystate) | enum | `src/systems/RelayCore.ts:18` |
-| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:850` |
+| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:918` |
 | [RelayTickResult](#interface-relaytickresult) | interface | `src/entities/RoofRelay.ts:57` |
 | [RelayTransition](#interface-relaytransition) | interface | `src/systems/RelayCore.ts:35` |
 | [RelayView](#interface-relayview) | interface | `src/systems/RelayCore.ts:55` |
@@ -5557,7 +5648,7 @@ GameScene.
 | [SavePayload](#type-savepayload) | type | `src/systems/SaveGame.ts:53` |
 | [SelectList](#class-selectlist) | class | `src/ui/SelectList.ts:29` |
 | [SelectListRow](#interface-selectlistrow) | interface | `src/ui/SelectList.ts:18` |
-| [SensingContext](#class-sensingcontext) | class | `src/scenes/game/SensingContext.ts:44` |
+| [SensingContext](#class-sensingcontext) | class | `src/scenes/game/SensingContext.ts:48` |
 | [SensingDeps](#interface-sensingdeps) | interface | `src/scenes/game/SensingContext.ts:25` |
 | [SensingWorld](#interface-sensingworld) | interface | `src/systems/Sensing.ts:55` |
 | [Sensor](#class-sensor) | class | `src/entities/Sensor.ts:26` |
@@ -5575,7 +5666,7 @@ GameScene.
 | [SmacMsg](#interface-smacmsg) | interface | `src/systems/SmacCore.ts:72` |
 | [SmacSnapshot](#interface-smacsnapshot) | interface | `src/systems/SmacCore.ts:63` |
 | [SmacState](#enum-smacstate) | enum | `src/systems/SmacCore.ts:38` |
-| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:778` |
+| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:846` |
 | [SmacTickResult](#interface-smactickresult) | interface | `src/entities/BossCore.ts:56` |
 | [SmacTransition](#interface-smactransition) | interface | `src/systems/SmacCore.ts:57` |
 | [SmacView](#interface-smacview) | interface | `src/systems/SmacCore.ts:94` |
@@ -5585,22 +5676,22 @@ GameScene.
 | [SpriteCollider](#interface-spritecollider-3) | interface | `src/entities/generated/orderlyCollider.ts:6` |
 | [SpriteCollider](#interface-spritecollider-4) | interface | `src/entities/generated/playerCollider.ts:6` |
 | [SpriteFrame](#interface-spriteframe) | interface | `src/map/types.ts:183` |
-| [Stance](#type-stance) | type | `src/entities/Player.ts:38` |
+| [Stance](#type-stance) | type | `src/entities/Player.ts:43` |
 | [SteamJet](#interface-steamjet) | interface | `src/entities/Vent4Boss.ts:60` |
 | [Surrenderable](#interface-surrenderable) | interface | `src/systems/Surrender.ts:53` |
 | [SurrenderAim](#class-surrenderaim) | class | `src/systems/Surrender.ts:187` |
 | [SurrenderResult](#interface-surrenderresult) | interface | `src/systems/Surrender.ts:61` |
 | [SurrenderWorld](#interface-surrenderworld) | interface | `src/systems/Surrender.ts:33` |
-| [Target](#type-target) | type | `src/scenes/GameScene.ts:1236` |
+| [Target](#type-target) | type | `src/scenes/GameScene.ts:1269` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:16` |
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:199` |
 | [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:190` |
 | [TilePos](#interface-tilepos) | interface | `src/map/generate.ts:115` |
 | [TitleScene](#class-titlescene) | class | `src/scenes/TitleScene.ts:12` |
 | [TraceState](#interface-tracestate) | interface | `src/ui/ekg.ts:185` |
-| [Transition](#interface-transition) | interface | `src/map/types.ts:390` |
+| [Transition](#interface-transition) | interface | `src/map/types.ts:412` |
 | [TransitionGraph](#class-transitiongraph) | class | `src/systems/TransitionGraph.ts:36` |
-| [TransitionKind](#type-transitionkind) | type | `src/map/types.ts:379` |
+| [TransitionKind](#type-transitionkind) | type | `src/map/types.ts:401` |
 | [TribunalCallbacks](#interface-tribunalcallbacks) | interface | `src/ui/TribunalScreen.ts:46` |
 | [TribunalScene](#class-tribunalscene) | class | `src/scenes/TribunalScene.ts:19` |
 | [TribunalScreen](#class-tribunalscreen) | class | `src/ui/TribunalScreen.ts:51` |
@@ -5617,7 +5708,7 @@ GameScene.
 | [Vent4PhysicsSystem](#class-vent4physicssystem) | class | `src/systems/Vent4PhysicsSystem.ts:63` |
 | [Vent4Snapshot](#interface-vent4snapshot) | interface | `src/systems/Vent4Core.ts:34` |
 | [Vent4State](#enum-vent4state) | enum | `src/systems/Vent4Core.ts:17` |
-| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:654` |
+| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:722` |
 | [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:47` |
 | [Vent4Transition](#interface-vent4transition) | interface | `src/systems/Vent4Core.ts:28` |
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |

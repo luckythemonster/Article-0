@@ -326,6 +326,28 @@ export const EXTRA_SOLID_BOARDS: readonly string[] = ["fence"];
 export const SEE_THROUGH_BOARDS: readonly string[] = ["cover", "fence"];
 
 /**
+ * Solid boards a *crouching* player can pass through — ducking under a desk,
+ * squeezing into a rack row.
+ *
+ * These stay solid in {@link import("../systems/CollisionGrid").CollisionGrid},
+ * which is deliberate and is the whole mechanic: the grid is what guard pathing,
+ * `GridMotion`, the radar and knocking all read, so a guard still treats cover as
+ * a wall and cannot follow Rowan in. Only the player's Arcade collision is
+ * relaxed, by giving these cells their own body group that the scene switches off
+ * while he is crouched — see `TileBake.wallBodyRects` and `GameScene`.
+ *
+ * `cover` alone, for now. A board listed here must already be solid by some other
+ * route (its authored `Collision`, or a per-tile override); this says which of the
+ * solid boards yield to a crouch, not which ones block.
+ */
+export const CRAWLABLE_BOARDS: readonly string[] = ["cover"];
+
+/** True when a crouching player can pass through this board's tiles. */
+export function isCrawlable(layerName: string): boolean {
+  return CRAWLABLE_BOARDS.includes(layerName);
+}
+
+/**
  * The boards that block movement on a level, from the map's own metadata.
  *
  * Falls back to `["walls"]` when no board on the level declares `Collision` at
