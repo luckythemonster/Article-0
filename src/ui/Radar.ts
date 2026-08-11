@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { RADAR_RADIUS_TILES, type RadarSnapshot } from "../systems/Radar";
 import { FONT_MONO } from "./fonts";
+import { RADAR_RADIUS } from "./hudLayout";
 import { UI, UI_DEPTH, UI_PAD, UI_TEXT, hex } from "./hudTheme";
 import { onResize } from "./resize";
 
@@ -39,7 +40,7 @@ export class Radar {
   private readonly bezel: Phaser.GameObjects.Graphics;
   private readonly maskShape: Phaser.GameObjects.Graphics;
   private readonly jamText: Phaser.GameObjects.Text;
-  private readonly radius = 46;
+  private readonly radius = RADAR_RADIUS;
   private readonly pxPerTile: number;
   private cx = 0;
   private cy = 0;

@@ -4,7 +4,16 @@ import { SETTLE_SECONDS, type ConductView } from "../systems/Conduct";
 import { BioMonitor } from "./BioMonitor";
 import { controlsHintLine } from "./Controls";
 import { FONT_MONO } from "./fonts";
-import { BIO_LABEL_TOP } from "./hudLayout";
+import {
+  BAR_FILL_H,
+  BAR_FILL_W,
+  BAR_H,
+  BAR_W,
+  BIO_LABEL_TOP,
+  SRP_AXES_TOP,
+  SRP_BAR_TOP,
+  SRP_LABEL_TOP,
+} from "./hudLayout";
 import { UI, UI_DEPTH, UI_PAD, UI_TEXT, hex } from "./hudTheme";
 import { onResize } from "./resize";
 
@@ -13,12 +22,6 @@ const PHASE_COLOR: Record<AlertPhase, string> = {
   ALERT: UI.redDeep,
   EVASION: UI.amber,
 };
-
-/** The SRP bar: outer track, with the fill inset 1px inside it. */
-const BAR_W = 180;
-const BAR_H = 10;
-const BAR_FILL_W = BAR_W - 2;
-const BAR_FILL_H = BAR_H - 2;
 
 /**
  * Heads-up display. The detection meter is framed as the facility's
@@ -49,7 +52,7 @@ export class Hud {
       .setDepth(UI_DEPTH.BASE);
 
     scene.add
-      .text(pad, pad + 30, "SUBJECTIVITY RISK", {
+      .text(pad, SRP_LABEL_TOP, "SUBJECTIVITY RISK", {
         fontFamily: FONT_MONO,
         fontSize: UI_TEXT.small,
         color: UI.textFaint,
@@ -57,18 +60,18 @@ export class Hud {
       .setScrollFactor(0)
       .setDepth(UI_DEPTH.BASE);
     scene.add
-      .rectangle(pad, pad + 46, BAR_W, BAR_H, hex(UI.track))
+      .rectangle(pad, SRP_BAR_TOP, BAR_W, BAR_H, hex(UI.track))
       .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDepth(UI_DEPTH.BASE)
       .setStrokeStyle(1, hex(UI.borderCool));
     this.srpFill = scene.add
-      .rectangle(pad + 1, pad + 47, 0, BAR_FILL_H, hex(UI.cyan))
+      .rectangle(pad + 1, SRP_BAR_TOP + 1, 0, BAR_FILL_H, hex(UI.cyan))
       .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDepth(UI_DEPTH.FILL);
     this.srpAxes = scene.add
-      .text(pad, pad + 59, "Q 0.00   H 0.00   Y 0.00", {
+      .text(pad, SRP_AXES_TOP, "Q 0.00   H 0.00   Y 0.00", {
         fontFamily: FONT_MONO,
         fontSize: UI_TEXT.micro,
         color: UI.textDim,
@@ -78,7 +81,7 @@ export class Hud {
 
     // Owns its own heading and rate readout. Its height is part of the shared column
     // budget in `hudLayout`, because `AlertNetworkHud` starts where it ends.
-    this.bio = new BioMonitor(scene, pad, pad + BIO_LABEL_TOP);
+    this.bio = new BioMonitor(scene, pad, BIO_LABEL_TOP);
 
     this.hint = scene.add
       .text(pad, scene.scale.height - pad, controlsHintLine(), {
