@@ -30,6 +30,17 @@
 import { UI_PAD } from "./hudTheme";
 
 /**
+ * The smallest canvas the HUD is budgeted to stay legible on.
+ *
+ * There is no fixed internal resolution — `index.html` sizes `#game` to
+ * `92vw x 92vh` capped at `1280x800` and Phaser's `Scale.RESIZE` follows it — so
+ * "the screen" is a range, and every budget below has to hold at its bottom end.
+ * A 640x480 canvas is what a 700px-wide browser window gives.
+ */
+export const MIN_CANVAS_W = 640;
+export const MIN_CANVAS_H = 480;
+
+/**
  * Share Tech Mono's advance, as a fraction of the type size (540/1000).
  *
  * Lets this file predict a string's rendered width without a canvas, which is what
@@ -166,9 +177,6 @@ export const INVENTORY_RESERVE_W = Math.ceil(monoWidth(INVENTORY_MAX_CHARS, 12))
 
 /** Highest the inventory may grow before it would reach the radar. */
 export const INVENTORY_TOP_LIMIT = RADAR_BOTTOM + 8;
-
-/** Gap between the conduct line's baseline and whatever sits below it. */
-export const CONDUCT_GAP = 18;
 
 /**
  * How long the controls hint stays up, and how long it takes to go.

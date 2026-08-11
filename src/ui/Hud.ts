@@ -10,9 +10,12 @@ import {
   BAR_H,
   BAR_W,
   BIO_LABEL_TOP,
+  HINT_FADE_MS,
+  HINT_HOLD_MS,
   SRP_AXES_TOP,
   SRP_BAR_TOP,
   SRP_LABEL_TOP,
+  hintWrapWidth,
 } from "./hudLayout";
 import { UI, UI_DEPTH, UI_PAD, UI_TEXT, hex } from "./hudTheme";
 import { onResize } from "./resize";
@@ -97,7 +100,7 @@ export class Hud {
     // the objective heading is centred on the viewport, so a fixed-x readout up there
     // collides with it as soon as the window narrows.
     this.conductText = scene.add
-      .text(pad, scene.scale.height - pad - 18, "", {
+      .text(pad, scene.scale.height - pad, "", {
         fontFamily: FONT_MONO,
         fontSize: UI_TEXT.label,
         color: UI.blueSoft,
@@ -106,9 +109,45 @@ export class Hud {
       .setScrollFactor(0)
       .setDepth(UI_DEPTH.BASE);
 
-    onResize(scene, (_w, h) => {
-      this.hint.setPosition(pad, h - pad);
-      this.conductText.setPosition(pad, h - pad - 18);
+    onResize(scene, (w, h) => this.layoutBottom(w, h), true);
+    this.scheduleHintFade(scene);
+  }
+
+  /**
+   * Lays out the bottom-left column against whatever the hint currently occupies.
+   *
+   * The hint and the inventory readout used to share a baseline from opposite ends
+   * of the screen, and the hint is the widest thing the HUD draws — 113 characters,
+   * about 732px at 12px type. On the ~940px canvas a 1024px display gives, the two
+   * printed through each other. Wrapping the hint inside the width the inventory
+   * doesn't claim fixes that; the conduct line then rides above however many lines
+   * that turned out to be, and drops back to the bottom pad once the hint has gone.
+   */
+  private layoutBottom(width: number, height: number): void {
+    const bottom = height - UI_PAD;
+    this.hint.setWordWrapWidth(hintWrapWidth(width));
+    this.hint.setPosition(UI_PAD, bottom);
+    this.conductText.setPosition(UI_PAD, bottom - (this.hint.visible ? this.hint.height + 4 : 0));
+  }
+
+  /**
+   * Retires the controls hint once it has done its job.
+   *
+   * `UIScene` outlives level swaps, so this runs once a session rather than once a
+   * level — which is the right frequency for a teaching aid. The bindings stay
+   * permanently available in the pause menu's CONTROLS tab.
+   */
+  private scheduleHintFade(scene: Phaser.Scene): void {
+    scene.time.delayedCall(HINT_HOLD_MS, () => {
+      scene.tweens.add({
+        targets: this.hint,
+        alpha: 0,
+        duration: HINT_FADE_MS,
+        onComplete: () => {
+          this.hint.setVisible(false);
+          this.layoutBottom(scene.scale.width, scene.scale.height);
+        },
+      });
     });
   }
 
