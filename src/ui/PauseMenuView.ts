@@ -8,7 +8,7 @@ import { JOURNAL_ENTRIES, type JournalState } from "../systems/Journal";
 import { lexiconByCategory, lexiconEntry, type LexiconContext } from "../systems/Lexicon";
 import { itemInfo } from "../systems/ItemCatalog";
 import { ROOF_ARRAY_LEVEL } from "../map/RoofArrayLevel";
-import { flashlightIconPath, ITEM_ICON_PATHS } from "../systems/ItemIcons";
+import { flashlightIconPath, ITEM_ICON_PATHS, nativeIconPath } from "../systems/ItemIcons";
 import {
   objectiveLines,
   type MissionFeatures,
@@ -404,7 +404,15 @@ export class PauseMenuView {
       if (iconPath) {
         const icon = document.createElement("img");
         icon.className = "pause-detail-icon";
-        icon.src = iconPath;
+        // Prefer the native-resolution icon, falling back to the 256px original
+        // when it isn't drawn yet. `onerror` rather than a manifest because the
+        // browser is already asking the question, and this lets the set be
+        // replaced one file at a time — see `nativeIconPath`.
+        icon.src = nativeIconPath(iconPath);
+        icon.onerror = (): void => {
+          icon.onerror = null;
+          icon.src = iconPath;
+        };
         icon.alt = "";
         header.appendChild(icon);
       }

@@ -12,6 +12,7 @@ import {
   RADAR_BOTTOM,
   hintWrapWidth,
   monoWidth,
+  sharedFieldLeft,
 } from "./hudLayout";
 import { UI_PAD } from "./hudTheme";
 
@@ -93,21 +94,31 @@ describe("hudLayout: the bottom-left controls hint", () => {
     expect(chars).toBeGreaterThan(24);
   });
 
-  it("never reaches the inventory's left edge, at any supported width", () => {
-    // The bug this replaces: at 942px — the canvas a 1024px display gives — the
-    // hint ran from x=12 to x=744 and the inventory started at x=722.
+  it("reaches neither the gauge nor the inventory, at any supported width", () => {
+    // Two bugs this replaces, one region apart. The hint ran from x=12 to x=744 at
+    // 942px — the canvas a 1024px display gives — while the inventory started at
+    // x=722. Reserving only the inventory then put it under the Shared Field gauge,
+    // whose centreline is 42px up, which two wrapped lines of hint reach.
     for (const width of [MIN_CANVAS_W, 800, 942, 1178, 1280]) {
       const hintRight = UI_PAD + hintWrapWidth(width);
-      const inventoryLeft = width - UI_PAD - INVENTORY_RESERVE_W;
-      expect(hintRight, `at ${width}px`).toBeLessThanOrEqual(inventoryLeft);
+      expect(hintRight, `inventory, at ${width}px`).toBeLessThanOrEqual(
+        width - UI_PAD - INVENTORY_RESERVE_W,
+      );
+      expect(hintRight, `gauge, at ${width}px`).toBeLessThanOrEqual(sharedFieldLeft(width));
     }
   });
 
   it("is wide enough that wrapping stays bounded", () => {
-    // Two or three lines is the intended trade for a hint that fades out; a dozen
-    // would mean the reserve had eaten the column rather than shared it.
-    const lines = Math.ceil(monoWidth(controlsHintLine().length, 12) / hintWrapWidth(MIN_CANVAS_W));
-    expect(lines).toBeLessThanOrEqual(3);
+    // The gauge binds at every width, so the hint is a block rather than the strip
+    // it used to be: two lines at 1280px, four at the 640px floor where the gauge
+    // sits only 212px from the left pad and there is genuinely nowhere else for the
+    // text to go. That is the accepted cost of never printing through the gauge,
+    // and a compact block in the corner arguably reads better than a 732px line
+    // across the screen. A dozen lines would mean the reserves had eaten the
+    // column rather than shared it.
+    const width = monoWidth(controlsHintLine().length, 12);
+    expect(Math.ceil(width / hintWrapWidth(MIN_CANVAS_W))).toBeLessThanOrEqual(4);
+    expect(Math.ceil(width / hintWrapWidth(1280))).toBeLessThanOrEqual(2);
   });
 });
 

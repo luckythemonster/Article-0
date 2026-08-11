@@ -189,13 +189,34 @@ export const INVENTORY_TOP_LIMIT = RADAR_BOTTOM + 8;
 export const HINT_HOLD_MS = 15_000;
 export const HINT_FADE_MS = 1_000;
 
+// ---------------------------------------------------------------------------
+// Bottom-centre: the Shared Field gauge
+// ---------------------------------------------------------------------------
+
+/** The gauge's bar width, and how far its centreline sits above the bottom edge. */
+export const SHARED_FIELD_BAR_W = 168;
+export const SHARED_FIELD_BAR_UP = 42;
+
+/** Left edge of the bottom-centre gauge on a canvas `w` wide. */
+export function sharedFieldLeft(canvasWidth: number): number {
+  return canvasWidth / 2 - SHARED_FIELD_BAR_W / 2;
+}
+
 /**
- * Width the controls hint may wrap within: everything but the inventory's column.
+ * Width the controls hint may wrap within.
+ *
+ * Two constraints, because the bottom edge has three owners rather than two. The
+ * inventory holds the right; the Shared Field gauge holds the centre, and its
+ * centreline sits 42px up — close enough that a hint wrapped to two lines reaches
+ * it. The first version of this budget only knew about the inventory and put the
+ * hint straight through the gauge, which is the same mistake one region further
+ * along, and is why the gauge's geometry now lives here rather than in the widget.
  *
  * Wrapping to two or three lines on a narrow canvas is the right trade for a hint
- * that is about to fade out anyway — the alternative is printing through the
- * inventory, which is what it did before.
+ * that is about to fade out anyway.
  */
 export function hintWrapWidth(canvasWidth: number): number {
-  return Math.max(120, canvasWidth - UI_PAD * 2 - INVENTORY_RESERVE_W);
+  const beforeGauge = sharedFieldLeft(canvasWidth) - UI_PAD * 2;
+  const beforeInventory = canvasWidth - UI_PAD * 2 - INVENTORY_RESERVE_W;
+  return Math.max(120, Math.min(beforeGauge, beforeInventory));
 }

@@ -33,6 +33,14 @@
         align-items: center;
         justify-content: center;
       }
+      /*
+        A pre-script fallback only: `fitGameElement()` in src/main.ts overrides
+        both dimensions with whole-pixel values as soon as it runs, and keeps
+        doing so on resize. `92vw` is fractional on most windows, and a canvas
+        with a fractional CSS size gets rescaled by the browser — which, with
+        `image-rendering: pixelated` below, resamples every glyph in the HUD.
+        Don't drop the inline sizing and rely on these.
+      */
       #game {
         width: 92vw;
         height: 92vh;

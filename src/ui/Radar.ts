@@ -3,7 +3,11 @@ import { RADAR_RADIUS_TILES, type RadarSnapshot } from "../systems/Radar";
 import { FONT_MONO } from "./fonts";
 import { RADAR_RADIUS } from "./hudLayout";
 import { UI, UI_DEPTH, UI_PAD, UI_TEXT, hex } from "./hudTheme";
+import { hasUiTexture } from "./UiTextures";
 import { onResize } from "./resize";
+
+/** Optional ring art; absent by default, in which case the bezel is stroked. */
+const BEZEL_TEXTURE = "ui-radar-bezel";
 
 const PANEL_BG = hex(UI.bgPanel);
 const PANEL_BG_ALPHA = 0.85;
@@ -40,6 +44,8 @@ export class Radar {
   private readonly bezel: Phaser.GameObjects.Graphics;
   private readonly maskShape: Phaser.GameObjects.Graphics;
   private readonly jamText: Phaser.GameObjects.Text;
+  /** Created lazily, and only when the optional ring art is present. */
+  private bezelImage?: Phaser.GameObjects.Image;
   private readonly radius = RADAR_RADIUS;
   private readonly pxPerTile: number;
   private cx = 0;
@@ -82,8 +88,26 @@ export class Radar {
     this.jamText.setPosition(this.cx, this.cy + this.radius + 10);
   }
 
+  /**
+   * The scope's ring — from art when `ui-radar-bezel` is present, otherwise the
+   * stroked circle this has always drawn.
+   *
+   * The art must have a transparent interior: the scope's contents are drawn into
+   * a separate, masked Graphics *beneath* this, so anything opaque inside the ring
+   * hides the blips rather than sitting behind them.
+   */
   private drawBezel(): void {
     this.bezel.clear();
+
+    if (hasUiTexture(this.scene, BEZEL_TEXTURE)) {
+      this.bezelImage ??= this.scene.add
+        .image(this.cx, this.cy, BEZEL_TEXTURE)
+        .setScrollFactor(0)
+        .setDepth(UI_DEPTH.FILL);
+      this.bezelImage.setPosition(this.cx, this.cy);
+      return;
+    }
+
     this.bezel.lineStyle(2, BEZEL_COLOR, 1);
     this.bezel.strokeCircle(this.cx, this.cy, this.radius);
   }

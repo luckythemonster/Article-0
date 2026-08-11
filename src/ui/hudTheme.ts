@@ -40,6 +40,8 @@ export const UI = {
   redDeep: "#ff3b3b",
   green: "#5effa0",
   greenBright: "#d6ffe8",
+  /** The "we" of a merged Shared Field, and the ready state that precedes it. */
+  greenSoft: "#8effc0",
   /** Body text that wants to read as *interface* without the accent's heat. */
   blueSoft: "#9fd2ff",
 
