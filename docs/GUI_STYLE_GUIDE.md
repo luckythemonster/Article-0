@@ -141,17 +141,27 @@ replaced one file at a time with the game playable throughout.
 **Items with no icon at all** — the backlog: Stun Rounds, the Pneumatic
 Rail-Stapler, and the two LOG_CACHE fragments.
 
-## 6. Radar bezel
+## 6. The two round instruments
 
-The radar is a circular scope anchored top-right, radius **46px**.
+The HUD has two circular scopes, and they are deliberately a matched pair — the
+radar's bezel and the bio dial's are drawn the same way so they read as a family
+rather than a coincidence. Both take a bezel sprite on the same terms.
 
-- **Source size: 96x96**, registered as `ui-radar-bezel`.
-- **The interior must be transparent.** The scope's contents — terrain, blips, the
-  player marker — are drawn into a separate masked layer *underneath* the bezel.
-  Anything opaque inside the ring hides them rather than sitting behind them.
-- The ring currently draws as a 2px `--c-border-cool` circle. A sprite can add
-  bezel depth, tick marks, a bearing scale — as long as it stays within 96x96 and
-  leaves the middle clear.
+| | radar | bio-integrity dial |
+|---|---|---|
+| where | top-right | top-left, under `BIO-INTEGRITY` |
+| source | **96x96** | **80x80** |
+| radius | 46 | 40 |
+| key | `ui-radar-bezel` | `ui-vitals-bezel` |
+
+**The interior of both must be transparent.** Each scope's contents are drawn on a
+separate layer *underneath* the bezel — the radar's terrain and blips through a
+geometry mask, the dial's face and EKG trace directly. Anything opaque inside the
+ring hides them rather than sitting behind them.
+
+Both currently draw as a 2px `--c-border-cool` circle. A sprite can add bezel depth,
+tick marks, a bearing scale, screw heads — as long as it stays inside the source size
+and leaves the middle clear.
 
 ## 7. What not to draw
 
@@ -161,8 +171,11 @@ These are generated at runtime and would be wasted effort:
 - **Radial light stamps** — `src/render/stamps.ts`, generated at 256px.
 - **Radar blips, the sweep, terrain dots and the jam static** — all drawn per frame
   from live game state, and the static is deliberately re-randomised every frame.
-- **Bars, meters and gauges** — the SRP meter, bio-integrity and the Shared Field
-  gauge stay as primitives for now.
+- **The EKG trace** — the waveform on the bio dial is a model (`src/ui/ekg.ts`), not
+  art: the rate climbs and the complex shrinks with health, and at zero it flatlines
+  and the alarm pulses. Draw the *bezel* around it, never the trace itself.
+- **Bars and gauges** — the SRP meter and the Shared Field gauge stay as primitives
+  for now.
 
 ## 8. Text is not your problem, but glyphs are
 
@@ -219,3 +232,5 @@ file at a time without a flag day.
 | nine-slice helper | `src/ui/NineSlicePanel.ts` |
 | icon paths | `src/systems/ItemIcons.ts` |
 | fonts and the 14 glyphs | `src/ui/fonts.ts` |
+| the two round instruments | `src/ui/Radar.ts`, `src/ui/BioMonitor.ts` |
+| the EKG waveform model | `src/ui/ekg.ts` |
