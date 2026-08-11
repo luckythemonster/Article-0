@@ -110,6 +110,23 @@ describe("the shipped map's crawlable cover", () => {
     expect(isCrawlable("fence")).toBe(false);
   });
 
+  it("tags each crawlable body with the tile it belongs to, one body per tile", () => {
+    // The whole point of the per-tile split: `Cover.destroy()` looks up its own
+    // body by (tileX, tileY) rather than trusting a merged rect that might also
+    // cover a tile it was never asked to free.
+    for (const level of levels) {
+      const blocking = blockingLayerNames(level);
+      const coverBoard = level.layers.find((l) => l.name === "cover");
+      if (!coverBoard || !blocking.includes(coverBoard.name)) continue;
+      const crawlable = wallBodyRects(level, TILE_SIZE).crawlable;
+      expect(crawlable, level.name).toHaveLength(coverBoard.tiles.length);
+      for (const t of coverBoard.tiles) {
+        const matches = crawlable.filter((r) => r.tileX === t.x && r.tileY === t.y);
+        expect(matches, `${level.name} cover (${t.x},${t.y})`).toHaveLength(1);
+      }
+    }
+  });
+
   it("gives the squeeze something real to do on the decks it ships with", () => {
     // Pinned because the mechanic is worth nothing if the map stops authoring
     // solid cover: main1's desk and boxes, duct2's and main2's server racks.

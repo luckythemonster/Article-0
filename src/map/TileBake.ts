@@ -235,20 +235,39 @@ export function wallCells(
  *
  * The cells come from {@link wallCells}, so a wall tile with a footprint bigger
  * than its own cell gets a body under all of it.
+ *
+ * `coverBodies` is tagged per tile rather than a bare list, so a single
+ * destroyed cover tile (`Cover.destroy`) can find and disable *its own* body
+ * without touching a neighbour's — see {@link CoverBody}.
  */
 export function buildWallBodies(
   scene: Phaser.Scene,
   level: GameLevel,
   tileSize: number,
-): { wallBodies: Phaser.GameObjects.GameObject[]; coverBodies: Phaser.GameObjects.GameObject[] } {
-  const toZones = (rects: Rect[]): Phaser.GameObjects.GameObject[] =>
-    rects.map((r) => {
-      const zone = scene.add.zone(r.x + r.w / 2, r.y + r.h / 2, r.w, r.h);
-      scene.physics.add.existing(zone, true);
-      return zone;
-    });
+): { wallBodies: Phaser.GameObjects.GameObject[]; coverBodies: CoverBody[] } {
+  const toZone = (r: Rect): Phaser.GameObjects.GameObject => {
+    const zone = scene.add.zone(r.x + r.w / 2, r.y + r.h / 2, r.w, r.h);
+    scene.physics.add.existing(zone, true);
+    return zone;
+  };
   const rects = wallBodyRects(level, tileSize);
-  return { wallBodies: toZones(rects.walls), coverBodies: toZones(rects.crawlable) };
+  return {
+    wallBodies: rects.walls.map(toZone),
+    coverBodies: rects.crawlable.map((r) => ({ tileX: r.tileX, tileY: r.tileY, body: toZone(r) })),
+  };
+}
+
+/** One crawlable tile's rectangle, tagged with the cell it belongs to. */
+export interface TileRect extends Rect {
+  tileX: number;
+  tileY: number;
+}
+
+/** A crawlable tile's built body, tagged the same way — {@link buildWallBodies}'s output. */
+export interface CoverBody {
+  tileX: number;
+  tileY: number;
+  body: Phaser.GameObjects.GameObject;
 }
 
 /**
@@ -262,7 +281,7 @@ export function buildWallBodies(
  */
 export interface LevelBodyRects {
   walls: Rect[];
-  crawlable: Rect[];
+  crawlable: TileRect[];
 }
 
 /**
@@ -272,47 +291,58 @@ export interface LevelBodyRects {
  * this is the geometry, and it should be testable without standing up a Phaser
  * scene.
  *
- * Two kinds of rectangle come out. Tiles whose art declares no bounds of its own
- * go through {@link mergeWallRects} as whole cells, which is most of a level and
- * where the merge win lives. Tiles carrying authored `ColliderPadding` each get a
- * rectangle of exactly their own shape — they can't join the merge, because it
- * works in whole cells and the entire point of these is an edge that doesn't fall
- * on one.
+ * The two groups are built differently on purpose. `walls` merges whole cells
+ * with no authored bounds into maximal rectangles ({@link mergeWallRects}, most
+ * of a level and where the merge win lives) and gives tiles carrying authored
+ * `ColliderPadding` a rectangle of exactly their own shape, since those can't
+ * join a whole-cell merge.
  *
- * Both kinds are produced twice over, once per group — see {@link LevelBodyRects}.
- * In the shipped map the crawlable group is entirely padded tiles (every cover def
- * carries a `ColliderPadding`), so its merge pass finds nothing; that is a property
- * of this map's art rather than something to rely on.
+ * `crawlable` never merges, even for a plain unpadded tile: it is always one
+ * rectangle per solid tile on a crawlable board, via {@link colliderRect} (which
+ * already returns the tile's full footprint when there is no padding, so this is
+ * uniform for both). That costs nothing today — in the shipped map every cover
+ * tile carries a `ColliderPadding`, so the merge pass would have found nothing
+ * anyway — but it is what makes a single destroyed cover tile's body
+ * findable and disable-able on its own, rather than bundled into a run with
+ * whatever happened to sit next to it.
  */
 export function wallBodyRects(level: GameLevel, tileSize: number): LevelBodyRects {
   const { width, height } = level;
   const blocking = blockingLayerNames(level);
 
-  const groupFor = (wantCrawlable: boolean): Rect[] => {
-    const inGroup = (name: string): boolean => isCrawlable(name) === wantCrawlable;
-    const solid = wallCells(level, tileSize, inGroup);
-    const rects: Rect[] = mergeWallRects(width, height, (x, y) => solid[y * width + x] === 1).map(
-      (r) => ({
-        x: r.x * tileSize,
-        y: r.y * tileSize,
-        w: r.w * tileSize,
-        h: r.h * tileSize,
-      }),
-    );
-
-    for (const layer of level.layers) {
-      if (!inGroup(layer.name)) continue;
-      const boardBlocks = blocking.includes(layer.name);
-      for (const tile of layer.tiles) {
-        if (!tile.frame || hasPlainCollider(tile)) continue;
-        if (!boardBlocks && !isForcedSolid(tile)) continue;
-        const r = colliderRect(tile, tileSize);
-        if (!Number.isFinite(r.x) || !Number.isFinite(r.y)) continue;
-        rects.push(r);
-      }
+  const solid = wallCells(level, tileSize, (name) => !isCrawlable(name));
+  const walls: Rect[] = mergeWallRects(width, height, (x, y) => solid[y * width + x] === 1).map(
+    (r) => ({
+      x: r.x * tileSize,
+      y: r.y * tileSize,
+      w: r.w * tileSize,
+      h: r.h * tileSize,
+    }),
+  );
+  for (const layer of level.layers) {
+    if (isCrawlable(layer.name)) continue;
+    const boardBlocks = blocking.includes(layer.name);
+    for (const tile of layer.tiles) {
+      if (!tile.frame || hasPlainCollider(tile)) continue;
+      if (!boardBlocks && !isForcedSolid(tile)) continue;
+      const r = colliderRect(tile, tileSize);
+      if (!Number.isFinite(r.x) || !Number.isFinite(r.y)) continue;
+      walls.push(r);
     }
-    return rects;
-  };
+  }
 
-  return { walls: groupFor(false), crawlable: groupFor(true) };
+  const crawlable: TileRect[] = [];
+  for (const layer of level.layers) {
+    if (!isCrawlable(layer.name)) continue;
+    const boardBlocks = blocking.includes(layer.name);
+    for (const tile of layer.tiles) {
+      if (!tile.frame) continue;
+      if (!boardBlocks && !isForcedSolid(tile)) continue;
+      const r = colliderRect(tile, tileSize);
+      if (!Number.isFinite(r.x) || !Number.isFinite(r.y)) continue;
+      crawlable.push({ ...r, tileX: tile.x, tileY: tile.y });
+    }
+  }
+
+  return { walls, crawlable };
 }

@@ -115,9 +115,15 @@ squeeze / press / peek / vault are:
 - **Vault** — the fast, loud way over low cover (0.6 noise against the squeeze's 0.15),
   so crossing a crate is a choice rather than a formality.
 
-`Cover.destroy()` still leaves the tile's static body behind — it clears the detection
-dampening and erases the art, but nothing removes the collider. Harmless before this, and
-now merely odd (you can crawl into cover that is no longer drawn). Worth a follow-up.
+`Cover.destroy()` used to leave the tile's static body behind — it cleared the detection
+dampening and erased the art, but nothing removed the collider, so broken cover stayed a wall.
+Harmless before the squeeze existed; after it, a crouching player could crawl into a cell that
+was visibly just floor. Fixed the same way `Door` already handles its own state change:
+`destroy()` now also clears the tile in `CollisionGrid` (so guards, pathing, radar and knock
+stop treating rubble as solid) and disables the tile's own Arcade body — one body per crawlable
+*tile*, not per merged run, which is what makes a single destroyed tile's body findable and
+disable-able without also freeing whatever happened to sit next to it
+(`TileBake.wallBodyRects`'s `crawlable` group never merges, unlike `walls`).
 
 Destructible cover (`src/entities/Cover.ts`) is a separate, sparser layer: only tiles the
 `Destructible` component marks `true` get an entity at all — the rest of the board stays

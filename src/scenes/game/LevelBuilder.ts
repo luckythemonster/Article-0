@@ -10,7 +10,7 @@ import { Orderly } from "../../entities/Orderly";
 import { Player } from "../../entities/Player";
 import { Sensor } from "../../entities/Sensor";
 import { Terminal } from "../../entities/Terminal";
-import { bakeTileLayers, buildWallBodies } from "../../map/TileBake";
+import { bakeTileLayers, buildWallBodies, type CoverBody } from "../../map/TileBake";
 import type { GameLevel, GameTile } from "../../map/types";
 import type { CollisionGrid } from "../../systems/CollisionGrid";
 import type { DetectionSystem } from "../../systems/DetectionSystem";
@@ -78,7 +78,7 @@ export function buildLevel(
   entityLayers: ReadonlySet<string>,
 ): BuiltLevel {
   const tileTexture = bakeTileLayers(scene, level, tileSize, entityLayers);
-  const { wallBodies, coverBodies } = buildWallBodies(scene, level, tileSize);
+  const { wallBodies, coverBodies: coverBodyEntries } = buildWallBodies(scene, level, tileSize);
 
   const built: BuiltLevel = {
     player: spawnPlayer(scene, level, tileSize, arriveTile),
@@ -91,13 +91,13 @@ export function buildLevel(
     lasers: [],
     coverTiles: [],
     wallBodies,
-    coverBodies,
+    coverBodies: coverBodyEntries.map((e) => e.body),
     doorBodies: [],
   };
 
   spawnCast(scene, level, tileSize, built);
   spawnInteractables(scene, level, tileSize, grid, built);
-  spawnDestructibleCover(scene, level, tileSize, detection, tileTexture, built);
+  spawnDestructibleCover(scene, level, tileSize, grid, detection, tileTexture, coverBodyEntries, built);
   return built;
 }
 
@@ -109,8 +109,10 @@ function spawnDestructibleCover(
   scene: Phaser.Scene,
   level: GameLevel,
   tileSize: number,
+  grid: CollisionGrid,
   detection: DetectionSystem,
   tileTexture: Phaser.GameObjects.RenderTexture,
+  coverBodyEntries: CoverBody[],
   out: BuiltLevel,
 ): void {
   const coverLayer = level.layers.find((l) => l.name === "cover");
@@ -119,7 +121,12 @@ function spawnDestructibleCover(
   for (const t of coverLayer.tiles) {
     if (str(t.components, "cover", "Destructible", "false") !== "true") continue;
     const floorTile = floorLayer?.tiles.find((f) => f.x === t.x && f.y === t.y);
-    out.coverTiles.push(new Cover(scene, detection, tileTexture, tileSize, t, floorTile?.frame));
+    // undefined on a board that was never solid (the rooftop's crates) — there is
+    // no body to hand over, and `Cover.destroy` treats that as nothing to disable.
+    const body = coverBodyEntries.find((e) => e.tileX === t.x && e.tileY === t.y)?.body;
+    out.coverTiles.push(
+      new Cover(scene, detection, grid, tileTexture, tileSize, t, floorTile?.frame, body),
+    );
   }
 }
 

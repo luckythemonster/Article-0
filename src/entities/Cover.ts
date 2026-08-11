@@ -1,5 +1,6 @@
 import type Phaser from "phaser";
 import type { GameTile, SpriteFrame } from "../map/types";
+import type { CollisionGrid } from "../systems/CollisionGrid";
 import type { DetectionSystem } from "../systems/DetectionSystem";
 import { playVfx, SMOKE_PLUME } from "./Vfx";
 
@@ -22,11 +23,19 @@ export class Cover {
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly detection: DetectionSystem,
+    private readonly grid: CollisionGrid,
     private readonly tileTexture: Phaser.GameObjects.RenderTexture,
     private readonly tileSize: number,
     tile: GameTile,
     /** The floor tile underneath, redrawn once cover art is erased. */
     private readonly floorFrame: SpriteFrame | undefined,
+    /**
+     * This tile's own Arcade body from the crouch-gated crawlable collider
+     * (`LevelBuilder`'s `coverBodies`) — undefined only for a destructible tile
+     * on a board that was never solid to begin with (the rooftop's crates), where
+     * there was nothing to build a body for in the first place.
+     */
+    private readonly body: Phaser.GameObjects.GameObject | undefined,
   ) {
     this.tileX = tile.x;
     this.tileY = tile.y;
@@ -39,14 +48,27 @@ export class Cover {
   /**
    * Breaks the cover: a single hit is enough (no durability system, matching
    * how doors/lasers/chests are all binary state). Clears its detection/
-   * thermal effect and erases its art from the baked tile texture, redrawing
-   * the floor underneath so destroying it doesn't punch through to the level
-   * background.
+   * thermal effect, frees the tile in the collision grid and disables its own
+   * player collision body — a *destroyed* crate blocks nobody at all, standing
+   * or crouched, rather than merely yielding to a crouch the way intact cover
+   * does — and erases its art from the baked tile texture, redrawing the floor
+   * underneath so destroying it doesn't punch through to the level background.
    */
   destroy(): void {
     if (this.broken) return;
     this.broken = true;
     this.detection.destroyCoverAt(this.tileX, this.tileY);
+    // Guards, pathing, radar and knock all read the grid — clearing it here is
+    // what lets a patrol walk straight through the crate it just watched break,
+    // instead of still detouring around rubble.
+    this.grid.setBlocked(this.tileX, this.tileY, false);
+    // Disabled rather than destroyed, the same way `Door.applyState` disables a
+    // door's body on opening: this Zone is still a live member of the scene's
+    // shared `physics.add.collider(player, coverBodies)` array, and pulling a
+    // destroyed GameObject out from under a running collider is the thing to
+    // avoid, not the thing to do.
+    const arcadeBody = this.body?.body as Phaser.Physics.Arcade.StaticBody | undefined;
+    if (arcadeBody) arcadeBody.enable = false;
 
     const ts = this.tileSize;
     const x = this.tileX * ts;
