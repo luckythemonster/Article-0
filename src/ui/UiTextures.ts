@@ -39,7 +39,7 @@ export interface UiTextureSpec {
 
 export const UI_TEXTURES: readonly UiTextureSpec[] = [
   /** The generic HUD panel: border, corners and fill, stretched to any size. */
-  { key: "ui-panel", path: "assets/ui/panel/panel.png", size: 48, slice: 16 },
+  { key: "ui-panel", path: "assets/ui/panel/panel.png", size: 48, slice: 12 },
   /**
    * The radar's ring. Drawn over the scope's masked contents, so its interior must
    * be transparent — see the note in `Radar.drawBezel`.

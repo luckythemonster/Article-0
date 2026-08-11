@@ -94,8 +94,8 @@ Panels are the one thing that cannot be a fixed sprite: they wrap content of
 different widths, and some change width at runtime. They ship as **nine-slice** —
 corners fixed, edges stretched along one axis, middle stretched both ways.
 
-- **Source size: 48×48. Slice inset: 16px.** That gives four 16×16 corners, four
-  16×16 edges, and a 16×16 middle. Registered as `ui-panel` in
+- **Source size: 48x48. Slice inset: 12px.** That gives four 12x12 corners, four
+  12x24 edges, and a 24x24 middle. Registered as `ui-panel` in
   `src/ui/UiTextures.ts`.
 - **Only the corners are safe for detail.** Anything drawn in an edge region gets
   stretched along that edge — a bolt head in the top edge becomes a smear. Put
