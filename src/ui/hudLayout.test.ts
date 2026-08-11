@@ -10,8 +10,12 @@ import {
   MIN_CANVAS_H,
   MIN_CANVAS_W,
   RADAR_BOTTOM,
+  STATUS_STACK_RIGHT,
   hintWrapWidth,
   monoWidth,
+  objectiveCentre,
+  objectiveWrapWidth,
+  radarLeft,
   sharedFieldLeft,
 } from "./hudLayout";
 import { UI_PAD } from "./hudTheme";
@@ -126,5 +130,27 @@ describe("hudLayout: the top-right stack", () => {
   it("starts the debug inspector below the radar", () => {
     expect(INVENTORY_TOP_LIMIT).toBeGreaterThan(RADAR_BOTTOM);
     expect(RADAR_BOTTOM).toBeGreaterThan(UI_PAD);
+  });
+});
+
+describe("hudLayout: the top-centre objective tracker", () => {
+  it("clears the status stack and the radar at its widest, at every supported width", () => {
+    // At a 588px canvas the directive ran from x=161 while the SRP bar ended at
+    // x=192 — 31px of overlap, because the tracker centred on the viewport rather
+    // than on the space actually left between its neighbours.
+    for (const width of [MIN_CANVAS_W, 800, 942, 1178, 1280]) {
+      const block = objectiveWrapWidth(width);
+      const cx = objectiveCentre(width, block);
+      expect(cx - block / 2, `status stack, at ${width}px`).toBeGreaterThanOrEqual(
+        STATUS_STACK_RIGHT,
+      );
+      expect(cx + block / 2, `radar, at ${width}px`).toBeLessThanOrEqual(radarLeft(width));
+    }
+  });
+
+  it("stays screen-centred when there is room for it", () => {
+    // The nudge is a fallback, not the normal case: a short directive on a wide
+    // canvas should sit exactly where it always has.
+    expect(objectiveCentre(1280, 300)).toBe(640);
   });
 });

@@ -219,6 +219,11 @@ mesh's state, with SFX on the key beats.
 
 ## Architecture
 
+> **Drawing interface art?** **[`docs/GUI_STYLE_GUIDE.md`](docs/GUI_STYLE_GUIDE.md)** covers the
+> one rule UI art has to satisfy (the HUD is unzoomed, so one art pixel is one screen pixel),
+> the palette, the nine-slice panel and icon specs, and how to drop a PNG in without touching
+> any wiring.
+
 The whole pipeline lives in `src/`:
 
 - **`src/map/`** — the format. `types.ts` describes the edplay schema and the normalized

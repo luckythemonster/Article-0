@@ -157,6 +157,41 @@ export const RADAR_RADIUS = 46;
  */
 export const RADAR_BOTTOM = UI_PAD + RADAR_RADIUS * 2 + 16;
 
+/** Left edge of the radar on a canvas `w` wide. */
+export function radarLeft(canvasWidth: number): number {
+  return canvasWidth - UI_PAD - RADAR_RADIUS * 2;
+}
+
+/**
+ * Width the objective tracker may occupy: the gap between its two neighbours.
+ *
+ * The tracker is centred on the viewport, which is fine until the viewport is
+ * narrow enough that half its own width reaches past the status stack. At 640 it
+ * did: the directive ran from x=161 while the SRP bar ended at x=192, so the two
+ * printed through each other for 31px. Centring is not the problem — being centred
+ * on the *screen* rather than on the space actually available is.
+ */
+export function objectiveWrapWidth(canvasWidth: number): number {
+  return Math.max(160, radarLeft(canvasWidth) - STATUS_STACK_RIGHT - UI_PAD * 2);
+}
+
+/**
+ * Where the objective tracker's centreline goes for a block `blockWidth` wide.
+ *
+ * Screen-centred while that clears both neighbours — which is the common case and
+ * what the HUD has always looked like — and nudged just far enough aside when it
+ * doesn't. Takes the measured width rather than a worst case so the nudge only
+ * happens for the directives that actually need it.
+ */
+export function objectiveCentre(canvasWidth: number, blockWidth: number): number {
+  const half = blockWidth / 2;
+  const min = STATUS_STACK_RIGHT + UI_PAD + half;
+  const max = radarLeft(canvasWidth) - UI_PAD - half;
+  // `min` wins a crossover: on a canvas too narrow for both, clearing the stack
+  // that holds the alert phase and the health bar matters more than the radar.
+  return Math.max(min, Math.min(canvasWidth / 2, max));
+}
+
 // ---------------------------------------------------------------------------
 // Bottom edge: conduct line and controls hint (left), inventory (right)
 // ---------------------------------------------------------------------------
