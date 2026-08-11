@@ -33,9 +33,13 @@ export interface SensingDeps {
   thermalMasked: () => boolean;
   /** True while a held Sack Lunch is open — crinkling packaging, organic scent. */
   rationOpened: () => boolean;
+  /** True while Rowan is flat against a wall face — a smaller thing to notice. */
+  pressed: () => boolean;
   /** Extra detection multipliers applied on top of the map's lights. */
   flashlightMultiplier: number;
   rationMultiplier: number;
+  /** Below 1, unlike the two above: pressing *reduces* how fast you fill a meter. */
+  pressMultiplier: number;
   coverTilesNear: (tileX: number, tileY: number, radiusTiles: number) => { x: number; y: number }[];
   isGuardDoor: (tileX: number, tileY: number) => boolean;
   setDoorOpen: (tileX: number, tileY: number, open: boolean) => void;
@@ -53,10 +57,15 @@ export class SensingContext {
       player: { x: 0, y: 0 },
       // Both item penalties ride the light multiplier: they are the same kind of
       // thing — a standing cost to being perceived, wherever Rowan is standing.
+      // The press rides it too, in the other direction: a standing *discount*,
+      // and the reason to flatten against a plain wall that isn't cover. Cover
+      // conceals outright, so there it is the concealment that matters and this
+      // is a rounding error on top.
       lightMultiplierAt: (x, y) =>
         deps.detection.multiplierAt(x, y) *
         (deps.flashlightOn() ? deps.flashlightMultiplier : 1) *
-        (deps.rationOpened() ? deps.rationMultiplier : 1),
+        (deps.rationOpened() ? deps.rationMultiplier : 1) *
+        (deps.pressed() ? deps.pressMultiplier : 1),
       playerNoise: 0,
       playerConcealed: false,
       playerCompliant: false,

@@ -85,7 +85,10 @@ describe("the shipped map's level borders", () => {
    */
   function bodyCoverage(level: GameLevel, tileSize: number): Uint8Array {
     const covered = new Uint8Array(level.width * level.height);
-    for (const r of wallBodyRects(level, tileSize)) {
+    // Both groups: the crawlable ones yield to a crouching player, but they are
+    // still a body under a blocked cell, which is what this is checking for.
+    const { walls, crawlable } = wallBodyRects(level, tileSize);
+    for (const r of [...walls, ...crawlable]) {
       const x0 = Math.floor(r.x / tileSize);
       const y0 = Math.floor(r.y / tileSize);
       const x1 = Math.ceil((r.x + r.w) / tileSize) - 1;

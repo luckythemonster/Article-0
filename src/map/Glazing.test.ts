@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { EdplayLoader } from "./EdplayLoader";
-import { colliderRect, hasPlainCollider } from "./footprint";
+import { colliderRect, hasPlainCollider, type Rect } from "./footprint";
 import { wallBodyRects } from "./TileBake";
 import { blockingLayerNames } from "./types";
 import type { EdPlayFile, GameLevel, GameTile } from "./types";
@@ -88,16 +88,20 @@ describe("the shipped map's glazing", () => {
   it("gives every wall-board glass tile a player collision body", () => {
     // The grid drives pathing and radar; the Arcade bodies are what actually stop the
     // player, built from a separate walk over the board.
-    const byLevel = new Map<string, ReturnType<typeof wallBodyRects>>();
-    const rectsFor = (level: GameLevel): ReturnType<typeof wallBodyRects> => {
+    // Glass is a wall board, so only the `walls` group can be responsible for it
+    // — but flatten both anyway, so this keeps testing "has a body" rather than
+    // quietly also testing which group it landed in.
+    const byLevel = new Map<string, Rect[]>();
+    const rectsFor = (level: GameLevel): Rect[] => {
       let r = byLevel.get(level.name);
       if (!r) {
-        r = wallBodyRects(level, TILE_SIZE);
+        const split = wallBodyRects(level, TILE_SIZE);
+        r = [...split.walls, ...split.crawlable];
         byLevel.set(level.name, r);
       }
       return r;
     };
-    const coveredBy = (rects: ReturnType<typeof wallBodyRects>, px: number, py: number): boolean =>
+    const coveredBy = (rects: Rect[], px: number, py: number): boolean =>
       rects.some((r) => px >= r.x && px < r.x + r.w && py >= r.y && py < r.y + r.h);
 
     for (const { level, tile } of wallGlass) {

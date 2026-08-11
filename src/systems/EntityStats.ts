@@ -325,6 +325,74 @@ export const PLAYER_DEFAULTS: PlayerStats = {
  */
 export const PLAYER_WALK_TILES = 3.2;
 
+// ---------------------------------------------------------------------------
+// Squeeze / press / peek / vault
+//
+// The four movement verbs beyond walk-run-crouch. Their geometry lives in
+// `src/systems/WallPress.ts`; these are the numbers that geometry is driven with.
+// ---------------------------------------------------------------------------
+
+/**
+ * How far from flush (tiles) a face can be and still be latched onto.
+ *
+ * Generous enough that walking into a wall and tapping press works without
+ * lining up, short enough that it can't reach a face on the far side of the
+ * cell you're standing in.
+ */
+export const PRESS_REACH_TILES = 0.55;
+
+/**
+ * How far along the face (tiles) the eye reaches when leaning past a corner.
+ *
+ * Has to clear the corner to be worth anything: the body sits at most half a
+ * tile from the wall's end when travel stops, so this is comfortably past it.
+ * The sideways half of the lean is derived rather than tuned — see `cornerLean`.
+ */
+export const PRESS_LEAN_TILES = 0.9;
+
+/** Seconds for the lean to reach full extension, and to come back. */
+export const PRESS_LEAN_SECONDS = 0.12;
+
+/** Speed while sliding along a face, as a multiple of the walk pace. */
+export const PRESS_SPEED_MULTIPLIER = 0.45;
+
+/**
+ * How hard the body is pulled onto the flush line, per second.
+ *
+ * A proportional pull rather than a snap, so latching on reads as Rowan putting
+ * his back to the wall rather than teleporting the last few pixels to it.
+ */
+export const PRESS_FLUSH_PULL = 9;
+
+/** Noise while sliding along a face — below a crouch-walk's 0.15. */
+export const PRESS_NOISE = 0.08;
+
+/**
+ * Detection dampening while pressed against a *plain* wall.
+ *
+ * Cover already conceals outright, so without this pressing anywhere else would
+ * be a pure downgrade on crouching and nobody would use it. Rides the same
+ * `lightMultiplierAt` channel as the flashlight and opened-ration penalties,
+ * which is the one place a standing cost to being perceived belongs.
+ */
+export const WALL_PRESS_DETECTION_MULTIPLIER = 0.6;
+
+/** Seconds a vault over low cover takes, start to finish. */
+export const VAULT_SECONDS = 0.45;
+
+/** How far (tiles) ahead of Rowan a vaultable obstacle is looked for. */
+export const VAULT_REACH_TILES = 1.1;
+
+/**
+ * Noise a vault makes.
+ *
+ * Sits between a walk (0.5) and a sprint (1.0): a brief scramble over furniture,
+ * not sustained pounding. What it is really tuned against is the squeeze's 0.15 —
+ * the two verbs cross the same tile, and going over being four times as loud as
+ * going through is the entire reason a player would ever choose the slow one.
+ */
+export const VAULT_NOISE = 0.6;
+
 /** Loot granted by the vent-core supply chest; enables capacitor fire while JAMMED. */
 export const STAPLER_ITEM = "Pneumatic Rail-Stapler";
 

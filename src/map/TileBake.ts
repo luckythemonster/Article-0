@@ -33,7 +33,7 @@ import {
   isSingleCell,
   type Rect,
 } from "./footprint";
-import { blockingLayerNames, isForcedSolid, type GameLevel } from "./types";
+import { blockingLayerNames, isCrawlable, isForcedSolid, type GameLevel } from "./types";
 
 /** An axis-aligned run of blocked cells, in tile coordinates. */
 export interface WallRect {
@@ -185,12 +185,22 @@ export function bakeTileLayers(
  * Only wall tiles that carry a frame are included, which is what the per-tile
  * version did (it attached the body to the image, so a frameless wall never got
  * one).
+ *
+ * @param includeLayer which solid boards to count. Defaults to all of them, which
+ *   is the honest answer to "what does this level block" and what the map tests
+ *   assert against. {@link wallBodyRects} narrows it to split the crouch-passable
+ *   boards into their own body group — see {@link isCrawlable}.
  */
-export function wallCells(level: GameLevel, tileSize: number): Uint8Array {
+export function wallCells(
+  level: GameLevel,
+  tileSize: number,
+  includeLayer: (name: string) => boolean = () => true,
+): Uint8Array {
   const { width, height } = level;
   const solid = new Uint8Array(width * height);
   const blocking = blockingLayerNames(level);
   for (const layer of level.layers) {
+    if (!includeLayer(layer.name)) continue;
     const boardBlocks = blocking.includes(layer.name);
     for (const tile of layer.tiles) {
       if (!tile.frame) continue;
@@ -230,12 +240,29 @@ export function buildWallBodies(
   scene: Phaser.Scene,
   level: GameLevel,
   tileSize: number,
-): Phaser.GameObjects.GameObject[] {
-  return wallBodyRects(level, tileSize).map((r) => {
-    const zone = scene.add.zone(r.x + r.w / 2, r.y + r.h / 2, r.w, r.h);
-    scene.physics.add.existing(zone, true);
-    return zone;
-  });
+): { wallBodies: Phaser.GameObjects.GameObject[]; coverBodies: Phaser.GameObjects.GameObject[] } {
+  const toZones = (rects: Rect[]): Phaser.GameObjects.GameObject[] =>
+    rects.map((r) => {
+      const zone = scene.add.zone(r.x + r.w / 2, r.y + r.h / 2, r.w, r.h);
+      scene.physics.add.existing(zone, true);
+      return zone;
+    });
+  const rects = wallBodyRects(level, tileSize);
+  return { wallBodies: toZones(rects.walls), coverBodies: toZones(rects.crawlable) };
+}
+
+/**
+ * A level's collision rectangles, split by who they stop.
+ *
+ * `walls` stop everyone. `crawlable` stop a standing player and nobody else —
+ * the scene switches their collider off while Rowan is crouched, which is the
+ * squeeze. They are kept apart here, rather than filtered at the scene, because
+ * the merge below works in whole cells: cover merged into a wall run could not
+ * afterwards be told back apart.
+ */
+export interface LevelBodyRects {
+  walls: Rect[];
+  crawlable: Rect[];
 }
 
 /**
@@ -251,29 +278,41 @@ export function buildWallBodies(
  * rectangle of exactly their own shape — they can't join the merge, because it
  * works in whole cells and the entire point of these is an edge that doesn't fall
  * on one.
+ *
+ * Both kinds are produced twice over, once per group — see {@link LevelBodyRects}.
+ * In the shipped map the crawlable group is entirely padded tiles (every cover def
+ * carries a `ColliderPadding`), so its merge pass finds nothing; that is a property
+ * of this map's art rather than something to rely on.
  */
-export function wallBodyRects(level: GameLevel, tileSize: number): Rect[] {
+export function wallBodyRects(level: GameLevel, tileSize: number): LevelBodyRects {
   const { width, height } = level;
-  const solid = wallCells(level, tileSize);
-  const rects: Rect[] = mergeWallRects(width, height, (x, y) => solid[y * width + x] === 1).map(
-    (r) => ({
-      x: r.x * tileSize,
-      y: r.y * tileSize,
-      w: r.w * tileSize,
-      h: r.h * tileSize,
-    }),
-  );
-
   const blocking = blockingLayerNames(level);
-  for (const layer of level.layers) {
-    const boardBlocks = blocking.includes(layer.name);
-    for (const tile of layer.tiles) {
-      if (!tile.frame || hasPlainCollider(tile)) continue;
-      if (!boardBlocks && !isForcedSolid(tile)) continue;
-      const r = colliderRect(tile, tileSize);
-      if (!Number.isFinite(r.x) || !Number.isFinite(r.y)) continue;
-      rects.push(r);
+
+  const groupFor = (wantCrawlable: boolean): Rect[] => {
+    const inGroup = (name: string): boolean => isCrawlable(name) === wantCrawlable;
+    const solid = wallCells(level, tileSize, inGroup);
+    const rects: Rect[] = mergeWallRects(width, height, (x, y) => solid[y * width + x] === 1).map(
+      (r) => ({
+        x: r.x * tileSize,
+        y: r.y * tileSize,
+        w: r.w * tileSize,
+        h: r.h * tileSize,
+      }),
+    );
+
+    for (const layer of level.layers) {
+      if (!inGroup(layer.name)) continue;
+      const boardBlocks = blocking.includes(layer.name);
+      for (const tile of layer.tiles) {
+        if (!tile.frame || hasPlainCollider(tile)) continue;
+        if (!boardBlocks && !isForcedSolid(tile)) continue;
+        const r = colliderRect(tile, tileSize);
+        if (!Number.isFinite(r.x) || !Number.isFinite(r.y)) continue;
+        rects.push(r);
+      }
     }
-  }
-  return rects;
+    return rects;
+  };
+
+  return { walls: groupFor(false), crawlable: groupFor(true) };
 }

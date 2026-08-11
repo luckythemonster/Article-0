@@ -13,8 +13,13 @@ import {
   ESCORT_SPEED_MULTIPLIER,
   PLAYER_DEFAULTS,
   PLAYER_WALK_TILES,
+  PRESS_FLUSH_PULL,
+  PRESS_LEAN_SECONDS,
+  PRESS_NOISE,
+  PRESS_SPEED_MULTIPLIER,
   paced,
 } from "../systems/EntityStats";
+import type { PressState } from "../systems/WallPress";
 import { PLAYER_IDLE_SOUTH_COLLIDER } from "./generated/playerCollider";
 import { shadowShapeFor, type ShadowShape } from "../render/shadowShape";
 import { len } from "../systems/distance";
@@ -47,8 +52,25 @@ export class Player {
   private dir: Dir8 = "south";
   private currentAnim: PlayerAnimName = "idle";
   private stance: Stance = "standing";
+  private readonly tileSize: number;
+  /**
+   * The face being held this frame, or null when not pressed.
+   *
+   * Deliberately *not* a fifth {@link Stance}. The concealment rules need both
+   * axes at once — low cover hides you only if you are pressed against it *and*
+   * crouched, high cover hides you standing — so folding pressing into the stance
+   * enum would make "crouched against a crate" unrepresentable, which is the
+   * single most useful thing the mechanic does.
+   */
+  private press: PressState | null = null;
+  /** Current lean, in pixels, eased toward {@link leanTargetX}/{@link leanTargetY}. */
+  private leanX = 0;
+  private leanY = 0;
+  private leanTargetX = 0;
+  private leanTargetY = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number, tileSize: number) {
+    this.tileSize = tileSize;
     this.walkSpeed = tileSize * paced(PLAYER_WALK_TILES); // px/sec baseline
 
     Player.ensureAnimations(scene);
@@ -114,6 +136,24 @@ export class Player {
   }
   private runningNow = false;
 
+  /** True while holding a face — read by the concealment and conduct rules. */
+  get pressed(): boolean {
+    return this.press !== null;
+  }
+
+  /** The face currently held, for the concealment rules to ask what it is made of. */
+  get pressedSurface(): PressState | null {
+    return this.press;
+  }
+
+  /**
+   * True once actually leaning past a corner. Keyed off the eased lean rather
+   * than the input, so the HUD reads the same thing the sightline does.
+   */
+  get peeking(): boolean {
+    return this.leanX !== 0 || this.leanY !== 0;
+  }
+
   get alive(): boolean {
     return this.hp > 0;
   }
@@ -143,7 +183,12 @@ export class Player {
     if (cursors.down) vy += 1;
 
     const moving = vx !== 0 || vy !== 0;
-    const wantCrouch = cursors.sneak;
+    this.press = cursors.press;
+    // Squeezed under a desk there is nowhere to stand up *to*, so releasing Shift
+    // holds the crouch until Rowan is back out from under it. Routing it through
+    // `wantCrouch` rather than blocking the transition means the rise plays the
+    // moment he clears the tile, with no special case anywhere else.
+    const wantCrouch = cursors.sneak || !cursors.canStand;
 
     // Advance a running transition the moment its one-shot clip has finished.
     // A non-repeating anim sets isPlaying=false and holds its last frame when
@@ -169,14 +214,18 @@ export class Player {
     const sneaking = crouchedNow && moving;
     // Marching someone at gunpoint rules out a sprint the way a crouch does: his hands
     // are full, and the man in front of him sets the pace either way.
-    const running = cursors.run && moving && !cursors.escorting && this.stance === "standing";
+    // A man with his back flat against a wall is not about to break into a sprint,
+    // for the same reason marching a hostage rules one out.
+    const running =
+      cursors.run && moving && !cursors.escorting && !this.press && this.stance === "standing";
     this.runningNow = running;
-    // Crouched *and* mid-transition both move at the slow sneak pace. Escorting is
-    // its own branch at its own constant even though the two numbers agree today —
-    // they answer to different things, and collapsing them would mean retuning the
-    // crouch to retune a hostage march.
-    const stanceMul =
-      transitioning || sneaking
+    // Crouched *and* mid-transition both move at the slow sneak pace. Pressing and
+    // escorting are their own branches at their own constants even though all three
+    // numbers agree today — they answer to different things, and collapsing them
+    // would mean retuning the crouch to retune a hostage march.
+    const stanceMul = this.press
+      ? PRESS_SPEED_MULTIPLIER
+      : transitioning || sneaking
         ? 0.45
         : cursors.escorting
           ? ESCORT_SPEED_MULTIPLIER
@@ -185,29 +234,56 @@ export class Player {
             : 1;
     const speed = this.walkSpeed * stanceMul;
 
-    if (moving) {
-      const mag = len(vx, vy);
-      vx = (vx / mag) * speed;
-      vy = (vy / mag) * speed;
-      this.facing = Math.atan2(vy, vx);
-      // Lock the facing direction while a transition clip plays so turning
-      // mid-lower/rise doesn't restart it in a new direction.
-      if (!transitioning) this.dir = directionOf(vx, vy);
+    let sliding = false;
+    if (this.press) {
+      const held = this.pressedVelocity(this.press, vx, vy, speed, transitioning);
+      vx = held.vx;
+      vy = held.vy;
+      sliding = held.sliding;
+    } else {
+      this.leanTargetX = 0;
+      this.leanTargetY = 0;
+      if (moving) {
+        const mag = len(vx, vy);
+        vx = (vx / mag) * speed;
+        vy = (vy / mag) * speed;
+        this.facing = Math.atan2(vy, vx);
+        // Lock the facing direction while a transition clip plays so turning
+        // mid-lower/rise doesn't restart it in a new direction.
+        if (!transitioning) this.dir = directionOf(vx, vy);
+      }
     }
     this.sprite.setVelocity(vx, vy);
+    this.easeLean(dt);
 
-    // Noise: still = silent, sneak/transition = low, walk = medium, run = high.
-    const target = !moving ? 0 : sneaking || transitioning ? 0.15 : running ? 1 : 0.5;
+    // Noise: still = silent, pressed slide = quietest of all, sneak/transition =
+    // low, walk = medium, run = high. A press that isn't going anywhere — held at
+    // a corner, or mid-peek — is as silent as standing still.
+    const target = this.press
+      ? sliding
+        ? PRESS_NOISE
+        : 0
+      : !moving
+        ? 0
+        : sneaking || transitioning
+          ? 0.15
+          : running
+            ? 1
+            : 0.5;
     this.noise = Phaser.Math.Linear(this.noise, target, Math.min(1, dt * 6));
 
     // While a transition clip is playing, leave it alone — it owns the sprite
     // until it completes. Otherwise pick the stance-appropriate pose.
     if (!transitioning) {
+      // Pressed, the walk cycle follows what the body actually does rather than
+      // what was asked of it: held at a corner or mid-lean he is standing still,
+      // however hard the direction is being held.
+      const striding = this.press ? sliding : moving;
       const anim: PlayerAnimName = crouchedNow
-        ? moving
+        ? striding
           ? "crouch-walk"
           : "crouch"
-        : moving
+        : striding
           ? running
             ? "run"
             : "walk"
@@ -237,6 +313,71 @@ export class Player {
     if (this.stance !== "crouching-down" && this.stance !== "standing-up") {
       this.dir = directionOf(Math.cos(angle), Math.sin(angle));
     }
+  }
+
+  /**
+   * Velocity while holding a face, and whether he is actually travelling along it.
+   *
+   * Two perpendicular jobs, and because the face is axis-aligned they never fight:
+   * the **tangent** axis carries the input, projected onto the wall so pushing
+   * diagonally into it slides along instead of stalling; the **normal** axis
+   * carries a proportional pull onto the flush line, which is what puts his back
+   * against the wall over a few frames rather than snapping him to it.
+   *
+   * The peek falls out of the same branch. A step the wall no longer backs is
+   * refused — that is what stops him walking off the end of the face — and the
+   * input that would have taken him there becomes a lean past the corner instead.
+   */
+  private pressedVelocity(
+    p: PressState,
+    inputX: number,
+    inputY: number,
+    speed: number,
+    transitioning: boolean,
+  ): { vx: number; vy: number; sliding: boolean } {
+    // How much of the input runs along the face, and which way.
+    const along = inputX * p.tx + inputY * p.ty;
+    const sign = along > 0 ? 1 : along < 0 ? -1 : 0;
+    const side = sign > 0 ? p.pos : sign < 0 ? p.neg : null;
+
+    const sliding = side !== null && side.open;
+    const leaning = side !== null && !side.open ? side.lean : null;
+    this.leanTargetX = leaning ? leaning.x * this.tileSize : 0;
+    this.leanTargetY = leaning ? leaning.y * this.tileSize : 0;
+
+    if (sliding) {
+      this.facing = Math.atan2(p.ty * sign, p.tx * sign);
+      // Same reason the walking path locks it: turning mid-lower/rise would
+      // restart the one-shot clip facing somewhere else.
+      if (!transitioning) this.dir = directionOf(p.tx * sign, p.ty * sign);
+    }
+
+    const { nx, ny, flush } = p.surface;
+    const centre = this.bodyCentre;
+    // Already a signed velocity on the normal's axis: positive means "further
+    // along that axis to reach the wall", which is exactly what Arcade wants.
+    const pull = (flush * this.tileSize - (nx !== 0 ? centre.x : centre.y)) * PRESS_FLUSH_PULL;
+    const travel = sliding ? sign * speed : 0;
+    return {
+      vx: p.tx * travel + (nx !== 0 ? pull : 0),
+      vy: p.ty * travel + (ny !== 0 ? pull : 0),
+      sliding,
+    };
+  }
+
+  /**
+   * Eases the lean toward this frame's target.
+   *
+   * Snapped to the target once inside a pixel, because {@link peeking} is a
+   * boolean the HUD reads: an exponential ease alone never quite reaches zero, so
+   * un-leaning would leave Rowan reading as peeking for the rest of the run.
+   */
+  private easeLean(dt: number): void {
+    const t = Math.min(1, dt / PRESS_LEAN_SECONDS);
+    this.leanX = Phaser.Math.Linear(this.leanX, this.leanTargetX, t);
+    this.leanY = Phaser.Math.Linear(this.leanY, this.leanTargetY, t);
+    if (Math.abs(this.leanX - this.leanTargetX) < 1) this.leanX = this.leanTargetX;
+    if (Math.abs(this.leanY - this.leanTargetY) < 1) this.leanY = this.leanTargetY;
   }
 
   /** Ticks the post-hit invulnerability window, flashing the sprite while active. */
@@ -283,6 +424,26 @@ export class Player {
    * The body's centre is the position everything else will agree on a moment later.
    */
   get eye(): { x: number; y: number } {
+    const c = this.bodyCentre;
+    return { x: c.x + this.leanX, y: c.y + this.leanY };
+  }
+
+  /**
+   * The body's true centre, without the peek lean — what physics and every
+   * sensing check answer to.
+   *
+   * The split between this and {@link eye} *is* the peek: leaning moves where
+   * Rowan looks from without moving where he can be seen, so the darkness opens
+   * around a corner while `canSense` still reads a body tucked safely behind it.
+   *
+   * Note there is deliberately no *visual* lean to go with it, and the obvious
+   * ways to add one do not work: Arcade's `Body.preUpdate` calls
+   * `updateFromGameObject()` every frame, deriving the body's position from the
+   * sprite's, so nudging `sprite.x` or `body.offset` to lean the art drags the
+   * body along with it — which would hand the guards exactly the exposure the
+   * peek exists to avoid. The sightline opening is the feedback.
+   */
+  private get bodyCentre(): { x: number; y: number } {
     const body = this.sprite.body as Phaser.Physics.Arcade.Body | null;
     if (!body) return { x: this.sprite.x, y: this.sprite.y };
     return { x: body.center.x, y: body.center.y };
@@ -325,4 +486,19 @@ export interface InputState {
    * roof's input lock use, and for the same reason.
    */
   escorting: boolean;
+  /**
+   * The wall face to hold this frame, or null to move freely.
+   *
+   * Resolved by the scene (which owns the collision grid) and handed over as
+   * plain geometry, so `Player` never queries the world itself — the same funnel
+   * `escorting` above arrives through, and for the same reason: it is a
+   * consequence of where Rowan is standing rather than a key someone pressed.
+   */
+  press: PressState | null;
+  /**
+   * False while there is no headroom to stand up into — squeezed under cover.
+   * Holds the crouch rather than blocking the rise, so Rowan straightens up on
+   * his own the moment he is clear.
+   */
+  canStand: boolean;
 }

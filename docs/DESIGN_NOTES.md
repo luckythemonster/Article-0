@@ -77,9 +77,47 @@ nothing.
 
 ### Cover
 
-Concealment is gated in the one vision choke point (`Enforcer.canSee`), and all map cover
-is `LOW` (crouch to hide). Thermal detection reads each cover tile's `ThermalBleed` flag,
-so cover that blocks heat hides you from the thermal sense too.
+Concealment is gated in the one vision choke point (`Enforcer.canSee`). Thermal detection
+reads each cover tile's `ThermalBleed` flag, so cover that blocks heat hides you from the
+thermal sense too.
+
+### Cover concealment used to be unreachable, and that is why the movement verbs exist
+
+The rule was "crouch on cover to hide", and it read the cover type at the tile the
+player's **centre** stands on (`DetectionSystem.coverTypeAt`). But the `cover` board is
+authored `Collision: 1` on `main1`, `duct2` and `main2`, so those cells are solid wall
+bodies — and a solid cell is one you cannot put your centre in.
+
+The only thing that made it fire at all was an accident of geometry. The server-rack defs
+carry `ColliderPadding: {Bottom: 0.4}`, which leaves the lower 12.8px of the cell walkable,
+and Rowan's 25px-tall body settles with its centre at ~31.7px inside a 32px cell. A
+sub-pixel window, reachable only by walking north into a rack's south face. Nobody would
+find that on purpose.
+
+So the fix was not to move the check but to make the geometry honest, which is what
+squeeze / press / peek / vault are:
+
+- **Squeeze** — the cover cells get their own Arcade body group (`TileBake.wallBodyRects`
+  returns `{ walls, crawlable }`), and the scene switches that collider off while Rowan is
+  crouched. `CollisionGrid` is deliberately *untouched*: cover stays solid for guard
+  pathing, `GridMotion`, radar and knocking, so a guard cannot follow you into the desk it
+  just watched you crawl under. The player reads Arcade bodies; everything else reads the
+  grid; that divergence is the mechanic.
+- **Press** — holding the outside face is the other way to be at a cover tile without
+  standing in it, and it is what makes the map's `LOW`/`HIGH` split mean something at last:
+  a rack hides a standing man, a crate only a crouching one.
+- **Peek** — the lean is applied to `Player.eye` and nothing else. Sensing reads
+  `player.x/y`, so the sightline reaches round a corner while the body stays behind it.
+  There is no *visual* lean to match, and this is not an oversight: Arcade's
+  `Body.preUpdate` calls `updateFromGameObject()` every frame, so nudging `sprite.x` or
+  `body.offset` to lean the art drags the body with it — handing the guards precisely the
+  exposure the peek exists to avoid.
+- **Vault** — the fast, loud way over low cover (0.6 noise against the squeeze's 0.15),
+  so crossing a crate is a choice rather than a formality.
+
+`Cover.destroy()` still leaves the tile's static body behind — it clears the detection
+dampening and erases the art, but nothing removes the collider. Harmless before this, and
+now merely odd (you can crawl into cover that is no longer drawn). Worth a follow-up.
 
 Destructible cover (`src/entities/Cover.ts`) is a separate, sparser layer: only tiles the
 `Destructible` component marks `true` get an entity at all — the rest of the board stays

@@ -51,6 +51,11 @@ export interface BuiltLevel {
   coverTiles: Cover[];
   /** Static bodies for the walls, merged into as few rectangles as possible. */
   wallBodies: Phaser.GameObjects.GameObject[];
+  /**
+   * Static bodies for the cover board — solid to a standing player, switched off
+   * while he is crouched so he can squeeze into them. See `CRAWLABLE_BOARDS`.
+   */
+  coverBodies: Phaser.GameObjects.GameObject[];
   /** Arcade bodies for the closed doors, for the player collider. */
   doorBodies: Phaser.GameObjects.GameObject[];
 }
@@ -73,7 +78,7 @@ export function buildLevel(
   entityLayers: ReadonlySet<string>,
 ): BuiltLevel {
   const tileTexture = bakeTileLayers(scene, level, tileSize, entityLayers);
-  const wallBodies = buildWallBodies(scene, level, tileSize);
+  const { wallBodies, coverBodies } = buildWallBodies(scene, level, tileSize);
 
   const built: BuiltLevel = {
     player: spawnPlayer(scene, level, tileSize, arriveTile),
@@ -86,6 +91,7 @@ export function buildLevel(
     lasers: [],
     coverTiles: [],
     wallBodies,
+    coverBodies,
     doorBodies: [],
   };
 
