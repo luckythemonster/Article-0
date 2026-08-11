@@ -27,6 +27,9 @@
   --c-red-deep: #ff3b3b;
   --c-green: #5effa0;
   --c-green-bright: #d6ffe8;
+  /* Body text that reads as interface without the accent's heat — the HUD's
+     compliance line. Between --c-cyan and the text ramp, belonging to neither. */
+  --c-blue-soft: #9fd2ff;
 
   /* --- surfaces --- */
   --c-bg-panel: #070c12;

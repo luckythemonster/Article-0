@@ -1,16 +1,21 @@
 import Phaser from "phaser";
 import { RADAR_RADIUS_TILES, type RadarSnapshot } from "../systems/Radar";
 import { FONT_MONO } from "./fonts";
+import { UI, UI_DEPTH, UI_PAD, UI_TEXT, hex } from "./hudTheme";
 import { onResize } from "./resize";
 
-const PANEL_BG = 0x0a0f16;
+const PANEL_BG = hex(UI.bgPanel);
 const PANEL_BG_ALPHA = 0.85;
-const BEZEL_COLOR = 0x2b4356;
+const BEZEL_COLOR = hex(UI.borderCool);
+const PLAYER_COLOR = hex(UI.cyan);
+const GUARD_COLOR = hex(UI.amberBright);
+const GUARD_ALERT_COLOR = hex(UI.redDeep);
+
+// Interior mixes, not palette entries: these exist only inside the scope's
+// circle and are tuned against its own backdrop rather than the HUD's. See the
+// note in `hudTheme.ts` about what does and does not belong in the shared set.
 const CROSSHAIR_COLOR = 0x1c2c38;
 const WALL_COLOR = 0x3a5568;
-const PLAYER_COLOR = 0x39d3ff;
-const GUARD_COLOR = 0xffe14d;
-const GUARD_ALERT_COLOR = 0xff3b3b;
 const JAM_BG = 0x2a0a0a;
 const JAM_NOISE_COLOR = 0xff6b6b;
 
@@ -44,21 +49,21 @@ export class Radar {
     this.pxPerTile = this.radius / RADAR_RADIUS_TILES;
 
     this.maskShape = scene.make.graphics({}, false);
-    this.content = scene.add.graphics().setScrollFactor(0).setDepth(1000);
+    this.content = scene.add.graphics().setScrollFactor(0).setDepth(UI_DEPTH.BASE);
     this.content.setMask(this.maskShape.createGeometryMask());
 
-    this.bezel = scene.add.graphics().setScrollFactor(0).setDepth(1001);
+    this.bezel = scene.add.graphics().setScrollFactor(0).setDepth(UI_DEPTH.FILL);
 
     this.jamText = scene.add
       .text(0, 0, "JAMMED", {
         fontFamily: FONT_MONO,
-        fontSize: "10px",
-        color: "#ff8a8a",
+        fontSize: UI_TEXT.micro,
+        color: UI.red,
         fontStyle: "bold",
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
-      .setDepth(1002)
+      .setDepth(UI_DEPTH.ACCENT)
       .setVisible(false);
 
     this.reposition();
@@ -66,7 +71,7 @@ export class Radar {
   }
 
   private reposition(): void {
-    const pad = 12;
+    const pad = UI_PAD;
     this.cx = this.scene.scale.width - pad - this.radius;
     this.cy = pad + this.radius;
     this.drawBezel();
