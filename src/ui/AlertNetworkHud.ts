@@ -1,13 +1,14 @@
 import Phaser from "phaser";
 import type { AlertNetworkSnapshot } from "../systems/AlertNetwork";
 import { FONT_MONO } from "./fonts";
-import { STATUS_STACK_BOTTOM } from "./hudLayout";
+import { NETWORK_TOP } from "./hudLayout";
+import { UI, UI_DEPTH, UI_PAD, UI_TEXT } from "./hudTheme";
 
 /** Phase → readout label + colour for the network status line. */
 const STATUS: Record<string, { label: string; color: string }> = {
-  INFILTRATION: { label: "NOMINAL", color: "#39d3ff" },
-  ALERT: { label: "ALERT", color: "#ff3b3b" },
-  EVASION: { label: "SEARCHING", color: "#ffb03b" },
+  INFILTRATION: { label: "NOMINAL", color: UI.cyan },
+  ALERT: { label: "ALERT", color: UI.redDeep },
+  EVASION: { label: "SEARCHING", color: UI.amber },
 };
 
 /**
@@ -24,39 +25,39 @@ export class AlertNetworkHud {
   private readonly detail: Phaser.GameObjects.Text;
 
   constructor(scene: Phaser.Scene) {
-    const pad = 12;
-    // Below the SRP meter and the bio-integrity trace. The budget is shared rather
+    const pad = UI_PAD;
+    // Below the SRP meter and the bio-integrity dial. The budget is shared rather
     // than repeated here — see `hudLayout`.
-    const top = pad + STATUS_STACK_BOTTOM;
+    const top = NETWORK_TOP;
 
     scene.add
       .text(pad, top, "NETWORK", {
         fontFamily: FONT_MONO,
-        fontSize: "11px",
-        color: "#8899aa",
+        fontSize: UI_TEXT.small,
+        color: UI.textFaint,
       })
       .setScrollFactor(0)
-      .setDepth(1000);
+      .setDepth(UI_DEPTH.BASE);
 
     this.status = scene.add
       .text(pad + 70, top, "NOMINAL", {
         fontFamily: FONT_MONO,
-        fontSize: "11px",
+        fontSize: UI_TEXT.small,
         color: STATUS.INFILTRATION.color,
         fontStyle: "bold",
       })
       .setScrollFactor(0)
-      .setDepth(1000);
+      .setDepth(UI_DEPTH.BASE);
 
     this.detail = scene.add
       .text(pad, top + 16, "", {
         fontFamily: FONT_MONO,
-        fontSize: "11px",
-        color: "#9fb2c4",
+        fontSize: UI_TEXT.small,
+        color: UI.textBtn,
         lineSpacing: 2,
       })
       .setScrollFactor(0)
-      .setDepth(1000);
+      .setDepth(UI_DEPTH.BASE);
   }
 
   update(net: AlertNetworkSnapshot): void {

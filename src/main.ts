@@ -32,6 +32,7 @@ import { preloadGuardSkin } from "./entities/GuardSkin";
 import { preloadOrderly } from "./entities/OrderlyAnimations";
 import { preloadDeployedItems } from "./entities/DeployedItem";
 import { preloadVfx } from "./entities/Vfx";
+import { discoverUiTextures, preloadUiTextures } from "./ui/UiTextures";
 
 /**
  * Boot scene: loads the edplay map JSON and its spritesheets, parses the map
@@ -72,6 +73,8 @@ class BootScene extends Phaser.Scene {
     preloadOrderly(this);
     preloadDeployedItems(this);
     preloadVfx(this);
+    // Whichever optional HUD chrome was found before boot — see `UiTextures.ts`.
+    preloadUiTextures(this);
   }
 
   create(): void {
@@ -121,6 +124,38 @@ class BootScene extends Phaser.Scene {
 const gameEl = document.getElementById("game")!;
 
 /**
+ * Sizes the canvas host to whole pixels, and to the viewport's parity.
+ *
+ * `index.html` asks for `92vw x 92vh`, which on most windows is fractional: a
+ * 640x480 viewport gives 588.8 x 441.6. Phaser's `RESIZE` mode then hands the
+ * canvas a fractional CSS size over an integer backing store, and the browser
+ * rescales the whole thing — with `image-rendering: pixelated`, that resamples
+ * every row of every glyph. It shows up as HUD text with the tops sheared off
+ * ("COMPLIANCE OK" rendering as "LUMPLIANLL UK"), which reads as a font bug and
+ * is not one.
+ *
+ * Flooring the size fixes the stretch. Matching the viewport's parity fixes the
+ * other half: the host is flex-centred, so an odd difference puts the canvas on a
+ * half-pixel offset and resamples it again at that origin.
+ *
+ * This is also what the UI art guarantee rests on — `render/uiScale.ts` promises
+ * one art pixel per screen pixel, and no amount of correctly-sized art survives a
+ * canvas that is itself being scaled by 1.0014.
+ */
+function fitGameElement(): void {
+  const fit = (viewport: number, max: number): number => {
+    let size = Math.min(Math.floor(viewport * 0.92), max);
+    if ((viewport - size) % 2 !== 0) size -= 1;
+    return size;
+  };
+  gameEl.style.width = `${fit(window.innerWidth, 1280)}px`;
+  gameEl.style.height = `${fit(window.innerHeight, 800)}px`;
+}
+
+fitGameElement();
+window.addEventListener("resize", fitGameElement);
+
+/**
  * Boot is deferred until the webfonts are resident.
  *
  * Phaser's `Text` rasterises to a canvas texture at construction and never
@@ -131,8 +166,12 @@ const gameEl = document.getElementById("game")!;
  *
  * `fontsReady` fails open (and is bounded by its own timeout), so a blocked font
  * costs the player the typeface, never the game.
+ *
+ * `discoverUiTextures` rides along on the same wait — it asks which optional HUD
+ * art exists so the loader is never handed a path that doesn't, and it fails open
+ * the same way.
  */
-void fontsReady().then(() => {
+void Promise.all([fontsReady(), discoverUiTextures()]).then(() => {
   const game = startGame();
   // Phaser is bundled rather than global, so `Phaser.GAMES` is not reachable
   // from the console or from a browser-driving script. Publish the instance in

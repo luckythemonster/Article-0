@@ -4,13 +4,26 @@ import { SETTLE_SECONDS, type ConductView } from "../systems/Conduct";
 import { BioMonitor } from "./BioMonitor";
 import { controlsHintLine } from "./Controls";
 import { FONT_MONO } from "./fonts";
-import { BIO_LABEL_TOP } from "./hudLayout";
+import {
+  BAR_FILL_H,
+  BAR_FILL_W,
+  BAR_H,
+  BAR_W,
+  BIO_LABEL_TOP,
+  HINT_FADE_MS,
+  HINT_HOLD_MS,
+  SRP_AXES_TOP,
+  SRP_BAR_TOP,
+  SRP_LABEL_TOP,
+  hintWrapWidth,
+} from "./hudLayout";
+import { UI, UI_DEPTH, UI_PAD, UI_TEXT, hex } from "./hudTheme";
 import { onResize } from "./resize";
 
 const PHASE_COLOR: Record<AlertPhase, string> = {
-  INFILTRATION: "#39d3ff",
-  ALERT: "#ff3b3b",
-  EVASION: "#ffb03b",
+  INFILTRATION: UI.cyan,
+  ALERT: UI.redDeep,
+  EVASION: UI.amber,
 };
 
 /**
@@ -30,67 +43,111 @@ export class Hud {
   private readonly bio: BioMonitor;
 
   constructor(scene: Phaser.Scene) {
-    const pad = 12;
+    const pad = UI_PAD;
     this.phaseText = scene.add
       .text(pad, pad, "INFILTRATION", {
         fontFamily: FONT_MONO,
-        fontSize: "20px",
+        fontSize: UI_TEXT.title,
         color: PHASE_COLOR.INFILTRATION,
         fontStyle: "bold",
       })
       .setScrollFactor(0)
-      .setDepth(1000);
+      .setDepth(UI_DEPTH.BASE);
 
     scene.add
-      .text(pad, pad + 30, "SUBJECTIVITY RISK", { fontFamily: FONT_MONO, fontSize: "11px", color: "#8899aa" })
+      .text(pad, SRP_LABEL_TOP, "SUBJECTIVITY RISK", {
+        fontFamily: FONT_MONO,
+        fontSize: UI_TEXT.small,
+        color: UI.textFaint,
+      })
       .setScrollFactor(0)
-      .setDepth(1000);
+      .setDepth(UI_DEPTH.BASE);
     scene.add
-      .rectangle(pad, pad + 46, 180, 10, 0x11202b)
+      .rectangle(pad, SRP_BAR_TOP, BAR_W, BAR_H, hex(UI.track))
       .setOrigin(0, 0)
       .setScrollFactor(0)
-      .setDepth(1000)
-      .setStrokeStyle(1, 0x2b4356);
+      .setDepth(UI_DEPTH.BASE)
+      .setStrokeStyle(1, hex(UI.borderCool));
     this.srpFill = scene.add
-      .rectangle(pad + 1, pad + 47, 0, 8, 0x39d3ff)
+      .rectangle(pad + 1, SRP_BAR_TOP + 1, 0, BAR_FILL_H, hex(UI.cyan))
       .setOrigin(0, 0)
       .setScrollFactor(0)
-      .setDepth(1001);
+      .setDepth(UI_DEPTH.FILL);
     this.srpAxes = scene.add
-      .text(pad, pad + 59, "Q 0.00   H 0.00   Y 0.00", { fontFamily: FONT_MONO, fontSize: "10px", color: "#5f7285" })
+      .text(pad, SRP_AXES_TOP, "Q 0.00   H 0.00   Y 0.00", {
+        fontFamily: FONT_MONO,
+        fontSize: UI_TEXT.micro,
+        color: UI.textDim,
+      })
       .setScrollFactor(0)
-      .setDepth(1000);
+      .setDepth(UI_DEPTH.BASE);
 
     // Owns its own heading and rate readout. Its height is part of the shared column
     // budget in `hudLayout`, because `AlertNetworkHud` starts where it ends.
-    this.bio = new BioMonitor(scene, pad, pad + BIO_LABEL_TOP);
+    this.bio = new BioMonitor(scene, pad, BIO_LABEL_TOP);
 
     this.hint = scene.add
       .text(pad, scene.scale.height - pad, controlsHintLine(), {
         fontFamily: FONT_MONO,
-        fontSize: "12px",
-        color: "#6b7f92",
+        fontSize: UI_TEXT.label,
+        color: UI.textDim,
       })
       .setOrigin(0, 1)
       .setScrollFactor(0)
-      .setDepth(1000);
+      .setDepth(UI_DEPTH.BASE);
 
     // Bottom-left, just above the controls hint. Deliberately not up beside the phase:
     // the objective heading is centred on the viewport, so a fixed-x readout up there
     // collides with it as soon as the window narrows.
     this.conductText = scene.add
-      .text(pad, scene.scale.height - pad - 18, "", {
+      .text(pad, scene.scale.height - pad, "", {
         fontFamily: FONT_MONO,
-        fontSize: "12px",
-        color: "#9fd2ff",
+        fontSize: UI_TEXT.label,
+        color: UI.blueSoft,
       })
       .setOrigin(0, 1)
       .setScrollFactor(0)
-      .setDepth(1000);
+      .setDepth(UI_DEPTH.BASE);
 
-    onResize(scene, (_w, h) => {
-      this.hint.setPosition(pad, h - pad);
-      this.conductText.setPosition(pad, h - pad - 18);
+    onResize(scene, (w, h) => this.layoutBottom(w, h), true);
+    this.scheduleHintFade(scene);
+  }
+
+  /**
+   * Lays out the bottom-left column against whatever the hint currently occupies.
+   *
+   * The hint and the inventory readout used to share a baseline from opposite ends
+   * of the screen, and the hint is the widest thing the HUD draws — 113 characters,
+   * about 732px at 12px type. On the ~940px canvas a 1024px display gives, the two
+   * printed through each other. Wrapping the hint inside the width the inventory
+   * doesn't claim fixes that; the conduct line then rides above however many lines
+   * that turned out to be, and drops back to the bottom pad once the hint has gone.
+   */
+  private layoutBottom(width: number, height: number): void {
+    const bottom = height - UI_PAD;
+    this.hint.setWordWrapWidth(hintWrapWidth(width));
+    this.hint.setPosition(UI_PAD, bottom);
+    this.conductText.setPosition(UI_PAD, bottom - (this.hint.visible ? this.hint.height + 4 : 0));
+  }
+
+  /**
+   * Retires the controls hint once it has done its job.
+   *
+   * `UIScene` outlives level swaps, so this runs once a session rather than once a
+   * level — which is the right frequency for a teaching aid. The bindings stay
+   * permanently available in the pause menu's CONTROLS tab.
+   */
+  private scheduleHintFade(scene: Phaser.Scene): void {
+    scene.time.delayedCall(HINT_HOLD_MS, () => {
+      scene.tweens.add({
+        targets: this.hint,
+        alpha: 0,
+        duration: HINT_FADE_MS,
+        onComplete: () => {
+          this.hint.setVisible(false);
+          this.layoutBottom(scene.scale.width, scene.scale.height);
+        },
+      });
     });
   }
 
@@ -110,8 +167,10 @@ export class Hud {
     this.updateConduct(conduct);
 
     const risk = Phaser.Math.Clamp(detection, 0, 1);
-    this.srpFill.width = Math.round(178 * risk);
-    this.srpFill.setFillStyle(risk > 0.66 ? 0xff3b3b : risk > 0.33 ? 0xffb03b : 0x39d3ff);
+    this.srpFill.width = Math.round(BAR_FILL_W * risk);
+    this.srpFill.setFillStyle(
+      risk > 0.66 ? hex(UI.redDeep) : risk > 0.33 ? hex(UI.amber) : hex(UI.cyan),
+    );
     // Q is pinned at 0 by the NSSA; H (harm/vulnerability) and Y (yield) track risk.
     this.srpAxes.setText(`Q 0.00   H ${risk.toFixed(2)}   Y ${(risk * 0.8).toFixed(2)}`);
 
@@ -135,7 +194,7 @@ export class Hud {
       // they have is the exact mistake this reward existed as for so long.
       this.conductText
         .setText(conduct.certified ? "COMPLIANCE  OK  ·  CERTIFIED" : "COMPLIANCE  OK")
-        .setColor("#9fd2ff");
+        .setColor(UI.blueSoft);
       return;
     }
     const countdown =
@@ -144,6 +203,6 @@ export class Hud {
         : "";
     this.conductText
       .setText(`COMPLIANCE  ${conduct.breach ?? "FLAGGED"}${countdown}`)
-      .setColor(conduct.breach === "ALERT" ? "#ff3b3b" : "#ffb03b");
+      .setColor(conduct.breach === "ALERT" ? UI.redDeep : UI.amber);
   }
 }

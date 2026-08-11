@@ -10,6 +10,8 @@ import {
 } from "./ekg";
 import { FONT_MONO } from "./fonts";
 import { BIO_DIAL_SIZE, BIO_DIAL_TOP } from "./hudLayout";
+import { UI, hex } from "./hudTheme";
+import { hasUiTexture } from "./UiTextures";
 
 /** Radius of the isoelectric ring — where the trace sits between beats. */
 const BASE_RADIUS = 26;
@@ -36,11 +38,21 @@ const FADE_BANDS = 6;
 const FADE_NEWEST = 1;
 const FADE_OLDEST = 0.25;
 
-const PANEL_FILL = 0x11202b;
-const BEZEL_COLOR = 0x2b4356;
+const PANEL_FILL = hex(UI.track);
+const BEZEL_COLOR = hex(UI.borderCool);
+const LABEL_COLOR = UI.textFaint;
+
+/**
+ * The isoelectric ring's own line — an interior mix rather than a palette entry.
+ *
+ * It exists only inside the dial, tuned against `PANEL_FILL` behind it rather than
+ * against the HUD's surfaces, so it stays local for the same reason the radar's
+ * crosshair does. See the note in `hudTheme.ts` about what belongs in the shared set.
+ */
 const BASELINE_COLOR = 0x1c2c38;
 
-const LABEL_COLOR = "#8899aa";
+/** Optional bezel art, in the manifest at 80x80. Absent by default. */
+const BEZEL_TEXTURE = "ui-vitals-bezel";
 
 /** `#rrggbb` for a Phaser fill colour, so the readout can take the trace's colour. */
 function css(color: number): string {
@@ -81,16 +93,26 @@ export class BioMonitor {
       .setScrollFactor(0)
       .setDepth(1000);
 
-    // Dial face and bezel, drawn once. The bezel matches `Radar`'s so the HUD's two
-    // circular instruments read as a family rather than as a coincidence.
-    scene.add
+    // Dial face, drawn once, and always drawn: the trace and the readout sit on it.
+    const face = scene.add
       .graphics()
       .fillStyle(PANEL_FILL, 1)
       .fillCircle(this.cx, this.cy, BEZEL_RADIUS)
-      .lineStyle(2, BEZEL_COLOR, 1)
-      .strokeCircle(this.cx, this.cy, BEZEL_RADIUS)
       .setScrollFactor(0)
       .setDepth(1000);
+
+    // The ring, from art when there is art. The drawn one matches `Radar`'s so the
+    // HUD's two circular instruments read as a family rather than as a coincidence —
+    // which is also why the sprite seam is the same shape in both. A bezel PNG must
+    // have a transparent interior; the face above and the trace below show through it.
+    if (hasUiTexture(scene, BEZEL_TEXTURE)) {
+      scene.add
+        .image(this.cx, this.cy, BEZEL_TEXTURE)
+        .setScrollFactor(0)
+        .setDepth(1002);
+    } else {
+      face.lineStyle(2, BEZEL_COLOR, 1).strokeCircle(this.cx, this.cy, BEZEL_RADIUS);
+    }
 
     this.graphics = scene.add.graphics().setScrollFactor(0).setDepth(1001);
 

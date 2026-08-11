@@ -12,6 +12,8 @@
  * at zero it does the one thing a bar cannot, which is flatline.
  */
 
+import { UI, hex } from "./hudTheme";
+
 /**
  * Samples the sweep crosses per second.
  *
@@ -50,10 +52,18 @@ const BPM_KNEE = 0.35;
 const AMPLITUDE_STRONG = 1;
 const AMPLITUDE_WEAK = 0.45;
 
-/** The bar's colour thresholds, kept verbatim so the danger signal did not move. */
-const COLOR_OK = 0x59d98e;
-const COLOR_WARN = 0xffb03b;
-const COLOR_CRITICAL = 0xff3b3b;
+/**
+ * The bar's colour thresholds, kept verbatim so the danger signal did not move.
+ *
+ * The *thresholds* still haven't moved. The values now come from the shared palette
+ * rather than being re-typed here: `COLOR_OK` was `0x59d98e`, which was the bio bar's
+ * own literal and matched no token — the same unnamed green that `hudTheme.ts` was
+ * written to catch, reconciled to `--c-green`. Amber and red were already the token
+ * values to the digit.
+ */
+const COLOR_OK = hex(UI.green);
+const COLOR_WARN = hex(UI.amber);
+const COLOR_CRITICAL = hex(UI.redDeep);
 
 /** Alpha bounds of the flatline alarm, and the sine divisor that paces it. */
 const PULSE_DIM = 0.3;

@@ -1,7 +1,17 @@
 import Phaser from "phaser";
 import type { AlertPhase } from "../systems/AlertState";
 import { FONT_MONO } from "./fonts";
+import { RADAR_BOTTOM } from "./hudLayout";
+import { UI, UI_DEPTH, UI_PAD, UI_TEXT } from "./hudTheme";
 import { onResize } from "./resize";
+
+/**
+ * The panel's translucent backdrop: the surface token plus an alpha suffix.
+ *
+ * Phaser's `backgroundColor` takes a CSS colour string, so this is the one place
+ * the palette is concatenated rather than passed through `hex()`.
+ */
+const PANEL_BG = `${UI.bgPanel}cc`;
 
 /** A named unit and its current detection level (0..1). */
 export interface DebugUnitView {
@@ -55,45 +65,52 @@ export interface DebugSnapshot {
 export class DebugHud {
   private readonly panel: Phaser.GameObjects.Text;
   private readonly legend: Phaser.GameObjects.Text;
-  private readonly pad = 12;
+  private readonly pad = UI_PAD;
 
   constructor(scene: Phaser.Scene) {
     const x = scene.scale.width - this.pad;
 
     this.panel = scene.add
-      .text(x, this.pad, "", {
+      .text(x, RADAR_BOTTOM, "", {
         fontFamily: FONT_MONO,
-        fontSize: "12px",
-        color: "#cfe8ff",
+        fontSize: UI_TEXT.label,
+        color: UI.textStrong,
         align: "left",
-        backgroundColor: "#0a0f16cc",
+        backgroundColor: PANEL_BG,
         padding: { x: 8, y: 6 },
         lineSpacing: 2,
       })
       .setOrigin(1, 0)
       .setScrollFactor(0)
-      .setDepth(1500)
+      .setDepth(UI_DEPTH.DEBUG)
       .setVisible(false);
 
     this.legend = scene.add
-      .text(x, this.pad, "`=debug  G=god  N=no-clip  V=world  H=halt  O=dark  1-6=warp  [ ]=item  I=give", {
+      .text(x, RADAR_BOTTOM, "`=debug  G=god  N=no-clip  V=world  H=halt  O=dark  1-6=warp  [ ]=item  I=give", {
         fontFamily: FONT_MONO,
-        fontSize: "11px",
-        color: "#6b7f92",
-        backgroundColor: "#0a0f16cc",
+        fontSize: UI_TEXT.small,
+        color: UI.textDim,
+        backgroundColor: PANEL_BG,
         padding: { x: 6, y: 3 },
       })
       .setOrigin(1, 0)
       .setScrollFactor(0)
-      .setDepth(1500)
+      .setDepth(UI_DEPTH.DEBUG)
       .setVisible(false);
 
     onResize(scene, (w) => this.reposition(w));
   }
 
+  /**
+   * Top-right, but *below* the radar rather than on top of it.
+   *
+   * Both used to anchor at `(width, pad)` and simply overlapped — the inspector
+   * printing over the scope for anyone who opened it. `hudLayout` owns where the
+   * radar ends.
+   */
   private reposition(width: number): void {
     const x = width - this.pad;
-    this.panel.setPosition(x, this.pad);
+    this.panel.setPosition(x, RADAR_BOTTOM);
     this.legend.setPosition(x, this.panel.y + this.panel.height + 4);
   }
 
