@@ -56,7 +56,7 @@ export function uiPanel(
   const depth = opts.depth ?? UI_DEPTH.PANEL;
 
   if (hasUiTexture(scene, key)) {
-    const inset = (key === PANEL_SPEC?.key ? PANEL_SPEC?.slice : undefined) ?? 12;
+    const inset = (key === PANEL_SPEC?.key ? PANEL_SPEC?.slice : undefined) ?? 16;
     return scene.add
       .nineslice(x, y, key, undefined, w, h, inset, inset, inset, inset)
       .setOrigin(0, 0)
