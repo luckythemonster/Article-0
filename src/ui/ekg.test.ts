@@ -9,6 +9,7 @@ import {
   traceAngle,
   traceColor,
 } from "./ekg";
+import { UI, hex } from "./hudTheme";
 
 /** Every sample of one cycle, at the resolution the sweep actually writes. */
 function cycle(step = 0.001): number[] {
@@ -109,13 +110,25 @@ describe("traceAmplitude", () => {
 describe("traceColor", () => {
   // These are the thresholds the fill bar used before the EKG replaced it. The
   // display changed; the danger signal must not have.
+  //
+  // Asserted against the palette rather than against literals: the boundaries are
+  // what this test is for, and pinning the hex here would mean a palette change had
+  // to be made in two places, which is the drift `hudTheme.test.ts` exists to stop.
+  // (`COLOR_OK` was `0x59d98e`, matching no token; it is now `--c-green`.)
   it("keeps the bar's boundaries exactly", () => {
-    expect(traceColor(1)).toBe(0x59d98e);
-    expect(traceColor(0.51)).toBe(0x59d98e);
-    expect(traceColor(0.5)).toBe(0xffb03b);
-    expect(traceColor(0.26)).toBe(0xffb03b);
-    expect(traceColor(0.25)).toBe(0xff3b3b);
-    expect(traceColor(0)).toBe(0xff3b3b);
+    expect(traceColor(1)).toBe(hex(UI.green));
+    expect(traceColor(0.51)).toBe(hex(UI.green));
+    expect(traceColor(0.5)).toBe(hex(UI.amber));
+    expect(traceColor(0.26)).toBe(hex(UI.amber));
+    expect(traceColor(0.25)).toBe(hex(UI.redDeep));
+    expect(traceColor(0)).toBe(hex(UI.redDeep));
+  });
+
+  it("keeps the three bands distinct", () => {
+    // Guards the reconciliation itself: three tokens that collapsed to one value
+    // would still satisfy every assertion above.
+    const bands = new Set([traceColor(1), traceColor(0.4), traceColor(0.1)]);
+    expect(bands.size).toBe(3);
   });
 });
 
