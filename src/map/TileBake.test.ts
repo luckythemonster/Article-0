@@ -225,7 +225,9 @@ describe("wallBodyRects — per-tile override", () => {
     // "cover" isn't in blockingLayerNames on this fixture — collisionMode alone
     // puts this padded tile's rect into the result.
     const rects = wallBodyRects(level("cover"), 32);
-    expect(rects.crawlable).toEqual([{ x: 96, y: 128, w: 32, h: 32 - 0.4 * 32 }]);
+    expect(rects.crawlable).toEqual([
+      { x: 96, y: 128, w: 32, h: 32 - 0.4 * 32, tileX: 3, tileY: 4 },
+    ]);
   });
 
   it("gives the same rect when the board would have blocked it anyway", () => {
@@ -263,7 +265,38 @@ describe("wallBodyRects — per-tile override", () => {
     } as unknown as GameLevel;
     const rects = wallBodyRects(l, 32);
     expect(rects.walls).toEqual([{ x: 32, y: 32, w: 32, h: 32 }]);
-    expect(rects.crawlable).toEqual([{ x: 64, y: 32, w: 32, h: 32 }]);
+    expect(rects.crawlable).toEqual([{ x: 64, y: 32, w: 32, h: 32, tileX: 2, tileY: 1 }]);
+  });
+
+  it("never merges two adjacent crawlable tiles, plain or not", () => {
+    // Same fixture as above but both cover tiles plain (no ColliderPadding) and
+    // adjacent to *each other* rather than to a wall. Pre-fix these would have
+    // gone through the same whole-cell merge as walls and come back as one 2×1
+    // rectangle with no way to tell the two tiles apart again — which is exactly
+    // what a single destroyed one needs to be findable and disable-able alone.
+    const l = {
+      name: "t",
+      width: 4,
+      height: 4,
+      layers: [
+        {
+          name: "cover",
+          collision: 1,
+          tiles: [
+            { x: 1, y: 1, frame: {}, colSpan: 1, rowSpan: 1 } as unknown as GameTile,
+            { x: 2, y: 1, frame: {}, colSpan: 1, rowSpan: 1 } as unknown as GameTile,
+          ],
+        },
+      ],
+    } as unknown as GameLevel;
+    const rects = wallBodyRects(l, 32).crawlable;
+    expect(rects).toHaveLength(2);
+    expect(rects).toEqual(
+      expect.arrayContaining([
+        { x: 32, y: 32, w: 32, h: 32, tileX: 1, tileY: 1 },
+        { x: 64, y: 32, w: 32, h: 32, tileX: 2, tileY: 1 },
+      ]),
+    );
   });
 });
 

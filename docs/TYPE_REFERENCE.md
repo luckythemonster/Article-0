@@ -10,13 +10,13 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | [Systems](#systems) | 3 | 17 | 77 | 18 | 6 | 121 |
 | [Entities](#entities) | 0 | 17 | 18 | 14 | 5 | 54 |
-| [Map](#map) | 0 | 3 | 30 | 3 | 1 | 37 |
+| [Map](#map) | 0 | 3 | 32 | 3 | 1 | 39 |
 | [Scenes](#scenes) | 0 | 14 | 12 | 2 | 0 | 28 |
 | [UI](#ui) | 0 | 20 | 21 | 1 | 1 | 43 |
 | [Tools](#tools) | 0 | 0 | 6 | 1 | 0 | 7 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **73** | **167** | **39** | **13** | **295** |
+| **All** | **3** | **73** | **169** | **39** | **13** | **297** |
 
 ## Conventions
 
@@ -2274,7 +2274,7 @@ and hold timer are a `HoldTarget`, shared with `Terminal`.
 
 #### `Cover` — class
 
-`src/entities/Cover.ts:17`
+`src/entities/Cover.ts:18`
 
 A destructible cover tile — the map's `Destructible` cover field, wired up.
 
@@ -2290,9 +2290,9 @@ cover tile is untouched by this feature.
 | --- | --- | --- |
 | `tileX` | `readonly tileX: number` |  |
 | `tileY` | `readonly tileY: number` |  |
-| `constructor` | `constructor( private readonly scene: Phaser.Scene, private readonly detection: DetectionSystem, private readonly tileTexture: Phaser.GameObjects.RenderTexture, private readonly tileSize: number, tile…` |  |
+| `constructor` | `constructor( private readonly scene: Phaser.Scene, private readonly detection: DetectionSystem, private readonly grid: CollisionGrid, private readonly tileTexture: Phaser.GameObjects.RenderTexture, p…` |  |
 | `isBroken` | `get isBroken(): boolean` |  |
-| `destroy` | `destroy(): void` | Breaks the cover: a single hit is enough (no durability system, matching how doors/lasers/chests are all binary state). Clears its detection/ thermal effect and erases its art from the baked tile texture, redrawing the floor underneath so destroying it doesn't punch through to the level background. |
+| `destroy` | `destroy(): void` | Breaks the cover: a single hit is enough (no durability system, matching how doors/lasers/chests are all binary state). Clears its detection/ thermal effect, frees the tile in the collision grid and disables its own player collision body — a *destroyed* crate blocks nobody at all, standing or crouched, rather than merely yielding to a crouch the way intact cover does — and erases its art from the baked tile texture, redrawing the floor underneath so destroying it doesn't punch through to the level background. |
 
 *Plus 1 private member.*
 
@@ -3378,6 +3378,20 @@ A component instance placed on an entity, with values resolved to defaults.
 | `type` | `string` |  |
 | `values` | `Record<string, string>` |  |
 
+<a id="interface-coverbody"></a>
+
+#### `CoverBody` — interface
+
+`src/map/TileBake.ts:267`
+
+A crawlable tile's built body, tagged the same way — `buildWallBodies`'s output.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `tileX` | `number` |  |
+| `tileY` | `number` |  |
+| `body` | `Phaser.GameObjects.GameObject` |  |
+
 <a id="interface-edanimation"></a>
 
 #### `EdAnimation` — interface
@@ -3670,7 +3684,7 @@ A single placed tile in the normalized model.
 
 #### `LevelBodyRects` — interface
 
-`src/map/TileBake.ts:263`
+`src/map/TileBake.ts:282`
 
 A level's collision rectangles, split by who they stop.
 
@@ -3683,7 +3697,7 @@ afterwards be told back apart.
 | Field | Type | Notes |
 | --- | --- | --- |
 | `walls` | `Rect[]` |  |
-| `crawlable` | `Rect[]` |  |
+| `crawlable` | `TileRect[]` |  |
 
 <a id="interface-mapplan"></a>
 
@@ -3765,6 +3779,19 @@ A resolved rectangle inside one of the spritesheet PNGs.
 | --- | --- | --- |
 | `x` | `number` |  |
 | `y` | `number` |  |
+
+<a id="interface-tilerect"></a>
+
+#### `TileRect` — interface
+
+`src/map/TileBake.ts:261` · `extends Rect`
+
+One crawlable tile's rectangle, tagged with the cell it belongs to.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `tileX` | `number` |  |
+| `tileY` | `number` |  |
 
 <a id="interface-transition"></a>
 
@@ -5467,7 +5494,8 @@ GameScene.
 | [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:694` |
 | [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:13` |
 | [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:35` |
-| [Cover](#class-cover) | class | `src/entities/Cover.ts:17` |
+| [Cover](#class-cover) | class | `src/entities/Cover.ts:18` |
+| [CoverBody](#interface-coverbody) | interface | `src/map/TileBake.ts:267` |
 | [DebugHost](#interface-debughost) | interface | `src/scenes/game/DebugOverlay.ts:66` |
 | [DebugHud](#class-debughud) | class | `src/ui/DebugHud.ts:55` |
 | [DebugOverlay](#class-debugoverlay) | class | `src/scenes/game/DebugOverlay.ts:93` |
@@ -5551,7 +5579,7 @@ GameScene.
 | [KnownLevel](#type-knownlevel) | type | `src/map/types.ts:293` |
 | [Laser](#class-laser) | class | `src/entities/Laser.ts:28` |
 | [LaserKind](#type-laserkind) | type | `src/entities/Laser.ts:21` |
-| [LevelBodyRects](#interface-levelbodyrects) | interface | `src/map/TileBake.ts:263` |
+| [LevelBodyRects](#interface-levelbodyrects) | interface | `src/map/TileBake.ts:282` |
 | [LexiconCategory](#type-lexiconcategory) | type | `src/systems/Lexicon.ts:19` |
 | [LexiconContext](#interface-lexiconcontext) | interface | `src/systems/Lexicon.ts:257` |
 | [LexiconEntry](#interface-lexiconentry) | interface | `src/systems/Lexicon.ts:30` |
@@ -5687,6 +5715,7 @@ GameScene.
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:199` |
 | [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:190` |
 | [TilePos](#interface-tilepos) | interface | `src/map/generate.ts:115` |
+| [TileRect](#interface-tilerect) | interface | `src/map/TileBake.ts:261` |
 | [TitleScene](#class-titlescene) | class | `src/scenes/TitleScene.ts:12` |
 | [TraceState](#interface-tracestate) | interface | `src/ui/ekg.ts:185` |
 | [Transition](#interface-transition) | interface | `src/map/types.ts:412` |
