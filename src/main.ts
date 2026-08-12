@@ -96,9 +96,9 @@ class BootScene extends Phaser.Scene {
     // BETA shares the crawlspace the arena grafts onto: it is the maintenance deck that
     // is neither the start nor the destination, which is exactly what both want.
     const hasLogBeta = appendLogCacheBeta(parsed.map, plan.ventCoreHost);
-    // The vault and the roof both hang off the extraction level — the Core stands in it,
-    // and the roof is up a ladder from it.
-    const hasVault = appendAlignmentVault(parsed.map, plan.extractionLevel);
+    // The vault stands wherever the map put EIRA-7, which is not necessarily the extraction
+    // deck any more: v0.4 gives her a level of her own, below the roof the run ends on.
+    const hasVault = appendAlignmentVault(parsed.map, plan.vaultHost);
     const hasRoof = appendRoofArray(parsed.map, plan.extractionLevel);
     // A map can author an extraction deck with no way in — NW-SMAC-01 does — which
     // strands the win condition. Runs after the acts so it sees every board they

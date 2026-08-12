@@ -2674,7 +2674,7 @@ export class GameScene extends Phaser.Scene {
     const parsed = this.registry.get("parsedMap") as ParsedMap | undefined;
     return parsed
       ? planFor(parsed.map)
-      : { startLevel: "", extractionLevel: "", ventCoreHost: null };
+      : { startLevel: "", extractionLevel: "", vaultHost: "", ventCoreHost: null };
   }
 
   /**

@@ -43,6 +43,26 @@ const GRATE_COOLDOWN = 2.5;
 /** Steam jets arm only when the player is within this many tiles (Turbulence). */
 const STEAM_ARM_TILES = 4;
 
+/**
+ * The tuning, with the two counts an arena's own geometry overrules.
+ *
+ * `substationCount` and `winchCount` are not tuning at all — they are how many
+ * of the thing the level has, and `Vent4Core` sizes its progress arrays and
+ * gates its phase changes on them. The defaults describe the arena the generator
+ * builds (three of each). NW-SMAC-01 authors four capacitors and four winches,
+ * and against a hardcoded three the fight advances a station early and the
+ * fourth patch is written past the end of the array.
+ */
+function countsFrom(level: GameLevel, stats: Vent4Stats): Vent4Stats {
+  const placed = (board: string, fallback: number): number =>
+    level.layers.find((l) => l.name === board)?.tiles.length || fallback;
+  return {
+    ...stats,
+    substationCount: placed("substations", stats.substationCount),
+    winchCount: placed("winches", stats.winchCount),
+  };
+}
+
 /** What happened inside the boss this frame, for the scene to apply/dress. */
 export interface Vent4TickResult {
   /** A sweep (or the purge's thermal scan) fully spotted the player. */
@@ -136,7 +156,12 @@ export class Vent4Boss {
       y: (p.y + 0.5) * ts,
     });
 
-    this.core = new Vent4Core(stats, restore);
+    // An authored arena decides how many of each fixture it has by placing them.
+    // The counts are what `Vent4Core` sizes its progress arrays from and gates the
+    // phase changes on, so a map with four capacitors against a hardcoded three
+    // advances a station early and drops the fourth's patch on the floor.
+    this.stats = countsFrom(level, stats);
+    this.core = new Vent4Core(this.stats, restore);
     // Anchors come from the level's own boards when it has them — an authored
     // arena is laid out nothing like the generated one, and these coordinates
     // decide where the suction pulls from and what you can hold onto. A generated
@@ -160,12 +185,12 @@ export class Vent4Boss {
         drips: this.drips.map(toPx),
       },
       ts,
-      stats,
+      this.stats,
     );
 
     const subLayer = level.layers.find((l) => l.name === "substations");
     (subLayer?.tiles ?? []).forEach((tile, i) => {
-      const sub = new PressureSubStation(scene, tile, ts, i, stats);
+      const sub = new PressureSubStation(scene, tile, ts, i, this.stats);
       if (restore?.patched[i]) sub.restorePatched();
       this.subs.push(sub);
     });
@@ -196,7 +221,7 @@ export class Vent4Boss {
       { x: (hx + 1) * ts, y: (hy + 1) * ts },
     ];
     this.capHits = this.caps.map((_, i) =>
-      restore?.capsDown[i] ? stats.capacitorHits : 0,
+      restore?.capsDown[i] ? this.stats.capacitorHits : 0,
     );
 
     this.markerGfx = scene.add.graphics().setDepth(120);

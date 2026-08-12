@@ -1,3 +1,4 @@
+import { adoptAlignmentVault } from "./AdoptAuthored";
 import type { GameLevel, GameMap } from "./types";
 import {
   cloneTile,
@@ -146,13 +147,19 @@ const RACK_RING = 8;
 /**
  * Injects the vault fixtures into `host`. Idempotent, and silent when it can't run.
  *
- * @param host the level the core stands in — `MapPlan.extractionLevel`. Null skips it.
+ * @param host the level the core stands in — `MapPlan.vaultHost`. Null skips it.
  * @returns whether the vault is present afterwards.
  */
 export function appendAlignmentVault(map: GameMap, host: string | null): boolean {
   if (host === null) return false;
   const hostLevel = map.levels.find((l) => l.name === host);
   if (!hostLevel) return false;
+
+  // A map that drew its own vault keeps it; we wire that one up instead. Same
+  // rule the arena and the roof already work under — see `AdoptAuthored`.
+  if ((hostLevel.layers.find((l) => l.name === "EIRA-7")?.tiles.length ?? 0) > 0) {
+    return adoptAlignmentVault(hostLevel);
+  }
 
   const core = ensureLayer(hostLevel, "vault_core");
   // Keyed on the board having anything at all rather than on our coordinate: a map that

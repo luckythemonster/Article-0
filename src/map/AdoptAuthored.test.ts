@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { adoptRoofArray, adoptVentCore, graftExtractionEntrance } from "./AdoptAuthored";
+import {
+  adoptAlignmentVault,
+  adoptRoofArray,
+  adoptVentCore,
+  graftExtractionEntrance,
+} from "./AdoptAuthored";
 import { MissingProto, requireClear } from "./generate";
 import type { GameLevel, GameMap, GameTile } from "./types";
 
@@ -75,6 +80,110 @@ describe("adoptVentCore", () => {
     const l = levelOf("vent_core", { "VENT-4": [tile(22, 18, "tdVent_4_Chassis1")] });
     expect(adoptVentCore(l)).toBe(false);
   });
+
+  describe("the v0.4 vocabulary", () => {
+    const arena4 = (): GameLevel =>
+      levelOf(
+        "vent_core",
+        {
+          vents: [tile(17, 9, "turbine1"), tile(19, 9, "turbine2"), tile(14, 9, "tdVents_4X4_6")],
+          "VENT-4_capacitors": [
+            tile(13, 1, "Vent4_Pressure_Capacitor1"),
+            tile(24, 1, "Vent4_Pressure_Capacitor1"),
+            tile(13, 16, "Vent4_Pressure_Capacitor1"),
+            tile(24, 16, "Vent4_Pressure_Capacitor1"),
+          ],
+          winches: [tile(13, 4, "tdWinch1")],
+          walls: [tile(10, 8, "tdCement_4X4_4")],
+        },
+        36,
+        18,
+      );
+
+    it("hubs on the pair of turbines, between them", () => {
+      const l = arena4();
+      expect(adoptVentCore(l)).toBe(true);
+      expect(board(l, "vent_hub").map((t) => ({ x: t.x, y: t.y }))).toEqual([{ x: 18, y: 9 }]);
+      // Only the turbines; the vent floor art on the same board stays art.
+      expect(board(l, "vents")).toHaveLength(3);
+    });
+
+    it("takes the pressure capacitors as sub-stations, off their own board", () => {
+      const l = arena4();
+      adoptVentCore(l);
+      expect(board(l, "substations")).toHaveLength(4);
+      expect(board(l, "VENT-4_capacitors")).toHaveLength(0);
+    });
+
+    it("rings the hub with steam when the arena authors none", () => {
+      // An empty `steam` board falls through to constants picked for a 40×45
+      // arena, which on a level 18 tall aim the jets off the map.
+      const l = arena4();
+      adoptVentCore(l);
+      const jets = board(l, "steam");
+      expect(jets.length).toBeGreaterThan(0);
+      for (const t of jets) {
+        expect(t.y, "steam y").toBeLessThan(l.height);
+        expect(t.x, "steam x").toBeLessThan(l.width);
+      }
+    });
+  });
+});
+
+describe("adoptAlignmentVault", () => {
+  const vault = (): GameLevel =>
+    levelOf(
+      "main2vault",
+      {
+        "EIRA-7": [tile(25, 7, "EIRA-7_avatar")],
+        terminals: [
+          tile(20, 2, "terminal6", [{ type: "terminal", values: { type: "DESYCHRONIZATION" } }]),
+          tile(31, 2, "terminal7", [{ type: "terminal", values: { type: "LOG_CACHE" } }]),
+          tile(20, 12, "terminal8", [{ type: "terminal", values: { type: "LOG_CACHE" } }]),
+          tile(31, 12, "terminal9", [{ type: "terminal", values: { type: "LOG_CACHE" } }]),
+          tile(20, 13, "security_node1"),
+        ],
+        cover: [tile(19, 1, "tdServer_Racks_4X4_12"), tile(32, 13, "tdServer_Racks_4X4_12")],
+      },
+      36,
+      18,
+    );
+
+  it("stands the core on the avatar and moves it off the EIRA-7 board", () => {
+    const l = vault();
+    expect(adoptAlignmentVault(l)).toBe(true);
+    expect(board(l, "vault_core").map((t) => ({ x: t.x, y: t.y }))).toEqual([{ x: 25, y: 7 }]);
+    expect(board(l, "EIRA-7")).toHaveLength(0);
+  });
+
+  it("takes all four correction terminals, leaving the scenery beside them", () => {
+    // Three of the four are left with an empty `type`, which the export's schema
+    // defaults to LOG_CACHE — on `terminals` they would read as caches in a ring.
+    const l = vault();
+    adoptAlignmentVault(l);
+    expect(board(l, "vault_nodes").map((t) => t.ref).sort()).toEqual([
+      "terminal6",
+      "terminal7",
+      "terminal8",
+      "terminal9",
+    ]);
+    expect(board(l, "terminals").map((t) => t.ref)).toEqual(["security_node1"]);
+  });
+
+  it("marks the racks without taking the room's cover away", () => {
+    const l = vault();
+    adoptAlignmentVault(l);
+    expect(board(l, "vault_racks").map((t) => ({ x: t.x, y: t.y }))).toEqual([
+      { x: 19, y: 1 },
+      { x: 32, y: 13 },
+    ]);
+    expect(board(l, "cover")).toHaveLength(2);
+  });
+
+  it("declines a level with no avatar to fight", () => {
+    const l = levelOf("main2vault", { terminals: [tile(20, 2, "terminal6")] });
+    expect(adoptAlignmentVault(l)).toBe(false);
+  });
 });
 
 describe("adoptRoofArray", () => {
@@ -107,6 +216,36 @@ describe("adoptRoofArray", () => {
   it("declines a roof with no dish to aim", () => {
     const l = levelOf("roof_array", { terminals: [tile(6, 4, "calibration_pedestal1")] });
     expect(adoptRoofArray(mapOf([l]), l)).toBe(false);
+  });
+
+  it("reads v0.4's dish off `extraction` and its pedestals by component", () => {
+    // The dish shares the board the level declares itself the destination with,
+    // and the pedestals are named `terminal11`/`12` — nothing a ref would catch.
+    const l = levelOf(
+      "roof_array",
+      {
+        extraction: [tile(15, 7, "lattice_satellite_uplink1")],
+        terminals: [
+          tile(7, 11, "terminal11", [{ type: "terminal", values: { type: "CALIBRATION" } }]),
+          tile(27, 11, "terminal12", [{ type: "terminal", values: { type: "CALIBRATION" } }]),
+        ],
+        enforcer_spawn: [tile(7, 1, "enforcer_spawn1")],
+        enforcer_rail_A: [tile(23, 7, "enforcer_rail_mounted1")],
+      },
+      36,
+      18,
+    );
+    expect(adoptRoofArray(mapOf([l]), l)).toBe(true);
+    expect(board(l, "relay_dish").map((t) => ({ x: t.x, y: t.y }))).toEqual([{ x: 15, y: 7 }]);
+    expect(board(l, "relay_pedestals")).toHaveLength(2);
+    expect(board(l, "terminals")).toHaveLength(0);
+    // Both spawn boards feed the siege, and the tiles stay put so they still
+    // stand their own sentry.
+    expect(board(l, "siege_mouths").map((t) => ({ x: t.x, y: t.y }))).toEqual([
+      { x: 7, y: 1 },
+      { x: 23, y: 7 },
+    ]);
+    expect(board(l, "enforcer_spawn")).toHaveLength(1);
   });
 });
 

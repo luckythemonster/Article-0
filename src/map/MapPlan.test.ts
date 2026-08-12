@@ -25,7 +25,7 @@ function mapOf(levels: [string, string[], boolean?][]): GameMap {
 
 describe("planFor", () => {
   it("resolves the shipped map's shape unchanged", () => {
-    // The regression that matters: these three used to be hardcoded, and the fallback
+    // The regression that matters: these used to be hardcoded, and the fallback
     // order exists specifically so the shipped map keeps behaving as it always did.
     const plan = planFor(
       mapOf([
@@ -38,7 +38,37 @@ describe("planFor", () => {
     expect(plan).toEqual({
       startLevel: "main1",
       extractionLevel: "main2",
+      // A map that declares no vault of its own still gets it grafted into the
+      // extraction deck, which is where it has always gone.
+      vaultHost: "main2",
       ventCoreHost: "duct2",
+    });
+  });
+
+  describe("vault host", () => {
+    it("is the level the map put EIRA-7 in", () => {
+      const plan = planFor(
+        mapOf([
+          ["main1", ["spawn", "floor"]],
+          ["main2vault", ["floor", "EIRA-7"]],
+          ["roof_array", ["floor", "extraction"]],
+        ]),
+      );
+      // Not the extraction deck: v0.4 stacks the roof above the vault, and grafting
+      // one onto the other stood the Alignment Core on the roof.
+      expect(plan.extractionLevel).toBe("roof_array");
+      expect(plan.vaultHost).toBe("main2vault");
+    });
+
+    it("falls back to a level that says so in its name", () => {
+      const plan = planFor(
+        mapOf([
+          ["main1", ["spawn", "floor"]],
+          ["main2vault", ["floor", "walls"]],
+          ["roof_array", ["floor", "extraction"]],
+        ]),
+      );
+      expect(plan.vaultHost).toBe("main2vault");
     });
   });
 
