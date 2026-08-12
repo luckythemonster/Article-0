@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { EdplayLoader } from "./map/EdplayLoader";
+import { typeInertTerminals } from "./map/InertTerminals";
 import { appendVentCore } from "./map/VentCoreLevel";
 import { appendLogCacheBeta } from "./map/LogCacheBeta";
 import { appendAlignmentVault } from "./map/AlignmentVault";
@@ -80,6 +81,10 @@ class BootScene extends Phaser.Scene {
   create(): void {
     const raw = this.cache.json.get("edplay") as EdPlayFile;
     const sheetKeys = raw.SpriteSheets.map((s) => s.RelativePath);
+    // Before parsing, because it works by letting the loader resolve the export's
+    // own schema defaults — see `typeInertTerminals`. A no-op on an export that
+    // wires its terminals up.
+    typeInertTerminals(raw);
     const parsed = EdplayLoader.parse(raw, sheetKeys);
     // Work out the map's shape — start, extraction, vent-core host — before generating
     // anything, so the generated arena can't influence the plan that decides where it goes.
