@@ -166,7 +166,20 @@ const EXPLORE_RADIUS_TILES = 9;
 /** Screen-fade duration for a level transition, in ms. */
 const FADE_MS = 320;
 
-/** Layers that hold entities/markers rather than paintable tile art. */
+/**
+ * Layers that hold entities/markers rather than paintable tile art.
+ *
+ * Whole-board skipping, for boards the engine itself generates or that a v0.2-era
+ * map filed by name. It is not the general answer any more: NW-SMAC-01 v0.4 names
+ * its route boards for the routes rather than for the engine, and mixes art with
+ * entities on the boards it does share. Both of those are handled per tile now —
+ * see `EntityIndex` and `bakeTileLayers`' `claimedTiles`.
+ *
+ * `terminals` in particular had to leave: v0.4 files `main2vault`'s
+ * `security_node1` on it beside four real terminals, and skipping the board
+ * wholesale erased the scenery. The terminal tiles themselves are claimed, so
+ * nothing draws twice.
+ */
 const ENTITY_LAYERS = new Set([
   "spawn",
   "enforcers",
@@ -175,7 +188,6 @@ const ENTITY_LAYERS = new Set([
   "security",
   "items",
   "doors",
-  "terminals",
   "lasers",
   "substations",
   // NW-SMAC-01's correction nodes and the roof's pedestals/feed all become

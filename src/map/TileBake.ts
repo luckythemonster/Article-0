@@ -33,7 +33,13 @@ import {
   isSingleCell,
   type Rect,
 } from "./footprint";
-import { blockingLayerNames, isCrawlable, isForcedSolid, type GameLevel } from "./types";
+import {
+  blockingLayerNames,
+  isCrawlable,
+  isForcedSolid,
+  type GameLevel,
+  type GameTile,
+} from "./types";
 
 /** An axis-aligned run of blocked cells, in tile coordinates. */
 export interface WallRect {
@@ -123,12 +129,18 @@ export const BAKED_TILES_DEPTH = 0;
  *
  * @param skipLayers layer names that hold entities rather than paintable art;
  *   those are spawned as real objects by the scene and must not be baked in.
+ * @param claimedTiles individual tiles the scene spawns as entities, on boards
+ *   that are otherwise ordinary art. NW-SMAC-01 v0.4 mixes the two freely — a
+ *   stair sharing `verticals` with two guard posts, four terminals sharing
+ *   `terminals` with a piece of scenery — so board granularity alone would
+ *   either draw the entities twice or erase the art beside them.
  */
 export function bakeTileLayers(
   scene: Phaser.Scene,
   level: GameLevel,
   tileSize: number,
   skipLayers: ReadonlySet<string>,
+  claimedTiles: ReadonlySet<GameTile> = new Set(),
 ): Phaser.GameObjects.RenderTexture {
   const rt = scene.add
     .renderTexture(0, 0, level.width * tileSize, level.height * tileSize)
@@ -148,7 +160,7 @@ export function bakeTileLayers(
   for (const layer of level.layers) {
     if (skipLayers.has(layer.name)) continue;
     for (const tile of layer.tiles) {
-      if (!tile.frame) continue;
+      if (!tile.frame || claimedTiles.has(tile)) continue;
       if (isSingleCell(tile)) {
         rt.batchDrawFrame(
           tile.frame.textureKey,
