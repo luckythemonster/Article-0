@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import type { GameLevel, GameMap, Transition } from "../map/types";
 import type { ParsedMap } from "../map/EdplayLoader";
 import { SensingContext } from "./game/SensingContext";
-import { DebugOverlay, type DebugWorld } from "./game/DebugOverlay";
+import { DebugOverlay, WARP_SLOTS, type DebugWorld } from "./game/DebugOverlay";
 import { buildLevel } from "./game/LevelBuilder";
 import { NoiseEvents } from "./game/NoiseEvents";
 import { OverlayGate } from "./game/OverlayGate";
@@ -213,13 +213,6 @@ const HACK_UNLOCK_RADIUS = 6;
 
 /** Seconds between knocks, so the action can't be mashed. */
 const KNOCK_COOLDOWN = 0.6;
-
-/**
- * How many levels the debug number keys can warp to. The targets themselves come from
- * the map's own level list (see `debugWarpLevels`) rather than hardcoded names, so the
- * warps keep working on a map that doesn't reuse the shipped level names.
- */
-const DEBUG_WARP_SLOTS = 9;
 
 /**
  * The playable scene. Renders one level's tile art in board z-order, builds the
@@ -2691,7 +2684,7 @@ export class GameScene extends Phaser.Scene {
     // `vent_core` wrote a deck of its own, and it belongs in its own running order.
     const authored = this.map.levels.filter((l) => !l.generated).map((l) => l.name);
     const generated = this.map.levels.filter((l) => l.generated).map((l) => l.name);
-    return [...authored, ...generated].slice(0, DEBUG_WARP_SLOTS);
+    return [...authored, ...generated].slice(0, WARP_SLOTS);
   }
 
   /** Warps to a level by restarting the scene at its own spawn tile. */
