@@ -257,7 +257,7 @@ export interface GameMap {
   tileWidth: number;
   tileHeight: number;
   levels: GameLevel[];
-  /** Texture keys registered for the three spritesheets, in file order. */
+  /** Texture keys registered for the map's spritesheets, in file order. */
   sheetTextureKeys: string[];
 }
 

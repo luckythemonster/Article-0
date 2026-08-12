@@ -2,21 +2,23 @@
 
 An SNES-style, top-down **stealth RPG engine** — Metal Gear / Metal Gear 2 as
 the north star — that parses and runs the level map shipped in this repo
-(`public/assets/edplay.json` plus its three spritesheets).
+(`public/assets/edplay.json` plus its spritesheet).
 
-The map was authored in a tile editor and exported as `edplay.json`: 4 connected
-levels (`main1`, `duct1`, `duct2`, `main2`) built from layered "boards" (floor,
-walls, doors, cover, lasers, light sources, terminals) plus entity layers
-(enforcers, orderlies, drones, security, spawn). Entities carry **typed gameplay
-components** — guards have `SightRange`/`SightAngle`/`ThermalDetectionRadius`,
-doors have keys and states, terminals are hackable, lights raise detection, and
-so on. This engine loads that data directly and brings the entry level to life.
+The map was authored in a tile editor and exported as `edplay.json`: 9 connected
+levels (`main1`, `duct1`, `duct2`, `secret1`, `vent_core`, `main2`, `main2vault`,
+`secret2`, `roof_array`) built from layered "boards" (floor, walls, doors, cover,
+light sources, terminals, `verticals`) plus per-route entity boards. Entities
+carry **typed gameplay components** — guards are `Human`s with a `Job`, drones
+are `Silicate`s, doors have keys and states, terminals are hackable, lights raise
+detection, and so on. This engine loads that data directly and brings the whole
+facility to life.
 
-Two more levels are **generated in code** at boot and appended to that map — the
-VENT-4 arena (`vent_core`) and the rooftop relay (`roof_array`) — along with the
-crawlspace log-cache node and the NW-SMAC-01 vault's fixtures. The export is
-committed verbatim and never hand-edited, so everything the engine adds is built
-by cloning tiles the map already places. See `src/map/generate.ts`.
+The engine can also **generate** the VENT-4 arena and the rooftop relay from
+scratch for a map that authors neither; this one authors both, so they are
+*adopted* instead — the engine translates what the author placed into the boards
+the encounters read. See `src/map/AdoptAuthored.ts`. The export is committed
+verbatim and never hand-edited, so everything the engine adds is built by cloning
+tiles the map already places. See `src/map/generate.ts`.
 
 ## Running it
 
@@ -69,7 +71,7 @@ warps; visit with `?debug=0` to turn it back off.
 | N | No-clip — walk through walls and doors |
 | V | World overlay — guard patrol routes and live A* paths, collision circles, line-of-sight rays, blocked tiles, and detection hot spots |
 | O | Darkness off — hide the lighting / line-of-sight overlay and read the level at full brightness |
-| 1–6 | Warp to the map's levels in board order, with the generated ones last — for the shipped map that's `main1` / `duct1` / `duct2` / `main2` / `vent_core` / `roof_array` (resets the alert; keeps your HP) |
+| 1–9 | Warp to the map's levels in board order, with any generated ones last — for the shipped map that's `main1` / `duct1` / `duct2` / `secret1` / `vent_core` / `main2` / `main2vault` / `secret2` / `roof_array` (resets the alert; keeps your HP) |
 | `[` / `]` | Cycle the give-item selection through every item the game knows about (weapons, consumables, key items) |
 | I | Grant one unit of the selected item straight into your inventory — for testing weapons/items without playing to their chest |
 
@@ -83,8 +85,10 @@ only respond while debug mode is on.
 **Getting around.** Walk onto a **staircase** and you descend/ascend automatically;
 **hatches and ladders** show a `[E] Use access` prompt and change level when you press
 **E**. Either way the screen fades and you arrive at the connected level's matching
-access point — `main1` links to `main2` (stairs) and to `duct1`/`duct2` (maintenance
-hatches), and `main2` links up a ladder to the `roof_array` deck. That last one is
+access point — `main1` drops through a hatch into the `duct1`/`duct2` crawlspaces,
+which stair down into `vent_core`, and the elevator there carries you up to `main2`
+and its `main2vault` / `secret2` rooms. `main2` links up a ladder to the
+`roof_array` deck. That last one is
 **gated**: the ladder stays sealed, and says so, until both log-cache nodes are aboard
 and the Alignment Core is down.
 
@@ -190,7 +194,7 @@ carry them to the Lattice uplink.
 | --- | --- | --- |
 | **I — The Compliance Illusion** | `main1`, `duct1`, `duct2` | Breach log-cache node **ALPHA** on the public deck and node **BETA** behind the crawlspace laser grid. |
 | **II — Subversion of VENT-4** | `vent_core` | Optional. Silence VENT-4 for the **Q0 compliance cert**. |
-| **III — The Alignment Core** | `main2` | Bring down **NW-SMAC-01** in the vault. It opens the roof. |
+| **III — The Alignment Core** | `main2vault` | Bring down **NW-SMAC-01** in the vault. It opens the roof. |
 | **IV — The Rooftop Relay** | `roof_array` | Calibrate the dish, open the feed, hold the platform — then the Tribunal. |
 
 - **Title → codec → infiltrate.** A new run opens on an EIRA-7 codec briefing
@@ -230,7 +234,7 @@ The whole pipeline lives in `src/`:
   game model. `EdplayLoader.ts` resolves every tile (`Handle → TileDef → SpriteId →
   sprite rect`) and every entity (`TileDef.DataComponents → typed values`, falling back to
   the `DataStructure` field defaults). `SpriteAtlas.ts` slices each referenced rectangle
-  out of the three spritesheet PNGs into a named Phaser frame. `generate.ts` and the five
+  out of the spritesheet PNGs into a named Phaser frame. `generate.ts` and the five
   generators append the engine-built levels and fixtures at boot.
 - **`src/scenes/`** — `GameScene` renders the layers in board z-order, builds wall
   collision, spawns entities, and drives the systems each frame. `UIScene` is a parallel,

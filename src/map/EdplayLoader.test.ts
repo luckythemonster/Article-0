@@ -118,17 +118,17 @@ describe("the shipped map's level borders", () => {
   });
 
   it("turns every plain wall tile on main1 into exactly one collision cell", () => {
-    // main1's walls board holds 792 tiles, all 1×1. 336 of them carry authored collider
+    // main1's walls board holds 318 tiles, all 1×1. 157 of them carry authored collider
     // padding (`ColliderPadding` — see footprint.ts) and are deliberately excluded from
     // this coarse mask: they get their own precise body from `wallBodyRects` instead,
     // covered by the "no blocked cell without a body" test below. What this test still
-    // has to hold is the original regression — before the NaN fix this produced 442, the
-    // 84 border tiles (no X on the west column, no Y on the north row) silently lost.
+    // has to hold is the original regression — the border tiles (no X on the west
+    // column, no Y on the north row) were silently lost before the NaN fix.
     const main1 = parsed.map.levels.find((l) => l.name === "main1") as GameLevel;
     const walls = main1.layers.find((l) => l.name === "walls")!;
-    expect(walls.tiles).toHaveLength(792);
+    expect(walls.tiles).toHaveLength(318);
     const plain = walls.tiles.filter((t) => hasPlainCollider(t));
-    expect(plain).toHaveLength(456);
+    expect(plain).toHaveLength(161);
     const bodies = wallCells(main1, 32);
     expect(bodies.reduce((a: number, v: number) => a + v, 0)).toBe(plain.length);
   });

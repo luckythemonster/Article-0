@@ -219,7 +219,7 @@ const KNOCK_COOLDOWN = 0.6;
  * the map's own level list (see `debugWarpLevels`) rather than hardcoded names, so the
  * warps keep working on a map that doesn't reuse the shipped level names.
  */
-const DEBUG_WARP_SLOTS = 6;
+const DEBUG_WARP_SLOTS = 9;
 
 /**
  * The playable scene. Renders one level's tile art in board z-order, builds the

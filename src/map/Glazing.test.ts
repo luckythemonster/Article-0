@@ -115,15 +115,17 @@ describe("the shipped map's glazing", () => {
   });
 
   it("authors the three glass doors as fixtures, not static wall glazing", () => {
+    // Every one is a single cell wide; the two vertical jambs stand a half-cell
+    // taller than their tile and are offset to hang the extra height upward.
     for (const { tile } of glassDoors) {
       expect(tile.colSpan).toBe(1);
-      expect(tile.rowSpan).toBe(1.5);
-      expect(tile.offsetY).toBe(-4);
+      expect([1, 1.5]).toContain(tile.rowSpan);
+      if (tile.rowSpan === 1.5) expect(tile.offsetY).toBe(4);
     }
     // The coordinates a future map export could plausibly move — pinned so a change
     // here is a deliberate, visible one rather than a silent drift.
     const byLevel = glassDoors.map(({ level, tile }) => `${level.name} ${tile.x},${tile.y}`).sort();
-    expect(byLevel).toEqual(["main1 9,13", "main2 26,16", "main2 26,6"]);
+    expect(byLevel).toEqual(["main1 24,12", "main2 19,3", "main2vault 27,7"]);
   });
 
   it("resolves each glass door's collider to its footprint, jambs narrowed as authored", () => {
@@ -131,14 +133,16 @@ describe("the shipped map's glazing", () => {
     // Door.ts at scene-build time, a separate, already-established mechanism this
     // file isn't re-simulating. What belongs here is the geometry Door.ts will read.
     //
-    // These are also `ColliderPadding`-bearing: {Left: 0.2, Right: 0.2} pulls each
-    // jamb in from both sides, so the body is narrower than the full-height frame —
-    // the same authored inset every padded wall tile gets, just on a door.
+    // These are also `ColliderPadding`-bearing, and the inset follows the door's
+    // orientation: {Left: 0.2, Right: 0.2} pulls a vertical jamb in from both sides,
+    // {Bottom: 0.4} lifts a horizontal one off the floor. The same authored inset
+    // every padded wall tile gets, just on a door.
     for (const { tile } of glassDoors) {
       expect(hasPlainCollider(tile)).toBe(false);
       const rect = colliderRect(tile, TILE_SIZE);
-      expect(rect.w).toBeCloseTo(TILE_SIZE - 2 * 0.2 * TILE_SIZE);
-      expect(rect.h).toBe(1.5 * TILE_SIZE);
+      const vertical = tile.rowSpan === 1.5;
+      expect(rect.w).toBeCloseTo(vertical ? TILE_SIZE * 0.6 : TILE_SIZE);
+      expect(rect.h).toBeCloseTo(vertical ? 1.5 * TILE_SIZE : TILE_SIZE * 0.6);
     }
   });
 });

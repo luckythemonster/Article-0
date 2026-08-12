@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 
-// Article Zero runs as a static Phaser game. Assets (the edplay map + the three
-// spritesheets) live in `public/assets` and are served verbatim.
+// Article Zero runs as a static Phaser game. Assets (the edplay map + whatever
+// spritesheets it names) live in `public/assets` and are served verbatim.
 export default defineConfig({
   base: "./",
   build: {
