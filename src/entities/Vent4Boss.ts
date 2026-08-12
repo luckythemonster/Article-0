@@ -114,6 +114,16 @@ export class Vent4Boss {
   private readonly caps: { x: number; y: number }[];
   private readonly capHits: number[];
   private readonly hub: { x: number; y: number };
+  /**
+   * Whether the arena is one the map drew rather than one the engine built.
+   *
+   * The boss renders its own fixtures procedurally, which is the only option on a
+   * generated arena — there is no art there but cloned floor and walls. On an
+   * authored one there is, and painting over it is exactly what `AdoptAuthored`'s
+   * "author beats engine" rule forbids, so the procedural fixture drops back to a
+   * state overlay and lets the sprite show through.
+   */
+  private readonly authored: boolean;
 
   private readonly coneGfx: Phaser.GameObjects.Graphics;
   private readonly steamGfx: Phaser.GameObjects.Graphics;
@@ -161,6 +171,7 @@ export class Vent4Boss {
     // phase changes on, so a map with four capacitors against a hardcoded three
     // advances a station early and drops the fourth's patch on the floor.
     this.stats = countsFrom(level, stats);
+    this.authored = level.generated !== true;
     this.core = new Vent4Core(this.stats, restore);
     // Anchors come from the level's own boards when it has them — an authored
     // arena is laid out nothing like the generated one, and these coordinates
@@ -730,27 +741,36 @@ export class Vent4Boss {
     const g = this.hubGfx;
     const r = this.stats.hubRadius * ts;
     g.clear();
-    // Housing plate + band-colored trim ring.
-    g.fillStyle(0x10161f, 1);
-    g.fillCircle(this.hub.x, this.hub.y, r + 6);
+    // On an authored arena the turbine is a sprite somebody drew — NW-SMAC-01
+    // stands a pair of them either side of the hub — so only the parts that carry
+    // *state* are drawn, over the top. Painting the housing as well covered the art
+    // with a plain dark disc, which is the one thing adoption exists to avoid.
+    if (!this.authored) {
+      // Housing plate.
+      g.fillStyle(0x10161f, 1);
+      g.fillCircle(this.hub.x, this.hub.y, r + 6);
+    }
+    // Band-colored trim ring: the compliance band, readable at a glance.
     g.lineStyle(3, this.bandColor(), 0.9);
     g.strokeCircle(this.hub.x, this.hub.y, r + 6);
-    // Intake mouth.
-    g.fillStyle(0x05070a, 1);
-    g.fillCircle(this.hub.x, this.hub.y, r * 0.82);
-    // Turbine blades.
-    g.lineStyle(5, 0x4a5a6a, 1);
-    for (let i = 0; i < 4; i++) {
-      const a = this.bladePhase + (i * Math.PI) / 2;
-      g.lineBetween(
-        this.hub.x + Math.cos(a) * r * 0.14,
-        this.hub.y + Math.sin(a) * r * 0.14,
-        this.hub.x + Math.cos(a) * r * 0.74,
-        this.hub.y + Math.sin(a) * r * 0.74,
-      );
+    if (!this.authored) {
+      // Intake mouth.
+      g.fillStyle(0x05070a, 1);
+      g.fillCircle(this.hub.x, this.hub.y, r * 0.82);
+      // Turbine blades.
+      g.lineStyle(5, 0x4a5a6a, 1);
+      for (let i = 0; i < 4; i++) {
+        const a = this.bladePhase + (i * Math.PI) / 2;
+        g.lineBetween(
+          this.hub.x + Math.cos(a) * r * 0.14,
+          this.hub.y + Math.sin(a) * r * 0.14,
+          this.hub.x + Math.cos(a) * r * 0.74,
+          this.hub.y + Math.sin(a) * r * 0.74,
+        );
+      }
+      g.fillStyle(0x2b4356, 1);
+      g.fillCircle(this.hub.x, this.hub.y, r * 0.16);
     }
-    g.fillStyle(0x2b4356, 1);
-    g.fillCircle(this.hub.x, this.hub.y, r * 0.16);
     // Jammed: scrap wedged across the mouth.
     if (this.core.state === Vent4State.JAMMED) {
       g.fillStyle(0xffb03b, 0.9);
@@ -791,8 +811,15 @@ export class Vent4Boss {
     g.clear();
     this.winches.forEach((w, i) => {
       const used = this.core.isWinchUsed(i);
-      g.fillStyle(used ? 0x1a2330 : 0x2b3a4a, 1);
-      g.fillRect(w.x - ts * 0.35, w.y - ts * 0.3, ts * 0.7, ts * 0.6);
+      // Same rule as the hub: an authored winch has its own sprite, so the box is
+      // only painted to grey a spent one out, and never over a live one.
+      if (!this.authored) {
+        g.fillStyle(used ? 0x1a2330 : 0x2b3a4a, 1);
+        g.fillRect(w.x - ts * 0.35, w.y - ts * 0.3, ts * 0.7, ts * 0.6);
+      } else if (used) {
+        g.fillStyle(0x1a2330, 0.55);
+        g.fillRect(w.x - ts * 0.35, w.y - ts * 0.3, ts * 0.7, ts * 0.6);
+      }
       g.lineStyle(2, used ? 0x3a4654 : 0xffb03b, 1);
       g.strokeRect(w.x - ts * 0.35, w.y - ts * 0.3, ts * 0.7, ts * 0.6);
       g.lineStyle(2, used ? 0x3a4654 : 0xcfe0f0, 1);
