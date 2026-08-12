@@ -258,14 +258,11 @@ instead. `GAME_SPEED` lives there too. See
 ```
 public/favicon*         tab icons + site.webmanifest (referenced relatively — vite
                         sets base: "./", so root-absolute hrefs would break off-root)
-public/assets/          edplay.json + spritesheet_{0,1,2}.png — the tile editor's
-                        export, committed verbatim and served as-is; this is the
-                        map's source of truth
-public/assets/player/   player character frames
-public/assets/enforcer/ enforcer sentry frames
-public/assets/drone/    patrol drone frames
-public/assets/orderly/  orderly bystander frames
+public/assets/          edplay.json + spritesheet_0.png — the tile editor's export,
+                        committed verbatim and served as-is; this is the map's
+                        source of truth
 public/assets/vfx/      one-shot effect frame sequences
+                        (the cast has no art on disk — see src/entities/CastArt.ts)
 src/main.ts         boot: load assets, parse map, generate the extra acts,
                     start scenes
 src/map/            format types, loader, sprite atlas; generate.ts + the five
@@ -275,7 +272,8 @@ src/scenes/         GameScene, UIScene, PauseScene, CodecScene, TitleScene,
                     TribunalScene
 src/entities/       Player, Enforcer, Drone, Orderly, Sensor, Door, Terminal,
                     Laser, Chest, Cover, DeployedItem, Vent4Boss, BossCore,
-                    RoofRelay, GuardSkin, and the four *Animations modules
+                    RoofRelay, GuardSkin, the four *Animations manifests, and
+                    CastArt + Silhouette (the cast is drawn, not loaded)
 src/systems/        the headless rules (see above)
 src/render/         pixelScale — the whole-number sprite scaling rule
 src/ui/             Hud, Radar, InventoryHud, AlertNetworkHud, Lighting, Codec,
@@ -284,7 +282,6 @@ src/ui/             Hud, Radar, InventoryHud, AlertNetworkHud, Lighting, Codec,
 src/ui/fonts/       Share Tech + Share Tech Mono woff2 + OFL licence
 src/testing/        test-only helpers (an in-memory localStorage)
 tools/font/         build_symbols.py — regenerates the symbol woff2
-tools/pixellab/     sprite generation and rescaling
 tools/typeref/      generates docs/TYPE_REFERENCE.md
 ```
 

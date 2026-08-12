@@ -12,7 +12,6 @@ npm run dev             # vite dev server
 npm run build           # tsc --noEmit + vite build — the gate CI runs
 npm test                # vitest, covers the pure systems
 npm run docs:types      # regenerate docs/TYPE_REFERENCE.md
-npm run gen:colliders   # re-trace physics bodies from sprite art
 ```
 
 CI (`.github/workflows/ci.yml`) runs `npm run build` and `npm test` on every push.
@@ -41,8 +40,12 @@ These are the ones that bite. Each has burned someone already.
 - **`src/systems/EntityStats.ts` owns the gameplay numbers**, not the map. The map leaves
   tuning at 0/null, and `num()` treats a `0` as *unset* — so you cannot author a genuine
   zero, and a "0" in the map means "use the default".
-- **Re-run `npm run gen:colliders` after any sprite change.** The physics body is traced
-  from `idle/south/0.png` and will silently keep matching the old art otherwise.
+- **The cast has no art on disk.** Rowan, the orderlies, the enforcers and the drones are
+  drawn at boot by `src/entities/CastArt.ts`, into textures keyed exactly as the old sprite
+  sheets were — which is why the entity classes never mention it. Each figure is drawn to
+  fill its `src/entities/Silhouette.ts` box, and that box is what the physics body, the
+  guard radii and the ground shadows are all taken from: change the drawing and the box
+  together, or they part company.
 - **Re-run `npm run docs:types` after adding or renaming a declaration**, and commit the
   result. Never hand-edit `docs/TYPE_REFERENCE.md`.
 - **Sprite sizes are load-bearing.** `(tileSize * displayTiles) / sourceSize * cameraZoom`

@@ -1,8 +1,8 @@
 import { makeGuardSkin, type GuardSkin } from "./GuardSkin";
-import { DRONE_PATROL_SOUTH_COLLIDER } from "./generated/droneCollider";
+import { DRONE_SILHOUETTE } from "./Silhouette";
 
 /**
- * Frame manifest for the drone sprite (generated via PixelLab.ai — a small
+ * Frame manifest for the drone (drawn by `CastArt` — a small
  * non-humanoid patrol android with a spindly quadruped frame and a pulsing
  * sensor-cluster "eye", high top-down, 48x48). Its "patrol-scan" cycle (custom
  * v3 animation) shows the sensor cluster rotating/pulsing while the drone
@@ -14,7 +14,7 @@ import { DRONE_PATROL_SOUTH_COLLIDER } from "./generated/droneCollider";
  * exported, so facing matches the guard's continuous patrol/pursuit angle
  * exactly (no cardinal snapping).
  *
- * Frames live in public/assets/drone/patrol/<direction>/<frame>.png.
+ * Frames are drawn at boot by `CastArt.buildCastTextures`.
  */
 
 /**
@@ -56,5 +56,5 @@ export const DRONE_SKIN: GuardSkin = makeGuardSkin({
   frameRate: 8,
   displayTiles: DRONE_DISPLAY_TILES,
   sourceSize: DRONE_SOURCE_SIZE,
-  collider: DRONE_PATROL_SOUTH_COLLIDER,
+  collider: DRONE_SILHOUETTE,
 });

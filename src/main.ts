@@ -20,17 +20,7 @@ import { ComplianceScene } from "./scenes/ComplianceScene";
 import { QualiaLockScene } from "./scenes/QualiaLockScene";
 import { fontsReady } from "./ui/fontsReady";
 import "./ui/fonts.css";
-import {
-  PLAYER_ANIM_FRAME_COUNTS,
-  playerFrameKey,
-  playerFramePath,
-  type PlayerAnimName,
-} from "./entities/PlayerAnimations";
-import { DIRS_8 } from "./entities/directions";
-import { ENFORCER_SKIN } from "./entities/EnforcerAnimations";
-import { DRONE_SKIN } from "./entities/DroneAnimations";
-import { preloadGuardSkin } from "./entities/GuardSkin";
-import { preloadOrderly } from "./entities/OrderlyAnimations";
+import { buildCastTextures } from "./entities/CastArt";
 import { preloadDeployedItems } from "./entities/DeployedItem";
 import { preloadVfx } from "./entities/Vfx";
 import { discoverUiTextures, preloadUiTextures } from "./ui/UiTextures";
@@ -60,18 +50,6 @@ class BootScene extends Phaser.Scene {
       }
     });
 
-    for (const anim of Object.keys(PLAYER_ANIM_FRAME_COUNTS) as PlayerAnimName[]) {
-      for (const dir of DIRS_8) {
-        const count = PLAYER_ANIM_FRAME_COUNTS[anim];
-        for (let i = 0; i < count; i++) {
-          this.load.image(playerFrameKey(anim, dir, i), playerFramePath(anim, dir, i));
-        }
-      }
-    }
-
-    preloadGuardSkin(this, ENFORCER_SKIN);
-    preloadGuardSkin(this, DRONE_SKIN);
-    preloadOrderly(this);
     preloadDeployedItems(this);
     preloadVfx(this);
     // Whichever optional HUD chrome was found before boot — see `UiTextures.ts`.
@@ -79,6 +57,11 @@ class BootScene extends Phaser.Scene {
   }
 
   create(): void {
+    // The cast is drawn, not loaded — see `CastArt`. It has to exist before any
+    // scene spawns a character, and it needs a live scene to render into, which
+    // is why it happens here rather than in `preload`.
+    buildCastTextures(this);
+
     const raw = this.cache.json.get("edplay") as EdPlayFile;
     const sheetKeys = raw.SpriteSheets.map((s) => s.RelativePath);
     // Before parsing, because it works by letting the loader resolve the export's

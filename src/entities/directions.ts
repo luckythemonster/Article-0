@@ -53,3 +53,15 @@ export function nearestDirection(angle: number): Dir8 {
 export function directionOf(dx: number, dy: number): Dir8 {
   return nearestDirection(Math.atan2(dy, dx));
 }
+
+/**
+ * The heading a direction names, in radians (0 = east, +y = south).
+ *
+ * The inverse of {@link nearestDirection}, and the reason it belongs here
+ * rather than next to its caller: the two tables have to agree, and this file
+ * exists so they cannot drift. `CastArt` draws each character eight times, once
+ * per facing, and needs the angle to place the figure's front.
+ */
+export function angleOf(dir: Dir8): number {
+  return (BY_ANGLE.indexOf(dir) * Math.PI) / 4;
+}

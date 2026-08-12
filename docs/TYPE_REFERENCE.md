@@ -8,15 +8,14 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 
 | Area | Enums | Classes | Interfaces | Type aliases | Constants | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| [Systems](#systems) | 3 | 17 | 77 | 18 | 6 | 121 |
-| [Entities](#entities) | 0 | 17 | 18 | 14 | 5 | 54 |
-| [Map](#map) | 0 | 3 | 32 | 3 | 1 | 39 |
+| [Systems](#systems) | 3 | 17 | 78 | 18 | 6 | 122 |
+| [Entities](#entities) | 0 | 17 | 17 | 14 | 1 | 49 |
+| [Map](#map) | 0 | 3 | 34 | 3 | 1 | 41 |
 | [Scenes](#scenes) | 0 | 14 | 12 | 2 | 0 | 28 |
-| [UI](#ui) | 0 | 20 | 21 | 1 | 1 | 43 |
-| [Tools](#tools) | 0 | 0 | 6 | 1 | 0 | 7 |
+| [UI](#ui) | 0 | 20 | 23 | 1 | 5 | 49 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **73** | **169** | **39** | **13** | **297** |
+| **All** | **3** | **73** | **167** | **38** | **13** | **294** |
 
 ## Conventions
 
@@ -531,23 +530,30 @@ a `scene.restart()` destroys.
 
 #### `TransitionGraph` — class
 
-`src/systems/TransitionGraph.ts:36`
+`src/systems/TransitionGraph.ts:147`
 
 The level-to-level connection map, derived automatically from the tile data.
 
 The edplay export carries no explicit destination for a stair/ladder/hatch —
-but the author aligned matching access points across levels by coordinate
-(e.g. `main1`'s stairs sit at the same tiles as `main2`'s; `main1`'s hatches
-share coordinates with `duct1`'s ladders). That alignment *is* the graph:
-a transition tile at (x,y) in level A connects to another level B whose
-same-named board also has a tile at (x,y), and the player arrives at (x,y).
+but the author aligns matching access points across levels by coordinate, and
+files them on a board whose name says they are ways out. That alignment *is*
+the graph: a transition tile at (x,y) in level A connects to another level B
+with a transition tile of the same class at (x,y), and the player arrives at
+(x,y).
 
-Two refinements handle the map's rough edges:
+Three refinements handle the map's rough edges:
  - **Affinity tie-break** — if several levels share a coordinate, prefer the
-   one that shares the most of this board's tiles overall (then level order).
- - **Ragged-cluster fallback** — a tile with no exact-coordinate twin (e.g.
-   the lower row of `main1`'s 2×2 stair block, absent from `main2`) links to
-   the highest-affinity level and arrives at that level's nearest board tile.
+   one that shares the most of this class's tiles overall (then level order).
+ - **Shafts** — an elevator coordinate shared by three or more levels is a
+   lift, not a pair, and is linked as a cycle so no floor is a dead end.
+ - **Slipped pairs** — two otherwise-unpartnered ends a single tile apart on
+   one axis are one link the author nudged off true.
+
+What it deliberately does *not* do is guess: a tile with no partner stays
+inert art rather than being pointed at whichever level looks closest. An
+earlier ragged-cluster fallback did exactly that, and on a coordinate-keyed
+index it fabricates exits — `duct1`'s two dangling ladders would each have
+dropped the player onto an unrelated level's hatch.
 
 Pure: never touches Phaser. Built once from the parsed `GameMap`.
 
@@ -557,7 +563,7 @@ Pure: never touches Phaser. Built once from the parsed `GameMap`.
 | `at` | `at(levelName: string, tileX: number, tileY: number): Transition \| undefined` | The transition on the tile at (tileX, tileY) in a level, if any. |
 | `exitsOn` | `exitsOn(levelName: string): { tx: number; ty: number; transition: Transition }[]` | Every transition tile on a level, with its coordinate — the reverse of `at`, for the pause menu's map, which needs to mark the ways out rather than test one tile. |
 
-*Plus 2 private members.*
+*Plus 4 private members.*
 
 <a id="class-vent4core"></a>
 
@@ -633,6 +639,22 @@ of play it stops allocating entirely.
 *Plus 1 private member.*
 
 ### Systems — Interfaces
+
+<a id="interface-accessend"></a>
+
+#### `AccessEnd` — interface *(module-private)*
+
+`src/systems/TransitionGraph.ts:66`
+
+One classified transition tile, before it knows where it leads.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `level` | `string` |  |
+| `x` | `number` |  |
+| `y` | `number` |  |
+| `cls` | `TransitionClass` |  |
+| `kind` | `TransitionKind` |  |
 
 <a id="interface-activeitemsview"></a>
 
@@ -1952,16 +1974,6 @@ Which deployable a lure is. One entry today; the point is that it is a list.
 type DeployableKind = "sackLunch";
 ```
 
-<a id="type-end"></a>
-
-#### `End` — type *(module-private)*
-
-`src/systems/TransitionGraph.ts:133`
-
-```ts
-type End = { level: string; x: number; y: number; kind: TransitionKind };
-```
-
 <a id="type-exploredstate"></a>
 
 #### `ExploredState` — type
@@ -2118,6 +2130,19 @@ Save slots: the engine's rolling checkpoint plus three the player controls.
 type SlotId = "auto" | "1" | "2" | "3";
 ```
 
+<a id="type-transitionclass"></a>
+
+#### `TransitionClass` — type *(module-private)*
+
+`src/systems/TransitionGraph.ts:63`
+
+Which index a transition tile is matched within. Two ends only ever pair
+inside the same class, so a hatch can never be mistaken for an elevator car.
+
+```ts
+type TransitionClass = TransitionKind | "verticals" | "elevator";
+```
+
 ---
 
 ## Entities
@@ -2138,78 +2163,6 @@ out on disk. Iteration order for preloading; not an angular sequence.
 ```ts
 const DIRS_8 = [ "south", "south-east", "east", "north-east", "north", "north-west", "west", "south-west", ] as const;
 ```
-
-<a id="const-drone-patrol-south-collider"></a>
-
-#### `DRONE_PATROL_SOUTH_COLLIDER` — const
-
-`src/entities/generated/droneCollider.ts:32`
-
-| Key | Value | Notes |
-| --- | --- | --- |
-| `source` | `"public/assets/drone/patrol/south/0.png"` |  |
-| `frameWidth` | `48` |  |
-| `frameHeight` | `48` |  |
-| `epsilon` | `2` |  |
-| `inset` | `0` |  |
-| `aabb` | `{ width: 41, height: 35, offsetX: 3, offsetY: 5 }` |  |
-| `polygon` | `[ { x: 8, y: 5 }, { x: 13, y: 15 }, { x: 17, y: 10 }, { x: 30, y: 10 }, { x: 33, y: 15 }, { x: 36, y: 12 }, { x: 35, y:…` |  |
-| `polygonFlat` | `[8, 5, 13, 15, 17, 10, 30, 10, 33, 15, 36, 12, 35, 7, 39, 5, 42, 16, 39, 19, 38, 15, 32, 24, 35, 30, 39, 25, 42, 27, 44…` |  |
-| `matterPath` | `"8 5 13 15 17 10 30 10 33 15 36 12 35 7 39 5 42 16 39 19 38 15 32 24 35 30 39 25 42 27 44 37 40 40 40 35 33 33 31 28 16…` |  |
-
-<a id="const-enforcer-patrol-south-collider"></a>
-
-#### `ENFORCER_PATROL_SOUTH_COLLIDER` — const
-
-`src/entities/generated/enforcerCollider.ts:32`
-
-| Key | Value | Notes |
-| --- | --- | --- |
-| `source` | `"public/assets/enforcer/patrol/south/0.png"` |  |
-| `frameWidth` | `72` |  |
-| `frameHeight` | `72` |  |
-| `epsilon` | `2` |  |
-| `inset` | `0` |  |
-| `aabb` | `{ width: 46, height: 62, offsetX: 12, offsetY: 4 }` |  |
-| `polygon` | `[ { x: 38, y: 4 }, { x: 42, y: 4 }, { x: 43, y: 11 }, { x: 48, y: 9 }, { x: 55, y: 15 }, { x: 55, y: 33 }, { x: 58, y:…` |  |
-| `polygonFlat` | `[38, 4, 42, 4, 43, 11, 48, 9, 55, 15, 55, 33, 58, 35, 56, 65, 49, 66, 47, 61, 44, 64, 26, 64, 23, 61, 21, 66, 14, 65, 1…` |  |
-| `matterPath` | `"38 4 42 4 43 11 48 9 55 15 55 33 58 35 56 65 49 66 47 61 44 64 26 64 23 61 21 66 14 65 12 35 15 33 15 15 21 9 26 11 28…` |  |
-
-<a id="const-orderly-idle-south-collider"></a>
-
-#### `ORDERLY_IDLE_SOUTH_COLLIDER` — const
-
-`src/entities/generated/orderlyCollider.ts:32`
-
-| Key | Value | Notes |
-| --- | --- | --- |
-| `source` | `"public/assets/orderly/idle/south/0.png"` |  |
-| `frameWidth` | `96` |  |
-| `frameHeight` | `96` |  |
-| `epsilon` | `2` |  |
-| `inset` | `0` |  |
-| `aabb` | `{ width: 17, height: 47, offsetX: 38, offsetY: 23 }` |  |
-| `polygon` | `[ { x: 46, y: 23 }, { x: 51, y: 25 }, { x: 50, y: 32 }, { x: 53, y: 34 }, { x: 51, y: 57 }, { x: 55, y: 67 }, { x: 49,…` |  |
-| `polygonFlat` | `[46, 23, 51, 25, 50, 32, 53, 34, 51, 57, 55, 67, 49, 66, 47, 58, 48, 69, 44, 70, 41, 65, 42, 53, 38, 40, 40, 34, 45, 32…` |  |
-| `matterPath` | `"46 23 51 25 50 32 53 34 51 57 55 67 49 66 47 58 48 69 44 70 41 65 42 53 38 40 40 34 45 32 45 24"` |  |
-
-<a id="const-player-idle-south-collider"></a>
-
-#### `PLAYER_IDLE_SOUTH_COLLIDER` — const
-
-`src/entities/generated/playerCollider.ts:32`
-
-| Key | Value | Notes |
-| --- | --- | --- |
-| `source` | `"public/assets/player/idle/south/0.png"` |  |
-| `frameWidth` | `36` |  |
-| `frameHeight` | `36` |  |
-| `epsilon` | `2` |  |
-| `inset` | `0` |  |
-| `aabb` | `{ width: 13, height: 25, offsetX: 11, offsetY: 6 }` |  |
-| `polygon` | `[ { x: 17, y: 6 }, { x: 24, y: 17 }, { x: 22, y: 31 }, { x: 18, y: 25 }, { x: 13, y: 31 }, { x: 11, y: 18 }, { x: 16, y…` |  |
-| `polygonFlat` | `[17, 6, 24, 17, 22, 31, 18, 25, 13, 31, 11, 18, 16, 7]` |  |
-| `matterPath` | `"17 6 24 17 22 31 18 25 13 31 11 18 16 7"` |  |
 
 ### Entities — Classes
 
@@ -2545,7 +2498,7 @@ frightened.
 
 #### `Player` — class
 
-`src/entities/Player.ts:45`
+`src/entities/Player.ts:44`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -2689,7 +2642,7 @@ and hold timer are a `HoldTarget`.
 
 #### `Vent4Boss` — class
 
-`src/entities/Vent4Boss.ts:80`
+`src/entities/Vent4Boss.ts:100`
 
 VENT-4, "The Environmental Triage Engine" — the vent-core boss. A composite
 entity in the codebase's plain-class style: it owns the pure FSM/economy
@@ -2716,9 +2669,25 @@ whose result is added to the player body's velocity after Player.update.
 | `handleInteract` | `handleInteract( dt: number, ptx: number, pty: number, interactDown: boolean, interactJust: boolean, inventory: string[], ): Vent4InteractResult` | The boss's slice of the interact dispatcher. Picks its nearest eligible target (sub-station / winch / piton / stapler shot) and acts on it; the scene arbitrates the returned label/distance against doors/chests/hatch. |
 | `computeForces` | `computeForces(dt: number, px: number, py: number): Vent4Forces` | The frame's environmental force on the player (scene adds it to the body). |
 
-*Plus 55 private members.*
+*Plus 56 private members.*
 
 ### Entities — Interfaces
+
+<a id="interface-castrole"></a>
+
+#### `CastRole` — interface *(module-private)*
+
+`src/entities/CastArt.ts:63`
+
+A role's shapes and colours.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `silhouette` | `Silhouette` |  |
+| `body` | `number` | Main body fill. |
+| `accent` | `number` | Highlight — visor, lens, insignia. Reads as the thing's "front". |
+| `dark` | `number` | Outline and underside. |
+| `chassis` *(opt)* | `boolean` | Drones have a chassis and rotors where everyone else has a head and legs. |
 
 <a id="interface-encounterinteractresult"></a>
 
@@ -2806,12 +2775,16 @@ An environmental anomaly a guard's vision cone can notice.
 
 #### `GuardSkin` — interface
 
-`src/entities/GuardSkin.ts:11`
+`src/entities/GuardSkin.ts:14`
 
-Describes one guard's sprite sheet + display tuning, so the shared vision-
-cone/patrol/pursue/detection AI in `Enforcer` can drive any reskin
-(the security drone, the crawlspace drone, ...) without knowing its asset
-layout. All guard skins use the same 8 directions.
+Describes one guard's look + display tuning, so the shared vision-cone /
+patrol / pursue / detection AI in `Enforcer` can drive any reskin (the
+security drone, the crawlspace drone, ...) without knowing what it looks like.
+All guard skins use the same 8 directions.
+
+The frames themselves are drawn at boot by `CastArt.buildCastTextures`, under
+exactly the keys `GuardSkin.frameKey` names — which is why there is no
+longer a `framePath`: nothing is loaded from disk.
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2820,33 +2793,32 @@ layout. All guard skins use the same 8 directions.
 | `displayTiles` | `number` | Display height as a multiple of tile size (e.g. 1.5 tiles). |
 | `sourceSize` | `number` | Native pixel size of the (square) source art. |
 | `collisionRadiusTiles` | `number` | Radius (in tiles) of the circular body this guard collides with walls by. See `guardRadiusTiles` for how it's derived. |
-| `collider` | `SpriteCollider` | The traced south-frame silhouette. Kept rather than discarded after `collisionRadiusTiles` is taken off it, because the ground shadow needs the box itself — a width *and* a foot offset — and it needs them in px, which means deriving them at construction where the tile size is known rather than here. |
+| `collider` | `Silhouette` | The silhouette box. Kept rather than discarded after `collisionRadiusTiles` is taken off it, because the ground shadow needs the box itself — a width *and* a foot offset — and it needs them in px, which means deriving them at construction where the tile size is known rather than here. |
 | `frameKey` | `frameKey(dir: Dir8, frame: number): string` |  |
-| `framePath` | `framePath(dir: Dir8, frame: number): string` |  |
 | `animKey` | `animKey(dir: Dir8): string` |  |
 
 <a id="interface-guardskinspec"></a>
 
 #### `GuardSkinSpec` — interface
 
-`src/entities/GuardSkin.ts:69`
+`src/entities/GuardSkin.ts:71`
 
 The tuning that actually differs between one guard's art and another's.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `id` | `string` | Asset/animation slug. Frames are expected at `public/assets/<id>/patrol/<direction>/<frame>.png`, and every texture and animation key is derived from it — so this one string is the whole naming convention. |
+| `id` | `string` | Animation slug. Every texture and animation key is derived from it — so this one string is the whole naming convention, and `CastArt` bakes to it. |
 | `frameCount` | `number` |  |
 | `frameRate` | `number` |  |
 | `displayTiles` | `number` | Display height as a multiple of tile size. |
 | `sourceSize` | `number` | Native pixel size of the (square) source art. |
-| `collider` | `SpriteCollider` | Generated collider for the south frame; see `guardRadiusTiles`. |
+| `collider` | `Silhouette` | Silhouette box for the south facing; see `guardRadiusTiles`. |
 
 <a id="interface-inputstate"></a>
 
 #### `InputState` — interface
 
-`src/entities/Player.ts:475`
+`src/entities/Player.ts:474`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2891,6 +2863,20 @@ The tuning that actually differs between one guard's art and another's.
 | `lures` *(opt)* | `readonly DeployedLure[]` | Items left on the floor this frame; an orderly services the nearest it notices. |
 | `rationSpoof` *(opt)* | `boolean` | True when the player is holding an opened ration and no alarm is up: the orderly reads Rowan as an asset on a break and grants a grace window instead of reporting. Resolved by the scene, since the "before an alarm" half of it is global alert state the orderly has no other reason to know about. |
 
+<a id="interface-pose"></a>
+
+#### `Pose` — interface *(module-private)*
+
+`src/entities/CastArt.ts:53`
+
+How a figure is posed for one frame of one animation.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `phase` | `number` | Position around the cycle, 0..1. Drives the walk stride and the idle bob. |
+| `crouch` | `number` | 0 standing, 1 fully crouched. Fractional during the lower/rise clips. |
+| `stride` | `number` | Stride reach, as a fraction of the silhouette's length. 0 when still. |
+
 <a id="interface-relaytickresult"></a>
 
 #### `RelayTickResult` — interface
@@ -2903,6 +2889,20 @@ The tuning that actually differs between one guard's art and another's.
 | `searchlightHit` | `boolean` | True on the frame a searchlight confirms — the scene charges the damage. |
 | `spawnAt` | `{ x: number; y: number }[] \| null` | Catwalk mouths a wave should land at this frame, or null on the overwhelming majority of frames where none is due. Null rather than an empty array so the common path allocates nothing. |
 
+<a id="interface-silhouette"></a>
+
+#### `Silhouette` — interface
+
+`src/entities/Silhouette.ts:27`
+
+A character's silhouette box, in unscaled source pixels.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `frameWidth` | `readonly frameWidth: number` | Size of the (square) frame the box sits in. |
+| `frameHeight` | `readonly frameHeight: number` |  |
+| `aabb` | `readonly aabb: { readonly width: number; readonly height: number; readonly offsetX: number; readonly offsetY: number; }` | Tight-fit box around the body. `width`/`height` feed Arcade's `body.setSize`, `offsetX`/`offsetY` its `body.setOffset` — so this is measured from the frame's top-left, not its centre. |
+
 <a id="interface-smactickresult"></a>
 
 #### `SmacTickResult` — interface
@@ -2914,91 +2914,11 @@ The tuning that actually differs between one guard's art and another's.
 | `transition` | `SmacTransition \| null` |  |
 | `auditHit` | `boolean` | True on the frame an auditing beam confirms — the scene charges the damage. |
 
-<a id="interface-spritecollider"></a>
-
-#### `SpriteCollider` — interface
-
-`src/entities/generated/droneCollider.ts:6`
-
-A sprite collider derived from its alpha silhouette.
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `source` | `readonly source: string` | Source sprite the collider was traced from. |
-| `frameWidth` | `readonly frameWidth: number` |  |
-| `frameHeight` | `readonly frameHeight: number` |  |
-| `epsilon` | `readonly epsilon: number` | RDP tolerance (px) and edge inset (px) used to generate this data. |
-| `inset` | `readonly inset: number` |  |
-| `aabb` | `readonly aabb: { readonly width: number; readonly height: number; readonly offsetX: number; readonly offsetY: number; }` | Tight-fit box in the sprite's *unscaled* local space. Feed `width`/`height` to Phaser Arcade `body.setSize` and `offsetX`/`offsetY` to `body.setOffset`. |
-| `polygon` | `readonly polygon: ReadonlyArray<{ readonly x: number; readonly y: number }>` | Simplified alpha contour (`origin=top-left`), for polygon/LOS/Matter use. |
-| `polygonFlat` | `readonly polygonFlat: readonly number[]` | `polygon` flattened to `[x1, y1, x2, y2, ...]`. |
-| `matterPath` | `readonly matterPath: string` | Path string for `Matter.Vertices.fromPath` / `Bodies.fromVertices`. |
-
-<a id="interface-spritecollider-2"></a>
-
-#### `SpriteCollider` — interface
-
-`src/entities/generated/enforcerCollider.ts:6`
-
-A sprite collider derived from its alpha silhouette.
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `source` | `readonly source: string` | Source sprite the collider was traced from. |
-| `frameWidth` | `readonly frameWidth: number` |  |
-| `frameHeight` | `readonly frameHeight: number` |  |
-| `epsilon` | `readonly epsilon: number` | RDP tolerance (px) and edge inset (px) used to generate this data. |
-| `inset` | `readonly inset: number` |  |
-| `aabb` | `readonly aabb: { readonly width: number; readonly height: number; readonly offsetX: number; readonly offsetY: number; }` | Tight-fit box in the sprite's *unscaled* local space. Feed `width`/`height` to Phaser Arcade `body.setSize` and `offsetX`/`offsetY` to `body.setOffset`. |
-| `polygon` | `readonly polygon: ReadonlyArray<{ readonly x: number; readonly y: number }>` | Simplified alpha contour (`origin=top-left`), for polygon/LOS/Matter use. |
-| `polygonFlat` | `readonly polygonFlat: readonly number[]` | `polygon` flattened to `[x1, y1, x2, y2, ...]`. |
-| `matterPath` | `readonly matterPath: string` | Path string for `Matter.Vertices.fromPath` / `Bodies.fromVertices`. |
-
-<a id="interface-spritecollider-3"></a>
-
-#### `SpriteCollider` — interface
-
-`src/entities/generated/orderlyCollider.ts:6`
-
-A sprite collider derived from its alpha silhouette.
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `source` | `readonly source: string` | Source sprite the collider was traced from. |
-| `frameWidth` | `readonly frameWidth: number` |  |
-| `frameHeight` | `readonly frameHeight: number` |  |
-| `epsilon` | `readonly epsilon: number` | RDP tolerance (px) and edge inset (px) used to generate this data. |
-| `inset` | `readonly inset: number` |  |
-| `aabb` | `readonly aabb: { readonly width: number; readonly height: number; readonly offsetX: number; readonly offsetY: number; }` | Tight-fit box in the sprite's *unscaled* local space. Feed `width`/`height` to Phaser Arcade `body.setSize` and `offsetX`/`offsetY` to `body.setOffset`. |
-| `polygon` | `readonly polygon: ReadonlyArray<{ readonly x: number; readonly y: number }>` | Simplified alpha contour (`origin=top-left`), for polygon/LOS/Matter use. |
-| `polygonFlat` | `readonly polygonFlat: readonly number[]` | `polygon` flattened to `[x1, y1, x2, y2, ...]`. |
-| `matterPath` | `readonly matterPath: string` | Path string for `Matter.Vertices.fromPath` / `Bodies.fromVertices`. |
-
-<a id="interface-spritecollider-4"></a>
-
-#### `SpriteCollider` — interface
-
-`src/entities/generated/playerCollider.ts:6`
-
-A sprite collider derived from its alpha silhouette.
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `source` | `readonly source: string` | Source sprite the collider was traced from. |
-| `frameWidth` | `readonly frameWidth: number` |  |
-| `frameHeight` | `readonly frameHeight: number` |  |
-| `epsilon` | `readonly epsilon: number` | RDP tolerance (px) and edge inset (px) used to generate this data. |
-| `inset` | `readonly inset: number` |  |
-| `aabb` | `readonly aabb: { readonly width: number; readonly height: number; readonly offsetX: number; readonly offsetY: number; }` | Tight-fit box in the sprite's *unscaled* local space. Feed `width`/`height` to Phaser Arcade `body.setSize` and `offsetX`/`offsetY` to `body.setOffset`. |
-| `polygon` | `readonly polygon: ReadonlyArray<{ readonly x: number; readonly y: number }>` | Simplified alpha contour (`origin=top-left`), for polygon/LOS/Matter use. |
-| `polygonFlat` | `readonly polygonFlat: readonly number[]` | `polygon` flattened to `[x1, y1, x2, y2, ...]`. |
-| `matterPath` | `readonly matterPath: string` | Path string for `Matter.Vertices.fromPath` / `Bodies.fromVertices`. |
-
 <a id="interface-steamjet"></a>
 
 #### `SteamJet` — interface *(module-private)*
 
-`src/entities/Vent4Boss.ts:60`
+`src/entities/Vent4Boss.ts:80`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3012,7 +2932,7 @@ A sprite collider derived from its alpha silhouette.
 
 #### `Vent4TickResult` — interface
 
-`src/entities/Vent4Boss.ts:47`
+`src/entities/Vent4Boss.ts:67`
 
 What happened inside the boss this frame, for the scene to apply/dress.
 
@@ -3090,7 +3010,7 @@ type GuardState = "PATROL" | "CAUTIOUS" | "SUSPICIOUS" | "ALERT" | "SEARCHING";
 
 #### `Kind` — type *(module-private)*
 
-`src/entities/Vent4Boss.ts:322`
+`src/entities/Vent4Boss.ts:358`
 
 ```ts
 type Kind = "sub" | "subLocked" | "winch" | "piton" | "stapler";
@@ -3125,14 +3045,14 @@ type LaserKind = "scanner" | "beam";
 
 #### `OrderlyAnimName` — type
 
-`src/entities/OrderlyAnimations.ts:12`
+`src/entities/OrderlyAnimations.ts:11`
 
-Frame manifest for the orderly sprite (generated via PixelLab.ai — a human
+Frame manifest for the orderly (drawn by `CastArt` — a human
 orderly in a utilitarian jumpsuit with a diagnostic tablet, high top-down,
 96x96, `mannequin` template). Only idle and walk are needed — an orderly is
 a bystander, not a combatant, so it has no run/crouch.
 
-Frames live in public/assets/orderly/<anim>/<direction>/<frame>.png.
+Frames are drawn at boot by `CastArt.buildCastTextures`.
 
 ```ts
 type OrderlyAnimName = "idle" | "walk";
@@ -3205,24 +3125,22 @@ type PersonAnomalyKind = "stunnedOrderly" | "pinnedOrderly" | "surrenderedOrderl
 
 #### `PlayerAnimName` — type
 
-`src/entities/PlayerAnimations.ts:19`
+`src/entities/PlayerAnimations.ts:17`
 
 **Module note** — the header comment on `src/entities/PlayerAnimations.ts`, which this declaration heads:
 
-Frame manifest for the player character sprite (PixelLab.ai character
-`7b4ca7b4-7da9-4e10-8442-0d8f102619ce`, "Rowan Ibarra" — high top-down,
-36x36, 8-direction template, adopted as-is). All 8 directions were exported
-per animation, so the sprite's facing matches the free 8-directional
-movement exactly (no cardinal snapping).
+Frame manifest for the player character.
 
-idle/walk/run come from the standing "Rowan Ibarra" character; crouch and
-crouch-walk come from a crouched state of that same character (same rig,
-outfit and palette, posed low) — a proper settled kneel for standing still in
-cover versus a distinct crouch-sneak stride for moving in it. crouch-down and
-crouch-up interpolate between the two sheets' rotations.
+All 8 directions exist for every animation, so the sprite's facing matches the
+free 8-directional movement exactly (no cardinal snapping). idle/walk/run are
+standing; crouch and crouch-walk are the settled kneel and the sneak stride;
+crouch-down and crouch-up are one-shot transitions between the two, and their
+*completion* is what settles the stance machine in `Player.update`.
 
-Frames live in public/assets/player/<anim>/<direction>/<frame>.png, and are
-regenerated with `tools/pixellab/generate-player.ts`.
+The frames are drawn at boot by `CastArt.buildCastTextures`, under the keys
+`playerFrameKey` names — nothing is loaded from disk. What stays here is
+the manifest: which clips exist, how many frames each has and how fast they
+run, which is what both the animation registration and the poses read.
 
 ```ts
 type PlayerAnimName = | "idle" | "walk" | "run" | "crouch" | "crouch-walk" | "crouch-down" | "crouch-up";
@@ -3252,7 +3170,7 @@ type SmacInteractResult = EncounterInteractResult<SmacTransition>;
 
 #### `Stance` — type *(module-private)*
 
-`src/entities/Player.ts:43`
+`src/entities/Player.ts:42`
 
 Standing ⇄ crouched is a small state machine rather than an instant pose
 swap: entering/leaving the crouch plays a one-shot lower/rise transition
@@ -3267,7 +3185,7 @@ type Stance = "standing" | "crouching-down" | "crouched" | "standing-up";
 
 #### `Vent4InteractResult` — type
 
-`src/entities/Vent4Boss.ts:58`
+`src/entities/Vent4Boss.ts:78`
 
 The boss's claim on this frame's interact key, for the scene's dispatcher.
 
@@ -3299,7 +3217,7 @@ The `edplay` file format, its in-memory game-side counterpart, and the generator
 
 #### `GENERATED_LEVELS` — const
 
-`src/map/types.ts:286`
+`src/map/types.ts:307`
 
 Levels the engine appends to the parsed map at boot rather than reading out of
 `edplay.json`. Kept as one list so `isGeneratedLevel` — and therefore
@@ -3369,7 +3287,7 @@ Sprite/Image created with `(textureKey, frameKey)` draws that exact rect.
 
 #### `ComponentData` — interface
 
-`src/map/types.ts:195`
+`src/map/types.ts:208`
 
 A component instance placed on an entity, with values resolved to defaults.
 
@@ -3382,7 +3300,7 @@ A component instance placed on an entity, with values resolved to defaults.
 
 #### `CoverBody` — interface
 
-`src/map/TileBake.ts:267`
+`src/map/TileBake.ts:282`
 
 A crawlable tile's built body, tagged the same way — `buildWallBodies`'s output.
 
@@ -3396,7 +3314,7 @@ A crawlable tile's built body, tagged the same way — `buildWallBodies`'s outpu
 
 #### `EdAnimation` — interface
 
-`src/map/types.ts:35`
+`src/map/types.ts:48`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3407,7 +3325,7 @@ A crawlable tile's built body, tagged the same way — `buildWallBodies`'s outpu
 
 #### `EdBoard` — interface
 
-`src/map/types.ts:117`
+`src/map/types.ts:130`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3423,7 +3341,7 @@ A crawlable tile's built body, tagged the same way — `buildWallBodies`'s outpu
 
 #### `EdColliderPadding` — interface
 
-`src/map/types.ts:97`
+`src/map/types.ts:110`
 
 Collider inset per side, in fractions of a cell. Absent side = no inset.
 
@@ -3438,7 +3356,7 @@ Collider inset per side, in fractions of a cell. Absent side = no inset.
 
 #### `EdDataComponent` — interface
 
-`src/map/types.ts:45`
+`src/map/types.ts:58`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3449,7 +3367,7 @@ Collider inset per side, in fractions of a cell. Absent side = no inset.
 
 #### `EdDataStructure` — interface
 
-`src/map/types.ts:145`
+`src/map/types.ts:158`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3461,7 +3379,7 @@ Collider inset per side, in fractions of a cell. Absent side = no inset.
 
 #### `EdDataTypes` — interface
 
-`src/map/types.ts:157`
+`src/map/types.ts:170`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3472,7 +3390,7 @@ Collider inset per side, in fractions of a cell. Absent side = no inset.
 
 #### `EdEnumDef` — interface
 
-`src/map/types.ts:151`
+`src/map/types.ts:164`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3484,7 +3402,7 @@ Collider inset per side, in fractions of a cell. Absent side = no inset.
 
 #### `EdField` — interface
 
-`src/map/types.ts:138`
+`src/map/types.ts:151`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3505,12 +3423,13 @@ Collider inset per side, in fractions of a cell. Absent side = no inset.
 | `Duration` | `number` |  |
 | `DurationMax` | `number` |  |
 | `Script` *(opt)* | `string` | State label for multi-frame tiles, e.g. "closed" / "open" on doors. |
+| `FlipY` *(opt)* | `boolean` | Draw this frame mirrored vertically. How the editor gets two facings out of one sprite: NW-SMAC-01 draws both ends of the `main2` ↔ `main2vault` staircase from the single rect `stairs1_39`, flipping the one seen from the other side. Ignoring it left that stair — and the rooftop's south ramp — drawn facing the wrong way. No export has used a horizontal flip yet, so there is no `FlipX` here: an unread field is exactly what this one was, and adding a guess is not better than adding it the day a map needs it. |
 
 <a id="interface-edlevel"></a>
 
 #### `EdLevel` — interface
 
-`src/map/types.ts:132`
+`src/map/types.ts:145`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3522,7 +3441,7 @@ Collider inset per side, in fractions of a cell. Absent side = no inset.
 
 #### `EdPlayFile` — interface
 
-`src/map/types.ts:162`
+`src/map/types.ts:175`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3570,7 +3489,7 @@ Collider inset per side, in fractions of a cell. Absent side = no inset.
 
 #### `EdTile` — interface
 
-`src/map/types.ts:104`
+`src/map/types.ts:117`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3583,7 +3502,7 @@ Collider inset per side, in fractions of a cell. Absent side = no inset.
 
 #### `EdTileDef` — interface
 
-`src/map/types.ts:50`
+`src/map/types.ts:63`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3608,18 +3527,36 @@ Collider inset per side, in fractions of a cell. Absent side = no inset.
 
 #### `EdVariable` — interface
 
-`src/map/types.ts:40`
+`src/map/types.ts:53`
 
 | Field | Type | Notes |
 | --- | --- | --- |
 | `Name` | `string` |  |
 | `Values` | `(string \| number \| null)[]` |  |
 
+<a id="interface-entityindex"></a>
+
+#### `EntityIndex` — interface
+
+`src/map/EntityIndex.ts:48`
+
+Everything on a level that spawns rather than bakes.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `guards` | `GuardRoute[]` |  |
+| `orderlies` | `GameTile[]` |  |
+| `sensors` | `GameTile[]` |  |
+| `doors` | `GameTile[]` |  |
+| `terminals` | `GameTile[]` |  |
+| `chests` | `GameTile[]` |  |
+| `claimed` | `Set<GameTile>` | Tiles claimed by one of the above; `bakeTileLayers` must skip them. |
+
 <a id="interface-gamelayer"></a>
 
 #### `GameLayer` — interface
 
-`src/map/types.ts:233`
+`src/map/types.ts:254`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3631,7 +3568,7 @@ Collider inset per side, in fractions of a cell. Absent side = no inset.
 
 #### `GameLevel` — interface
 
-`src/map/types.ts:240`
+`src/map/types.ts:261`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3645,7 +3582,7 @@ Collider inset per side, in fractions of a cell. Absent side = no inset.
 
 #### `GameMap` — interface
 
-`src/map/types.ts:255`
+`src/map/types.ts:276`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3653,13 +3590,13 @@ Collider inset per side, in fractions of a cell. Absent side = no inset.
 | `tileWidth` | `number` |  |
 | `tileHeight` | `number` |  |
 | `levels` | `GameLevel[]` |  |
-| `sheetTextureKeys` | `string[]` | Texture keys registered for the three spritesheets, in file order. |
+| `sheetTextureKeys` | `string[]` | Texture keys registered for the map's spritesheets, in file order. |
 
 <a id="interface-gametile"></a>
 
 #### `GameTile` — interface
 
-`src/map/types.ts:201`
+`src/map/types.ts:214`
 
 A single placed tile in the normalized model.
 
@@ -3675,16 +3612,31 @@ A single placed tile in the normalized model.
 | `rowSpan` | `number` |  |
 | `offsetX` | `number` | Pixel placement offset from the cell centre (default 0). |
 | `offsetY` | `number` |  |
+| `flipY` | `boolean` | Draw the tile's art mirrored vertically — see `EdKeyFrame.FlipY`. Kept on the tile rather than on `SpriteFrame` because it is a property of the *placement*, not of the sprite rect: two TileDefs share one rect and disagree about the flip, which is the whole point of the field. |
 | `entityType` *(opt)* | `string` | Present only for tiles whose TileDef carries a DataComponent. |
 | `components` | `ComponentData[]` |  |
 | `collider` *(opt)* | `EdColliderPadding` | Per-side collider inset in fractions of a cell, when the art declares one. Resolved by `colliderRect`; absent means the collider is the whole footprint, which is what every generated tile and every un-padded def wants. |
 | `collisionMode` *(opt)* | `number` | The tile's `EdTileDef.CollisionMode`, when its def declared one. |
 
+<a id="interface-guardroute"></a>
+
+#### `GuardRoute` — interface
+
+`src/map/EntityIndex.ts:38`
+
+One guard's board: the route it walks and the stats it carries.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `kind` | `"enforcer" \| "drone"` | Enforcer skin or drone skin — the two share all their AI. |
+| `route` | `PatrolRoute` | Waypoints in authored order, walked as a loop. |
+| `components` | `GameTile["components"]` | The board's own components, read for this guard's stats. |
+
 <a id="interface-levelbodyrects"></a>
 
 #### `LevelBodyRects` — interface
 
-`src/map/TileBake.ts:282`
+`src/map/TileBake.ts:297`
 
 A level's collision rectangles, split by who they stop.
 
@@ -3724,13 +3676,14 @@ Pure — no Phaser — so the rules are unit-testable on their own.
 | --- | --- | --- |
 | `startLevel` | `string` | Level a fresh run starts on. |
 | `extractionLevel` | `string` | Level the player must reach, carrying the logs, to win. |
+| `vaultHost` | `string` | Level the Alignment Core stands in. Used to be `extractionLevel`, on the reasoning that the Core guards the way out. NW-SMAC-01 v0.4 separates them — the vault is its own level and the extraction deck is the rooftop above it — so grafting one onto the other put the Core on the roof. |
 | `ventCoreHost` | `string \| null` | Level the generated vent-core arena grafts onto, or null to skip generating it — in which case the map simply has no VENT-4 (and so no Q0 compliance cert, since that is the reward for silencing it). |
 
 <a id="interface-parsedmap"></a>
 
 #### `ParsedMap` — interface
 
-`src/map/EdplayLoader.ts:216`
+`src/map/EdplayLoader.ts:220`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3756,7 +3709,7 @@ A rectangle in pixels.
 
 #### `SpriteFrame` — interface
 
-`src/map/types.ts:183`
+`src/map/types.ts:196`
 
 A resolved rectangle inside one of the spritesheet PNGs.
 
@@ -3773,7 +3726,7 @@ A resolved rectangle inside one of the spritesheet PNGs.
 
 #### `TilePos` — interface
 
-`src/map/generate.ts:115`
+`src/map/generate.ts:116`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3784,7 +3737,7 @@ A resolved rectangle inside one of the spritesheet PNGs.
 
 #### `TileRect` — interface
 
-`src/map/TileBake.ts:261` · `extends Rect`
+`src/map/TileBake.ts:276` · `extends Rect`
 
 One crawlable tile's rectangle, tagged with the cell it belongs to.
 
@@ -3797,7 +3750,7 @@ One crawlable tile's rectangle, tagged with the cell it belongs to.
 
 #### `Transition` — interface
 
-`src/map/types.ts:412`
+`src/map/types.ts:433`
 
 Where a transition tile leads: the destination level and arrival tile.
 
@@ -3812,7 +3765,7 @@ Where a transition tile leads: the destination level and arrival tile.
 
 #### `VaultLayout` — interface *(module-private)*
 
-`src/map/AlignmentVault.ts:80`
+`src/map/AlignmentVault.ts:81`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3825,7 +3778,7 @@ Where a transition tile leads: the destination level and arrival tile.
 
 #### `WallRect` — interface
 
-`src/map/TileBake.ts:39`
+`src/map/TileBake.ts:45`
 
 An axis-aligned run of blocked cells, in tile coordinates.
 
@@ -3842,7 +3795,7 @@ An axis-aligned run of blocked cells, in tile coordinates.
 
 #### `BlockedAt` — type
 
-`src/map/TileBake.ts:49`
+`src/map/TileBake.ts:55`
 
 True when the cell at (x, y) should collide.
 
@@ -3854,7 +3807,7 @@ type BlockedAt = (x: number, y: number) => boolean;
 
 #### `KnownLevel` — type
 
-`src/map/types.ts:293`
+`src/map/types.ts:314`
 
 The level keys the shipped map and its generated additions use, in play order.
 Documentation and a spell-check for the few switches that key off a deck — not
@@ -3868,7 +3821,7 @@ type KnownLevel = | "main1" | "duct1" | "duct2" | "main2" | (typeof GENERATED_LE
 
 #### `TransitionKind` — type
 
-`src/map/types.ts:401`
+`src/map/types.ts:422`
 
 Which board a transition tile lives on, which also decides how it triggers:
 `stairs` are walked over, `maintenance_access` and `roof_access`
@@ -3934,7 +3887,7 @@ whichever flag while the overlay is up and stops this scene.
 
 #### `DebugOverlay` — class
 
-`src/scenes/game/DebugOverlay.ts:93`
+`src/scenes/game/DebugOverlay.ts:94`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -3999,7 +3952,7 @@ rather than death: the record simply shows that no subject was harmed.
 
 #### `GameScene` — class
 
-`src/scenes/GameScene.ts:217` · `extends Phaser.Scene`
+`src/scenes/GameScene.ts:222` · `extends Phaser.Scene`
 
 The playable scene. Renders one level's tile art in board z-order, builds the
 wall collision, spawns the player and guards, and drives the stealth systems
@@ -4189,7 +4142,7 @@ reads them.
 
 #### `BuiltLevel` — interface
 
-`src/scenes/game/LevelBuilder.ts:39`
+`src/scenes/game/LevelBuilder.ts:37`
 
 The live contents of a level, handed back to the scene to drive.
 
@@ -4233,7 +4186,7 @@ The live contents of a level, handed back to the scene to drive.
 
 #### `DebugHost` — interface
 
-`src/scenes/game/DebugOverlay.ts:66`
+`src/scenes/game/DebugOverlay.ts:67`
 
 The scene-level effects the cheats reach for.
 
@@ -4256,7 +4209,7 @@ the moment the scene rebuilt one.
 
 #### `DebugWorld` — interface
 
-`src/scenes/game/DebugOverlay.ts:42`
+`src/scenes/game/DebugOverlay.ts:43`
 
 What the overlay needs from the scene, supplied fresh each frame.
 
@@ -4448,7 +4401,7 @@ type OverlayId = "pause" | "codec" | "compliance" | "qualia";
 
 #### `Target` — type *(module-private)*
 
-`src/scenes/GameScene.ts:1269`
+`src/scenes/GameScene.ts:1274`
 
 ```ts
 type Target = { x: number; y: number; kind: "cover"; cover: Cover } | { x: number; y: number; kind: "orderly"; orderly: Orderly };
@@ -4474,13 +4427,103 @@ Families that must be resident before any `Text` is drawn.
 const REQUIRED_FONTS = ["Share Tech Mono", "Article Zero Symbols", "Share Tech"] as const;
 ```
 
+<a id="const-ui"></a>
+
+#### `UI` — const
+
+`src/ui/hudTheme.ts:33`
+
+The palette, keyed to match `theme.css`'s custom properties.
+
+Each key maps to `--c-<kebab-case>`; the test derives that name mechanically,
+so a key added here without the matching token there fails rather than
+silently becoming a private colour.
+
+| Key | Value | Notes |
+| --- | --- | --- |
+| `cyan` | `"#39d3ff"` |  |
+| `cyanBright` | `"#5fe0ff"` |  |
+| `amber` | `"#ffb03b"` |  |
+| `amberBright` | `"#ffe14d"` |  |
+| `red` | `"#ff5c6a"` |  |
+| `redDeep` | `"#ff3b3b"` |  |
+| `green` | `"#5effa0"` |  |
+| `greenBright` | `"#d6ffe8"` |  |
+| `greenSoft` | `"#8effc0"` | The "we" of a merged Shared Field, and the ready state that precedes it. |
+| `blueSoft` | `"#9fd2ff"` | Body text that wants to read as *interface* without the accent's heat. |
+| `bgPanel` | `"#070c12"` |  |
+| `bgScope` | `"#03070c"` |  |
+| `track` | `"#11202b"` |  |
+| `border` | `"#2b6e7a"` |  |
+| `borderCool` | `"#2b4356"` |  |
+| `borderDim` | `"#2b3a44"` |  |
+| `text` | `"#bfe3ea"` |  |
+| `textStrong` | `"#cfe0f0"` |  |
+| `textBtn` | `"#9fb6c2"` |  |
+| `textMuted` | `"#8fa9b4"` |  |
+| `textFaint` | `"#8899aa"` |  |
+| `textDim` | `"#6b7f92"` |  |
+| `textDisabled` | `"#4a5a68"` |  |
+| `textDebug` | `"#45566a"` |  |
+
+<a id="const-ui-depth"></a>
+
+#### `UI_DEPTH` — const
+
+`src/ui/hudTheme.ts:117`
+
+Depth bands for the HUD.
+
+These were ad-hoc — 900, 1000, 1001, 1002, 1500 scattered across nine widgets,
+each chosen relative to whatever the author happened to be looking at. The
+numbers are unchanged (this is a naming pass, not a re-ordering) but they now
+say what they are for, so the next widget stacks itself deliberately.
+
+| Key | Value | Notes |
+| --- | --- | --- |
+| `PANEL` | `900` | Panel backgrounds and track rectangles — behind everything they contain. |
+| `BASE` | `1000` | The HUD proper: text, chrome, bar tracks. |
+| `FILL` | `1001` | Bar fills and the radar bezel — over BASE, under its own labels. |
+| `ACCENT` | `1002` | Labels that must stay legible on top of a fill. |
+| `DEBUG` | `1500` | The debug inspector, above the whole HUD. |
+
+<a id="const-ui-text"></a>
+
+#### `UI_TEXT` — const
+
+`src/ui/hudTheme.ts:96`
+
+The type scale.
+
+Five steps, because the HUD had grown five sizes (10/11/12/13/20) by accident
+and they turned out to be doing five distinct jobs. Named for the job so a new
+widget picks a role rather than a number.
+
+| Key | Value | Notes |
+| --- | --- | --- |
+| `title` | `"20px"` | The alert-phase banner. Nothing else is this large. |
+| `body` | `"13px"` | Running prose — objectives, codec-adjacent readouts. |
+| `label` | `"12px"` | The default: inventory rows, the controls hint, the conduct line. |
+| `small` | `"11px"` | Section headings above a bar, and the alert-network rows. |
+| `micro` | `"10px"` | Numeric detail that must not compete — SRP axes, the JAMMED tag. |
+
+<a id="const-ui-textures"></a>
+
+#### `UI_TEXTURES` — const
+
+`src/ui/UiTextures.ts:40`
+
+```ts
+const UI_TEXTURES = [ /** The generic HUD panel: border, corners and fill, stretched to any size. */ { key: "ui-panel", path: "assets/ui/panel/panel.png", size: 48, slice: 12 }, /** * The radar's ring. Drawn over the scope's masked contents, so its interior must * be transparent — see the note in `Radar.drawBezel`. */ { key: "ui-radar-bezel", path: "assets/ui/radar/bezel.png", size: 96 }, ] as const;
+```
+
 ### UI — Classes
 
 <a id="class-alertnetworkhud"></a>
 
 #### `AlertNetworkHud` — class
 
-`src/ui/AlertNetworkHud.ts:22`
+`src/ui/AlertNetworkHud.ts:23`
 
 A small readout of the base's security network, pinned under the detection
 meter (top-left). Shows the network status, how many detectors are online /
@@ -4501,7 +4544,7 @@ the camera zoom doesn't scale it (same pattern as `Hud`).
 
 #### `BioMonitor` — class
 
-`src/ui/BioMonitor.ts:64`
+`src/ui/BioMonitor.ts:76`
 
 Rowan's bio-integrity, as an EKG bent into a dial.
 
@@ -4563,7 +4606,7 @@ two things this boss does that nothing else in the game does:
 
 #### `DebugHud` — class
 
-`src/ui/DebugHud.ts:55`
+`src/ui/DebugHud.ts:65`
 
 A developer inspector panel: FPS, player position, cheat flags, alert phase,
 and per-unit detection. Pinned to the top-right of the (unzoomed) UIScene and
@@ -4632,7 +4675,7 @@ completion card, the roof's capture flicker.
 
 #### `Hud` — class
 
-`src/ui/Hud.ts:24`
+`src/ui/Hud.ts:37`
 
 Heads-up display. The detection meter is framed as the facility's
 **Subjectivity Risk Profile**: being seen means registering as a *subject*, so
@@ -4646,13 +4689,13 @@ UIScene.
 | `constructor` | `constructor(scene: Phaser.Scene)` |  |
 | `update` | `update( alert: { phase: AlertPhase }, detection: number, hp: number, maxHp: number, deltaMs: number, conduct?: ConductView, ): void` | @param deltaMs frame time, for the EKG sweep. 0 holds the trace still while an   overlay owns the screen — see the call site in `UIScene`. |
 
-*Plus 7 private members.*
+*Plus 9 private members.*
 
 <a id="class-inventoryhud"></a>
 
 #### `InventoryHud` — class
 
-`src/ui/InventoryHud.ts:23`
+`src/ui/InventoryHud.ts:20`
 
 A compact inventory readout pinned to the bottom-right of the screen, in three
 sections: the held CONSUMABLES (with counts and, for timed buffs, their
@@ -4660,6 +4703,10 @@ remaining duration) with a cursor (▸) on whichever one `,`/`.` has selected
 and `Enter` would use, the flashlight EQUIPMENT state, and passive KEY ITEMS.
 Purely a display — it reads the inventory/active-item/selection state the
 scene publishes to the registry; GameScene owns spending the items.
+
+The text itself is built by `inventoryLines`, which is a pure function so
+that `hudLayout.test.ts` can check the widest and tallest shapes this can take
+against the bottom-right budget without standing up a canvas.
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -4731,18 +4778,23 @@ choose), shared by the title and outcome screens. Create it, then call
 
 #### `ObjectiveHud` — class
 
-`src/ui/ObjectiveHud.ts:16`
+`src/ui/ObjectiveHud.ts:27`
 
 A compact objective tracker pinned to the top-centre of the screen. Reads the
 objective state the scene publishes to the registry and renders each line with
 a ✓/○ marker; turns green once the whole directive is complete.
+
+"Top-centre" means centred on the space between the status stack and the radar,
+not on the viewport — see `objectiveCentre`. On a wide canvas those are the
+same place; on a narrow one they are not, and the difference is the directive
+printing through the SRP meter.
 
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `constructor` | `constructor(scene: Phaser.Scene)` |  |
 | `update` | `update(state: ObjectiveState, currentLevel: string, features: MissionFeatures): void` |  |
 
-*Plus 3 private members.*
+*Plus 5 private members.*
 
 <a id="class-pausemenuview"></a>
 
@@ -4789,7 +4841,7 @@ ownership in `GameScene` where it belongs.
 
 #### `Radar` — class
 
-`src/ui/Radar.ts:31`
+`src/ui/Radar.ts:41`
 
 Soliton-radar-style circular minimap, screen-anchored top-right.
 
@@ -4809,7 +4861,7 @@ top so the edge stays crisp.
 | `constructor` | `constructor(scene: Phaser.Scene)` |  |
 | `update` | `update(snapshot: RadarSnapshot): void` |  |
 
-*Plus 12 private members.*
+*Plus 13 private members.*
 
 <a id="class-relayhud"></a>
 
@@ -4856,7 +4908,7 @@ get tidied away.
 
 #### `SharedFieldHud` — class
 
-`src/ui/SharedFieldHud.ts:17`
+`src/ui/SharedFieldHud.ts:19`
 
 The Shared Field gauge (bottom-centre) plus the full-screen merge overlay.
 Charging fills the bar; when ready it prompts [F]; while a merge is active it
@@ -4973,7 +5025,7 @@ enumerable view of a scene's bindings.
 
 #### `DebugSnapshot` — interface
 
-`src/ui/DebugHud.ts:16`
+`src/ui/DebugHud.ts:26`
 
 Live game state published by `GameScene` for the debug panel. Written to
 the registry under the `"debug"` key each frame (dev builds only).
@@ -5010,7 +5062,7 @@ the registry under the `"debug"` key each frame (dev builds only).
 
 #### `DebugUnitView` — interface
 
-`src/ui/DebugHud.ts:7`
+`src/ui/DebugHud.ts:17`
 
 A named unit and its current detection level (0..1).
 
@@ -5235,7 +5287,7 @@ all of which already expose public `x`/`y`.
 
 #### `SharedFieldView` — interface
 
-`src/ui/SharedFieldHud.ts:6`
+`src/ui/SharedFieldHud.ts:8`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -5247,7 +5299,7 @@ all of which already expose public `x`/`y`.
 
 #### `TraceState` — interface
 
-`src/ui/ekg.ts:185`
+`src/ui/ekg.ts:195`
 
 The sweep's ring buffer.
 
@@ -5271,6 +5323,71 @@ the gap to whatever the last sweep left.
 | --- | --- | --- |
 | `onContinue` | `() => void` | The player acknowledged the record — [Esc] or [Space]. |
 
+<a id="interface-uipaneloptions"></a>
+
+#### `UiPanelOptions` — interface
+
+`src/ui/NineSlicePanel.ts:24`
+
+A HUD panel background, drawn from art when there is art and from primitives
+when there isn't.
+
+Panels are the one piece of chrome that cannot simply be a bigger PNG: the
+shared-field bar, the encounter band and the debug inspector are all different
+widths, and several change width at runtime. Stretching one bitmap across them
+would smear the border; drawing one bitmap per size means an artist redrawing a
+border every time a label grows. Nine-slice is the standard answer — corners
+fixed, edges stretched along one axis, middle stretched both ways — and Phaser
+has had `add.nineslice` since 3.60.
+
+The fallback matters as much as the art. Every widget that adopts this keeps
+working with no PNG present, which is the state the repository is in today, and
+keeps working with *some* panels drawn, which is the state it will be in during
+an art pass. So this returns a `Rectangle` styled like the borders the HUD
+already draws by hand, and swaps to the nine-slice the moment the texture
+exists — no call site changes, nothing to remember.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `key` *(opt)* | `string` | Manifest key to draw from. Defaults to the generic `ui-panel`. |
+| `depth` *(opt)* | `number` | Defaults to `UI_DEPTH.PANEL` — behind whatever the panel contains. |
+| `fill` *(opt)* | `number` | Fill for the drawn fallback. Ignored when art is present. |
+| `stroke` *(opt)* | `number` | Border for the drawn fallback. Ignored when art is present. |
+| `alpha` *(opt)* | `number` | Fill opacity for the drawn fallback. |
+
+<a id="interface-uitexturespec"></a>
+
+#### `UiTextureSpec` — interface
+
+`src/ui/UiTextures.ts:24`
+
+The HUD's optional artwork.
+
+Everything the HUD draws today is `Graphics` and `Rectangle` primitives — there
+is no atlas, no nine-slice and no panel art anywhere in the project. That is a
+reasonable place to have started and a bad place to stay, because it means
+hand-drawn chrome has nowhere to go: every widget would have to grow its own
+loader, its own key and its own fallback.
+
+So the seam lives here instead. A texture listed below is *optional*: it is
+probed for before boot, queued only if it is actually there, and each widget
+asks `hasUiTexture` before using it and otherwise draws exactly what it
+draws now. The game runs unchanged with none of these files present, which is
+the state the repository is in — and it keeps running with three of the five
+present, which is the state it will be in halfway through an art pass.
+
+`size` is the art's authored dimension and `display` the size it appears at.
+`uiScale.test.ts` asserts every entry is pixel-perfect, so an entry added at the
+wrong resolution fails the build instead of shipping a resampled panel.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `key` | `string` | Phaser texture key, and the name widgets check for. |
+| `path` | `string` | Path under `public/`. |
+| `size` | `number` | The art's authored pixel dimension (square). |
+| `display` *(opt)* | `number` | The dimension it is drawn at on screen. Defaults to `UiTextureSpec.size`. |
+| `slice` *(opt)* | `number` | Nine-slice inset, for panel art: how many pixels in from each edge are corner rather than stretchable middle. Only meaningful for panels. |
+
 ### UI — Type aliases
 
 <a id="type-rgb"></a>
@@ -5281,112 +5398,6 @@ the gap to whatever the last sweep left.
 
 ```ts
 type RGB = [number, number, number];
-```
-
----
-
-## Tools
-
-Offline build tooling — currently the sprite-collider generator.
-
-### Tools — Interfaces
-
-<a id="interface-aabb"></a>
-
-#### `AABB` — interface
-
-`src/tools/collider/format.ts:15`
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `width` | `number` | Body width in pixels (Arcade `body.setSize`). |
-| `height` | `number` | Body height in pixels. |
-| `offsetX` | `number` | Left edge in unscaled sprite-local pixels (Arcade `body.setOffset`). |
-| `offsetY` | `number` | Top edge in unscaled sprite-local pixels. |
-
-<a id="interface-args"></a>
-
-#### `Args` — interface *(module-private)*
-
-`src/tools/collider/generate.ts:28`
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `input` | `string` |  |
-| `out` | `string` |  |
-| `exportName` | `string` |  |
-| `epsilon` | `number` |  |
-| `inset` | `number` |  |
-| `origin` | `Origin` |  |
-| `threshold` | `number` |  |
-| `verbose` | `boolean` |  |
-
-<a id="interface-decodedimage"></a>
-
-#### `DecodedImage` — interface
-
-`src/tools/collider/png.ts:13`
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `width` | `number` |  |
-| `height` | `number` |  |
-| `data` | `Uint8Array` | RGBA, 4 bytes per pixel, row-major (top-left origin). |
-
-<a id="interface-framesize"></a>
-
-#### `FrameSize` — interface
-
-`src/tools/collider/format.ts:28`
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `width` | `number` |  |
-| `height` | `number` |  |
-
-<a id="interface-mask"></a>
-
-#### `Mask` — interface
-
-`src/tools/collider/contour.ts:14`
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `width` | `number` |  |
-| `height` | `number` |  |
-| `data` | `Uint8Array` | 1 = foreground (opaque), 0 = background (transparent). |
-
-<a id="interface-point"></a>
-
-#### `Point` — interface
-
-`src/tools/collider/rdp.ts:12`
-
-**Module note** — the header comment on `src/tools/collider/rdp.ts`, which this declaration heads:
-
-Ramer–Douglas–Peucker polyline simplification.
-
-Part of the Article Zero collider generator: after the alpha silhouette of a
-sprite is traced into a dense boundary path, RDP drops the vertices that lie
-(within `epsilon` perpendicular pixels) on a straight run, leaving a compact
-polygon that is cheap for physics/line-of-sight to reason about. A larger
-`epsilon` yields fewer vertices. Pure, dependency-free, browser-safe.
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `x` | `number` |  |
-| `y` | `number` |  |
-
-### Tools — Type aliases
-
-<a id="type-origin"></a>
-
-#### `Origin` — type
-
-`src/tools/collider/format.ts:26`
-
-```ts
-type Origin = "top-left" | "center";
 ```
 
 ---
@@ -5432,7 +5443,7 @@ Top-level bootstrap modules.
 
 #### `BootScene` — class *(module-private)*
 
-`src/main.ts:41` · `extends Phaser.Scene`
+`src/main.ts:33` · `extends Phaser.Scene`
 
 Boot scene: loads the edplay map JSON and its spritesheets, parses the map
 into the normalized model, stashes it in the registry, then hands off to
@@ -5450,26 +5461,26 @@ GameScene.
 
 | Name | Kind | Declared in |
 | --- | --- | --- |
-| [AABB](#interface-aabb) | interface | `src/tools/collider/format.ts:15` |
+| [AccessEnd](#interface-accessend) | interface | `src/systems/TransitionGraph.ts:66` |
 | [ActiveItemState](#class-activeitemstate) | class | `src/systems/ActiveItems.ts:33` |
 | [ActiveItemsView](#interface-activeitemsview) | interface | `src/systems/ActiveItems.ts:152` |
 | [Aimer](#interface-aimer) | interface | `src/systems/Surrender.ts:39` |
-| [AlertNetworkHud](#class-alertnetworkhud) | class | `src/ui/AlertNetworkHud.ts:22` |
+| [AlertNetworkHud](#class-alertnetworkhud) | class | `src/ui/AlertNetworkHud.ts:23` |
 | [AlertNetworkSnapshot](#interface-alertnetworksnapshot) | interface | `src/systems/AlertNetwork.ts:11` |
 | [AlertPhase](#type-alertphase) | type | `src/systems/AlertState.ts:13` |
 | [AlertState](#class-alertstate) | class | `src/systems/AlertState.ts:21` |
 | [AppliedCorrections](#type-appliedcorrections) | type | `src/systems/Compliance.ts:64` |
-| [Args](#interface-args) | interface | `src/tools/collider/generate.ts:28` |
 | [AudioDirector](#class-audiodirector) | class | `src/systems/AudioDirector.ts:26` |
 | [BinaryHeap](#class-binaryheap) | class | `src/systems/Pathfinder.ts:277` |
-| [BioMonitor](#class-biomonitor) | class | `src/ui/BioMonitor.ts:64` |
-| [BlockedAt](#type-blockedat) | type | `src/map/TileBake.ts:49` |
+| [BioMonitor](#class-biomonitor) | class | `src/ui/BioMonitor.ts:76` |
+| [BlockedAt](#type-blockedat) | type | `src/map/TileBake.ts:55` |
 | [BodyExtent](#interface-bodyextent) | interface | `src/systems/WallPress.ts:24` |
-| [BootScene](#class-bootscene) | class | `src/main.ts:41` |
+| [BootScene](#class-bootscene) | class | `src/main.ts:33` |
 | [BossCore](#class-bosscore) | class | `src/entities/BossCore.ts:64` |
 | [BossCoreHud](#class-bosscorehud) | class | `src/ui/BossCoreHud.ts:44` |
-| [BuiltLevel](#interface-builtlevel) | interface | `src/scenes/game/LevelBuilder.ts:39` |
+| [BuiltLevel](#interface-builtlevel) | interface | `src/scenes/game/LevelBuilder.ts:37` |
 | [CastingLight](#undefined) | interface | `src/render/lightSampling.ts:16` |
+| [CastRole](#interface-castrole) | interface | `src/entities/CastArt.ts:63` |
 | [Chest](#class-chest) | class | `src/entities/Chest.ts:16` |
 | [CHEST_DEFAULTS](#const-chest-defaults) | const | `src/systems/EntityStats.ts:259` |
 | [ChestStats](#interface-cheststats) | interface | `src/systems/EntityStats.ts:250` |
@@ -5483,7 +5494,7 @@ GameScene.
 | [ComplianceScene](#class-compliancescene) | class | `src/scenes/ComplianceScene.ts:23` |
 | [ComplianceView](#class-complianceview) | class | `src/ui/ComplianceView.ts:31` |
 | [ComplianceViewCallbacks](#interface-complianceviewcallbacks) | interface | `src/ui/ComplianceView.ts:24` |
-| [ComponentData](#interface-componentdata) | interface | `src/map/types.ts:195` |
+| [ComponentData](#interface-componentdata) | interface | `src/map/types.ts:208` |
 | [ConductBreach](#type-conductbreach) | type | `src/systems/Conduct.ts:26` |
 | [ConductInput](#interface-conductinput) | interface | `src/systems/Conduct.ts:46` |
 | [ConductMetrics](#interface-conductmetrics) | interface | `src/systems/Conduct.ts:95` |
@@ -5495,14 +5506,13 @@ GameScene.
 | [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:13` |
 | [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:35` |
 | [Cover](#class-cover) | class | `src/entities/Cover.ts:18` |
-| [CoverBody](#interface-coverbody) | interface | `src/map/TileBake.ts:267` |
-| [DebugHost](#interface-debughost) | interface | `src/scenes/game/DebugOverlay.ts:66` |
-| [DebugHud](#class-debughud) | class | `src/ui/DebugHud.ts:55` |
-| [DebugOverlay](#class-debugoverlay) | class | `src/scenes/game/DebugOverlay.ts:93` |
-| [DebugSnapshot](#interface-debugsnapshot) | interface | `src/ui/DebugHud.ts:16` |
-| [DebugUnitView](#interface-debugunitview) | interface | `src/ui/DebugHud.ts:7` |
-| [DebugWorld](#interface-debugworld) | interface | `src/scenes/game/DebugOverlay.ts:42` |
-| [DecodedImage](#interface-decodedimage) | interface | `src/tools/collider/png.ts:13` |
+| [CoverBody](#interface-coverbody) | interface | `src/map/TileBake.ts:282` |
+| [DebugHost](#interface-debughost) | interface | `src/scenes/game/DebugOverlay.ts:67` |
+| [DebugHud](#class-debughud) | class | `src/ui/DebugHud.ts:65` |
+| [DebugOverlay](#class-debugoverlay) | class | `src/scenes/game/DebugOverlay.ts:94` |
+| [DebugSnapshot](#interface-debugsnapshot) | interface | `src/ui/DebugHud.ts:26` |
+| [DebugUnitView](#interface-debugunitview) | interface | `src/ui/DebugHud.ts:17` |
+| [DebugWorld](#interface-debugworld) | interface | `src/scenes/game/DebugOverlay.ts:43` |
 | [DeployableKind](#type-deployablekind) | type | `src/systems/Deployables.ts:22` |
 | [DeployedItem](#class-deployeditem) | class | `src/entities/DeployedItem.ts:35` |
 | [DeployedLure](#interface-deployedlure) | interface | `src/systems/Deployables.ts:32` |
@@ -5514,72 +5524,70 @@ GameScene.
 | [DOOR_DEFAULTS](#const-door-defaults) | const | `src/systems/EntityStats.ts:152` |
 | [DoorStats](#interface-doorstats) | interface | `src/systems/EntityStats.ts:143` |
 | [Drone](#class-drone) | class | `src/entities/Drone.ts:13` |
-| [DRONE_PATROL_SOUTH_COLLIDER](#const-drone-patrol-south-collider) | const | `src/entities/generated/droneCollider.ts:32` |
-| [EdAnimation](#interface-edanimation) | interface | `src/map/types.ts:35` |
-| [EdBoard](#interface-edboard) | interface | `src/map/types.ts:117` |
-| [EdColliderPadding](#interface-edcolliderpadding) | interface | `src/map/types.ts:97` |
-| [EdDataComponent](#interface-eddatacomponent) | interface | `src/map/types.ts:45` |
-| [EdDataStructure](#interface-eddatastructure) | interface | `src/map/types.ts:145` |
-| [EdDataTypes](#interface-eddatatypes) | interface | `src/map/types.ts:157` |
-| [EdEnumDef](#interface-edenumdef) | interface | `src/map/types.ts:151` |
-| [EdField](#interface-edfield) | interface | `src/map/types.ts:138` |
+| [EdAnimation](#interface-edanimation) | interface | `src/map/types.ts:48` |
+| [EdBoard](#interface-edboard) | interface | `src/map/types.ts:130` |
+| [EdColliderPadding](#interface-edcolliderpadding) | interface | `src/map/types.ts:110` |
+| [EdDataComponent](#interface-eddatacomponent) | interface | `src/map/types.ts:58` |
+| [EdDataStructure](#interface-eddatastructure) | interface | `src/map/types.ts:158` |
+| [EdDataTypes](#interface-eddatatypes) | interface | `src/map/types.ts:170` |
+| [EdEnumDef](#interface-edenumdef) | interface | `src/map/types.ts:164` |
+| [EdField](#interface-edfield) | interface | `src/map/types.ts:151` |
 | [EdKeyFrame](#interface-edkeyframe) | interface | `src/map/types.ts:27` |
-| [EdLevel](#interface-edlevel) | interface | `src/map/types.ts:132` |
-| [EdPlayFile](#interface-edplayfile) | interface | `src/map/types.ts:162` |
+| [EdLevel](#interface-edlevel) | interface | `src/map/types.ts:145` |
+| [EdPlayFile](#interface-edplayfile) | interface | `src/map/types.ts:175` |
 | [EdplayLoader](#class-edplayloader) | class | `src/map/EdplayLoader.ts:73` |
 | [EdSpriteRect](#interface-edspriterect) | interface | `src/map/types.ts:9` |
 | [EdSpriteSheet](#interface-edspritesheet) | interface | `src/map/types.ts:18` |
-| [EdTile](#interface-edtile) | interface | `src/map/types.ts:104` |
-| [EdTileDef](#interface-edtiledef) | interface | `src/map/types.ts:50` |
-| [EdVariable](#interface-edvariable) | interface | `src/map/types.ts:40` |
+| [EdTile](#interface-edtile) | interface | `src/map/types.ts:117` |
+| [EdTileDef](#interface-edtiledef) | interface | `src/map/types.ts:63` |
+| [EdVariable](#interface-edvariable) | interface | `src/map/types.ts:53` |
 | [EncounterBand](#class-encounterband) | class | `src/ui/EncounterBand.ts:66` |
 | [EncounterBandFrame](#interface-encounterbandframe) | interface | `src/ui/EncounterBand.ts:29` |
 | [EncounterBandStyle](#interface-encounterbandstyle) | interface | `src/ui/EncounterBand.ts:17` |
 | [EncounterInteractResult](#interface-encounterinteractresult) | interface | `src/entities/EncounterTypes.ts:11` |
 | [Encounters](#class-encounters) | class | `src/scenes/game/Encounters.ts:70` |
 | [EncountersCallbacks](#interface-encounterscallbacks) | interface | `src/scenes/game/Encounters.ts:50` |
-| [End](#type-end) | type | `src/systems/TransitionGraph.ts:133` |
 | [Enforcer](#class-enforcer) | class | `src/entities/Enforcer.ts:190` |
-| [ENFORCER_PATROL_SOUTH_COLLIDER](#const-enforcer-patrol-south-collider) | const | `src/entities/generated/enforcerCollider.ts:32` |
 | [EnforcerContext](#interface-enforcercontext) | interface | `src/entities/Enforcer.ts:79` |
 | [EnforcerFireResult](#interface-enforcerfireresult) | interface | `src/entities/Enforcer.ts:37` |
 | [EnforcerStats](#interface-enforcerstats) | interface | `src/systems/EntityStats.ts:34` |
+| [EntityIndex](#interface-entityindex) | interface | `src/map/EntityIndex.ts:48` |
 | [EntityShadows](#class-entityshadows) | class | `src/ui/EntityShadows.ts:92` |
 | [ExploredMap](#class-exploredmap) | class | `src/systems/Explored.ts:16` |
 | [ExploredState](#type-exploredstate) | type | `src/systems/Explored.ts:74` |
 | [Eye](#interface-eye) | interface | `src/systems/Sensing.ts:20` |
 | [FlashlightBeam](#interface-flashlightbeam) | interface | `src/ui/Lighting.ts:96` |
 | [FollowResult](#type-followresult) | type | `src/entities/Enforcer.ts:176` |
-| [FrameSize](#interface-framesize) | interface | `src/tools/collider/format.ts:28` |
-| [GameLayer](#interface-gamelayer) | interface | `src/map/types.ts:233` |
-| [GameLevel](#interface-gamelevel) | interface | `src/map/types.ts:240` |
-| [GameMap](#interface-gamemap) | interface | `src/map/types.ts:255` |
+| [GameLayer](#interface-gamelayer) | interface | `src/map/types.ts:254` |
+| [GameLevel](#interface-gamelevel) | interface | `src/map/types.ts:261` |
+| [GameMap](#interface-gamemap) | interface | `src/map/types.ts:276` |
 | [GameMode](#type-gamemode) | type | `src/systems/GameState.ts:20` |
 | [GameOverScene](#class-gameoverscene) | class | `src/scenes/GameOverScene.ts:12` |
-| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:217` |
+| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:222` |
 | [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:152` |
-| [GameTile](#interface-gametile) | interface | `src/map/types.ts:201` |
-| [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:286` |
+| [GameTile](#interface-gametile) | interface | `src/map/types.ts:214` |
+| [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:307` |
 | [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:173` |
 | [GuardAnomaly](#interface-guardanomaly) | interface | `src/entities/Enforcer.ts:67` |
-| [GuardSkin](#interface-guardskin) | interface | `src/entities/GuardSkin.ts:11` |
-| [GuardSkinSpec](#interface-guardskinspec) | interface | `src/entities/GuardSkin.ts:69` |
+| [GuardRoute](#interface-guardroute) | interface | `src/map/EntityIndex.ts:38` |
+| [GuardSkin](#interface-guardskin) | interface | `src/entities/GuardSkin.ts:14` |
+| [GuardSkinSpec](#interface-guardskinspec) | interface | `src/entities/GuardSkin.ts:71` |
 | [GuardState](#type-guardstate) | type | `src/entities/Enforcer.ts:34` |
 | [HoldFixture](#class-holdfixture) | class | `src/entities/HoldFixture.ts:24` |
 | [HoldTarget](#class-holdtarget) | class | `src/entities/HoldTarget.ts:35` |
-| [Hud](#class-hud) | class | `src/ui/Hud.ts:24` |
-| [InputState](#interface-inputstate) | interface | `src/entities/Player.ts:475` |
-| [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:23` |
+| [Hud](#class-hud) | class | `src/ui/Hud.ts:37` |
+| [InputState](#interface-inputstate) | interface | `src/entities/Player.ts:474` |
+| [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:20` |
 | [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:137` |
 | [ItemInfo](#interface-iteminfo) | interface | `src/systems/ItemCatalog.ts:48` |
 | [JournalEntry](#interface-journalentry) | interface | `src/systems/Journal.ts:43` |
 | [JournalEntryId](#type-journalentryid) | type | `src/systems/Journal.ts:23` |
 | [JournalState](#interface-journalstate) | interface | `src/systems/Journal.ts:360` |
-| [Kind](#type-kind) | type | `src/entities/Vent4Boss.ts:322` |
-| [KnownLevel](#type-knownlevel) | type | `src/map/types.ts:293` |
+| [Kind](#type-kind) | type | `src/entities/Vent4Boss.ts:358` |
+| [KnownLevel](#type-knownlevel) | type | `src/map/types.ts:314` |
 | [Laser](#class-laser) | class | `src/entities/Laser.ts:28` |
 | [LaserKind](#type-laserkind) | type | `src/entities/Laser.ts:21` |
-| [LevelBodyRects](#interface-levelbodyrects) | interface | `src/map/TileBake.ts:282` |
+| [LevelBodyRects](#interface-levelbodyrects) | interface | `src/map/TileBake.ts:297` |
 | [LexiconCategory](#type-lexiconcategory) | type | `src/systems/Lexicon.ts:19` |
 | [LexiconContext](#interface-lexiconcontext) | interface | `src/systems/Lexicon.ts:257` |
 | [LexiconEntry](#interface-lexiconentry) | interface | `src/systems/Lexicon.ts:30` |
@@ -5594,7 +5602,6 @@ GameScene.
 | [MANUAL_SLOTS](#const-manual-slots) | const | `src/systems/SaveGame.ts:29` |
 | [MapPlan](#interface-mapplan) | interface | `src/map/MapPlan.ts:19` |
 | [MapSnapshot](#interface-mapsnapshot) | interface | `src/systems/PauseState.ts:36` |
-| [Mask](#interface-mask) | interface | `src/tools/collider/contour.ts:14` |
 | [MemStorage](#class-memstorage) | class | `src/testing/memStorage.ts:8` |
 | [Menu](#class-menu) | class | `src/ui/Menu.ts:20` |
 | [MenuItem](#interface-menuitem) | interface | `src/ui/Menu.ts:8` |
@@ -5606,22 +5613,20 @@ GameScene.
 | [NoiseEvents](#class-noiseevents) | class | `src/scenes/game/NoiseEvents.ts:51` |
 | [NoiseSpamTracker](#class-noisespamtracker) | class | `src/systems/AlertNetwork.ts:78` |
 | [NoiseWorld](#interface-noiseworld) | interface | `src/scenes/game/NoiseEvents.ts:35` |
-| [ObjectiveHud](#class-objectivehud) | class | `src/ui/ObjectiveHud.ts:16` |
+| [ObjectiveHud](#class-objectivehud) | class | `src/ui/ObjectiveHud.ts:27` |
 | [ObjectiveLine](#interface-objectiveline) | interface | `src/systems/Objectives.ts:166` |
 | [ObjectiveState](#interface-objectivestate) | interface | `src/systems/Objectives.ts:20` |
 | [OpenablePredicate](#type-openablepredicate) | type | `src/systems/GridMotion.ts:41` |
 | [Orderly](#class-orderly) | class | `src/entities/Orderly.ts:125` |
-| [ORDERLY_IDLE_SOUTH_COLLIDER](#const-orderly-idle-south-collider) | const | `src/entities/generated/orderlyCollider.ts:32` |
-| [OrderlyAnimName](#type-orderlyanimname) | type | `src/entities/OrderlyAnimations.ts:12` |
+| [OrderlyAnimName](#type-orderlyanimname) | type | `src/entities/OrderlyAnimations.ts:11` |
 | [OrderlyContext](#interface-orderlycontext) | interface | `src/entities/Orderly.ts:29` |
 | [OrderlyState](#type-orderlystate) | type | `src/entities/Orderly.ts:79` |
-| [Origin](#type-origin) | type | `src/tools/collider/format.ts:26` |
 | [OverlayConfig](#interface-overlayconfig) | interface | `src/scenes/game/OverlayGate.ts:21` |
 | [OverlayGate](#class-overlaygate) | class | `src/scenes/game/OverlayGate.ts:32` |
 | [OverlayId](#type-overlayid) | type | `src/scenes/game/OverlayGate.ts:19` |
 | [Palette](#interface-palette) | interface | `src/ui/MiniMapCanvas.ts:17` |
 | [Pane](#interface-pane) | interface | `src/ui/PauseMenuView.ts:69` |
-| [ParsedMap](#interface-parsedmap) | interface | `src/map/EdplayLoader.ts:216` |
+| [ParsedMap](#interface-parsedmap) | interface | `src/map/EdplayLoader.ts:220` |
 | [PathNode](#interface-pathnode) | interface | `src/systems/Pathfinder.ts:22` |
 | [PathOptions](#interface-pathoptions) | interface | `src/systems/Pathfinder.ts:27` |
 | [PatrolRoute](#type-patrolroute) | type | `src/systems/PatrolRoute.ts:26` |
@@ -5631,12 +5636,11 @@ GameScene.
 | [PauseScene](#class-pausescene) | class | `src/scenes/PauseScene.ts:32` |
 | [PauseSnapshot](#interface-pausesnapshot) | interface | `src/ui/PauseMenuView.ts:39` |
 | [PersonAnomalyKind](#type-personanomalykind) | type | `src/entities/Enforcer.ts:59` |
-| [Player](#class-player) | class | `src/entities/Player.ts:45` |
-| [PLAYER_IDLE_SOUTH_COLLIDER](#const-player-idle-south-collider) | const | `src/entities/generated/playerCollider.ts:32` |
-| [PlayerAnimName](#type-playeranimname) | type | `src/entities/PlayerAnimations.ts:19` |
+| [Player](#class-player) | class | `src/entities/Player.ts:44` |
+| [PlayerAnimName](#type-playeranimname) | type | `src/entities/PlayerAnimations.ts:17` |
 | [PlayerParams](#interface-playerparams) | interface | `src/systems/QualiaLock.ts:34` |
 | [PlayerStats](#interface-playerstats) | interface | `src/systems/EntityStats.ts:282` |
-| [Point](#interface-point) | interface | `src/tools/collider/rdp.ts:12` |
+| [Pose](#interface-pose) | interface | `src/entities/CastArt.ts:53` |
 | [PressSide](#interface-pressside) | interface | `src/systems/WallPress.ts:50` |
 | [PressState](#interface-pressstate) | interface | `src/systems/WallPress.ts:65` |
 | [PressSurface](#interface-presssurface) | interface | `src/systems/WallPress.ts:30` |
@@ -5651,7 +5655,7 @@ GameScene.
 | [QualiaRound](#interface-qualiaround) | interface | `src/systems/QualiaLock.ts:251` |
 | [QualiaStatus](#type-qualiastatus) | type | `src/systems/QualiaLock.ts:40` |
 | [RackCandidate](#interface-rackcandidate) | interface | `src/systems/QualiaLock.ts:273` |
-| [Radar](#class-radar) | class | `src/ui/Radar.ts:31` |
+| [Radar](#class-radar) | class | `src/ui/Radar.ts:41` |
 | [RadarBlip](#interface-radarblip) | interface | `src/systems/Radar.ts:8` |
 | [RadarSnapshot](#interface-radarsnapshot) | interface | `src/systems/Radar.ts:33` |
 | [RadarUnit](#interface-radarunit) | interface | `src/systems/Radar.ts:17` |
@@ -5685,8 +5689,9 @@ GameScene.
 | [ShadowCaster](#interface-shadowcaster) | interface | `src/ui/EntityShadows.ts:86` |
 | [ShadowShape](#undefined) | interface | `src/render/shadowShape.ts:13` |
 | [SharedField](#class-sharedfield) | class | `src/systems/SharedField.ts:22` |
-| [SharedFieldHud](#class-sharedfieldhud) | class | `src/ui/SharedFieldHud.ts:17` |
-| [SharedFieldView](#interface-sharedfieldview) | interface | `src/ui/SharedFieldHud.ts:6` |
+| [SharedFieldHud](#class-sharedfieldhud) | class | `src/ui/SharedFieldHud.ts:19` |
+| [SharedFieldView](#interface-sharedfieldview) | interface | `src/ui/SharedFieldHud.ts:8` |
+| [Silhouette](#interface-silhouette) | interface | `src/entities/Silhouette.ts:27` |
 | [SlotId](#type-slotid) | type | `src/systems/SaveGame.ts:26` |
 | [SmacCore](#class-smaccore) | class | `src/systems/SmacCore.ts:118` |
 | [SmacCorrection](#interface-smaccorrection) | interface | `src/systems/SmacCore.ts:78` |
@@ -5699,51 +5704,54 @@ GameScene.
 | [SmacTransition](#interface-smactransition) | interface | `src/systems/SmacCore.ts:57` |
 | [SmacView](#interface-smacview) | interface | `src/systems/SmacCore.ts:94` |
 | [SpriteAtlas](#class-spriteatlas) | class | `src/map/SpriteAtlas.ts:12` |
-| [SpriteCollider](#interface-spritecollider) | interface | `src/entities/generated/droneCollider.ts:6` |
-| [SpriteCollider](#interface-spritecollider-2) | interface | `src/entities/generated/enforcerCollider.ts:6` |
-| [SpriteCollider](#interface-spritecollider-3) | interface | `src/entities/generated/orderlyCollider.ts:6` |
-| [SpriteCollider](#interface-spritecollider-4) | interface | `src/entities/generated/playerCollider.ts:6` |
-| [SpriteFrame](#interface-spriteframe) | interface | `src/map/types.ts:183` |
-| [Stance](#type-stance) | type | `src/entities/Player.ts:43` |
-| [SteamJet](#interface-steamjet) | interface | `src/entities/Vent4Boss.ts:60` |
+| [SpriteFrame](#interface-spriteframe) | interface | `src/map/types.ts:196` |
+| [Stance](#type-stance) | type | `src/entities/Player.ts:42` |
+| [SteamJet](#interface-steamjet) | interface | `src/entities/Vent4Boss.ts:80` |
 | [Surrenderable](#interface-surrenderable) | interface | `src/systems/Surrender.ts:53` |
 | [SurrenderAim](#class-surrenderaim) | class | `src/systems/Surrender.ts:187` |
 | [SurrenderResult](#interface-surrenderresult) | interface | `src/systems/Surrender.ts:61` |
 | [SurrenderWorld](#interface-surrenderworld) | interface | `src/systems/Surrender.ts:33` |
-| [Target](#type-target) | type | `src/scenes/GameScene.ts:1269` |
+| [Target](#type-target) | type | `src/scenes/GameScene.ts:1274` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:16` |
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:199` |
 | [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:190` |
-| [TilePos](#interface-tilepos) | interface | `src/map/generate.ts:115` |
-| [TileRect](#interface-tilerect) | interface | `src/map/TileBake.ts:261` |
+| [TilePos](#interface-tilepos) | interface | `src/map/generate.ts:116` |
+| [TileRect](#interface-tilerect) | interface | `src/map/TileBake.ts:276` |
 | [TitleScene](#class-titlescene) | class | `src/scenes/TitleScene.ts:12` |
-| [TraceState](#interface-tracestate) | interface | `src/ui/ekg.ts:185` |
-| [Transition](#interface-transition) | interface | `src/map/types.ts:412` |
-| [TransitionGraph](#class-transitiongraph) | class | `src/systems/TransitionGraph.ts:36` |
-| [TransitionKind](#type-transitionkind) | type | `src/map/types.ts:401` |
+| [TraceState](#interface-tracestate) | interface | `src/ui/ekg.ts:195` |
+| [Transition](#interface-transition) | interface | `src/map/types.ts:433` |
+| [TransitionClass](#type-transitionclass) | type | `src/systems/TransitionGraph.ts:63` |
+| [TransitionGraph](#class-transitiongraph) | class | `src/systems/TransitionGraph.ts:147` |
+| [TransitionKind](#type-transitionkind) | type | `src/map/types.ts:422` |
 | [TribunalCallbacks](#interface-tribunalcallbacks) | interface | `src/ui/TribunalScreen.ts:46` |
 | [TribunalScene](#class-tribunalscene) | class | `src/scenes/TribunalScene.ts:19` |
 | [TribunalScreen](#class-tribunalscreen) | class | `src/ui/TribunalScreen.ts:51` |
+| [UI](#const-ui) | const | `src/ui/hudTheme.ts:33` |
+| [UI_DEPTH](#const-ui-depth) | const | `src/ui/hudTheme.ts:117` |
+| [UI_TEXT](#const-ui-text) | const | `src/ui/hudTheme.ts:96` |
+| [UI_TEXTURES](#const-ui-textures) | const | `src/ui/UiTextures.ts:40` |
+| [UiPanelOptions](#interface-uipaneloptions) | interface | `src/ui/NineSlicePanel.ts:24` |
 | [UIScene](#class-uiscene) | class | `src/scenes/UIScene.ts:34` |
-| [VaultLayout](#interface-vaultlayout) | interface | `src/map/AlignmentVault.ts:80` |
+| [UiTextureSpec](#interface-uitexturespec) | interface | `src/ui/UiTextures.ts:24` |
+| [VaultLayout](#interface-vaultlayout) | interface | `src/map/AlignmentVault.ts:81` |
 | [Vec2](#interface-vec2) | interface | `src/systems/Vent4PhysicsSystem.ts:15` |
-| [Vent4Boss](#class-vent4boss) | class | `src/entities/Vent4Boss.ts:80` |
+| [Vent4Boss](#class-vent4boss) | class | `src/entities/Vent4Boss.ts:100` |
 | [Vent4Core](#class-vent4core) | class | `src/systems/Vent4Core.ts:67` |
 | [Vent4Forces](#interface-vent4forces) | interface | `src/systems/Vent4PhysicsSystem.ts:31` |
 | [Vent4Hud](#class-vent4hud) | class | `src/ui/Vent4Hud.ts:21` |
-| [Vent4InteractResult](#type-vent4interactresult) | type | `src/entities/Vent4Boss.ts:58` |
+| [Vent4InteractResult](#type-vent4interactresult) | type | `src/entities/Vent4Boss.ts:78` |
 | [Vent4Layout](#interface-vent4layout) | interface | `src/systems/Vent4PhysicsSystem.ts:20` |
 | [Vent4Msg](#interface-vent4msg) | interface | `src/systems/Vent4Core.ts:44` |
 | [Vent4PhysicsSystem](#class-vent4physicssystem) | class | `src/systems/Vent4PhysicsSystem.ts:63` |
 | [Vent4Snapshot](#interface-vent4snapshot) | interface | `src/systems/Vent4Core.ts:34` |
 | [Vent4State](#enum-vent4state) | enum | `src/systems/Vent4Core.ts:17` |
 | [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:722` |
-| [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:47` |
+| [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:67` |
 | [Vent4Transition](#interface-vent4transition) | interface | `src/systems/Vent4Core.ts:28` |
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |
 | [VfxSource](#type-vfxsource) | type | `src/entities/Vfx.ts:20` |
 | [VfxSpec](#interface-vfxspec) | interface | `src/entities/Vfx.ts:26` |
 | [WallBuffer](#class-wallbuffer) | class | `src/systems/CollisionGrid.ts:13` |
-| [WallRect](#interface-wallrect) | interface | `src/map/TileBake.ts:39` |
+| [WallRect](#interface-wallrect) | interface | `src/map/TileBake.ts:45` |
 | [WaveParams](#interface-waveparams) | interface | `src/systems/QualiaLock.ts:27` |
 | [WitnessAnchor](#interface-witnessanchor) | interface | `src/scenes/game/Encounters.ts:64` |

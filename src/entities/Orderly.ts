@@ -12,7 +12,7 @@ import { moveCirclePx } from "../systems/GridMotion";
 import { LURE_SPECS, noticedLure, type DeployedLure } from "../systems/Deployables";
 import { DIRS_8, nearestDirection, type Dir8 } from "./directions";
 import { shadowShapeFor, type ShadowShape } from "../render/shadowShape";
-import { ORDERLY_IDLE_SOUTH_COLLIDER } from "./generated/orderlyCollider";
+import { ORDERLY_SILHOUETTE } from "./Silhouette";
 import { alertMarker, speechMarker } from "./markers";
 import {
   ORDERLY_ANIM_FRAME_COUNTS,
@@ -186,7 +186,7 @@ export class Orderly {
     // paired so this division lands on 0.5 and the art is never resampled — see
     // ORDERLY_SOURCE_SIZE.
     this.body.setScale((tileSize * ORDERLY_DISPLAY_TILES) / ORDERLY_SOURCE_SIZE);
-    this.shadow = shadowShapeFor(ORDERLY_IDLE_SOUTH_COLLIDER, ORDERLY_DISPLAY_TILES, tileSize);
+    this.shadow = shadowShapeFor(ORDERLY_SILHOUETTE, ORDERLY_DISPLAY_TILES, tileSize);
     this.body.play(orderlyAnimKey("idle", "south"));
 
     this.bang = alertMarker(scene, this.x, this.y, tileSize);
@@ -457,7 +457,7 @@ export class Orderly {
    * way he is walking, which {@link stepToward} sets for him. Between the two, the
    * tint and the speech line, the state reads at 32px with **no new art** — the
    * orderly sheet is `idle` and `walk` only, and a hands-up pose would mean a
-   * PixelLab generation and a manual pipeline run for one pose.
+   * a bespoke pose in the drawing code for one frame.
    */
   private complyAtGunpoint(dt: number, ctx: OrderlyContext): void {
     const target = this.escortTarget;

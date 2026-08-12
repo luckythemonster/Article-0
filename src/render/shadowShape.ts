@@ -1,4 +1,4 @@
-import type { SpriteCollider } from "../entities/generated/playerCollider";
+import type { Silhouette } from "../entities/Silhouette";
 
 /**
  * Sizing a character's ground shadow off the art it belongs to.
@@ -33,22 +33,22 @@ export interface ShadowShape {
 export const FOOT_WIDEN = 1.15;
 
 /**
- * Derives a caster's {@link ShadowShape} from its generated alpha silhouette.
+ * Derives a caster's {@link ShadowShape} from its {@link Silhouette} box.
  *
  * Every character in the game is drawn at `(tileSize * displayTiles) / sourceSize` on
  * square art, so the collider's own `frameHeight` *is* that source size and the scale can
  * be recovered here rather than passed in — which means one call site per character and
  * no chance of a shadow being sized against a scale its sprite isn't actually using.
  *
- * Taking both numbers off the trace is the same discipline `guardRadiusTiles` follows in
- * `src/entities/GuardSkin.ts`: re-run `npm run gen:colliders` after an art change and the
- * shadows follow the new silhouette without anyone remembering to re-tune them. It also
- * gets the foot offset right for free, which is the part that would otherwise need
- * per-character fiddling — the four sheets pad their frames differently, so the distance
- * from a sprite's centre down to its boots is 10.5px for Rowan and 15px for an enforcer.
+ * Taking both numbers off the box is the same discipline `guardRadiusTiles` follows in
+ * `src/entities/GuardSkin.ts`: the shadow follows whatever shape the character is drawn
+ * to fill, without anyone remembering to re-tune it. It also gets the foot offset right
+ * for free, which is the part that would otherwise need per-character fiddling — the four
+ * frames are padded differently, so the distance from a sprite's centre down to its boots
+ * is 10.5px for Rowan and 15px for an enforcer.
  */
 export function shadowShapeFor(
-  collider: SpriteCollider,
+  collider: Silhouette,
   displayTiles: number,
   tileSize: number,
 ): ShadowShape {
