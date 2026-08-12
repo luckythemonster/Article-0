@@ -1,3 +1,4 @@
+import { transitionClassOf } from "../systems/TransitionGraph";
 import type { GameLevel, GameMap, GameTile } from "./types";
 import {
   ensureLayer,
@@ -45,18 +46,52 @@ const STEAM_REF = /^steam_vent/i;
 /** The roof's hold-to-calibrate pedestals, authored on `terminals`. */
 const PEDESTAL_REF = /^calibration_pedestal/i;
 
-/** Tiles on `board` matching `ref`, removed from it and returned. */
-function takeFrom(level: GameLevel, board: string, ref: RegExp): GameTile[] {
+/**
+ * v0.4's names for the same fixtures. The export moved on; both vocabularies are
+ * read, because the v0.2-era one is also what the engine's own generators emit
+ * and what the fixtures in `AdoptAuthored.test.ts` are written against.
+ */
+/** The turbines the arena is arranged around, on v0.4's `vents` board. */
+const TURBINE_REF = /^turbine/i;
+/** v0.4's board of pressure capacitors — the sub-stations under another name. */
+const CAPACITOR_BOARD = "VENT-4_capacitors";
+/** EIRA-7 herself, at the centre of the authored vault. */
+const AVATAR_REF = /avatar/i;
+
+/** A tile's `terminal` component type, lowercased, or "" for a tile with none. */
+const terminalType = (t: GameTile): string =>
+  (t.components.find((c) => c.type === "terminal")?.values.type ?? "").toLowerCase();
+
+/** Tiles on `board` matching `pick`, removed from it and returned. */
+function takeFrom(
+  level: GameLevel,
+  board: string,
+  pick: RegExp | ((t: GameTile) => boolean),
+): GameTile[] {
   const layer = level.layers.find((l) => l.name === board);
   if (!layer) return [];
-  const taken = layer.tiles.filter((t) => ref.test(t.ref));
-  if (taken.length > 0) layer.tiles = layer.tiles.filter((t) => !ref.test(t.ref));
+  const match = pick instanceof RegExp ? (t: GameTile): boolean => pick.test(t.ref) : pick;
+  const taken = layer.tiles.filter(match);
+  if (taken.length > 0) layer.tiles = layer.tiles.filter((t) => !match(t));
   return taken;
 }
 
 /** Tiles on `board` matching `ref`, left where they are. */
 function peek(level: GameLevel, board: string, ref: RegExp): GameTile[] {
   return (level.layers.find((l) => l.name === board)?.tiles ?? []).filter((t) => ref.test(t.ref));
+}
+
+/** The tiles on a board, whatever they are. */
+const tilesOn = (level: GameLevel, board: string): GameTile[] =>
+  level.layers.find((l) => l.name === board)?.tiles ?? [];
+
+/** The centre of a set of tiles, rounded to a cell. */
+function centroid(tiles: readonly GameTile[]): TilePos {
+  const n = tiles.length;
+  return {
+    x: Math.round(tiles.reduce((s, t) => s + t.x, 0) / n),
+    y: Math.round(tiles.reduce((s, t) => s + t.y, 0) / n),
+  };
 }
 
 /** Fills a board from `make()` — but only if the author left it empty. */
@@ -95,26 +130,31 @@ export function graftExtractionEntrance(map: GameMap, extraction: string | null)
   const level = map.levels.find((l) => l.name === extraction);
   if (!level) return false;
 
-  const walkTo = (name: string, board: string): GameTile[] =>
-    map.levels.find((l) => l.name === name)?.layers.find((l) => l.name === board)?.tiles ?? [];
+  // Every board the transition graph would read as a way in — the map's own name
+  // for them, whatever it is, rather than the two the engine happens to generate.
+  // NW-SMAC-01 v0.4 files all of them on `verticals`, so hardcoding `stairs` here
+  // reported "no way in" for a deck with four of them and grafted a bogus link.
+  const waysInto = (name: string): GameTile[] =>
+    (map.levels.find((l) => l.name === name)?.layers ?? [])
+      // `roof_access` does not count: the roof is downstream of extraction, not a
+      // way into it. Any other class does, an elevator car included.
+      .filter((l) => {
+        const cls = transitionClassOf(l.name);
+        return cls !== undefined && cls !== "roof_access";
+      })
+      .flatMap((l) => l.tiles);
 
-  // Already reachable on foot? Then it needs nothing from us. `roof_access` does
-  // not count: the roof is downstream of extraction, not a way into it.
-  const inbound = ["stairs", "maintenance_access"].flatMap((b) => walkTo(extraction, b));
-  if (inbound.length > 0) return false;
+  // Already reachable on foot? Then it needs nothing from us.
+  if (waysInto(extraction).length > 0) return false;
 
-  // A dangling stair: one whose coordinate no *other* level's `stairs` board
-  // answers, so it currently falls back to some arbitrary neighbour.
+  // A dangling transition tile: one whose coordinate no *other* level answers, so
+  // it currently leads nowhere at all.
   const donor = map.levels
     .filter((l) => l.name !== extraction)
-    .flatMap((l) => l.layers.find((b) => b.name === "stairs")?.tiles.map((t) => ({ l, t })) ?? [])
+    .flatMap((l) => waysInto(l.name).map((t) => ({ l, t })))
     .find(({ l, t }) =>
       map.levels.every(
-        (o) =>
-          o.name === l.name ||
-          !(o.layers.find((b) => b.name === "stairs")?.tiles ?? []).some(
-            (u) => u.x === t.x && u.y === t.y,
-          ),
+        (o) => o.name === l.name || !waysInto(o.name).some((u) => u.x === t.x && u.y === t.y),
       ),
     );
   if (!donor) return false;
@@ -138,25 +178,32 @@ export function graftExtractionEntrance(map: GameMap, extraction: string | null)
  * reports no VENT-4 rather than an objective the player cannot complete.
  */
 export function adoptVentCore(level: GameLevel): boolean {
-  const chassis = peek(level, "VENT-4", CHASSIS_REF)[0];
-  if (!chassis) return false;
-  const hub = { x: chassis.x, y: chassis.y };
+  // The turbine the arena is built around: v0.2 authored one chassis on a board
+  // called `VENT-4`, v0.4 authors a pair of turbines on `vents`. Two turbines
+  // have one centre between them, which is the hub either way.
+  const turbines = peek(level, "VENT-4", CHASSIS_REF).concat(peek(level, "vents", TURBINE_REF));
+  if (turbines.length === 0) return false;
+  const hub = centroid(turbines);
   const open = standableIn(level);
 
-  // Sub-stations move off `energy` so the bake stops painting them: each becomes
-  // a PressureSubStation that draws its own sprite.
-  fillIfEmpty(level, "substations", () => takeFrom(level, "energy", SUBSTATION_REF));
-  if ((level.layers.find((l) => l.name === "substations")?.tiles ?? []).length === 0) return false;
+  // Sub-stations move off the art board so the bake stops painting them: each
+  // becomes a PressureSubStation that draws its own sprite. v0.4 gives them a
+  // board of their own and calls them pressure capacitors.
+  fillIfEmpty(level, "substations", () => [
+    ...takeFrom(level, "energy", SUBSTATION_REF),
+    ...takeFrom(level, CAPACITOR_BOARD, () => true),
+  ]);
+  if (tilesOn(level, "substations").length === 0) return false;
 
-  // The turbine and its steam stay art on `VENT-4`; these are frameless markers
-  // pointing at them, so the boss can find them without drawing them twice.
+  // The turbine and its steam stay art; these are frameless markers pointing at
+  // them, so the boss can find them without drawing them twice. v0.4 authors no
+  // steam art at all, so the jets ring the hub instead — an empty `steam` board
+  // would otherwise fall through to constants picked for a 40×45 arena.
   fillIfEmpty(level, "vent_hub", () => markers("vent_hub", [hub]));
-  fillIfEmpty(level, "steam", () =>
-    markers(
-      "steam",
-      peek(level, "VENT-4", STEAM_REF).map((t) => ({ x: t.x, y: t.y })),
-    ),
-  );
+  fillIfEmpty(level, "steam", () => {
+    const authored = peek(level, "VENT-4", STEAM_REF).map((t) => ({ x: t.x, y: t.y }));
+    return markers("steam", authored.length > 0 ? authored : spreadAround(hub, 4, 5, open));
+  });
 
   // Columns are grip anchors *and* sight breakers, so they have to be solid:
   // borrow the arena's own interior walls, nearest the turbine first.
@@ -187,16 +234,26 @@ export function adoptVentCore(level: GameLevel): boolean {
  * one pedestal to calibrate from.
  */
 export function adoptRoofArray(map: GameMap, level: GameLevel): boolean {
-  const dishTile = (level.layers.find((l) => l.name === "uplink")?.tiles ?? [])[0];
+  // `uplink` is the engine's name for the dish's board; v0.4 files it on
+  // `extraction`, which is also how the level declares itself the destination.
+  const dishTile = tilesOn(level, "uplink")[0] ?? tilesOn(level, "extraction")[0];
   if (!dishTile) return false;
   const dish = { x: dishTile.x, y: dishTile.y };
   const open = standableIn(level);
 
-  // The authored pedestals are typed `LOG_CACHE`, which would make them hackable
-  // caches on top of being hold fixtures — and count against the cache tally the
-  // objectives read. Moving them off `terminals` settles both.
-  fillIfEmpty(level, "relay_pedestals", () => takeFrom(level, "terminals", PEDESTAL_REF));
-  const pedestals = level.layers.find((l) => l.name === "relay_pedestals")?.tiles ?? [];
+  // The authored pedestals are typed `LOG_CACHE` (v0.2) or `CALIBRATION` (v0.4).
+  // Either way, left on `terminals` they would be hackable caches on top of being
+  // hold fixtures — and count against the cache tally the objectives read. Moving
+  // them off settles both. v0.4 names them `terminal11`/`12` rather than anything
+  // matching the pedestal ref, so the component is what identifies them.
+  fillIfEmpty(level, "relay_pedestals", () =>
+    takeFrom(
+      level,
+      "terminals",
+      (t) => PEDESTAL_REF.test(t.ref) || terminalType(t) === "calibration",
+    ),
+  );
+  const pedestals = tilesOn(level, "relay_pedestals");
   if (pedestals.length === 0) return false;
 
   fillIfEmpty(level, "relay_dish", () => markers("relay_dish", [dish]));
@@ -210,19 +267,64 @@ export function adoptRoofArray(map: GameMap, level: GameLevel): boolean {
     return spot ? [{ ...proto, x: spot.x, y: spot.y }] : [];
   });
 
-  // Guards the author placed on `entities` are where a siege comes from — that is
-  // what a lone enforcer standing on an open roof is for.
+  // Guards the author placed are where a siege comes from — that is what a lone
+  // enforcer standing on an open roof is for. v0.2 put them on `entities`; v0.4
+  // splits them across a spawn board and two rail mounts. Markers only: the tiles
+  // stay where they are and still spawn their own sentry.
   fillIfEmpty(level, "siege_mouths", () =>
     markers(
       "siege_mouth",
-      (level.layers.find((l) => l.name === "entities")?.tiles ?? []).map((t) => ({
-        x: t.x,
-        y: t.y,
-      })),
+      ["entities", "enforcer_spawn", "enforcer_rail_A", "enforcer_rail_B"]
+        .flatMap((b) => tilesOn(level, b))
+        .map((t) => ({ x: t.x, y: t.y })),
     ),
   );
   fillIfEmpty(level, "searchlights", () =>
     markers("searchlight", spreadAround(dish, 3, 11, open, Math.PI / 6)),
+  );
+
+  return true;
+}
+
+/**
+ * Wire an authored alignment vault into the Core encounter.
+ *
+ * v0.4 draws the vault as a whole level (`main2vault`) rather than leaving it to
+ * be grafted into a corner of the extraction deck: EIRA-7 in a glass vitrine at
+ * the centre, four correction terminals at the compass points around her, and
+ * eight server racks outside those again.
+ *
+ * Returns whether the Core is actually fightable — a core to stand in front of
+ * and at least one node to desynchronise.
+ */
+export function adoptAlignmentVault(level: GameLevel): boolean {
+  const avatar = peek(level, "EIRA-7", AVATAR_REF)[0];
+  if (!avatar) return false;
+
+  // The avatar *is* the core's art, so it moves rather than being marked: it is
+  // the one tile `BossCore` draws its glow over, and `vault_core` is baked like
+  // any other board.
+  fillIfEmpty(level, "vault_core", () => takeFrom(level, "EIRA-7", AVATAR_REF));
+  const core = tilesOn(level, "vault_core")[0];
+  if (!core) return false;
+
+  // The four correction terminals move off `terminals`, both because each becomes
+  // a HoldFixture that draws the tile itself and because three of the four are
+  // left with an empty `type` field, which the export's schema defaults to
+  // LOG_CACHE — they would otherwise read as log caches standing in a ring.
+  fillIfEmpty(level, "vault_nodes", () =>
+    takeFrom(level, "terminals", (t) => t.components.some((c) => c.type === "terminal")),
+  );
+  if (tilesOn(level, "vault_nodes").length === 0) return false;
+
+  // Racks are copied, not moved: they are the level's cover as well as the Shared
+  // Field's witnesses, and taking them off `cover` would cost the room the thing
+  // you hide behind. `vault_racks` is read for positions only, so markers do.
+  fillIfEmpty(level, "vault_racks", () =>
+    markers(
+      "vault_rack",
+      tilesOn(level, "cover").map((t) => ({ x: t.x, y: t.y })),
+    ),
   );
 
   return true;

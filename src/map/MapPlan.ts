@@ -22,6 +22,15 @@ export interface MapPlan {
   /** Level the player must reach, carrying the logs, to win. */
   extractionLevel: string;
   /**
+   * Level the Alignment Core stands in.
+   *
+   * Used to be `extractionLevel`, on the reasoning that the Core guards the way
+   * out. NW-SMAC-01 v0.4 separates them — the vault is its own level and the
+   * extraction deck is the rooftop above it — so grafting one onto the other put
+   * the Core on the roof.
+   */
+  vaultHost: string;
+  /**
    * Level the generated vent-core arena grafts onto, or null to skip generating it — in
    * which case the map simply has no VENT-4 (and so no Q0 compliance cert, since that is
    * the reward for silencing it).
@@ -66,6 +75,15 @@ export function planFor(map: GameMap): MapPlan {
     levels.find((l) => l.name === "main2")?.name ??
     last;
 
+  // Vault host: an `EIRA-7` board is the author saying "she is in this room", which is the
+  // same declare-by-placing-a-board rule `extraction` follows. Then a level that says so in
+  // its name, and finally the extraction deck — which is where the vault has always been
+  // grafted, so a map that declares neither is unchanged.
+  const vaultHost =
+    levels.find((l) => hasBoard(l, "EIRA-7"))?.name ??
+    levels.find((l) => l.name.includes("vault"))?.name ??
+    extractionLevel;
+
   // Vent-core host: the arena is spliced into a maintenance level and clones its art, so it
   // needs somewhere with hatches that isn't the start or the finish. `duct2` first, again
   // so the shipped map is unchanged.
@@ -81,5 +99,5 @@ export function planFor(map: GameMap): MapPlan {
       )?.name ??
     null;
 
-  return { startLevel, extractionLevel, ventCoreHost };
+  return { startLevel, extractionLevel, vaultHost, ventCoreHost };
 }

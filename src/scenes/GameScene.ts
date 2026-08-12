@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import type { GameLevel, GameMap, Transition } from "../map/types";
 import type { ParsedMap } from "../map/EdplayLoader";
 import { SensingContext } from "./game/SensingContext";
-import { DebugOverlay, type DebugWorld } from "./game/DebugOverlay";
+import { DebugOverlay, WARP_SLOTS, type DebugWorld } from "./game/DebugOverlay";
 import { buildLevel } from "./game/LevelBuilder";
 import { NoiseEvents } from "./game/NoiseEvents";
 import { OverlayGate } from "./game/OverlayGate";
@@ -166,7 +166,20 @@ const EXPLORE_RADIUS_TILES = 9;
 /** Screen-fade duration for a level transition, in ms. */
 const FADE_MS = 320;
 
-/** Layers that hold entities/markers rather than paintable tile art. */
+/**
+ * Layers that hold entities/markers rather than paintable tile art.
+ *
+ * Whole-board skipping, for boards the engine itself generates or that a v0.2-era
+ * map filed by name. It is not the general answer any more: NW-SMAC-01 v0.4 names
+ * its route boards for the routes rather than for the engine, and mixes art with
+ * entities on the boards it does share. Both of those are handled per tile now —
+ * see `EntityIndex` and `bakeTileLayers`' `claimedTiles`.
+ *
+ * `terminals` in particular had to leave: v0.4 files `main2vault`'s
+ * `security_node1` on it beside four real terminals, and skipping the board
+ * wholesale erased the scenery. The terminal tiles themselves are claimed, so
+ * nothing draws twice.
+ */
 const ENTITY_LAYERS = new Set([
   "spawn",
   "enforcers",
@@ -175,7 +188,6 @@ const ENTITY_LAYERS = new Set([
   "security",
   "items",
   "doors",
-  "terminals",
   "lasers",
   "substations",
   // NW-SMAC-01's correction nodes and the roof's pedestals/feed all become
@@ -201,13 +213,6 @@ const HACK_UNLOCK_RADIUS = 6;
 
 /** Seconds between knocks, so the action can't be mashed. */
 const KNOCK_COOLDOWN = 0.6;
-
-/**
- * How many levels the debug number keys can warp to. The targets themselves come from
- * the map's own level list (see `debugWarpLevels`) rather than hardcoded names, so the
- * warps keep working on a map that doesn't reuse the shipped level names.
- */
-const DEBUG_WARP_SLOTS = 6;
 
 /**
  * The playable scene. Renders one level's tile art in board z-order, builds the
@@ -2662,7 +2667,7 @@ export class GameScene extends Phaser.Scene {
     const parsed = this.registry.get("parsedMap") as ParsedMap | undefined;
     return parsed
       ? planFor(parsed.map)
-      : { startLevel: "", extractionLevel: "", ventCoreHost: null };
+      : { startLevel: "", extractionLevel: "", vaultHost: "", ventCoreHost: null };
   }
 
   /**
@@ -2679,7 +2684,7 @@ export class GameScene extends Phaser.Scene {
     // `vent_core` wrote a deck of its own, and it belongs in its own running order.
     const authored = this.map.levels.filter((l) => !l.generated).map((l) => l.name);
     const generated = this.map.levels.filter((l) => l.generated).map((l) => l.name);
-    return [...authored, ...generated].slice(0, DEBUG_WARP_SLOTS);
+    return [...authored, ...generated].slice(0, WARP_SLOTS);
   }
 
   /** Warps to a level by restarting the scene at its own spawn tile. */

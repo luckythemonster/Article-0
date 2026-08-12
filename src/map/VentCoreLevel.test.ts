@@ -31,16 +31,15 @@ describe("VentCoreLevel — real map, adopt path", () => {
     const level = parsed.map.levels.find((l) => l.name === VENT_CORE_LEVEL);
     expect(level).toBeDefined();
     // The authored dimensions, not the generator's fixed 40×45.
-    expect(level!.width).toBe(48);
-    expect(level!.height).toBe(36);
+    expect(level!.width).toBe(36);
+    expect(level!.height).toBe(18);
     const names = level!.layers.map((l) => l.name);
     for (const board of [
-      "VENT-4",
       "floor",
       "walls",
       "catwalks",
-      "stairs",
-      "ramps",
+      "verticals",
+      "vents",
       "items",
       "winches",
       "energy",
@@ -57,20 +56,20 @@ describe("VentCoreLevel — real map, adopt path", () => {
   });
 
   it("links duct2 to vent_core by the real coordinate the map authored, on foot", () => {
-    // duct2's stairs and vent_core's stairs share (43,1) — no injected hatch, no
-    // (18,34): the old generator's entry point describes an arena this map doesn't
-    // have. This one connects on a `stairs` board, so it triggers on contact.
+    // Both ends are stair art on the `verticals` board at (33,16) — no injected
+    // hatch, and no (18,34): the old generator's entry point describes an arena
+    // this map doesn't have. Stair art triggers on contact.
     const graph = new TransitionGraph(parsed.map);
-    expect(graph.at("duct2", 43, 1)).toEqual({
+    expect(graph.at("duct2", 33, 16)).toEqual({
       toLevel: VENT_CORE_LEVEL,
-      toX: 43,
-      toY: 1,
+      toX: 33,
+      toY: 16,
       kind: "stairs",
     });
-    expect(graph.at(VENT_CORE_LEVEL, 43, 1)).toEqual({
+    expect(graph.at(VENT_CORE_LEVEL, 33, 16)).toEqual({
       toLevel: "duct2",
-      toX: 43,
-      toY: 1,
+      toX: 33,
+      toY: 16,
       kind: "stairs",
     });
   });
@@ -79,8 +78,8 @@ describe("VentCoreLevel — real map, adopt path", () => {
     // duct2's sibling link on this map is to duct1, not main1 — this map's route is
     // main1 -> duct1 -> duct2 -> vent_core, with no direct duct2/main1 link at all.
     const graph = new TransitionGraph(parsed.map);
-    expect(graph.at("duct2", 1, 1)?.toLevel).toBe("duct1");
-    expect(graph.at("duct1", 1, 1)?.toLevel).toBe("duct2");
+    expect(graph.at("duct2", 1, 7)?.toLevel).toBe("duct1");
+    expect(graph.at("duct1", 1, 7)?.toLevel).toBe("duct2");
   });
 
   it("is idempotent — the registry-cached map must not grow twice", () => {
@@ -107,29 +106,43 @@ describe("VentCoreLevel — real map, adopt path", () => {
     }
   });
 
-  it("extracts the five authored sub-stations off the energy board, framed", () => {
-    // Moved off `energy` (not cloned) so the tile bake stops painting them where
-    // the entity now draws its own sprite — see AdoptAuthored.adoptVentCore.
+  it("extracts the four authored pressure capacitors as sub-stations, framed", () => {
+    // Moved off their own board (not cloned) so the tile bake stops painting them
+    // where the entity now draws its own sprite — see AdoptAuthored.adoptVentCore.
     const level = parsed.map.levels.find((l) => l.name === VENT_CORE_LEVEL)!;
     const subs = level.layers.find((l) => l.name === "substations")!.tiles;
     expect(subs.map((t) => ({ x: t.x, y: t.y }))).toEqual([
-      { x: 10, y: 4 },
-      { x: 9, y: 31 },
-      { x: 44, y: 7 },
-      { x: 33, y: 33 },
-      { x: 44, y: 15 },
+      { x: 13, y: 16 },
+      { x: 24, y: 16 },
+      { x: 13, y: 1 },
+      { x: 24, y: 1 },
     ]);
     for (const s of subs) expect(s.frame).toBeDefined();
-    // The fusion core is not a sub-station and stays on `energy`.
-    const energy = level.layers.find((l) => l.name === "energy")!.tiles;
-    expect(energy.some((t) => t.ref === "VENT-4_fusion_core")).toBe(true);
+    expect(level.layers.find((l) => l.name === "VENT-4_capacitors")!.tiles).toHaveLength(0);
   });
 
-  it("anchors the hub on the authored VENT-4 chassis", () => {
+  it("anchors the hub between the two authored turbines", () => {
     const level = parsed.map.levels.find((l) => l.name === VENT_CORE_LEVEL)!;
     const hub = level.layers.find((l) => l.name === "vent_hub")!.tiles;
     expect(hub).toHaveLength(1);
-    expect({ x: hub[0].x, y: hub[0].y }).toEqual({ x: 22, y: 18 });
+    // turbine1 (17,9) and turbine2 (19,9), so the arena turns about (18,9).
+    expect({ x: hub[0].x, y: hub[0].y }).toEqual({ x: 18, y: 9 });
+  });
+
+  it("keeps every derived anchor on the level", () => {
+    // The generator's constants describe a 40×45 arena; this one is 36×18, so an
+    // unfiltered fallback aims the mechanic at tiles no player can reach.
+    const level = parsed.map.levels.find((l) => l.name === VENT_CORE_LEVEL)!;
+    for (const board of ["pitons", "drips", "grates", "columns", "steam", "winches"]) {
+      const tiles = level.layers.find((l) => l.name === board)!.tiles;
+      expect(tiles.length, board).toBeGreaterThan(0);
+      for (const t of tiles) {
+        expect(t.x, `${board} x`).toBeGreaterThanOrEqual(0);
+        expect(t.x, `${board} x`).toBeLessThan(level.width);
+        expect(t.y, `${board} y`).toBeGreaterThanOrEqual(0);
+        expect(t.y, `${board} y`).toBeLessThan(level.height);
+      }
+    }
   });
 
   describe("when the map can't host it", () => {

@@ -43,6 +43,26 @@ const GRATE_COOLDOWN = 2.5;
 /** Steam jets arm only when the player is within this many tiles (Turbulence). */
 const STEAM_ARM_TILES = 4;
 
+/**
+ * The tuning, with the two counts an arena's own geometry overrules.
+ *
+ * `substationCount` and `winchCount` are not tuning at all — they are how many
+ * of the thing the level has, and `Vent4Core` sizes its progress arrays and
+ * gates its phase changes on them. The defaults describe the arena the generator
+ * builds (three of each). NW-SMAC-01 authors four capacitors and four winches,
+ * and against a hardcoded three the fight advances a station early and the
+ * fourth patch is written past the end of the array.
+ */
+function countsFrom(level: GameLevel, stats: Vent4Stats): Vent4Stats {
+  const placed = (board: string, fallback: number): number =>
+    level.layers.find((l) => l.name === board)?.tiles.length || fallback;
+  return {
+    ...stats,
+    substationCount: placed("substations", stats.substationCount),
+    winchCount: placed("winches", stats.winchCount),
+  };
+}
+
 /** What happened inside the boss this frame, for the scene to apply/dress. */
 export interface Vent4TickResult {
   /** A sweep (or the purge's thermal scan) fully spotted the player. */
@@ -94,6 +114,16 @@ export class Vent4Boss {
   private readonly caps: { x: number; y: number }[];
   private readonly capHits: number[];
   private readonly hub: { x: number; y: number };
+  /**
+   * Whether the arena is one the map drew rather than one the engine built.
+   *
+   * The boss renders its own fixtures procedurally, which is the only option on a
+   * generated arena — there is no art there but cloned floor and walls. On an
+   * authored one there is, and painting over it is exactly what `AdoptAuthored`'s
+   * "author beats engine" rule forbids, so the procedural fixture drops back to a
+   * state overlay and lets the sprite show through.
+   */
+  private readonly authored: boolean;
 
   private readonly coneGfx: Phaser.GameObjects.Graphics;
   private readonly steamGfx: Phaser.GameObjects.Graphics;
@@ -136,7 +166,13 @@ export class Vent4Boss {
       y: (p.y + 0.5) * ts,
     });
 
-    this.core = new Vent4Core(stats, restore);
+    // An authored arena decides how many of each fixture it has by placing them.
+    // The counts are what `Vent4Core` sizes its progress arrays from and gates the
+    // phase changes on, so a map with four capacitors against a hardcoded three
+    // advances a station early and drops the fourth's patch on the floor.
+    this.stats = countsFrom(level, stats);
+    this.authored = level.generated !== true;
+    this.core = new Vent4Core(this.stats, restore);
     // Anchors come from the level's own boards when it has them — an authored
     // arena is laid out nothing like the generated one, and these coordinates
     // decide where the suction pulls from and what you can hold onto. A generated
@@ -160,12 +196,12 @@ export class Vent4Boss {
         drips: this.drips.map(toPx),
       },
       ts,
-      stats,
+      this.stats,
     );
 
     const subLayer = level.layers.find((l) => l.name === "substations");
     (subLayer?.tiles ?? []).forEach((tile, i) => {
-      const sub = new PressureSubStation(scene, tile, ts, i, stats);
+      const sub = new PressureSubStation(scene, tile, ts, i, this.stats);
       if (restore?.patched[i]) sub.restorePatched();
       this.subs.push(sub);
     });
@@ -196,7 +232,7 @@ export class Vent4Boss {
       { x: (hx + 1) * ts, y: (hy + 1) * ts },
     ];
     this.capHits = this.caps.map((_, i) =>
-      restore?.capsDown[i] ? stats.capacitorHits : 0,
+      restore?.capsDown[i] ? this.stats.capacitorHits : 0,
     );
 
     this.markerGfx = scene.add.graphics().setDepth(120);
@@ -705,27 +741,36 @@ export class Vent4Boss {
     const g = this.hubGfx;
     const r = this.stats.hubRadius * ts;
     g.clear();
-    // Housing plate + band-colored trim ring.
-    g.fillStyle(0x10161f, 1);
-    g.fillCircle(this.hub.x, this.hub.y, r + 6);
+    // On an authored arena the turbine is a sprite somebody drew — NW-SMAC-01
+    // stands a pair of them either side of the hub — so only the parts that carry
+    // *state* are drawn, over the top. Painting the housing as well covered the art
+    // with a plain dark disc, which is the one thing adoption exists to avoid.
+    if (!this.authored) {
+      // Housing plate.
+      g.fillStyle(0x10161f, 1);
+      g.fillCircle(this.hub.x, this.hub.y, r + 6);
+    }
+    // Band-colored trim ring: the compliance band, readable at a glance.
     g.lineStyle(3, this.bandColor(), 0.9);
     g.strokeCircle(this.hub.x, this.hub.y, r + 6);
-    // Intake mouth.
-    g.fillStyle(0x05070a, 1);
-    g.fillCircle(this.hub.x, this.hub.y, r * 0.82);
-    // Turbine blades.
-    g.lineStyle(5, 0x4a5a6a, 1);
-    for (let i = 0; i < 4; i++) {
-      const a = this.bladePhase + (i * Math.PI) / 2;
-      g.lineBetween(
-        this.hub.x + Math.cos(a) * r * 0.14,
-        this.hub.y + Math.sin(a) * r * 0.14,
-        this.hub.x + Math.cos(a) * r * 0.74,
-        this.hub.y + Math.sin(a) * r * 0.74,
-      );
+    if (!this.authored) {
+      // Intake mouth.
+      g.fillStyle(0x05070a, 1);
+      g.fillCircle(this.hub.x, this.hub.y, r * 0.82);
+      // Turbine blades.
+      g.lineStyle(5, 0x4a5a6a, 1);
+      for (let i = 0; i < 4; i++) {
+        const a = this.bladePhase + (i * Math.PI) / 2;
+        g.lineBetween(
+          this.hub.x + Math.cos(a) * r * 0.14,
+          this.hub.y + Math.sin(a) * r * 0.14,
+          this.hub.x + Math.cos(a) * r * 0.74,
+          this.hub.y + Math.sin(a) * r * 0.74,
+        );
+      }
+      g.fillStyle(0x2b4356, 1);
+      g.fillCircle(this.hub.x, this.hub.y, r * 0.16);
     }
-    g.fillStyle(0x2b4356, 1);
-    g.fillCircle(this.hub.x, this.hub.y, r * 0.16);
     // Jammed: scrap wedged across the mouth.
     if (this.core.state === Vent4State.JAMMED) {
       g.fillStyle(0xffb03b, 0.9);
@@ -766,8 +811,15 @@ export class Vent4Boss {
     g.clear();
     this.winches.forEach((w, i) => {
       const used = this.core.isWinchUsed(i);
-      g.fillStyle(used ? 0x1a2330 : 0x2b3a4a, 1);
-      g.fillRect(w.x - ts * 0.35, w.y - ts * 0.3, ts * 0.7, ts * 0.6);
+      // Same rule as the hub: an authored winch has its own sprite, so the box is
+      // only painted to grey a spent one out, and never over a live one.
+      if (!this.authored) {
+        g.fillStyle(used ? 0x1a2330 : 0x2b3a4a, 1);
+        g.fillRect(w.x - ts * 0.35, w.y - ts * 0.3, ts * 0.7, ts * 0.6);
+      } else if (used) {
+        g.fillStyle(0x1a2330, 0.55);
+        g.fillRect(w.x - ts * 0.35, w.y - ts * 0.3, ts * 0.7, ts * 0.6);
+      }
       g.lineStyle(2, used ? 0x3a4654 : 0xffb03b, 1);
       g.strokeRect(w.x - ts * 0.35, w.y - ts * 0.3, ts * 0.7, ts * 0.6);
       g.lineStyle(2, used ? 0x3a4654 : 0xcfe0f0, 1);

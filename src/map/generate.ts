@@ -108,6 +108,7 @@ export function marker(ref: string, x: number, y: number): GameTile {
     rowSpan: 1,
     offsetX: 0,
     offsetY: 0,
+    flipY: false,
     components: [],
   };
 }
@@ -133,7 +134,14 @@ export function anchorsFrom(
   fallback: readonly TilePos[],
 ): TilePos[] {
   const tiles = level.layers.find((l) => l.name === board)?.tiles ?? [];
-  return tiles.length > 0 ? tiles.map((t) => ({ x: t.x, y: t.y })) : fallback.map((p) => ({ ...p }));
+  if (tiles.length > 0) return tiles.map((t) => ({ x: t.x, y: t.y }));
+  // The constants describe the arenas the generators build, which are 40×45 and
+  // taller than some authored levels are — NW-SMAC-01 is 36×18. An anchor off the
+  // edge is worse than no anchor: the mechanic silently aims at a tile no player
+  // can reach, and nothing reports it.
+  return fallback
+    .filter((p) => p.x >= 0 && p.y >= 0 && p.x < level.width && p.y < level.height)
+    .map((p) => ({ ...p }));
 }
 
 /** {@link anchorsFrom} for a mechanic with exactly one anchor. */

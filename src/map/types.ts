@@ -30,6 +30,19 @@ export interface EdKeyFrame {
   DurationMax: number;
   /** State label for multi-frame tiles, e.g. "closed" / "open" on doors. */
   Script?: string;
+  /**
+   * Draw this frame mirrored vertically.
+   *
+   * How the editor gets two facings out of one sprite: NW-SMAC-01 draws both ends
+   * of the `main2` ↔ `main2vault` staircase from the single rect `stairs1_39`,
+   * flipping the one seen from the other side. Ignoring it left that stair — and
+   * the rooftop's south ramp — drawn facing the wrong way.
+   *
+   * No export has used a horizontal flip yet, so there is no `FlipX` here: an
+   * unread field is exactly what this one was, and adding a guess is not better
+   * than adding it the day a map needs it.
+   */
+  FlipY?: boolean;
 }
 
 export interface EdAnimation {
@@ -217,6 +230,14 @@ export interface GameTile {
   /** Pixel placement offset from the cell centre (default 0). */
   offsetX: number;
   offsetY: number;
+  /**
+   * Draw the tile's art mirrored vertically — see {@link EdKeyFrame.FlipY}.
+   *
+   * Kept on the tile rather than on {@link SpriteFrame} because it is a property
+   * of the *placement*, not of the sprite rect: two TileDefs share one rect and
+   * disagree about the flip, which is the whole point of the field.
+   */
+  flipY: boolean;
   /** Present only for tiles whose TileDef carries a DataComponent. */
   entityType?: string;
   components: ComponentData[];
@@ -257,7 +278,7 @@ export interface GameMap {
   tileWidth: number;
   tileHeight: number;
   levels: GameLevel[];
-  /** Texture keys registered for the three spritesheets, in file order. */
+  /** Texture keys registered for the map's spritesheets, in file order. */
   sheetTextureKeys: string[];
 }
 

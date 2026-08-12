@@ -9,6 +9,10 @@ import { appendRoofArray, ROOF_ARRAY_LEVEL } from "./RoofArrayLevel";
 import { blockedTiles } from "./generate";
 import { type GameLevel, type GameMap } from "./types";
 import { TransitionGraph } from "../systems/TransitionGraph";
+import { typeInertTerminals } from "./InertTerminals";
+
+/** The level v0.4 draws the Alignment vault as, rather than a corner of main2. */
+const VAULT_LEVEL = "main2vault";
 
 /**
  * The four acts the engine grafts onto or adopts from the shipped map, tested
@@ -39,40 +43,40 @@ function tilesOn(levelName: string, board: string): { x: number; y: number; ref:
   return level(levelName).layers.find((l) => l.name === board)?.tiles ?? [];
 }
 
-function buildMap(): GameMap {
+/** The export, parsed exactly as `main.ts` boots it. */
+function parseShipped(): ReturnType<typeof EdplayLoader.parse> {
   const raw = JSON.parse(
     readFileSync(new URL("../../public/assets/edplay.json", import.meta.url), "utf8"),
   );
-  const parsed = EdplayLoader.parse(raw, raw.SpriteSheets.map((s: { RelativePath: string }) => s.RelativePath));
+  typeInertTerminals(raw);
+  return EdplayLoader.parse(raw, raw.SpriteSheets.map((s: { RelativePath: string }) => s.RelativePath));
+}
+
+function buildMap(): GameMap {
+  const parsed = parseShipped();
   const plan = planFor(parsed.map);
   appendVentCore(parsed.map, plan.ventCoreHost);
   appendLogCacheBeta(parsed.map, plan.ventCoreHost);
-  appendAlignmentVault(parsed.map, plan.extractionLevel);
+  appendAlignmentVault(parsed.map, plan.vaultHost);
   appendRoofArray(parsed.map, plan.extractionLevel);
   return parsed.map;
 }
 
 beforeAll(() => {
-  const raw = JSON.parse(
-    readFileSync(new URL("../../public/assets/edplay.json", import.meta.url), "utf8"),
-  );
-  const parsed = EdplayLoader.parse(raw, raw.SpriteSheets.map((s: { RelativePath: string }) => s.RelativePath));
-  frames = new Set(parsed.uniqueFrames.map((f) => f.frameKey));
+  frames = new Set(parseShipped().uniqueFrames.map((f) => f.frameKey));
   map = buildMap();
 });
 
 describe("generated acts", () => {
   it("all four report success on the shipped map", () => {
-    const fresh = JSON.parse(
-      readFileSync(new URL("../../public/assets/edplay.json", import.meta.url), "utf8"),
-    );
-    const parsed = EdplayLoader.parse(fresh, fresh.SpriteSheets.map((s: { RelativePath: string }) => s.RelativePath));
+    const parsed = parseShipped();
     const plan = planFor(parsed.map);
-    // For vent_core/roof_array, "success" now means adopted, not generated —
-    // AdoptAuthored.test.ts covers the mechanism; this just confirms it fires.
+    // All four are authored on v0.4, so "success" means adopted rather than
+    // generated — AdoptAuthored.test.ts covers the mechanism on fixtures; this
+    // confirms it fires against the real export.
     expect(appendVentCore(parsed.map, plan.ventCoreHost)).toBe(true);
     expect(appendLogCacheBeta(parsed.map, plan.ventCoreHost)).toBe(true);
-    expect(appendAlignmentVault(parsed.map, plan.extractionLevel)).toBe(true);
+    expect(appendAlignmentVault(parsed.map, plan.vaultHost)).toBe(true);
     expect(appendRoofArray(parsed.map, plan.extractionLevel)).toBe(true);
   });
 
@@ -96,28 +100,37 @@ describe("generated acts", () => {
     const before = {
       levels: map.levels.length,
       beta: tilesOn("duct2", "terminals").length,
-      nodes: tilesOn("main2", "vault_nodes").length,
+      nodes: tilesOn(VAULT_LEVEL, "vault_nodes").length,
       substations: tilesOn(VENT_CORE_LEVEL, "substations").length,
     };
     appendVentCore(map, plan.ventCoreHost);
     appendLogCacheBeta(map, plan.ventCoreHost);
-    appendAlignmentVault(map, plan.extractionLevel);
+    appendAlignmentVault(map, plan.vaultHost);
     appendRoofArray(map, plan.extractionLevel);
     expect(map.levels.length).toBe(before.levels);
     expect(tilesOn("duct2", "terminals")).toHaveLength(before.beta);
-    expect(tilesOn("main2", "vault_nodes")).toHaveLength(before.nodes);
+    expect(tilesOn(VAULT_LEVEL, "vault_nodes")).toHaveLength(before.nodes);
     expect(tilesOn(VENT_CORE_LEVEL, "substations")).toHaveLength(before.substations);
   });
 
-  it("never lets a plan route a run into vent_core or roof_array", () => {
+  it("routes the run through the map's own declarations", () => {
     const plan = planFor(map);
-    for (const name of [plan.startLevel, plan.extractionLevel, plan.ventCoreHost ?? ""]) {
-      expect(name).not.toBe(VENT_CORE_LEVEL);
-      expect(name).not.toBe(ROOF_ARRAY_LEVEL);
+    expect(plan.startLevel).toBe("main1"); // the `spawn` board
+    expect(plan.extractionLevel).toBe(ROOF_ARRAY_LEVEL); // the `extraction` board
+    expect(plan.vaultHost).toBe(VAULT_LEVEL); // the `EIRA-7` board
+    expect(plan.ventCoreHost).toBe("duct2");
+  });
+
+  it("never routes a run into a level the engine generated", () => {
+    // The rule is about the flag, not the name. v0.4 authors its own vent_core
+    // *and* its own roof_array — and nominates the roof as the extraction deck by
+    // putting an `extraction` board on it, so the old "never roof_array" reading
+    // of this rule is now the map declaring the opposite. What must stay true is
+    // that nothing the *engine* built is ever routed into.
+    const plan = planFor(map);
+    for (const name of [plan.startLevel, plan.extractionLevel, plan.vaultHost, plan.ventCoreHost ?? ""]) {
+      expect(map.levels.find((l) => l.name === name)?.generated, name).toBeFalsy();
     }
-    // Both are authored on this map, not engine-generated — MapPlan excludes them by
-    // the `generated` flag the adopters leave unset, not by name. See MapPlan.test.ts
-    // for the flag-vs-name distinction on synthetic fixtures.
     expect(level(VENT_CORE_LEVEL).generated).toBeFalsy();
     expect(level(ROOF_ARRAY_LEVEL).generated).toBeFalsy();
   });
@@ -130,7 +143,7 @@ describe("log-cache node BETA", () => {
     // did to this map: two log caches in one room, one of them ours.
     const terminals = tilesOn("duct2", "terminals");
     expect(terminals).toHaveLength(1);
-    expect(terminals[0]).toMatchObject({ x: 42, y: 34, ref: "terminal2" });
+    expect(terminals[0]).toMatchObject({ x: 19, y: 11, ref: "terminal2" });
 
     const term = level("duct2")
       .layers.find((l) => l.name === "terminals")!
@@ -138,14 +151,16 @@ describe("log-cache node BETA", () => {
     expect(term?.values.type).toBe("LOG_CACHE_BETA");
   });
 
-  it("flanks the promoted terminal with a beam wherever one fits", () => {
-    // The offset beam positions are (38,34) and (46,34); (38,34) lands on a real wall
-    // on this map's duct2, so only the one that actually fits gets placed — the
-    // terminal promotion doesn't get lost along with it. See LogCacheBeta.ts.
-    const lasers = tilesOn("duct2", "lasers");
-    const original = ["1,11", "31,21", "12,10", "31,29", "28,34"];
-    const added = lasers.map((l) => `${l.x},${l.y}`).filter((k) => !original.includes(k));
-    expect(added).toEqual(["46,34"]);
+  it("keeps the promotion when the map has no beam to clone", () => {
+    // The flanking beams are decoration on the approach and are cloned from a
+    // board named `lasers`. v0.4 has none — its laser fixtures sit on duct2's
+    // `sensors` board and are found by ref — so no beam is placed, and the point
+    // is that the terminal promotion is not lost along with it.
+    expect(tilesOn("duct2", "lasers")).toHaveLength(0);
+    const term = tilesOn("duct2", "terminals")[0] as unknown as {
+      components: { type: string; values: Record<string, string> }[];
+    };
+    expect(term.components.find((c) => c.type === "terminal")?.values.type).toBe("LOG_CACHE_BETA");
   });
 
   it("uses a ref the laser reader will recognise", () => {
@@ -165,31 +180,39 @@ describe("log-cache node BETA", () => {
 });
 
 describe("the NW-SMAC-01 vault", () => {
-  it("places the core, its nodes and the silicate racks on open floor", () => {
-    // main2 is 48x36 on this map — the fixed VAULT_CORE/NODES/RACKS coordinates
-    // (picked for the old 40x45 main2) don't fit, so this exercises the derived
-    // fallback (`AlignmentVault.test.ts` covers that path directly on a fixture).
-    const blocked = blockedTiles(level("main2"));
-    for (const p of [...tilesOn("main2", "vault_core"), ...tilesOn("main2", "vault_nodes"), ...tilesOn("main2", "vault_racks")]) {
+  it("adopts the authored room rather than deriving a layout in main2", () => {
+    // v0.4 draws the vault as a level of its own, so none of this is derived: the
+    // core is EIRA-7 where the author stood her, the nodes are the four
+    // correction terminals around her, and the racks are the room's own cover.
+    const blocked = blockedTiles(level(VAULT_LEVEL));
+    for (const p of [...tilesOn(VAULT_LEVEL, "vault_core"), ...tilesOn(VAULT_LEVEL, "vault_nodes")]) {
       expect(blocked.has(`${p.x},${p.y}`), `(${p.x},${p.y}) is a wall`).toBe(false);
     }
-    expect(tilesOn("main2", "vault_core")).toHaveLength(1);
-    expect(tilesOn("main2", "vault_nodes")).toHaveLength(4);
-    expect(tilesOn("main2", "vault_racks")).toHaveLength(4);
+    expect(tilesOn(VAULT_LEVEL, "vault_core")).toMatchObject([{ x: 25, y: 7 }]);
+    expect(tilesOn(VAULT_LEVEL, "vault_nodes")).toHaveLength(4);
+    expect(tilesOn(VAULT_LEVEL, "vault_racks")).toHaveLength(8);
+    // main2 keeps its own shape — the vault is no longer grafted into it.
+    expect(tilesOn("main2", "vault_core")).toHaveLength(0);
+  });
+
+  it("leaves the racks on the cover board, so the room keeps its cover", () => {
+    const racks = tilesOn(VAULT_LEVEL, "vault_racks").map((t) => `${t.x},${t.y}`).sort();
+    const cover = tilesOn(VAULT_LEVEL, "cover").map((t) => `${t.x},${t.y}`).sort();
+    expect(racks).toEqual(cover);
   });
 
   it("puts the racks further from the core than the nodes", () => {
     // The merge is meant to cost a walk across the room, not a step sideways —
     // the invariant the derived layout is built to preserve.
-    const core = tilesOn("main2", "vault_core")[0];
+    const core = tilesOn(VAULT_LEVEL, "vault_core")[0];
     const dist = (p: { x: number; y: number }): number => Math.hypot(p.x - core.x, p.y - core.y);
-    const nearestRack = Math.min(...tilesOn("main2", "vault_racks").map(dist));
-    const nearestNode = Math.min(...tilesOn("main2", "vault_nodes").map(dist));
+    const nearestRack = Math.min(...tilesOn(VAULT_LEVEL, "vault_racks").map(dist));
+    const nearestNode = Math.min(...tilesOn(VAULT_LEVEL, "vault_nodes").map(dist));
     expect(nearestRack).toBeGreaterThan(nearestNode);
   });
 
   it("gives every node its own tile, so one hold can't finish two", () => {
-    const nodes = tilesOn("main2", "vault_nodes");
+    const nodes = tilesOn(VAULT_LEVEL, "vault_nodes");
     const seen = new Set(nodes.map((n) => `${n.x},${n.y}`));
     expect(seen.size).toBe(nodes.length);
   });
@@ -202,7 +225,7 @@ describe("the rooftop relay level", () => {
       expect(roof.layers.some((l) => l.name === board), `missing ${board}`).toBe(true);
     }
     const dish = tilesOn(ROOF_ARRAY_LEVEL, "relay_dish")[0];
-    expect(dish).toMatchObject({ x: 25, y: 17 });
+    expect(dish).toMatchObject({ x: 15, y: 7 });
     expect(tilesOn(ROOF_ARRAY_LEVEL, "relay_pedestals")).toHaveLength(2);
   });
 
@@ -211,21 +234,34 @@ describe("the rooftop relay level", () => {
     expect(tilesOn(ROOF_ARRAY_LEVEL, "terminals")).toHaveLength(0);
   });
 
-  it("links to main2 by the roof_access board, in both directions", () => {
-    // main2's ladder (5,1) and the roof's hatch (6,30) don't share a coordinate —
-    // this only resolves via the numbered hatch3/ladder3 pairing in TransitionGraph.
+  it("links to main2 by ladder, in both directions", () => {
+    // main2's `ladder_up5` and the roof's `access_hatch5` share (30,6) on the
+    // `verticals` board — the plain coordinate pairing, no numbering needed.
     const graph = new TransitionGraph(map);
-    const up = graph.at("main2", 5, 1);
-    expect(up?.toLevel).toBe(ROOF_ARRAY_LEVEL);
-    expect(up?.kind).toBe("roof_access");
-    const down = graph.at(ROOF_ARRAY_LEVEL, 6, 30);
-    expect(down?.toLevel).toBe("main2");
+    expect(graph.at("main2", 30, 6)?.toLevel).toBe(ROOF_ARRAY_LEVEL);
+    expect(graph.at(ROOF_ARRAY_LEVEL, 30, 6)?.toLevel).toBe("main2");
   });
 
   it("does not disturb the vent core's existing link", () => {
     const graph = new TransitionGraph(map);
-    expect(graph.at("duct2", 43, 1)?.toLevel).toBe(VENT_CORE_LEVEL);
-    expect(graph.at(VENT_CORE_LEVEL, 43, 1)?.toLevel).toBe("duct2");
+    expect(graph.at("duct2", 33, 16)?.toLevel).toBe(VENT_CORE_LEVEL);
+    expect(graph.at(VENT_CORE_LEVEL, 33, 16)?.toLevel).toBe("duct2");
+  });
+
+  it("reaches every level the map authored", () => {
+    // The whole point of the migration: v0.3 stranded six of nine levels, and a
+    // run that cannot reach the extraction deck cannot be won.
+    const graph = new TransitionGraph(map);
+    const seen = new Set(["main1"]);
+    const queue = ["main1"];
+    while (queue.length > 0) {
+      for (const exit of graph.exitsOn(queue.shift()!)) {
+        if (seen.has(exit.transition.toLevel)) continue;
+        seen.add(exit.transition.toLevel);
+        queue.push(exit.transition.toLevel);
+      }
+    }
+    expect([...map.levels.map((l) => l.name)].filter((n) => !seen.has(n))).toEqual([]);
   });
 });
 

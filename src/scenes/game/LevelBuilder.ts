@@ -10,8 +10,9 @@ import { Orderly } from "../../entities/Orderly";
 import { Player } from "../../entities/Player";
 import { Sensor } from "../../entities/Sensor";
 import { Terminal } from "../../entities/Terminal";
+import { indexEntities, indexFixtures, type EntityIndex } from "../../map/EntityIndex";
 import { bakeTileLayers, buildWallBodies, type CoverBody } from "../../map/TileBake";
-import type { GameLevel, GameTile } from "../../map/types";
+import type { GameLevel } from "../../map/types";
 import type { CollisionGrid } from "../../systems/CollisionGrid";
 import type { DetectionSystem } from "../../systems/DetectionSystem";
 import { str } from "../../systems/EntityStats";
@@ -31,9 +32,6 @@ import { routeFromLayer } from "../../systems/PatrolRoute";
  * Depth 120 is the floor for anything an entity owns; the baked tile art sits
  * below it. See {@link bakeTileLayers}.
  */
-
-/** Depth for tile-anchored props: doors, terminals, chests, loose decor. */
-const PROP_DEPTH = 120;
 
 /** The live contents of a level, handed back to the scene to drive. */
 export interface BuiltLevel {
@@ -77,7 +75,12 @@ export function buildLevel(
   arriveTile: { x: number; y: number } | undefined,
   entityLayers: ReadonlySet<string>,
 ): BuiltLevel {
-  const tileTexture = bakeTileLayers(scene, level, tileSize, entityLayers);
+  // Who lives here, decided before anything is drawn: the bake has to know which
+  // individual tiles are about to become entities so it can leave them out.
+  const index = indexEntities(level, entityLayers);
+  indexFixtures(level, index);
+
+  const tileTexture = bakeTileLayers(scene, level, tileSize, entityLayers, index.claimed);
   const { wallBodies, coverBodies: coverBodyEntries } = buildWallBodies(scene, level, tileSize);
 
   const built: BuiltLevel = {
@@ -95,8 +98,8 @@ export function buildLevel(
     doorBodies: [],
   };
 
-  spawnCast(scene, level, tileSize, built);
-  spawnInteractables(scene, level, tileSize, grid, built);
+  spawnCast(scene, level, tileSize, index, built);
+  spawnInteractables(scene, level, tileSize, grid, index, built);
   spawnDestructibleCover(scene, level, tileSize, grid, detection, tileTexture, coverBodyEntries, built);
   return built;
 }
@@ -146,16 +149,43 @@ function spawnPlayer(
   return new Player(scene, px, py, tileSize);
 }
 
-/** Guards, drones and orderlies. */
+/**
+ * Guards, drones and orderlies.
+ *
+ * Two sources, because two map generations. `EntityIndex` reads the component-
+ * typed cast v0.4 authors — one board per route, named for the route rather than
+ * for the engine. The legacy `enforcers` / `drones` / `orderlies` boards are
+ * still read by name, since the engine's own generators emit them and their
+ * tiles carry no components to classify.
+ */
 function spawnCast(
   scene: Phaser.Scene,
   level: GameLevel,
   tileSize: number,
+  index: EntityIndex,
   out: BuiltLevel,
 ): void {
   // A guard board is one guard's *route*, not a headcount — see
   // `routeFromLayer`. Each board therefore spawns a single guard standing on
   // waypoint 0 and walking the rest as a loop.
+  for (const g of index.guards) {
+    const start = g.route[0];
+    out.guards.push(
+      g.kind === "drone"
+        ? new Drone(scene, start.x, start.y, tileSize, g.components, g.route)
+        : new Enforcer(
+            scene,
+            start.x,
+            start.y,
+            tileSize,
+            g.components,
+            ENFORCER_SKIN,
+            g.route,
+          ),
+    );
+  }
+  for (const t of index.orderlies) out.orderlies.push(new Orderly(scene, t.x, t.y, tileSize));
+
   const enforcerLayer = level.layers.find((l) => l.name === "enforcers");
   const enforcerRoute = routeFromLayer(enforcerLayer);
   if (enforcerLayer && enforcerRoute.length > 0) {
@@ -198,58 +228,37 @@ function spawnInteractables(
   level: GameLevel,
   tileSize: number,
   grid: CollisionGrid,
+  index: EntityIndex,
   out: BuiltLevel,
 ): void {
-  for (const t of level.layers.find((l) => l.name === "doors")?.tiles ?? []) {
-    // Only tiles carrying a `door` component are real doors; the board can
-    // also hold stray art. Laser tiles are handled below as Laser hazards;
-    // anything else non-door stays decorative.
-    if (!t.components.some((c) => c.type === "door")) {
-      if (t.frame && !t.ref.toLowerCase().includes("laser")) drawProp(scene, t, tileSize);
-      continue;
-    }
+  for (const t of index.doors) {
     const door = new Door(scene, t, tileSize, grid);
     out.doors.push(door);
     if (door.body) out.doorBodies.push(door.body);
   }
 
-  for (const t of level.layers.find((l) => l.name === "terminals")?.tiles ?? []) {
-    if (!t.components.some((c) => c.type === "terminal")) continue;
-    out.terminals.push(new Terminal(scene, t, tileSize));
-  }
+  for (const t of index.terminals) out.terminals.push(new Terminal(scene, t, tileSize));
+  for (const t of index.chests) out.chests.push(new Chest(scene, t, tileSize));
+  for (const t of index.sensors) out.sensors.push(new Sensor(scene, t, tileSize, grid));
 
-  // Sensor cameras: the `security` board holds fixed optical cameras (its
-  // tiles use a laser-ref sprite but are reinterpreted as cameras here).
+  // Sensor cameras: the legacy `security` board holds fixed optical cameras (its
+  // tiles use a laser-ref sprite but are reinterpreted as cameras here). v0.4's
+  // cameras carry a `Sensor` component and come through the index above.
   for (const t of level.layers.find((l) => l.name === "security")?.tiles ?? []) {
     out.sensors.push(new Sensor(scene, t, tileSize, grid));
   }
 
-  // Chests: the `items` board holds searchable supply containers.
-  for (const t of level.layers.find((l) => l.name === "items")?.tiles ?? []) {
-    if (!t.components.some((c) => c.type === "chest")) continue;
-    out.chests.push(new Chest(scene, t, tileSize));
-  }
-
-  // Lasers can sit on several boards (a dedicated `lasers` board in main1, a
-  // stray tile on the `doors` board in main2), so gather them by ref across
-  // all layers rather than a single board. The `security` board is skipped —
-  // its laser-ref tiles are cameras, spawned above.
+  // Lasers can sit on several boards (a dedicated `lasers` board, `duct2`'s
+  // `sensors`, a stray tile on `doors`), so gather them by ref across all layers
+  // rather than a single board. The `security` board is skipped — its laser-ref
+  // tiles are cameras, spawned above. A laser draws its beam procedurally over
+  // its own baked art, so its tile is deliberately not claimed.
   for (const layer of level.layers) {
     if (layer.name === "security") continue;
     for (const t of layer.tiles) {
-      if (t.ref.toLowerCase().includes("laser")) out.lasers.push(new Laser(scene, t, tileSize));
+      if (t.ref.toLowerCase().includes("laser") && !index.sensors.includes(t)) {
+        out.lasers.push(new Laser(scene, t, tileSize));
+      }
     }
   }
-}
-
-/** A one-off decorative sprite from an entity board — no behaviour attached. */
-function drawProp(scene: Phaser.Scene, tile: GameTile, tileSize: number): void {
-  scene.add
-    .image(
-      tile.x * tileSize + tileSize / 2,
-      tile.y * tileSize + tileSize / 2,
-      tile.frame!.textureKey,
-      tile.frame!.frameKey,
-    )
-    .setDepth(PROP_DEPTH);
 }

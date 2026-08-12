@@ -50,6 +50,39 @@ describe("EdplayLoader — omitted coordinates mean zero", () => {
   });
 });
 
+describe("EdplayLoader — mirrored frames", () => {
+  it("carries a keyframe's FlipY onto the placed tile", () => {
+    // How the editor gets two facings out of one sprite rect. NW-SMAC-01 draws
+    // both ends of the main2 <-> main2vault staircase from `stairs1_39` and flips
+    // the one you see from the other side; ignoring the field drew that stair, and
+    // the rooftop's south ramp, facing the wrong way.
+    const raw = {
+      SpriteSheets: [
+        { RelativePath: "s.png", RenderedPath: "s.png", Width: 64, Height: 32, Id: "s",
+          Sprites: [{ X: 0, Y: 0, Width: 32, Height: 32, Ref: "stairs1_39" }] },
+      ],
+      TileDefs: [
+        { Handle: 1, Ref: "down", ColSpan: 1, RowSpan: 1, DataComponents: [],
+          Animation: { Rate: 1, KeyFrames: [{ SpriteId: "stairs1_39", Duration: 1, DurationMax: 1 }] } },
+        { Handle: 2, Ref: "up", ColSpan: 1, RowSpan: 1, DataComponents: [],
+          Animation: { Rate: 1, KeyFrames: [{ SpriteId: "stairs1_39", Duration: 1, DurationMax: 1, FlipY: true }] } },
+      ],
+      DataTypes: { EnumDefs: [], DataStructures: [] },
+      Width: 4, Height: 4, TileWidth: 32, TileHeight: 32, Name: "t",
+      Levels: [{ Name: "only", Id: "l", Boards: [
+        { Name: "verticals", Width: 4, Height: 4, IsVisible: true, Id: "b",
+          Tiles: [{ Handle: 1, X: 1, Y: 1 }, { Handle: 2, X: 2, Y: 1 }] },
+      ] }],
+    } as unknown as EdPlayFile;
+
+    const tiles = EdplayLoader.parse(raw, ["s.png"]).map.levels[0].layers[0].tiles;
+    expect(tiles.map((t) => t.flipY)).toEqual([false, true]);
+    // One sprite rect, one registered frame — the flip is a property of the
+    // placement, not of the atlas entry, or the two defs would fight over it.
+    expect(tiles[0].frame?.frameKey).toBe(tiles[1].frame?.frameKey);
+  });
+});
+
 describe("the shipped map's level borders", () => {
   let parsed: ParsedMap;
 
@@ -117,18 +150,28 @@ describe("the shipped map's level borders", () => {
     }
   });
 
+  it("finds both of the shipped map's mirrored tiles", () => {
+    const flipped = parsed.map.levels.flatMap((l) =>
+      l.layers.flatMap((b) => b.tiles.filter((t) => t.flipY).map((t) => `${l.name} ${t.ref}`)),
+    );
+    expect(flipped.sort()).toEqual([
+      "main2vault stairs_down_north_cement1",
+      "roof_array ramp_up_south_metal1",
+    ]);
+  });
+
   it("turns every plain wall tile on main1 into exactly one collision cell", () => {
-    // main1's walls board holds 792 tiles, all 1×1. 336 of them carry authored collider
+    // main1's walls board holds 318 tiles, all 1×1. 157 of them carry authored collider
     // padding (`ColliderPadding` — see footprint.ts) and are deliberately excluded from
     // this coarse mask: they get their own precise body from `wallBodyRects` instead,
     // covered by the "no blocked cell without a body" test below. What this test still
-    // has to hold is the original regression — before the NaN fix this produced 442, the
-    // 84 border tiles (no X on the west column, no Y on the north row) silently lost.
+    // has to hold is the original regression — the border tiles (no X on the west
+    // column, no Y on the north row) were silently lost before the NaN fix.
     const main1 = parsed.map.levels.find((l) => l.name === "main1") as GameLevel;
     const walls = main1.layers.find((l) => l.name === "walls")!;
-    expect(walls.tiles).toHaveLength(792);
+    expect(walls.tiles).toHaveLength(318);
     const plain = walls.tiles.filter((t) => hasPlainCollider(t));
-    expect(plain).toHaveLength(456);
+    expect(plain).toHaveLength(161);
     const bodies = wallCells(main1, 32);
     expect(bodies.reduce((a: number, v: number) => a + v, 0)).toBe(plain.length);
   });

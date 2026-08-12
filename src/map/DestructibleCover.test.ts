@@ -42,23 +42,25 @@ describe("DestructibleCover", () => {
    * not a workaround: every sibling generator in this codebase declines rather
    * than fabricates when a map can't furnish what it needs.
    */
-  it("declines on this map — main1 has no cover tile with a real cover component", () => {
+  it("declines on this map — its constants describe a level twice this size", () => {
     expect(startLevel).toBe("main1");
     expect(appendDestructibleCover(parsed.map, startLevel)).toBe(false);
   });
 
-  it("leaves main1's cover board untouched", () => {
+  it("leaves main1's cover board untouched, because the author already authored it", () => {
+    // Declining is the right outcome now rather than a loss: v0.4 marks cover
+    // `Destructible` across every deck, so there is nothing left to graft in.
     const cover = parsed.map.levels.find((l) => l.name === startLevel)!.layers.find(
       (l) => l.name === "cover",
     )!;
-    const before = cover.tiles.length;
+    const before = cover.tiles.map((t) => `${t.x},${t.y}`);
     appendDestructibleCover(parsed.map, startLevel);
-    expect(cover.tiles.length).toBe(before);
-    for (const t of cover.tiles) {
-      expect(t.components.some((c) => c.type === "cover" && c.values.Destructible === "true")).toBe(
-        false,
-      );
-    }
+    expect(cover.tiles.map((t) => `${t.x},${t.y}`)).toEqual(before);
+    expect(
+      cover.tiles.filter((t) =>
+        t.components.some((c) => c.type === "cover" && c.values.Destructible === "true"),
+      ),
+    ).toHaveLength(2);
   });
 
   /**

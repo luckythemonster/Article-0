@@ -129,11 +129,18 @@ describe("the shipped map's crawlable cover", () => {
 
   it("gives the squeeze something real to do on the decks it ships with", () => {
     // Pinned because the mechanic is worth nothing if the map stops authoring
-    // solid cover: main1's desk and boxes, duct2's and main2's server racks.
-    // The rooftop's cover board is not solid, so it is walked over, not through.
+    // solid cover: main1's server racks, main2's crates and boxes, the vault's
+    // and secret2's rack rows. v0.4 marks every cover board `Collision: 1`, so
+    // there is no longer a deck whose cover is walked over rather than through.
     const counts = Object.fromEntries(
       levels.map((l) => [l.name, cellsOf(wallBodyRects(l, TILE_SIZE).crawlable).size]),
     );
-    expect(counts).toMatchObject({ main1: 5, duct2: 5, main2: 50, roof_array: 0 });
+    expect(counts).toMatchObject({
+      main1: 3,
+      duct2: 3,
+      main2: 12,
+      main2vault: 8,
+      roof_array: 4,
+    });
   });
 });
