@@ -1,3 +1,4 @@
+import { transitionClassOf } from "../systems/TransitionGraph";
 import type { GameLevel, GameMap, GameTile } from "./types";
 import {
   ensureLayer,
@@ -95,26 +96,31 @@ export function graftExtractionEntrance(map: GameMap, extraction: string | null)
   const level = map.levels.find((l) => l.name === extraction);
   if (!level) return false;
 
-  const walkTo = (name: string, board: string): GameTile[] =>
-    map.levels.find((l) => l.name === name)?.layers.find((l) => l.name === board)?.tiles ?? [];
+  // Every board the transition graph would read as a way in — the map's own name
+  // for them, whatever it is, rather than the two the engine happens to generate.
+  // NW-SMAC-01 v0.4 files all of them on `verticals`, so hardcoding `stairs` here
+  // reported "no way in" for a deck with four of them and grafted a bogus link.
+  const waysInto = (name: string): GameTile[] =>
+    (map.levels.find((l) => l.name === name)?.layers ?? [])
+      // `roof_access` does not count: the roof is downstream of extraction, not a
+      // way into it. Any other class does, an elevator car included.
+      .filter((l) => {
+        const cls = transitionClassOf(l.name);
+        return cls !== undefined && cls !== "roof_access";
+      })
+      .flatMap((l) => l.tiles);
 
-  // Already reachable on foot? Then it needs nothing from us. `roof_access` does
-  // not count: the roof is downstream of extraction, not a way into it.
-  const inbound = ["stairs", "maintenance_access"].flatMap((b) => walkTo(extraction, b));
-  if (inbound.length > 0) return false;
+  // Already reachable on foot? Then it needs nothing from us.
+  if (waysInto(extraction).length > 0) return false;
 
-  // A dangling stair: one whose coordinate no *other* level's `stairs` board
-  // answers, so it currently falls back to some arbitrary neighbour.
+  // A dangling transition tile: one whose coordinate no *other* level answers, so
+  // it currently leads nowhere at all.
   const donor = map.levels
     .filter((l) => l.name !== extraction)
-    .flatMap((l) => l.layers.find((b) => b.name === "stairs")?.tiles.map((t) => ({ l, t })) ?? [])
+    .flatMap((l) => waysInto(l.name).map((t) => ({ l, t })))
     .find(({ l, t }) =>
       map.levels.every(
-        (o) =>
-          o.name === l.name ||
-          !(o.layers.find((b) => b.name === "stairs")?.tiles ?? []).some(
-            (u) => u.x === t.x && u.y === t.y,
-          ),
+        (o) => o.name === l.name || !waysInto(o.name).some((u) => u.x === t.x && u.y === t.y),
       ),
     );
   if (!donor) return false;
