@@ -1,12 +1,15 @@
-import type Phaser from "phaser";
-import type { SpriteCollider } from "./generated/playerCollider";
-import { DIRS_8, type Dir8 } from "./directions";
+import type { Silhouette } from "./Silhouette";
+import type { Dir8 } from "./directions";
 
 /**
- * Describes one guard's sprite sheet + display tuning, so the shared vision-
- * cone/patrol/pursue/detection AI in {@link Enforcer} can drive any reskin
- * (the security drone, the crawlspace drone, ...) without knowing its asset
- * layout. All guard skins use the same 8 directions.
+ * Describes one guard's look + display tuning, so the shared vision-cone /
+ * patrol / pursue / detection AI in {@link Enforcer} can drive any reskin (the
+ * security drone, the crawlspace drone, ...) without knowing what it looks like.
+ * All guard skins use the same 8 directions.
+ *
+ * The frames themselves are drawn at boot by `CastArt.buildCastTextures`, under
+ * exactly the keys {@link GuardSkin.frameKey} names — which is why there is no
+ * longer a `framePath`: nothing is loaded from disk.
  */
 export interface GuardSkin {
   frameCount: number;
@@ -21,14 +24,13 @@ export interface GuardSkin {
    */
   collisionRadiusTiles: number;
   /**
-   * The traced south-frame silhouette. Kept rather than discarded after
+   * The silhouette box. Kept rather than discarded after
    * {@link collisionRadiusTiles} is taken off it, because the ground shadow needs the
    * box itself — a width *and* a foot offset — and it needs them in px, which means
    * deriving them at construction where the tile size is known rather than here.
    */
-  collider: SpriteCollider;
+  collider: Silhouette;
   frameKey(dir: Dir8, frame: number): string;
-  framePath(dir: Dir8, frame: number): string;
   animKey(dir: Dir8): string;
 }
 
@@ -53,14 +55,14 @@ const MAX_GUARD_RADIUS_TILES = 0.42;
  * box traced from one frame is wrong for the other seven. A circle is also what
  * lets a guard slide around a corner instead of catching on it.
  *
- * Deriving this from the generated collider rather than hand-typing a number
- * means re-running `npm run gen:colliders` after an art change carries straight
- * through to collision. The trade is that the trace is taken from the *south*
- * frame, so a wider facing can overhang by a pixel or two; that is invisible in
- * play, and the alternative — sizing for the widest frame — is a body too fat
- * for the doorways it has to walk through.
+ * Deriving this from the silhouette rather than hand-typing a number means the
+ * body follows the drawing: `CastArt` fills that same box, so widening a guard
+ * carries straight through to collision. The trade is that the box describes the
+ * *south* facing, so a wider facing can overhang by a pixel or two; that is
+ * invisible in play, and the alternative — sizing for the widest facing — is a
+ * body too fat for the doorways it has to walk through.
  */
-export function guardRadiusTiles(collider: SpriteCollider, displayTiles: number): number {
+export function guardRadiusTiles(collider: Silhouette, displayTiles: number): number {
   const widthTiles = (collider.aabb.width * displayTiles) / collider.frameWidth;
   return Math.min(MAX_GUARD_RADIUS_TILES, widthTiles / 2);
 }
@@ -68,10 +70,8 @@ export function guardRadiusTiles(collider: SpriteCollider, displayTiles: number)
 /** The tuning that actually differs between one guard's art and another's. */
 export interface GuardSkinSpec {
   /**
-   * Asset/animation slug. Frames are expected at
-   * `public/assets/<id>/patrol/<direction>/<frame>.png`, and every texture and
-   * animation key is derived from it — so this one string is the whole naming
-   * convention.
+   * Animation slug. Every texture and animation key is derived from it — so this
+   * one string is the whole naming convention, and `CastArt` bakes to it.
    */
   id: string;
   frameCount: number;
@@ -80,8 +80,8 @@ export interface GuardSkinSpec {
   displayTiles: number;
   /** Native pixel size of the (square) source art. */
   sourceSize: number;
-  /** Generated collider for the south frame; see {@link guardRadiusTiles}. */
-  collider: SpriteCollider;
+  /** Silhouette box for the south facing; see {@link guardRadiusTiles}. */
+  collider: Silhouette;
 }
 
 /**
@@ -104,16 +104,6 @@ export function makeGuardSkin(spec: GuardSkinSpec): GuardSkin {
     collisionRadiusTiles: guardRadiusTiles(spec.collider, spec.displayTiles),
     collider: spec.collider,
     frameKey: (dir, frame) => `${id}-patrol-${dir}-${frame}`,
-    framePath: (dir, frame) => `assets/${id}/patrol/${dir}/${frame}.png`,
     animKey: (dir) => `${id}-patrol-${dir}`,
   };
-}
-
-/** Queues every frame a skin needs, for BootScene's preload. */
-export function preloadGuardSkin(scene: Phaser.Scene, skin: GuardSkin): void {
-  for (const dir of DIRS_8) {
-    for (let i = 0; i < skin.frameCount; i++) {
-      scene.load.image(skin.frameKey(dir, i), skin.framePath(dir, i));
-    }
-  }
 }

@@ -586,10 +586,10 @@ export const HOLD_UP_GRACE_SECONDS = 4;
 /**
  * Body radius (tiles) an orderly is collided against.
  *
- * Hand-written rather than traced, because orderlies have no generated collider —
- * `npm run gen:colliders` covers the player, the enforcer and the drone, whose art
- * is nearly edge-to-edge, and the orderly's 84x84 sheet is mostly padding. 0.3
- * clears a one-tile passage with room either side.
+ * Hand-written rather than taken off the silhouette, unlike the guards' radii: an
+ * orderly's box is 17px of body in a 96px frame — nearly all padding — and half of
+ * that is narrower than a body has any business being. 0.3 clears a one-tile
+ * passage with room either side.
  */
 export const ORDERLY_COLLISION_RADIUS_TILES = 0.3;
 

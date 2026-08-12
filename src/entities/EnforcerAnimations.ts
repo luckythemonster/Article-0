@@ -1,8 +1,8 @@
 import { makeGuardSkin, type GuardSkin } from "./GuardSkin";
-import { ENFORCER_PATROL_SOUTH_COLLIDER } from "./generated/enforcerCollider";
+import { ENFORCER_SILHOUETTE } from "./Silhouette";
 
 /**
- * Frame manifest for the enforcer sprite (generated via PixelLab.ai — a
+ * Frame manifest for the enforcer (drawn by `CastArt` — a
  * blocky robotic sentry gliding on magnetic tracks with a rotating crown of
  * camera-arms, high top-down, 48x48). The "patrol-scan" cycle (custom v3
  * animation) shows the camera-arms sweeping back and forth like a scanner
@@ -11,7 +11,7 @@ import { ENFORCER_PATROL_SOUTH_COLLIDER } from "./generated/enforcerCollider";
  * All 8 directions were exported, so facing matches the guard's continuous
  * patrol/pursuit angle exactly (no cardinal snapping).
  *
- * Frames live in public/assets/enforcer/patrol/<direction>/<frame>.png.
+ * Frames are drawn at boot by `CastArt.buildCastTextures`.
  */
 
 /**
@@ -54,5 +54,5 @@ export const ENFORCER_SKIN: GuardSkin = makeGuardSkin({
   frameRate: 8,
   displayTiles: ENFORCER_DISPLAY_TILES,
   sourceSize: ENFORCER_SOURCE_SIZE,
-  collider: ENFORCER_PATROL_SOUTH_COLLIDER,
+  collider: ENFORCER_SILHOUETTE,
 });

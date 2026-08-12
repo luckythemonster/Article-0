@@ -1,13 +1,12 @@
-import type Phaser from "phaser";
-import { DIRS_8, type Dir8 } from "./directions";
+import { type Dir8 } from "./directions";
 
 /**
- * Frame manifest for the orderly sprite (generated via PixelLab.ai — a human
+ * Frame manifest for the orderly (drawn by `CastArt` — a human
  * orderly in a utilitarian jumpsuit with a diagnostic tablet, high top-down,
  * 96x96, `mannequin` template). Only idle and walk are needed — an orderly is
  * a bystander, not a combatant, so it has no run/crouch.
  *
- * Frames live in public/assets/orderly/<anim>/<direction>/<frame>.png.
+ * Frames are drawn at boot by `CastArt.buildCastTextures`.
  */
 export type OrderlyAnimName = "idle" | "walk";
 
@@ -44,22 +43,7 @@ export function orderlyFrameKey(anim: OrderlyAnimName, dir: Dir8, frame: number)
   return `orderly-${anim}-${dir}-${frame}`;
 }
 
-export function orderlyFramePath(anim: OrderlyAnimName, dir: Dir8, frame: number): string {
-  return `assets/orderly/${anim}/${dir}/${frame}.png`;
-}
-
 export function orderlyAnimKey(anim: OrderlyAnimName, dir: Dir8): string {
   return `orderly-${anim}-${dir}`;
 }
 
-/** Queues every orderly frame, for BootScene's preload. */
-export function preloadOrderly(scene: Phaser.Scene): void {
-  for (const anim of Object.keys(ORDERLY_ANIM_FRAME_COUNTS) as OrderlyAnimName[]) {
-    const count = ORDERLY_ANIM_FRAME_COUNTS[anim];
-    for (const dir of DIRS_8) {
-      for (let i = 0; i < count; i++) {
-        scene.load.image(orderlyFrameKey(anim, dir, i), orderlyFramePath(anim, dir, i));
-      }
-    }
-  }
-}

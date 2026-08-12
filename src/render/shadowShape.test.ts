@@ -1,8 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { FOOT_WIDEN, shadowShapeFor } from "./shadowShape";
-import type { SpriteCollider } from "../entities/generated/playerCollider";
-import { PLAYER_IDLE_SOUTH_COLLIDER } from "../entities/generated/playerCollider";
-import { ORDERLY_IDLE_SOUTH_COLLIDER } from "../entities/generated/orderlyCollider";
+import type { Silhouette } from "../entities/Silhouette";
+import { ORDERLY_SILHOUETTE, PLAYER_SILHOUETTE } from "../entities/Silhouette";
 import { PLAYER_DISPLAY_TILES } from "../entities/PlayerAnimations";
 import { ORDERLY_DISPLAY_TILES } from "../entities/OrderlyAnimations";
 import { ENFORCER_SKIN } from "../entities/EnforcerAnimations";
@@ -11,19 +10,9 @@ import { DEFAULT_TILE_SIZE } from "./pixelScale";
 
 const TILE = DEFAULT_TILE_SIZE;
 
-/** A synthetic collider, so the arithmetic can be checked against known numbers. */
-function collider(aabb: SpriteCollider["aabb"], frameSize: number): SpriteCollider {
-  return {
-    source: "test",
-    frameWidth: frameSize,
-    frameHeight: frameSize,
-    epsilon: 2,
-    inset: 0,
-    aabb,
-    polygon: [],
-    polygonFlat: [],
-    matterPath: "",
-  };
+/** A synthetic silhouette, so the arithmetic can be checked against known numbers. */
+function collider(aabb: Silhouette["aabb"], frameSize: number): Silhouette {
+  return { frameWidth: frameSize, frameHeight: frameSize, aabb };
 }
 
 describe("shadowShapeFor", () => {
@@ -62,10 +51,10 @@ describe("shadowShapeFor", () => {
     // does. That is the point — they are here to catch a regeneration quietly resizing
     // somebody's shadow, not to freeze a design decision.
     const cast = [
-      { who: "player", shape: shadowShapeFor(PLAYER_IDLE_SOUTH_COLLIDER, PLAYER_DISPLAY_TILES, TILE) },
+      { who: "player", shape: shadowShapeFor(PLAYER_SILHOUETTE, PLAYER_DISPLAY_TILES, TILE) },
       { who: "enforcer", shape: shadowShapeFor(ENFORCER_SKIN.collider, ENFORCER_SKIN.displayTiles, TILE) },
       { who: "drone", shape: shadowShapeFor(DRONE_SKIN.collider, DRONE_SKIN.displayTiles, TILE) },
-      { who: "orderly", shape: shadowShapeFor(ORDERLY_IDLE_SOUTH_COLLIDER, ORDERLY_DISPLAY_TILES, TILE) },
+      { who: "orderly", shape: shadowShapeFor(ORDERLY_SILHOUETTE, ORDERLY_DISPLAY_TILES, TILE) },
     ];
 
     it.each(cast)("sizes $who to something that fits a tile", ({ shape }) => {

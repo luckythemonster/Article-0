@@ -1,19 +1,17 @@
 import { type Dir8 } from "./directions";
 /**
- * Frame manifest for the player character sprite (PixelLab.ai character
- * `7b4ca7b4-7da9-4e10-8442-0d8f102619ce`, "Rowan Ibarra" — high top-down,
- * 36x36, 8-direction template, adopted as-is). All 8 directions were exported
- * per animation, so the sprite's facing matches the free 8-directional
- * movement exactly (no cardinal snapping).
+ * Frame manifest for the player character.
  *
- * idle/walk/run come from the standing "Rowan Ibarra" character; crouch and
- * crouch-walk come from a crouched state of that same character (same rig,
- * outfit and palette, posed low) — a proper settled kneel for standing still in
- * cover versus a distinct crouch-sneak stride for moving in it. crouch-down and
- * crouch-up interpolate between the two sheets' rotations.
+ * All 8 directions exist for every animation, so the sprite's facing matches the
+ * free 8-directional movement exactly (no cardinal snapping). idle/walk/run are
+ * standing; crouch and crouch-walk are the settled kneel and the sneak stride;
+ * crouch-down and crouch-up are one-shot transitions between the two, and their
+ * *completion* is what settles the stance machine in `Player.update`.
  *
- * Frames live in public/assets/player/<anim>/<direction>/<frame>.png, and are
- * regenerated with `tools/pixellab/generate-player.ts`.
+ * The frames are drawn at boot by `CastArt.buildCastTextures`, under the keys
+ * {@link playerFrameKey} names — nothing is loaded from disk. What stays here is
+ * the manifest: which clips exist, how many frames each has and how fast they
+ * run, which is what both the animation registration and the poses read.
  */
 
 export type PlayerAnimName =
@@ -36,14 +34,8 @@ export type PlayerAnimName =
  *       = (32 * 1.125) / 36 * 2  =  2
  *
  * A whole number, so every source pixel lands on an even 2x2 block of screen
- * pixels and the art is never resampled. 36 is this PixelLab character's
- * native size, adopted as-is rather than redrawn to a finer canvas — but
- * `PLAYER_DISPLAY_TILES` was *not* carried over unchanged from the previous
- * character: it was recalibrated (1.5 -> 1.125) so the body's on-screen
- * footprint lands near its historical size rather than whatever the new
- * canvas happens to produce at the old display size. `displayTiles` is a pure
- * scale knob, not art, and has to be re-picked per character — see the canvas
- * comment on `PLAYER` in `tools/pixellab/characters.ts` for the fuller story.
+ * pixels and the art is never resampled. It is also the canvas `CastArt` draws
+ * Rowan into, so the figure is authored at exactly the size it is displayed at.
  *
  * Any non-whole result breaks the rule: the frames used to be 88x88, which
  * worked out to 1.0909 screen pixels per source pixel, and with
@@ -91,10 +83,6 @@ export const PLAYER_ANIM_FRAME_RATES: Record<PlayerAnimName, number> = {
 
 export function playerFrameKey(anim: PlayerAnimName, dir: Dir8, frame: number): string {
   return `player-${anim}-${dir}-${frame}`;
-}
-
-export function playerFramePath(anim: PlayerAnimName, dir: Dir8, frame: number): string {
-  return `assets/player/${anim}/${dir}/${frame}.png`;
 }
 
 /** The Phaser animation key for a given anim+direction pair. */

@@ -20,14 +20,13 @@ import {
   paced,
 } from "../systems/EntityStats";
 import type { PressState } from "../systems/WallPress";
-import { PLAYER_IDLE_SOUTH_COLLIDER } from "./generated/playerCollider";
+import { PLAYER_SILHOUETTE } from "./Silhouette";
 import { shadowShapeFor, type ShadowShape } from "../render/shadowShape";
 import { len } from "../systems/distance";
 
 /**
- * The player-controlled infiltrator, rendered with the PixelLab-generated
- * "Rowan Ibarra" character sheet (idle/walk/run/crouch cycles, full 8
- * directions).
+ * The player-controlled infiltrator, drawn by `CastArt` (idle/walk/run/crouch
+ * cycles, full 8 directions).
  *
  * Movement is free 8-directional via an arcade-physics body, and the sprite's
  * facing matches it exactly; the animation played reflects stance (idle /
@@ -82,10 +81,10 @@ export class Player {
     this.sprite.setDepth(750);
 
     // Scale the art to ~1.5 tiles tall, then fit the collision body to the
-    // sprite's alpha silhouette. The box is traced from the art by the collider
-    // generator (`npm run gen:colliders`) rather than hand-tuned, so it tracks
-    // the character instead of the padded frame. Values are in the sprite's
-    // *unscaled* local space (Arcade Body convention).
+    // silhouette. `CastArt` draws Rowan to fill that same box, so the body is the
+    // figure rather than the padded frame around it — and stays that way if the
+    // drawing changes. Values are in the sprite's *unscaled* local space (Arcade
+    // Body convention).
     //
     // The two sizes are chosen so this division lands on exactly 0.5, which is
     // what keeps the pixel art crisp under the camera's 2x zoom — see
@@ -98,9 +97,9 @@ export class Player {
     this.sprite.setScale(displaySize / PLAYER_SOURCE_SIZE);
     // Off the same trace the body below is sized from, so the shadow sits under the
     // boots rather than under wherever the padded frame happens to put its centre.
-    this.shadow = shadowShapeFor(PLAYER_IDLE_SOUTH_COLLIDER, PLAYER_DISPLAY_TILES, tileSize);
+    this.shadow = shadowShapeFor(PLAYER_SILHOUETTE, PLAYER_DISPLAY_TILES, tileSize);
     const body = this.sprite.body as Phaser.Physics.Arcade.Body;
-    const { width, height, offsetX, offsetY } = PLAYER_IDLE_SOUTH_COLLIDER.aabb;
+    const { width, height, offsetX, offsetY } = PLAYER_SILHOUETTE.aabb;
     body.setSize(width, height);
     body.setOffset(offsetX, offsetY);
     this.sprite.setCollideWorldBounds(true);
