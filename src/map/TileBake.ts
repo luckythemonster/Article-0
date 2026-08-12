@@ -161,7 +161,9 @@ export function bakeTileLayers(
     if (skipLayers.has(layer.name)) continue;
     for (const tile of layer.tiles) {
       if (!tile.frame || claimedTiles.has(tile)) continue;
-      if (isSingleCell(tile)) {
+      // `batchDrawFrame` takes a position and nothing else, so a mirrored tile has
+      // to go the long way round even when its geometry is otherwise plain.
+      if (isSingleCell(tile) && !tile.flipY) {
         rt.batchDrawFrame(
           tile.frame.textureKey,
           tile.frame.frameKey,
@@ -175,6 +177,7 @@ export function bakeTileLayers(
       scaled
         .setTexture(tile.frame.textureKey, tile.frame.frameKey)
         .setDisplaySize(tile.colSpan * tileSize, tile.rowSpan * tileSize)
+        .setFlipY(tile.flipY === true)
         .setPosition(centre.x, centre.y);
       rt.batchDraw(scaled);
     }

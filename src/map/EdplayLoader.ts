@@ -180,6 +180,10 @@ export class EdplayLoader {
             rowSpan: td?.RowSpan ?? 1,
             offsetX: td?.OffsetX ?? 0,
             offsetY: td?.OffsetY ?? 0,
+            // Read off the first keyframe, like the frame itself: a multi-frame
+            // tile that flipped only some of its states would need this per state,
+            // and no export has done that.
+            flipY: td?.Animation?.KeyFrames?.[0]?.FlipY === true,
             entityType: components.length > 0 ? components[0].type : undefined,
             components,
             // Sits on the TileDef beside ColSpan, so it resolves through `Handle`

@@ -66,7 +66,11 @@ export class Door {
       this.image = scene.physics.add.staticImage(cx, cy, "__WHITE");
       this.image.setVisible(false);
     }
-    this.image.setDepth(120).setDisplaySize(this.displayW, this.displayH).refreshBody();
+    this.image
+      .setDepth(120)
+      .setDisplaySize(this.displayW, this.displayH)
+      .setFlipY(tile.flipY === true)
+      .refreshBody();
 
     // Grid footprint: every cell whose centre falls inside the door rectangle.
     this.cells = footprintCells(tile, tileSize);

@@ -62,6 +62,7 @@ export class HoldTarget {
       this.image = scene.add
         .image(this.x, this.y, tile.frame.textureKey, tile.frame.frameKey)
         .setDisplaySize(tile.colSpan * tileSize, tile.rowSpan * tileSize)
+        .setFlipY(tile.flipY === true)
         .setDepth(120);
     }
     this.bar = scene.add.graphics().setDepth(1000).setVisible(false);

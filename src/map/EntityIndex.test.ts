@@ -13,6 +13,7 @@ function tile(x: number, y: number, ref: string, ...components: ComponentData[])
     rowSpan: 1,
     offsetX: 0,
     offsetY: 0,
+    flipY: false,
     components,
   };
 }

@@ -108,6 +108,7 @@ export function marker(ref: string, x: number, y: number): GameTile {
     rowSpan: 1,
     offsetX: 0,
     offsetY: 0,
+    flipY: false,
     components: [],
   };
 }
