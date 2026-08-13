@@ -122,13 +122,21 @@ export function clearSave(slot?: SlotId): void {
 
 function sanitizeObjectives(o: unknown): ObjectiveState {
   const src = (typeof o === "object" && o !== null ? o : {}) as Partial<ObjectiveState>;
+  const hasOwn = Object.prototype.hasOwnProperty;
+  const getBool = (k: keyof ObjectiveState): boolean | undefined => {
+    if (hasOwn.call(src, k)) {
+      const val = src[k];
+      return typeof val === "boolean" ? val : undefined;
+    }
+    return undefined;
+  };
   return {
-    logsRecovered: typeof src.logsRecovered === "boolean" ? src.logsRecovered : false,
-    alphaRecovered: typeof src.alphaRecovered === "boolean" ? src.alphaRecovered : undefined,
-    betaRecovered: typeof src.betaRecovered === "boolean" ? src.betaRecovered : undefined,
-    vent4Silenced: typeof src.vent4Silenced === "boolean" ? src.vent4Silenced : undefined,
-    coreSilenced: typeof src.coreSilenced === "boolean" ? src.coreSilenced : undefined,
-    uplinkComplete: typeof src.uplinkComplete === "boolean" ? src.uplinkComplete : undefined,
+    logsRecovered: getBool("logsRecovered") ?? false,
+    alphaRecovered: getBool("alphaRecovered"),
+    betaRecovered: getBool("betaRecovered"),
+    vent4Silenced: getBool("vent4Silenced"),
+    coreSilenced: getBool("coreSilenced"),
+    uplinkComplete: getBool("uplinkComplete"),
   };
 }
 
@@ -136,6 +144,7 @@ function sanitizeExplored(e: unknown): ExploredState {
   const clean: ExploredState = {};
   if (typeof e === "object" && e !== null && !Array.isArray(e)) {
     for (const [lvl, mask] of Object.entries(e as Record<string, unknown>)) {
+      if (lvl === "__proto__" || lvl === "constructor") continue;
       if (
         typeof lvl === "string" &&
         lvl.length < 100 &&
@@ -236,7 +245,12 @@ function isValidSave(v: unknown): boolean {
 
 /** Narrow check for the persisted objective record. */
 function isObjectiveState(o: unknown): o is ObjectiveState {
-  return typeof o === "object" && o !== null && typeof (o as ObjectiveState).logsRecovered === "boolean";
+  return (
+    typeof o === "object" &&
+    o !== null &&
+    Object.prototype.hasOwnProperty.call(o, "logsRecovered") &&
+    typeof (o as ObjectiveState).logsRecovered === "boolean"
+  );
 }
 
 /** A payload with everything new to v2 empty — for a run that hasn't got one yet. */

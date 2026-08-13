@@ -426,6 +426,7 @@ export function journalIdForLevel(level: string): JournalEntryId | undefined {
  */
 export function isJournalState(v: unknown): v is JournalState {
   if (typeof v !== "object" || v === null || Array.isArray(v)) return false;
+  if (!Object.prototype.hasOwnProperty.call(v, "unlocked")) return false;
   const unlocked = (v as JournalState).unlocked;
   return (
     Array.isArray(unlocked) &&

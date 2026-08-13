@@ -260,6 +260,54 @@ describe("SaveGame", () => {
     expect(loaded?.objectives.vent4Silenced).toBe(true);
   });
 
+  it("safeguards against prototype/constructor pollution in explored, journal and objectives sub-states", () => {
+    const maliciousPayload = {
+      version: 2,
+      savedAt: Date.now(),
+      ...sample,
+      "__proto__": { pollutedRoot: true },
+      constructor: { prototype: { compromisedRoot: true } },
+      journal: {
+        unlocked: ["orders"],
+        "__proto__": { pollutedJournal: true },
+        "constructor": { prototype: { compromisedJournal: true } }
+      },
+      explored: {
+        "main1": "somebase64"
+      },
+      objectives: {
+        logsRecovered: true,
+        "__proto__": { pollutedObjectives: true },
+        "constructor": { prototype: { compromisedObjectives: true } }
+      }
+    };
+    localStorage.setItem("article-zero-save-auto", JSON.stringify(maliciousPayload));
+    const loaded = loadGame("auto");
+    expect(loaded).not.toBeNull();
+
+    // Check root is clean
+    expect((loaded as any).pollutedRoot).toBeUndefined();
+    expect((loaded as any).compromisedRoot).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(loaded!, "__proto__")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(loaded!, "constructor")).toBe(false);
+
+    // Check that journal was cleanly parsed/validated and did not propagate prototype properties
+    expect((loaded!.journal as any).pollutedJournal).toBeUndefined();
+    expect((loaded!.journal as any).compromisedJournal).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(loaded!.journal, "__proto__")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(loaded!.journal, "constructor")).toBe(false);
+
+    // Check that explored map did not parse '__proto__' or 'constructor' keys
+    expect(Object.prototype.hasOwnProperty.call(loaded!.explored, "__proto__")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(loaded!.explored, "constructor")).toBe(false);
+
+    // Check that objectives did not parse '__proto__' or 'constructor' keys
+    expect((loaded!.objectives as any).pollutedObjectives).toBeUndefined();
+    expect((loaded!.objectives as any).compromisedObjectives).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(loaded!.objectives, "__proto__")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(loaded!.objectives, "constructor")).toBe(false);
+  });
+
   it("survives storage being unavailable", () => {
     installBlockedStorage();
     expect(() => saveGame("auto", sample)).not.toThrow();
