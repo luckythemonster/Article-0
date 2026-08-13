@@ -280,6 +280,8 @@ export class PauseMenuView {
 
   private objectivesPane(): Pane {
     const node = el("div", "pause-pane pause-pane--prose");
+    node.tabIndex = 0;
+    node.setAttribute("aria-label", "Objectives list");
     node.appendChild(el("div", "pause-section", "DIRECTIVE · SMUGGLE EIRA-7"));
 
     const lines = objectiveLines(this.snap.objectives, this.snap.currentLevel, this.snap.features);
@@ -320,6 +322,8 @@ export class PauseMenuView {
 
   private journalPane(): Pane {
     const detail = el("div", "pause-detail");
+    detail.tabIndex = 0;
+    detail.setAttribute("aria-label", "Journal entry details");
     const unlocked = new Set(this.snap.journal.unlocked);
 
     const list = new SelectList((i) => {
@@ -356,6 +360,8 @@ export class PauseMenuView {
 
   private inventoryPane(): Pane {
     const detail = el("div", "pause-detail");
+    detail.tabIndex = 0;
+    detail.setAttribute("aria-label", "Item details");
     const rows: SelectListRow[] = [];
     /** Parallel to `rows`: the item each row describes, or null for a header. */
     const subjects: (string | null)[] = [];
@@ -429,6 +435,8 @@ export class PauseMenuView {
 
   private indexPane(): Pane {
     const detail = el("div", "pause-detail");
+    detail.tabIndex = 0;
+    detail.setAttribute("aria-label", "Index entry details");
     const ctx: LexiconContext = {
       journal: this.snap.journal,
       inventory: this.snap.inventory,
@@ -473,6 +481,8 @@ export class PauseMenuView {
 
   private statusPane(): Pane {
     const node = el("div", "pause-pane pause-pane--prose");
+    node.tabIndex = 0;
+    node.setAttribute("aria-label", "Status information");
     const risk = clamp01(this.snap.detection);
 
     node.appendChild(el("div", "pause-section", "SUBJECT · ROWAN IBARRA"));
@@ -558,6 +568,8 @@ export class PauseMenuView {
 
   private controlsPane(): Pane {
     const node = el("div", "pause-pane pause-pane--prose");
+    node.tabIndex = 0;
+    node.setAttribute("aria-label", "Keyboard controls");
     node.appendChild(el("div", "pause-section", "FIELD CONTROLS"));
     const table = el("div", "pause-keys");
     for (const c of CONTROLS) {
@@ -581,6 +593,8 @@ export class PauseMenuView {
 
   private settingsPane(): Pane {
     const node = el("div", "pause-pane pause-pane--prose");
+    node.tabIndex = 0;
+    node.setAttribute("aria-label", "Settings content");
     node.appendChild(el("div", "pause-section", "AUDIO"));
 
     const current = { ...this.snap.settings };
@@ -600,10 +614,15 @@ export class PauseMenuView {
     slider.max = "100";
     slider.step = "5";
     slider.value = String(Math.round(current.masterVolume * 100));
-    const readout = el("span", "pause-field-value", `${slider.value}%`);
+    const readout = el("span", "pause-field-value", current.muted ? "MUTED" : `${slider.value}%`);
+
+    // Set initial disabled state based on mute preference
+    slider.disabled = current.muted;
+    slider.setAttribute("aria-disabled", String(current.muted));
+
     slider.addEventListener("input", () => {
       current.masterVolume = Number(slider.value) / 100;
-      readout.textContent = `${slider.value}%`;
+      readout.textContent = current.muted ? "MUTED" : `${slider.value}%`;
       push();
     });
     slider.addEventListener("change", () => {
@@ -622,6 +641,9 @@ export class PauseMenuView {
     mute.checked = current.muted;
     mute.addEventListener("change", () => {
       current.muted = mute.checked;
+      slider.disabled = current.muted;
+      slider.setAttribute("aria-disabled", String(current.muted));
+      readout.textContent = current.muted ? "MUTED" : `${slider.value}%`;
       push();
       if (!current.muted) {
         getAudio().ping();
