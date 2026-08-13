@@ -2685,6 +2685,7 @@ A role's shapes and colours.
 | --- | --- | --- |
 | `silhouette` | `Silhouette` |  |
 | `body` | `number` | Main body fill. |
+| `head` | `number` | The head, and the shoulder line — a shade off the body so the two separate. |
 | `accent` | `number` | Highlight — visor, lens, insignia. Reads as the thing's "front". |
 | `dark` | `number` | Outline and underside. |
 | `chassis` *(opt)* | `boolean` | Drones have a chassis and rotors where everyone else has a head and legs. |

@@ -55,16 +55,8 @@ const DOOR_STEP_COST = 3;
 const SQRT2 = Math.SQRT2;
 
 /** The 8 neighbour offsets, orthogonals first so ties favour straight steps. */
-const NEIGHBOURS: ReadonlyArray<readonly [number, number]> = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-  [1, 1],
-  [1, -1],
-  [-1, 1],
-  [-1, -1],
-];
+const NEIGHBOURS_DX = new Int8Array([1, -1, 0, 0, 1, 1, -1, -1]);
+const NEIGHBOURS_DY = new Int8Array([0, 0, 1, -1, 1, -1, 1, -1]);
 
 /**
  * True when a body of `radiusTiles` can stand on the centre of tile
@@ -163,7 +155,9 @@ export function findPath(
     if (++expanded > maxNodes) return null;
 
     const cg = gScoreBuffer[current];
-    for (const [dx, dy] of NEIGHBOURS) {
+    for (let i = 0; i < 8; i++) {
+      const dx = NEIGHBOURS_DX[i];
+      const dy = NEIGHBOURS_DY[i];
       const nx = cx + dx;
       const ny = cy + dy;
       if (!passable(nx, ny)) continue;

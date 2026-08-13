@@ -233,6 +233,8 @@ export class CollisionGrid {
   hasLineOfSight(x0: number, y0: number, x1: number, y1: number): boolean {
     let ix0 = Math.floor(x0);
     let iy0 = Math.floor(y0);
+    const startIx = ix0;
+    const startIy = iy0;
     const ix1 = Math.floor(x1);
     const iy1 = Math.floor(y1);
 
@@ -267,7 +269,7 @@ export class CollisionGrid {
     let steps = dx + dy + 2;
     while (steps-- > 0) {
       if (ix0 === ix1 && iy0 === iy1) return true;
-      if (!(ix0 === Math.floor(x0) && iy0 === Math.floor(y0))) {
+      if (!(ix0 === startIx && iy0 === startIy)) {
         if (this.blocksSight(ix0, iy0)) return false;
       }
       const e2 = 2 * err;
