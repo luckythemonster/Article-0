@@ -149,7 +149,9 @@
   min-height: 0;
 }
 
-.pause-list:focus-visible {
+.pause-list:focus-visible,
+.pause-pane--prose:focus-visible,
+.pause-detail:focus-visible {
   outline: 1px solid var(--c-cyan);
   outline-offset: 1px;
 }
@@ -404,6 +406,11 @@
   flex: 1 1 auto;
   max-width: 260px;
   accent-color: var(--c-cyan);
+}
+
+.pause-slider:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .pause-checkbox {
