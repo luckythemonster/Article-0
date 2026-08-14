@@ -1,5 +1,5 @@
 import { raySlabIntersect } from "../map/footprint";
-import type { CollisionGrid } from "./CollisionGrid";
+import { NO_PADDED_RECT, type CollisionGrid } from "./CollisionGrid";
 
 /**
  * Line-of-sight raycasting for the *render* path: how far the player can actually
@@ -36,6 +36,29 @@ export const SIGHT_RAYS = 720;
  * the dark rather than a hard edge.
  */
 export const WALL_REVEAL_TILES = 0.5;
+
+/**
+ * PADDED_WALK_NOTE — why the walk tests a stepped-into cell's *precise* collider,
+ * not just its coarse opaque bit.
+ *
+ * Half of NW-SMAC-01's wall tiles carry `ColliderPadding: {Bottom: 0.4}`: the solid
+ * rect is the top 60% of the cell and the bottom 40% is walkable floor in front of
+ * the wall's face. The walk used to check the *origin* cell precisely (so a viewer
+ * standing in that strip didn't get free sight through the wall he leans on) but
+ * every subsequent cell coarsely.
+ *
+ * That asymmetry is what made the darkness jump. Pressed flush against a
+ * south-facing wall the player's body centre lands at about `row + 0.99` — inside
+ * the wall's own cell — so a ray running *along* the wall misses the origin's slab,
+ * falls through to the walk, immediately enters the next wall cell in the same row,
+ * and dies there. Hugging a wall blacked out the corridor in a wedge each side, and
+ * stepping one pixel off the wall restored it in a single frame.
+ *
+ * Testing the precise rect on every blocked cell fixes both halves at once: sight
+ * runs down the strip of floor that is genuinely open, and the distance it returns
+ * is the ray's true entry into the solid, which varies continuously as the viewer
+ * moves instead of snapping when `Math.floor` of his position changes cell.
+ */
 
 /** Unit ray directions, split into parallel arrays so casting allocates nothing. */
 export interface RayDirections {
@@ -143,9 +166,18 @@ export function rayDistance(
     // Ran out of reach before entering the next cell.
     if (enter >= maxTiles) return maxTiles;
     if (grid.blocksSight(ix, iy)) {
-      // Half a tile past the face we just crossed — the wall's mid-depth, never its
-      // far face. See WALL_REVEAL_TILES for why that distinction is the whole ballgame.
-      return Math.min(enter + reveal, maxTiles);
+      const slot = grid.paddedCount === 0 ? NO_PADDED_RECT : grid.paddedSlotAt(ix, iy);
+      if (slot === NO_PADDED_RECT) {
+        // Half a tile past the face we just crossed — the wall's mid-depth, never its
+        // far face. See WALL_REVEAL_TILES for why that distinction is the whole ballgame.
+        return Math.min(enter + reveal, maxTiles);
+      }
+      // The cell is only opaque over part of itself. Stop at the face of that
+      // part rather than at the cell boundary — see PADDED_WALK_NOTE.
+      const hit = grid.paddedEntryAt(slot, originX, originY, dirX, dirY);
+      if (hit === undefined) continue;
+      if (hit >= maxTiles) return maxTiles;
+      return Math.min(hit + reveal, maxTiles);
     }
   }
   return maxTiles;
@@ -178,6 +210,7 @@ export function sightDistances(
     // `rayDistance`'s doc comment for why a padded origin cell needs its
     // precise shape checked instead of the coarse walk's blanket skip.
     const originPadded = grid.paddedRectAt(originIx, originIy);
+    const anyPadded = grid.paddedCount > 0;
 
     for (let i = 0; i < cos.length; i++) {
       const c = cos[i];
@@ -225,6 +258,15 @@ export function sightDistances(
           break;
         }
         if (grid.blocksSight(ix, iy)) {
+          const slot = anyPadded ? grid.paddedSlotAt(ix, iy) : NO_PADDED_RECT;
+          if (slot !== NO_PADDED_RECT) {
+            // Only opaque over part of its cell — see PADDED_WALK_NOTE.
+            const hit = grid.paddedEntryAt(slot, originX, originY, c, s);
+            if (hit === undefined) continue;
+            dist = hit + WALL_REVEAL_TILES;
+            if (dist > maxTiles) dist = maxTiles;
+            break;
+          }
           const val = enter + WALL_REVEAL_TILES;
           dist = val < maxTiles ? val : maxTiles;
           break;

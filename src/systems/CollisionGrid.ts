@@ -1,6 +1,16 @@
-import { colliderRect, footprintCells, hasPlainCollider, raySlabIntersect, type Rect } from "../map/footprint";
+import {
+  colliderRect,
+  footprintCells,
+  hasPlainCollider,
+  raySlabIntersect,
+  raySlabIntersectRaw,
+  type Rect,
+} from "../map/footprint";
 import { isForcedSolid, SEE_THROUGH_BOARDS, type GameLevel } from "../map/types";
 import { glassStatsFor, isGlass } from "./EntityStats";
+
+/** {@link CollisionGrid.paddedSlotAt}'s answer for a cell with no padded rect. */
+export const NO_PADDED_RECT = -1;
 
 /**
  * A growable list of (dx, dy) point pairs, backed by one `Float32Array`.
@@ -79,11 +89,21 @@ export class CollisionGrid {
   /** Cells that stop movement but not sight — glazing. Only meaningful where blocked. */
   private readonly seeThrough: Uint8Array;
   /**
-   * Precise solid rect (tile units), for opaque cells whose tile carries
-   * authored `ColliderPadding` — a sparse index, only ever a handful of cells
-   * map-wide. See {@link paddedRectAt}.
+   * Precise solid rects (tile units), for opaque cells whose tile carries
+   * authored `ColliderPadding`. See {@link paddedRectAt}.
+   *
+   * Stored as a slot index per cell into a flat `[x, y, w, h, …]` buffer rather
+   * than a `Map<number, Rect>`, because the sight-ray walks now consult this on
+   * **every blocked cell they step into**, not just their own — 720 rays deep
+   * into a level, that is a hot path, and neither a hash lookup nor a `Rect`
+   * object per query belongs in it. Sparse in the sense that most cells hold
+   * `NO_PADDED_RECT`, but not rare: 157 of `main1`'s 318 wall tiles are padded.
    */
-  private readonly paddedRect = new Map<number, Rect>();
+  private readonly paddedSlot: Int32Array;
+  /** Flat `[x, y, w, h]` quads, indexed by {@link paddedSlot} times four. */
+  private readonly paddedRects: Float64Array;
+  /** How many cells carry a padded rect — zero lets every caller skip the test. */
+  readonly paddedCount: number;
 
   /** @param tileSize pixels per cell, for reading the tiles' authored footprints. */
   constructor(level: GameLevel, blockingLayers: string[] = ["walls"], tileSize = 32) {
@@ -99,6 +119,9 @@ export class CollisionGrid {
     // any padded rect recorded for the same cell, same "wins regardless of
     // placement order" reasoning as `opaque` above.
     const plainOpaque = new Uint8Array(this.width * this.height);
+    // Collected as a map while building — construction is not hot, and the
+    // `plainOpaque` pass below still needs to retract entries — then flattened.
+    const padded = new Map<number, Rect>();
     for (const layer of level.layers) {
       const boardBlocks = blockingLayers.includes(layer.name);
       // Some boards are solid without being opaque: you see over a crate and
@@ -125,14 +148,28 @@ export class CollisionGrid {
               plainOpaque[i] = 1;
             } else {
               const px = colliderRect(tile, tileSize);
-              this.paddedRect.set(i, { x: px.x / tileSize, y: px.y / tileSize, w: px.w / tileSize, h: px.h / tileSize });
+              padded.set(i, { x: px.x / tileSize, y: px.y / tileSize, w: px.w / tileSize, h: px.h / tileSize });
             }
           }
         }
       }
     }
     for (let i = 0; i < opaque.length; i++) if (opaque[i] === 1) this.seeThrough[i] = 0;
-    for (let i = 0; i < plainOpaque.length; i++) if (plainOpaque[i] === 1) this.paddedRect.delete(i);
+    for (let i = 0; i < plainOpaque.length; i++) if (plainOpaque[i] === 1) padded.delete(i);
+
+    this.paddedSlot = new Int32Array(this.width * this.height).fill(NO_PADDED_RECT);
+    this.paddedRects = new Float64Array(padded.size * 4);
+    this.paddedCount = padded.size;
+    let slot = 0;
+    for (const [cell, rect] of padded) {
+      this.paddedSlot[cell] = slot;
+      const o = slot * 4;
+      this.paddedRects[o] = rect.x;
+      this.paddedRects[o + 1] = rect.y;
+      this.paddedRects[o + 2] = rect.w;
+      this.paddedRects[o + 3] = rect.h;
+      slot++;
+    }
   }
 
   inBounds(x: number, y: number): boolean {
@@ -222,8 +259,54 @@ export class CollisionGrid {
    * standing against.
    */
   paddedRectAt(tileX: number, tileY: number): Rect | undefined {
-    if (!this.inBounds(tileX, tileY)) return undefined;
-    return this.paddedRect.get(tileY * this.width + tileX);
+    const slot = this.paddedSlotAt(tileX, tileY);
+    if (slot === NO_PADDED_RECT) return undefined;
+    const o = slot * 4;
+    return {
+      x: this.paddedRects[o],
+      y: this.paddedRects[o + 1],
+      w: this.paddedRects[o + 2],
+      h: this.paddedRects[o + 3],
+    };
+  }
+
+  /**
+   * This cell's padded-rect slot, or {@link NO_PADDED_RECT}.
+   *
+   * The allocation-free half of {@link paddedRectAt}, for the ray walks. Paired
+   * with {@link paddedEntryAt}: read the slot once to learn *whether* the cell is
+   * only partly opaque, then ask where the ray enters that part.
+   */
+  paddedSlotAt(tileX: number, tileY: number): number {
+    if (!this.inBounds(tileX, tileY)) return NO_PADDED_RECT;
+    return this.paddedSlot[tileY * this.width + tileX];
+  }
+
+  /**
+   * Distance along `(dx, dy)` at which the ray from `(ox, oy)` enters the solid
+   * rect held in `slot`, or `undefined` when it misses it entirely.
+   *
+   * `slot` comes from {@link paddedSlotAt}. Everything is in tile units, and
+   * `(dx, dy)` need not be normalized — `t` comes back in whatever unit they are.
+   */
+  paddedEntryAt(
+    slot: number,
+    ox: number,
+    oy: number,
+    dx: number,
+    dy: number,
+  ): number | undefined {
+    const o = slot * 4;
+    return raySlabIntersectRaw(
+      ox,
+      oy,
+      dx,
+      dy,
+      this.paddedRects[o],
+      this.paddedRects[o + 1],
+      this.paddedRects[o + 2],
+      this.paddedRects[o + 3],
+    );
   }
 
   /**
@@ -270,7 +353,9 @@ export class CollisionGrid {
     while (steps-- > 0) {
       if (ix0 === ix1 && iy0 === iy1) return true;
       if (!(ix0 === startIx && iy0 === startIy)) {
-        if (this.blocksSight(ix0, iy0)) return false;
+        if (this.blocksSight(ix0, iy0) && this.solidHere(ix0, iy0, x0, y0, segDx, segDy)) {
+          return false;
+        }
       }
       const e2 = 2 * err;
       if (e2 > -dy) {
@@ -283,6 +368,31 @@ export class CollisionGrid {
       }
     }
     return true;
+  }
+
+  /**
+   * Whether the segment from `(x0, y0)` along `(segDx, segDy)` actually meets
+   * the solid part of an opaque cell it walks through.
+   *
+   * True for the ordinary whole-cell wall. False only for a cell whose tile is
+   * padded and whose solid rect this particular segment misses — the strip of
+   * floor a `ColliderPadding: {Bottom: 0.4}` wall leaves in front of its own
+   * face. Looking *along* that strip is looking along open floor, and used to
+   * read as looking into a wall.
+   */
+  private solidHere(
+    tileX: number,
+    tileY: number,
+    x0: number,
+    y0: number,
+    segDx: number,
+    segDy: number,
+  ): boolean {
+    if (this.paddedCount === 0) return true;
+    const slot = this.paddedSlotAt(tileX, tileY);
+    if (slot === NO_PADDED_RECT) return true;
+    const t = this.paddedEntryAt(slot, x0, y0, segDx, segDy);
+    return t !== undefined && t <= 1;
   }
 
   /**

@@ -136,24 +136,61 @@ export function raySlabIntersect(
   dy: number,
   rect: Rect,
 ): number | undefined {
+  return raySlabIntersectRaw(ox, oy, dx, dy, rect.x, rect.y, rect.w, rect.h);
+}
+
+/**
+ * {@link raySlabIntersect} against a rect passed as four loose numbers.
+ *
+ * Identical arithmetic, no {@link Rect} to hand it and no per-call array of
+ * axes to walk. That matters because the sight-ray walks consult this on every
+ * blocked cell they step into: at 720 rays it was allocating two tuples and an
+ * array per test, for a function whose whole body is eight divisions.
+ * `CollisionGrid` calls this directly off its flat rect buffer.
+ */
+export function raySlabIntersectRaw(
+  ox: number,
+  oy: number,
+  dx: number,
+  dy: number,
+  rx: number,
+  ry: number,
+  rw: number,
+  rh: number,
+): number | undefined {
   let tMin = 0;
   let tMax = Infinity;
-  const axes: [number, number, number, number][] = [
-    [ox, dx, rect.x, rect.w],
-    [oy, dy, rect.y, rect.h],
-  ];
-  for (const [o, d, lo, len] of axes) {
-    if (d === 0) {
-      if (o < lo || o > lo + len) return undefined;
-      continue;
+
+  if (dx === 0) {
+    if (ox < rx || ox > rx + rw) return undefined;
+  } else {
+    let t1 = (rx - ox) / dx;
+    let t2 = (rx + rw - ox) / dx;
+    if (t1 > t2) {
+      const swap = t1;
+      t1 = t2;
+      t2 = swap;
     }
-    let t1 = (lo - o) / d;
-    let t2 = (lo + len - o) / d;
-    if (t1 > t2) [t1, t2] = [t2, t1];
-    tMin = Math.max(tMin, t1);
-    tMax = Math.min(tMax, t2);
+    if (t1 > tMin) tMin = t1;
+    if (t2 < tMax) tMax = t2;
     if (tMin > tMax) return undefined;
   }
+
+  if (dy === 0) {
+    if (oy < ry || oy > ry + rh) return undefined;
+  } else {
+    let t1 = (ry - oy) / dy;
+    let t2 = (ry + rh - oy) / dy;
+    if (t1 > t2) {
+      const swap = t1;
+      t1 = t2;
+      t2 = swap;
+    }
+    if (t1 > tMin) tMin = t1;
+    if (t2 < tMax) tMax = t2;
+    if (tMin > tMax) return undefined;
+  }
+
   return tMax < 0 ? undefined : tMin;
 }
 

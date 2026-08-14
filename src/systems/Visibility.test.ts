@@ -77,6 +77,35 @@ function paddedWallLevel(): GameLevel {
   } as unknown as GameLevel;
 }
 
+/**
+ * A 40×40 level with a full wall row at y=10 whose tiles are inset from the
+ * bottom by 0.4 — the shipped map's commonest wall by far (157 of `main1`'s 318
+ * `walls` tiles carry exactly this padding). Solid portion: y∈[10,10.6). The
+ * strip y∈[10.6,11) is walkable floor in front of the wall's face, and it shares
+ * the wall's own grid row.
+ */
+function paddedWallRowLevel(): GameLevel {
+  const tiles: unknown[] = [];
+  for (let x = 0; x < 40; x++) {
+    tiles.push({
+      x,
+      y: 10,
+      colSpan: 1,
+      rowSpan: 1,
+      offsetX: 0,
+      offsetY: 0,
+      components: [],
+      collider: { Bottom: 0.4 },
+    });
+  }
+  return {
+    name: "paddedRow",
+    width: 40,
+    height: 40,
+    layers: [{ name: "walls", tiles }],
+  } as unknown as GameLevel;
+}
+
 describe("rayDirections", () => {
   it("builds unit directions starting along +x", () => {
     const d = rayDirections(4);
@@ -172,6 +201,59 @@ describe("rayDistance", () => {
     it("still sees out of a *plain* wall tile — the no-clip case above is unaffected", () => {
       const g = new CollisionGrid(level());
       expect(rayDistance(g, 2.5, 1.5, 1, 0, 3)).toBe(3);
+    });
+  });
+
+  describe("walking along a padded wall (the darkness jump)", () => {
+    it("sees down the strip of floor a padded wall leaves in front of its face", () => {
+      // Hugging the wall puts the eye at y≈10.8 — inside the wall's own row, in
+      // the open bottom 40%. Every cell east of here is a wall cell, but none of
+      // their *solid* portions reach down to this y, so sight runs the corridor.
+      // Before the fix the walk stopped at the first cell boundary: ~1 tile.
+      const g = new CollisionGrid(paddedWallRowLevel());
+      expect(rayDistance(g, 20.5, 10.8, 1, 0, 15)).toBe(15);
+      expect(rayDistance(g, 20.5, 10.8, -1, 0, 15)).toBe(15);
+    });
+
+    it("still stops against the solid portion of the wall it is pressed to", () => {
+      const g = new CollisionGrid(paddedWallRowLevel());
+      // Straight up from the strip crosses the solid face at y=10.6.
+      expect(rayDistance(g, 20.5, 10.8, 0, -1, 10, 0)).toBeCloseTo(0.2, 5);
+    });
+
+    it("does not step as the eye crosses out of the wall's row", () => {
+      // The regression proper. `Math.floor(originY)` flips from 10 to 11 at
+      // y=11, which used to switch all 720 rays between the precise origin test
+      // and the coarse walk at once — a full-corridor blackout that appeared and
+      // vanished within one pixel of movement.
+      const g = new CollisionGrid(paddedWallRowLevel());
+      const dirs = rayDirections(SIGHT_RAYS);
+      const out = new Float64Array(SIGHT_RAYS);
+
+      const totals: number[] = [];
+      // A pixel at tileSize 32 is 1/32 of a tile; sweep either side of the row
+      // boundary in half-pixel steps.
+      for (let oy = 10.7; oy <= 11.3001; oy += 1 / 64) {
+        sightDistances(g, 20.5, oy, 15, dirs, out);
+        let sum = 0;
+        for (const d of out) sum += d;
+        totals.push(sum);
+      }
+
+      // Total visible reach across all 720 rays necessarily *drifts* as the eye
+      // backs away from the wall — more of the corridor comes into view. What a
+      // discontinuity looks like is an outlier: one step far larger than its
+      // neighbours. So compare the largest step against the typical one rather
+      // than against an absolute bound, which would only be measuring the drift.
+      const steps: number[] = [];
+      for (let i = 1; i < totals.length; i++) steps.push(Math.abs(totals[i] - totals[i - 1]));
+      const median = [...steps].sort((a, b) => a - b)[steps.length >> 1];
+      const maxStep = Math.max(...steps);
+
+      // Measured: 1.4x with the precise walk. Before the fix the eye crossing
+      // y=11 moved the total by 133 tiles against a median of 21 — 6.2x — and
+      // the sweep *inside* the wall's row oscillated between 88 and 116.
+      expect(maxStep).toBeLessThan(median * 3);
     });
   });
 });
