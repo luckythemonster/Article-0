@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
-import { EdplayLoader, type ParsedMap } from "./EdplayLoader";
+import { EdplayLoader, NO_TINT, multiplyTint, tintRgb, type ParsedMap } from "./EdplayLoader";
 import { wallBodyRects, wallCells } from "./TileBake";
 import { hasPlainCollider } from "./footprint";
 import { CollisionGrid } from "../systems/CollisionGrid";
@@ -83,6 +83,31 @@ describe("EdplayLoader — mirrored frames", () => {
   });
 });
 
+describe("tints", () => {
+  it("drops the alpha byte off an editor colour", () => {
+    expect(tintRgb(0xffa6d8ff)).toBe(0xa6d8ff);
+    expect(tintRgb(0xff808080)).toBe(0x808080);
+    // Opaque white is the editor's "no tint", and so is an absent field.
+    expect(tintRgb(0xffffffff)).toBe(NO_TINT);
+    expect(tintRgb(undefined)).toBe(NO_TINT);
+    // A marker def carries alpha 0; the RGB is still white, which is what matters
+    // since the tile draws nothing either way.
+    expect(tintRgb(0x00ffffff)).toBe(NO_TINT);
+  });
+
+  it("multiplies a board's tint by the def's own, per channel", () => {
+    // secret2 lights its door room blue and separately dims the secret door.
+    // The door is meant to be both, so the two compose rather than one winning.
+    expect(multiplyTint(0xc3e8ff, 0xcccccc)).toBe(0x9cbacc);
+    // Either side being "none" leaves the other untouched, exactly.
+    expect(multiplyTint(NO_TINT, 0x4d5b90)).toBe(0x4d5b90);
+    expect(multiplyTint(0x4d5b90, NO_TINT)).toBe(0x4d5b90);
+    expect(multiplyTint(NO_TINT, NO_TINT)).toBe(NO_TINT);
+    // Black annihilates, white is the identity — the two ends of the range.
+    expect(multiplyTint(0x000000, 0xa6d8ff)).toBe(0x000000);
+  });
+});
+
 describe("the shipped map's level borders", () => {
   let parsed: ParsedMap;
 
@@ -148,6 +173,30 @@ describe("the shipped map's level borders", () => {
       expect(grid.isBlocked(x, 0), `(${x},0) should block`).toBe(true);
       expect(covered[x], `(${x},0) needs a body`).toBe(1);
     }
+  });
+
+  it("carries every authored tint onto the tiles that wear it", () => {
+    // Five of the nine decks are graded, and unread they all render the same grey.
+    // Pinned so an export that drops the grading is visible rather than silent.
+    const graded: Record<string, Record<string, string>> = {};
+    for (const level of parsed.map.levels) {
+      for (const board of level.layers) {
+        const tinted = board.tiles.find((t) => t.tint !== NO_TINT);
+        if (!tinted) continue;
+        graded[level.name] ??= {};
+        graded[level.name][board.name] = tinted.tint.toString(16).padStart(6, "0");
+      }
+    }
+    expect(graded).toEqual({
+      main1: { floor: "a6d8ff", cover: "d0d0d0" },
+      duct1: { floor: "d5ffcf", walls: "4d5b90", verticals: "ff1602" },
+      // duct2 and vent_core carry no board tint — these are the two stair pieces
+      // the author darkened on the def itself.
+      duct2: { verticals: "808080" },
+      vent_core: { floor: "ffedb0", drips: "ffbc6f", verticals: "808080" },
+      main2vault: { floor: "f3b0ff", walls: "c6ffd6" },
+      secret2: { floor: "e4b6ff", walls: "c3e8ff", doors: "c3e8ff", verticals: "e8ff2c" },
+    });
   });
 
   it("finds both of the shipped map's mirrored tiles", () => {

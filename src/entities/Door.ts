@@ -70,6 +70,7 @@ export class Door {
       .setDepth(120)
       .setDisplaySize(this.displayW, this.displayH)
       .setFlipY(tile.flipY === true)
+      .setTint(tile.tint)
       .refreshBody();
 
     // Grid footprint: every cell whose centre falls inside the door rectangle.

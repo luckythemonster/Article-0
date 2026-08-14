@@ -47,6 +47,42 @@ const FIELD_ALIASES: Record<string, string> = {
   height: "type",
 };
 
+/**
+ * A tint that changes nothing: opaque white, which is what all but a handful of
+ * boards and defs carry.
+ *
+ * Exported because it is the value everything downstream compares against — a
+ * draw path asking "is this tile tinted?" is asking "is it not this?".
+ */
+export const NO_TINT = 0xffffff;
+
+/**
+ * The RGB half of an editor `0xAARRGGBB` colour.
+ *
+ * The alpha byte is dropped rather than honoured: `Board.Opacity` is `1` on all
+ * 98 boards of the shipped map, so nothing authors transparency this way, and the
+ * one alpha-0 value belongs to a marker def that draws nothing regardless.
+ */
+export function tintRgb(argb: number | undefined): number {
+  return argb === undefined ? NO_TINT : (argb >>> 0) & 0xffffff;
+}
+
+/**
+ * Two tints stacked, multiplied per channel.
+ *
+ * A def's tint composes with its board's rather than replacing it, which is the
+ * only reading that makes `secret2` work: its `doors` board is tinted `c3e8ff`
+ * and `secret_door_cement_wall1` is separately darkened to `cccccc`, and the
+ * door is meant to be both — a dimmed door in a blue-lit room.
+ */
+export function multiplyTint(a: number, b: number): number {
+  if (a === NO_TINT) return b;
+  if (b === NO_TINT) return a;
+  const channel = (shift: number): number =>
+    Math.round((((a >> shift) & 0xff) * ((b >> shift) & 0xff)) / 0xff);
+  return (channel(16) << 16) | (channel(8) << 8) | channel(0);
+}
+
 const canonicalComponent = (name: string): string => {
   const lower = name.toLowerCase();
   return COMPONENT_ALIASES[lower] ?? lower;
@@ -159,6 +195,7 @@ export class EdplayLoader {
 
     const levels: GameLevel[] = raw.Levels.map((lvl) => {
       const layers: GameLayer[] = lvl.Boards.map((board) => {
+        const boardTint = tintRgb(board.TintColor);
         const tiles: GameTile[] = board.Tiles.map((t) => {
           const td = tileDefByHandle.get(t.Handle);
           const components = td ? resolveComponents(td) : [];
@@ -184,6 +221,9 @@ export class EdplayLoader {
             // tile that flipped only some of its states would need this per state,
             // and no export has done that.
             flipY: td?.Animation?.KeyFrames?.[0]?.FlipY === true,
+            // Board grade × the def's own, resolved here so the four code paths
+            // that draw a tile don't each have to go looking for its board.
+            tint: multiplyTint(boardTint, tintRgb(td?.TintColor)),
             entityType: components.length > 0 ? components[0].type : undefined,
             components,
             // Sits on the TileDef beside ColSpan, so it resolves through `Handle`

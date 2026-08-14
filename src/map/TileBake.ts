@@ -161,23 +161,30 @@ export function bakeTileLayers(
     if (skipLayers.has(layer.name)) continue;
     for (const tile of layer.tiles) {
       if (!tile.frame || claimedTiles.has(tile)) continue;
-      // `batchDrawFrame` takes a position and nothing else, so a mirrored tile has
-      // to go the long way round even when its geometry is otherwise plain.
+      // `batchDrawFrame` takes a position, an alpha and a tint, but no *flip* —
+      // so a mirrored tile has to go the long way round even when its geometry is
+      // otherwise plain.
       if (isSingleCell(tile) && !tile.flipY) {
         rt.batchDrawFrame(
           tile.frame.textureKey,
           tile.frame.frameKey,
           tile.x * tileSize,
           tile.y * tileSize,
+          1,
+          tile.tint,
         );
         continue;
       }
       const centre = footprintCentre(tile, tileSize);
       scaled ??= scene.make.image({ key: tile.frame.textureKey, add: false }).setOrigin(0.5);
+      // Tinted through the image rather than `batchDraw`'s trailing arguments,
+      // whose `x`/`y` would fight the position set here. Set every time, not only
+      // when tinted, so the last tile's colour can't leak onto the next.
       scaled
         .setTexture(tile.frame.textureKey, tile.frame.frameKey)
         .setDisplaySize(tile.colSpan * tileSize, tile.rowSpan * tileSize)
         .setFlipY(tile.flipY === true)
+        .setTint(tile.tint)
         .setPosition(centre.x, centre.y);
       rt.batchDraw(scaled);
     }
