@@ -14,6 +14,7 @@ function tile(x: number, y: number, ref: string, ...components: ComponentData[])
     offsetX: 0,
     offsetY: 0,
     flipY: false,
+    tint: 0xffffff,
     components,
   };
 }
