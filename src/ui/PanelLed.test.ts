@@ -13,15 +13,15 @@ import type { AlertNetworkSnapshot } from "../systems/AlertNetwork";
  * The panel lamp's guard.
  *
  * Two things can go wrong here without anything failing to compile. A clip can
- * reference a frame the *redrawn* art doesn't have, and the network mapping can
+ * reference a frame the shipped art doesn't have, and the network mapping can
  * drift from what {@link panelSupportsLiveState} is protecting against — wiring
- * `in_use` live before the manifest catches up to the real export.
+ * `in_use` live before the manifest matches the real export's frame count.
  */
 
 const PANEL = UI_TEXTURES.find((t) => t.key === "ui-panel");
 const STATES: PanelLedState[] = ["off", "in_use"];
-/** How many frames the redrawn `.aseprite` actually has — see `panelSupportsLiveState`. */
-const REDRAWN_FRAME_COUNT = 8;
+/** How many frames the shipped art has — see `panelSupportsLiveState`. */
+const FRAME_COUNT = 8;
 
 const quiet: AlertNetworkSnapshot = {
   status: "INFILTRATION",
@@ -39,29 +39,23 @@ describe("the panel's spritesheet", () => {
   });
 
   it("declares fewer frames than its grid holds", () => {
-    // 150x102 at margin 1 / spacing 2 is a 3x2 grid — six slots for five frames.
-    // Phaser generates the sixth from the empty bottom-right corner, so anything
-    // reading `count` as "frames in the grid" would land on a blank.
-    //
-    // Still describing the *shipped* export, not the redrawn one — this is the
-    // grid `panelSupportsLiveState` says isn't enough yet.
+    // 144x144 at margin 0 / spacing 0 is a tight 3x3 grid — nine slots for eight
+    // frames. Phaser generates the ninth from the empty bottom-right corner, so
+    // anything reading `count` as "frames in the grid" would land on a blank.
     const spec = PANEL!;
     const sheet = spec.sheet!;
-    const across = (150 - sheet.margin * 2 + sheet.spacing) / (spec.size + sheet.spacing);
-    const down = (102 - sheet.margin * 2 + sheet.spacing) / (spec.size + sheet.spacing);
+    const across = (144 - sheet.margin * 2 + sheet.spacing) / (spec.size + sheet.spacing);
+    const down = (144 - sheet.margin * 2 + sheet.spacing) / (spec.size + sheet.spacing);
     expect(Math.floor(across) * Math.floor(down)).toBeGreaterThan(sheet.count);
   });
 });
 
 describe("PANEL_LED_CLIPS", () => {
-  it("names frames within the redrawn art's own frame count", () => {
-    // Not the live manifest's `count` — that still describes the old five-frame
-    // export. This checks the clip data against what the current `.aseprite`
-    // source actually contains, independent of whether the PNG has caught up.
+  it("names frames within the shipped art's own frame count", () => {
     for (const state of STATES) {
       for (const step of PANEL_LED_CLIPS[state]) {
         expect(step.frame, `${state} frame`).toBeGreaterThanOrEqual(0);
-        expect(step.frame, `${state} frame`).toBeLessThan(REDRAWN_FRAME_COUNT);
+        expect(step.frame, `${state} frame`).toBeLessThan(FRAME_COUNT);
       }
     }
   });
@@ -113,15 +107,15 @@ describe("ledStateForNetwork", () => {
 });
 
 describe("panelSupportsLiveState", () => {
-  it("is false today, because the shipped PNG is still the old five-frame export", () => {
-    expect(panelSupportsLiveState()).toBe(false);
+  it("is true now that the manifest matches the real eight-frame export", () => {
+    expect(panelSupportsLiveState()).toBe(true);
   });
 
   it("is derived from the manifest rather than hardcoded", () => {
+    // Proof it's a real comparison and not just `true`: the clip's highest
+    // frame (7) is one less than the count (8) that makes it pass.
     const highest = Math.max(...PANEL_LED_CLIPS.in_use.map((s) => s.frame));
-    expect(highest).toBe(7);
-    // The day `UI_TEXTURES`'s ui-panel entry declares `sheet.count >= 8`, this
-    // function returns true with no further change here — see its doc comment.
+    expect(highest).toBe(FRAME_COUNT - 1);
   });
 });
 

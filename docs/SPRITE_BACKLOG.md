@@ -16,43 +16,26 @@ icons specifically.
 
 ---
 
-## Priority 1 — the panel's four borrowed colours
+## Done — the panel's redraw
 
-**Status: wired and shipping. Art only — no code needed.**
+`public/assets/ui/panel/ui-panel.png` was redrawn from scratch: eight frames, an
+LED trio, a flat screen fill, and an exit-button icon, replacing the original
+five-frame lamp. Every one of its fifteen colours is now an exact ENDESGA-64
+entry — checked pixel-by-pixel against the palette, not eyeballed. Nothing left
+to redraw here.
 
-`public/assets/ui/panel/ui-panel.png` is in the game and framing the HUD. It was
-drawn before the palette moved to ENDESGA-64, so four of its fifteen colours are
-the old theme's rather than EDG64 entries:
-
-| role | currently | draw as | why that value |
-|---|---|---|---|
-| **inner well** | `#2b6e7a` | **`#1a1932`** | the new `--c-bg-panel`; already in your art as the lamp-off colour |
-| lamp — ALERT | `#ff3b3b` | **`#ea323c`** | the new `--c-red-deep` |
-| lamp — ACTIVE | `#5effa0` | **`#5ac54f`** | the new `--c-green` |
-| lamp — WARNING | `#ffe14d` | **`#ffeb57`** | the new `--c-amber-bright` |
-
-**The well is the one that matters.** It is a mid-teal at ~91 luminance, and
-under nine-slice it becomes the stretched middle — the surface every framed HUD
-readout's text sits on. The faint end of the text ramp (`#5d5d5d`, `#3d3d3d`) is
-close to unreadable against it today. Taking it to `#1a1932` makes the interior a
-dark panel surface and the problem disappears.
-
-Re-export from Pixquare as a spritesheet zip and drop `ui-panel.png` over the
-committed one. No code change, provided **frame order and the 1px margin / 2px
-spacing hold** — the five frames are addressed by index (`src/ui/PanelLed.ts`),
-and the loader is told about the padding in `src/ui/UiTextures.ts`.
-
-Keep the uneven frame durations. A long lit beat with a short blink reads as a
-heartbeat and an even fast alternation reads as an alarm; that difference is what
-distinguishes the three states at a glance.
+One open question, not a redraw: the exit-button icon ships on **every** panel
+using this art, since it's baked into the shared frames rather than toggled per
+instance — including the inventory strip, which has no key wired to dismiss it.
+See `docs/GUI_STYLE_GUIDE.md` §4 for the detail.
 
 ---
 
-## Priority 2 — item icons
+## Priority 1 — item icons
 
 **Status: seam is live. Art only — no code needed.**
 
-Nine icons are 256×256 smooth line art displayed in a 32×32 box: a ratio of
+The legacy icons are 256×256 smooth line art displayed in a 32×32 box: a ratio of
 **0.125**, which throws away seven of every eight source pixels and picks *which*
 seven based on where the box lands. `image-rendering: pixelated` does not rescue
 them; it only makes the discarding sharp-edged instead of blurry.
@@ -111,7 +94,7 @@ goes in **both** places or wires a path — see the note below.
 
 ---
 
-## Priority 3 — the two round instruments
+## Priority 2 — the two round instruments
 
 The HUD has two circular scopes and they are deliberately a matched pair — both
 currently draw as a plain 2px `--c-border-cool` circle. Art can add bezel depth,
@@ -140,7 +123,7 @@ ring hides them rather than sitting behind them.
 
 ---
 
-## Priority 4 — the two staged VFX packs
+## Priority 3 — the two staged VFX packs
 
 **Status: on disk, unusable, not wired.**
 
@@ -216,7 +199,8 @@ than shipping soft.
 - **The four wired VFX** — EMP blast, electronics spark, impact, smoke plume — all
   satisfy the scale rule and are covered by a test.
 - **`sack_lunch.png`** and **`EMP_grenade.png`** icons.
-- **The panel's other eleven colours**, which are already exact EDG64 entries.
+- **The panel** — every one of its colours is an exact EDG64 entry, checked
+  pixel-by-pixel. See "Done" above.
 - Everything listed under GUI_STYLE_GUIDE §7 "What not to draw" — light cones,
   radial light stamps, radar blips and sweep, the EKG trace, bars and gauges. All
   generated at runtime from live state.

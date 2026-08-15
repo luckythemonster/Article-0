@@ -31,7 +31,7 @@ export interface UiTextureSpec {
    *
    * For a {@link UiTextureSpec.sheet}, this is one *frame* rather than the whole
    * image — which is what the scale rule cares about, and what keeps the file's
-   * outer dimensions (150x102 for a 3x2 grid of 48s) from having to be square.
+   * outer dimensions (144x144 for a 3x3 grid of 48s) from having to be square.
    */
   size: number;
   /** The dimension it is drawn at on screen. Defaults to {@link UiTextureSpec.size}. */
@@ -44,10 +44,13 @@ export interface UiTextureSpec {
   /**
    * Present when the file is a grid of frames rather than one image.
    *
-   * Aseprite-family exporters pad the sheet, so the offsets have to be declared
-   * or every frame comes out shifted by a pixel. {@link UiSheetSpec.count} exists
-   * because a grid rarely divides evenly: the panel's 5 frames sit in a 3x2 grid,
-   * and Phaser will happily generate a 6th from the empty bottom-right slot.
+   * Aseprite-family exporters often pad the sheet, so the offsets have to be
+   * declared or every frame comes out shifted by a pixel — though not always:
+   * the panel's own export is packed edge-to-edge with no padding at all, so
+   * `margin`/`spacing` genuinely vary per file and have to be read off each
+   * one rather than assumed. {@link UiSheetSpec.count} exists because a grid
+   * rarely divides evenly: the panel's 8 frames sit in a 3x3 grid, and Phaser
+   * will happily generate a 9th from the empty bottom-right slot.
    */
   sheet?: UiSheetSpec;
 }
@@ -65,18 +68,20 @@ export const UI_TEXTURES: readonly UiTextureSpec[] = [
   /**
    * The generic HUD panel: border, corners and fill, stretched to any size.
    *
-   * Five frames, and only twelve pixels differ between them — the status LED in
-   * the top-right corner. That the animation lives in a *corner* is what makes it
-   * safe here: nine-slice reproduces corners at native size and stretches only
-   * the edges and middle, so the LED survives at any panel size. See
-   * {@link ./PanelLed} for what the frames mean.
+   * Eight frames: a shared casing, an idle frame, and a seven-frame bounce
+   * (frames 1-7, ping-pong) where a corner LED trio and the nine-slice middle's
+   * fill both animate. See {@link ./PanelLed} for what the frames mean and how
+   * they're addressed.
+   *
+   * Exported 144x144, a tight 3x3 grid with no margin or spacing at all — see
+   * {@link UiTextureSpec.sheet}'s doc comment for why that isn't assumed.
    */
   {
     key: "ui-panel",
     path: "assets/ui/panel/ui-panel.png",
     size: 48,
     slice: 12,
-    sheet: { margin: 1, spacing: 2, count: 5 },
+    sheet: { margin: 0, spacing: 0, count: 8 },
   },
   /**
    * The radar's ring. Drawn over the scope's masked contents, so its interior must

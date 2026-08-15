@@ -119,8 +119,8 @@ different widths, and some change width at runtime. They ship as **nine-slice** 
 corners fixed, edges stretched along one axis, middle stretched both ways.
 
 The shipped panel is `public/assets/ui/panel/ui-panel.png`, a bevelled casing with
-a recessed well, rivets, a gem, and a status lamp. Draw a replacement to the same
-terms:
+a flat-fill screen, an LED indicator trio, and an exit-button icon. Draw a
+replacement to the same terms:
 
 - **Frame size: 48x48. Slice inset: 12px.** That gives four 12x12 corners, four
   12x24 edges, and a 24x24 middle. Registered as `ui-panel` in
@@ -130,8 +130,9 @@ terms:
 - **Only the corners are safe for detail.** Anything drawn in an edge region gets
   stretched along that edge — a bolt head in the top edge becomes a smear. Put
   detail in corners; keep edges to lines that survive stretching. The shipped
-  panel obeys this exactly: its rivets, gem and lamp are all inside the 12px
-  corners, which is what lets it carry that much detail at any size.
+  panel obeys this exactly: its exit-button icon (bottom-left) and LED trio
+  (bottom-right) are both inside the 12px corners, which is what lets them carry
+  that much detail at any size.
 - **1px stroke weight.** At 1:1 there is no zoom to hide a 2px line, and the HUD's
   existing chrome is all 1px. Use `--c-border-cool` for the default border.
 - **The middle must be near-flat and dark.** It is the surface HUD text sits on,
@@ -145,23 +146,24 @@ rectangle, not a different visual language.
 
 ### The status lamp
 
-The panel is **five frames**, not one, and they differ by twelve pixels: a lamp in
-the top-right corner. `src/ui/PanelLed.ts` owns what the frames mean.
+The panel is **eight frames**. Two layers move: `indicator_LEDs`, three small
+lamps in the bottom-right corner, and `screen`, the nine-slice middle's own flat
+fill — darker when idle, lighter while something's happening. `src/ui/PanelLed.ts`
+owns what the frames mean.
 
-| state | frame(s) | colour | rhythm | shown when |
-|---|---|---|---|---|
-| `off` | 1 | unlit | steady | every panel but one |
-| `active` | 2, 1 | `--c-green` | 500ms lit, 100ms dark | `INFILTRATION` |
-| `warning` | 3, 4 | `--c-amber-bright` | 111ms even | `EVASION` |
-| `alert` | 0, 1 | `--c-red-deep` | 100ms even | `ALERT` |
+| state | frames | rhythm | shown when |
+|---|---|---|---|
+| `off` | 0 | steady, idle | every panel but one |
+| `in_use` | 1→7→1 (ping-pong) | 100ms a step | the network has any activity |
 
-The uneven durations are the point: a long beat with a short blink reads as a
-heartbeat, an even fast alternation reads as an alarm. Keep them if you redraw.
+Unlike the panel's previous design, there's no colour per named alert phase — the
+lamp reads as an activity light (idle vs. working) rather than a three-way status
+indicator. `ledStateForNetwork()` derives `in_use` from live counts (`alerted`,
+`suspicious`, `converging`) on the published snapshot, not from `AlertPhase`.
 
-**Exactly one panel lights its lamp** — the alert-network readout, whose text says
-the same thing the lamp does. A HUD of panels all blinking together reads as a
-fault rather than a readout, so `uiPanel()` defaults to `off` and callers opt in
-with `attachPanelLed`.
+**Exactly one panel lights its lamp** — the alert-network readout. A HUD of panels
+all blinking together reads as a fault rather than a readout, so `uiPanel()`
+defaults to `off` and callers opt in with `attachPanelLed`.
 
 Phaser animations cannot drive this: `play()` belongs to `Sprite` and a
 `NineSlice` is a mesh. Frames are stepped by hand, and **`setFrame` must be
@@ -169,13 +171,32 @@ followed by `updateUVs()`** — without it the frame changes and the panel goes 
 drawing the old one, silently. Resizing is the mirror image: `setSize` then
 `updateVertices()`, which is what `placePanel()` wraps.
 
+### The exit button
+
+The bottom-left corner carries a small red X — `exit_button`, static across most
+of the cycle. It's wired as a real dismiss control on the NETWORK panel, but as a
+**keyboard toggle (`N`)**, not a click target: nothing in the world HUD has ever
+handled pointer input, and this icon doesn't need to be the first thing that does.
+`AlertNetworkHud.setShown()` hides the panel and its text together; `UIScene`
+binds the key the same way it binds the item-cycle keys.
+
+That icon ships on **every** panel using this art, dismissable or not — it's baked
+into the shared frames, not toggled per instance. Right now that means the
+inventory strip shows the same X with no key wired to it. Worth a look before
+adding a second dismissable panel: either accept it as chrome that only some
+panels act on, or split the icon out so it can be per-instance.
+
 ### Exporting it
 
-The source is `ui-panel.aseprite`, authored in Pixquare. Export as a spritesheet
-zip and drop `ui-panel.png` over the committed one — no code change needed,
-provided the frame order and the **1px margin / 2px spacing** hold. The sheet is a
-3x2 grid with the sixth slot empty; `sheet.count` in the manifest is what stops
-Phaser's generated sixth frame from ever being drawn.
+The source is `UI_panel.aseprite`, authored in Pixquare. Export as a spritesheet
+and drop `ui-panel.png` over the committed one. **Margin and spacing aren't
+assumed** — the shipped export is a tight 144x144, 3x3 grid with *no* padding at
+all (unlike the original panel's 1px margin / 2px spacing), so read the real
+numbers off whatever Pixquare produces rather than reusing the old ones. Frame
+order matters: `PANEL_LED_CLIPS` in `src/ui/PanelLed.ts` addresses frames by
+index, so a re-export has to keep 0 as idle and 1-7 as the bounce, in that order.
+The grid holds one more slot than there are frames (9 for 8); `sheet.count` in the
+manifest is what stops Phaser's generated ninth frame from ever being drawn.
 
 ## 5. Item and status icons
 
