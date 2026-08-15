@@ -28,6 +28,7 @@ import {
 import { DEBUG_ALLOWED } from "../systems/DebugFlag";
 import { captureModalFocus, el } from "./dom";
 import "./QualiaLockView.css";
+import { UI, rgb } from "./hudTheme";
 
 export interface QualiaLockViewCallbacks {
   /** Fired once the bypass completes (≥95% alignment sustained). */
@@ -40,9 +41,15 @@ export interface QualiaLockViewCallbacks {
 
 const TWO_PI = Math.PI * 2;
 
-/** Live-wave palette (target baseline is the fixed cyan #39d3ff). */
-const AMBER: RGB = [255, 176, 59];
-const RED: RGB = [255, 59, 59];
+/**
+ * Live-wave palette, as components because {@link mix} interpolates between
+ * them. The target baseline it drifts away from is the fixed {@link UI.cyan}.
+ *
+ * Derived from the tokens rather than written out as channels, so the wave
+ * cannot end up a different amber from the rest of the interface.
+ */
+const AMBER: RGB = rgb(UI.amber);
+const RED: RGB = rgb(UI.redDeep);
 
 type RGB = [number, number, number];
 
@@ -355,7 +362,7 @@ export class QualiaLockView {
     if (w === 0 || h === 0) return;
 
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = "#03070c";
+    ctx.fillStyle = UI.bgScope;
     ctx.fillRect(0, 0, w, h);
     this.drawGrid(w, h);
 
@@ -363,8 +370,8 @@ export class QualiaLockView {
 
     // Target baseline — crisp cyan.
     ctx.lineWidth = 2;
-    ctx.strokeStyle = "#39d3ff";
-    ctx.shadowColor = "#39d3ff";
+    ctx.strokeStyle = UI.cyan;
+    ctx.shadowColor = UI.cyan;
     ctx.shadowBlur = 6;
     this.plotWave(w, h, (x) => targetWaveAt(this.state.target, x));
 

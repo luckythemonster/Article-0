@@ -1,6 +1,7 @@
 import type Phaser from "phaser";
 import type { CollisionGrid } from "../systems/CollisionGrid";
 import { rayDistance } from "../systems/Visibility";
+import { UI, hex } from "./hudTheme";
 
 /**
  * Draws a wall-clipped vision cone as a fan of rays — the yellow wedge in front
@@ -36,17 +37,17 @@ export interface ConeStyle {
 
 /** The guards' yellow sweep. */
 export const GUARD_CONE: ConeStyle = {
-  color: 0xffe14d,
+  color: hex(UI.amberBright),
   alpha: 0.14,
-  hotColor: 0xff3b3b,
+  hotColor: hex(UI.redDeep),
   hotAlpha: 0.28,
 };
 
 /** The security cameras' cyan sweep. */
 export const CAMERA_CONE: ConeStyle = {
-  color: 0x4fd8ff,
+  color: hex(UI.cyan),
   alpha: 0.14,
-  hotColor: 0xff3b3b,
+  hotColor: hex(UI.redDeep),
   hotAlpha: 0.28,
 };
 

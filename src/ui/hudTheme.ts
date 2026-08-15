@@ -20,7 +20,8 @@
  * its own interior — the radar's crosshair and wall dots, its jam static — is
  * scope-internal and stays where it is used. What lives here is the shared
  * vocabulary: the accents that mean something, the surfaces, the structure, and
- * the text ramp.
+ * the text ramp. Scope-internal or not, every colour in the UI is an
+ * **ENDESGA-64** entry; `theme.css` explains why.
  */
 
 /**
@@ -32,42 +33,44 @@
  */
 export const UI = {
   // --- accents ---
-  cyan: "#39d3ff",
-  cyanBright: "#5fe0ff",
-  amber: "#ffb03b",
-  amberBright: "#ffe14d",
-  red: "#ff5c6a",
-  redDeep: "#ff3b3b",
-  green: "#5effa0",
-  greenBright: "#d6ffe8",
+  cyan: "#00cdf9",
+  cyanBright: "#0cf1ff",
+  amber: "#ffa214",
+  amberBright: "#ffeb57",
+  red: "#f5555d",
+  redDeep: "#ea323c",
+  green: "#5ac54f",
+  greenBright: "#d3fc7e",
   /** The "we" of a merged Shared Field, and the ready state that precedes it. */
-  greenSoft: "#8effc0",
+  greenSoft: "#99e65f",
   /** Body text that wants to read as *interface* without the accent's heat. */
-  blueSoft: "#9fd2ff",
+  blueSoft: "#94fdff",
 
   // --- surfaces ---
-  bgPanel: "#070c12",
-  bgScope: "#03070c",
-  track: "#11202b",
+  /** What the canvas clears to — darker than any panel. */
+  bgVoid: "#0e071b",
+  bgPanel: "#1a1932",
+  bgScope: "#131313",
+  track: "#0c2e44",
 
   // --- structure ---
-  border: "#2b6e7a",
-  borderCool: "#2b4356",
-  borderDim: "#2b3a44",
+  border: "#0069aa",
+  borderCool: "#424c6e",
+  borderDim: "#2a2f4e",
 
   // --- text ramp (brightest -> faintest) ---
-  text: "#bfe3ea",
-  textStrong: "#cfe0f0",
-  textBtn: "#9fb6c2",
-  textMuted: "#8fa9b4",
-  textFaint: "#8899aa",
-  textDim: "#6b7f92",
-  textDisabled: "#4a5a68",
-  textDebug: "#45566a",
+  text: "#c7cfdd",
+  textStrong: "#ffffff",
+  textBtn: "#b4b4b4",
+  textMuted: "#92a1b9",
+  textFaint: "#858585",
+  textDim: "#657392",
+  textDisabled: "#5d5d5d",
+  textDebug: "#3d3d3d",
 } as const;
 
 /**
- * `"#39d3ff"` -> `0x39d3ff`, for the Phaser APIs that take a number.
+ * `"#00cdf9"` -> `0x00cdf9`, for the Phaser APIs that take a number.
  *
  * The whole point of the module: `Text` wants the string, `Graphics` and
  * `Rectangle` want the int, and deriving the second from the first means the two
@@ -75,6 +78,20 @@ export const UI = {
  */
 export function hex(color: string): number {
   return Number.parseInt(color.slice(1), 16);
+}
+
+/**
+ * `"#00cdf9"` -> `[0, 205, 249]`, for code that interpolates between colours.
+ *
+ * Same argument as {@link hex}: the phase-lock's live wave mixes amber toward red
+ * per frame and needs the channels separately, and it used to carry them written
+ * out as `[255, 176, 59]`. That is a third copy of the palette in a third
+ * notation — the exact drift this module exists to prevent — so it is derived
+ * here instead.
+ */
+export function rgb(color: string): [number, number, number] {
+  const n = hex(color);
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
 }
 
 /**

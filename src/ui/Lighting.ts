@@ -18,11 +18,12 @@ import {
 import { falloff } from "../render/falloff";
 import { snapToPixel } from "../render/pixelScale";
 import { emptySample, sampleLightAt, type LightSample } from "../render/lightSampling";
+import { UI, hex } from "./hudTheme";
 
 /** How dark the unlit level gets (0 = no darkening, 1 = black). */
 const DARK_ALPHA = 1;
 
-const DARK_COLOR = 0x05070a;
+const DARK_COLOR = hex(UI.bgVoid);
 
 /** Size (px) of the generated flashlight-cone stamp texture. */
 const CONE_SIZE = 256;

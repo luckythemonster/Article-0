@@ -1,12 +1,13 @@
 import type Phaser from "phaser";
 import { Vent4State, type Vent4View } from "../systems/Vent4Core";
 import { EncounterBand } from "./EncounterBand";
+import { UI, hex } from "./hudTheme";
 
 /** Fill/status colors per compliance band. */
 const BAND_STYLE: Record<string, { hex: number; css: string; label: string }> = {
-  LAMINAR: { hex: 0x39d3ff, css: "#39d3ff", label: "LAMINAR FLOW" },
-  TURBULENT: { hex: 0xffb03b, css: "#ffb03b", label: "TURBULENCE" },
-  CRITICAL: { hex: 0xff3b3b, css: "#ff3b3b", label: "CRITICAL BLOCKAGE" },
+  LAMINAR: { hex: hex(UI.cyan), css: UI.cyan, label: "LAMINAR FLOW" },
+  TURBULENT: { hex: hex(UI.amber), css: UI.amber, label: "TURBULENCE" },
+  CRITICAL: { hex: hex(UI.redDeep), css: UI.redDeep, label: "CRITICAL BLOCKAGE" },
 };
 
 /**
@@ -24,9 +25,9 @@ export class Vent4Hud {
   constructor(scene: Phaser.Scene) {
     this.band = new EncounterBand(scene, {
       barW: 220,
-      fillColor: 0x39d3ff,
-      bannerColor: 0xffb03b,
-      wash: { color: 0xff3300, alpha: 0.1 },
+      fillColor: hex(UI.cyan),
+      bannerColor: hex(UI.amber),
+      wash: { color: 0xff5000, alpha: 0.1 },
     });
   }
 
@@ -41,10 +42,10 @@ export class Vent4Hud {
     let statusColor: string;
     if (v.state === Vent4State.DEFEATED) {
       status = "OFFLINE — COMPLIANCE CERT ACCEPTED";
-      statusColor = "#8effc0";
+      statusColor = UI.greenSoft;
     } else if (v.state === Vent4State.JAMMED) {
       status = `TRIAGE SUSPENDED ${Math.ceil(v.jamLeft)}s — CORE EXPOSED`;
-      statusColor = "#ffe14d";
+      statusColor = UI.amberBright;
     } else {
       status = band.label;
       statusColor = band.css;

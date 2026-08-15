@@ -19,10 +19,10 @@ const GUARD_ALERT_COLOR = hex(UI.redDeep);
 // Interior mixes, not palette entries: these exist only inside the scope's
 // circle and are tuned against its own backdrop rather than the HUD's. See the
 // note in `hudTheme.ts` about what does and does not belong in the shared set.
-const CROSSHAIR_COLOR = 0x1c2c38;
-const WALL_COLOR = 0x3a5568;
-const JAM_BG = 0x2a0a0a;
-const JAM_NOISE_COLOR = 0xff6b6b;
+const CROSSHAIR_COLOR = 0x2a2f4e;
+const WALL_COLOR = 0x424c6e;
+const JAM_BG = 0x1c121c;
+const JAM_NOISE_COLOR = hex(UI.red);
 
 /**
  * Soliton-radar-style circular minimap, screen-anchored top-right.

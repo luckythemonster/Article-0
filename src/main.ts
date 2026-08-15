@@ -24,6 +24,7 @@ import { buildCastTextures } from "./entities/CastArt";
 import { preloadDeployedItems } from "./entities/DeployedItem";
 import { preloadVfx } from "./entities/Vfx";
 import { discoverUiTextures, preloadUiTextures } from "./ui/UiTextures";
+import { UI } from "./ui/hudTheme";
 
 /**
  * Boot scene: loads the edplay map JSON and its spritesheets, parses the map
@@ -174,7 +175,7 @@ function startGame(): Phaser.Game {
   return new Phaser.Game({
     type: Phaser.AUTO,
     parent: "game",
-    backgroundColor: "#05070a",
+    backgroundColor: UI.bgVoid,
     pixelArt: true,
     roundPixels: true,
     scale: {

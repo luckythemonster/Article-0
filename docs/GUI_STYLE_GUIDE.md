@@ -9,6 +9,10 @@ currently drawn with rectangles and strokes rather than art. This document is fo
 replacing that with hand-drawn chrome, and for the one existing set of UI art —
 the item icons — which does not currently follow any of it.
 
+> This is the *how*. For **what is actually outstanding** — every sprite still
+> owed, at what size, and whether it needs code as well as art — see
+> [`SPRITE_BACKLOG.md`](./SPRITE_BACKLOG.md).
+
 ---
 
 ## 1. The one rule
@@ -51,42 +55,62 @@ radar, an icon) can be a fixed-size sprite, because corners do not stretch.
 
 ## 3. Palette
 
+Every colour in the interface is an entry in **[ENDESGA-64][edg64]**, the 64-colour
+palette the game's hand-drawn art is authored in. That constraint is the point: before
+it, the UI mixed its own colours while the sprites used EDG64, so a panel drawn in
+Aseprite could never quite sit beside a HUD drawn in canvas.
+
 `src/ui/theme.css` is the single source of truth, mirrored for canvas code in
 `src/ui/hudTheme.ts` and checked by `hudTheme.test.ts`. **Use these values and no
 others.** A GUI sprite introducing its own blue is the thing this guide most wants
 to prevent — the HUD spent a while with four slightly different greys before the
 tokens existed.
 
+If a token seems to want a colour EDG64 doesn't have, the token is wrong — don't
+extend the palette.
+
+[edg64]: https://lospec.com/palette-list/endesga-64
+
 **Accents** — these carry meaning, don't use them decoratively:
 
 | token | hex | means |
 |---|---|---|
-| `--c-cyan` | `#39d3ff` | the interface itself; nominal state |
-| `--c-cyan-bright` | `#5fe0ff` | emphasis on cyan |
-| `--c-amber` | `#ffb03b` | caution — evasion, flagged conduct |
-| `--c-amber-bright` | `#ffe14d` | guard blips |
-| `--c-red` | `#ff5c6a` | jammed, degraded |
-| `--c-red-deep` | `#ff3b3b` | alert |
-| `--c-green` | `#5effa0` | healthy |
-| `--c-green-soft` | `#8effc0` | the Shared Field's "we" |
-| `--c-blue-soft` | `#9fd2ff` | compliant, passing as staff |
+| `--c-cyan` | `#00cdf9` | the interface itself; nominal state |
+| `--c-cyan-bright` | `#0cf1ff` | emphasis on cyan |
+| `--c-amber` | `#ffa214` | caution — evasion, flagged conduct |
+| `--c-amber-bright` | `#ffeb57` | guard blips |
+| `--c-red` | `#f5555d` | jammed, degraded |
+| `--c-red-deep` | `#ea323c` | alert |
+| `--c-green` | `#5ac54f` | healthy |
+| `--c-green-soft` | `#99e65f` | the Shared Field's "we" |
+| `--c-blue-soft` | `#94fdff` | compliant, passing as staff |
 
 **Surfaces and structure:**
 
 | token | hex | use |
 |---|---|---|
-| `--c-bg-panel` | `#070c12` | panel interiors |
-| `--c-bg-scope` | `#03070c` | the radar's well |
-| `--c-track` | `#11202b` | empty bar tracks |
-| `--c-border` | `#2b6e7a` | lit border |
-| `--c-border-cool` | `#2b4356` | the default border |
-| `--c-border-dim` | `#2b3a44` | recessed border |
+| `--c-bg-void` | `#0e071b` | what the canvas clears to |
+| `--c-bg-panel` | `#1a1932` | panel interiors |
+| `--c-bg-scope` | `#131313` | the radar's well |
+| `--c-track` | `#0c2e44` | empty bar tracks |
+| `--c-border` | `#0069aa` | lit border |
+| `--c-border-cool` | `#424c6e` | the default border |
+| `--c-border-dim` | `#2a2f4e` | recessed border |
 
-**Text ramp**, brightest to faintest: `#bfe3ea` `#cfe0f0` `#9fb6c2` `#8fa9b4`
-`#8899aa` `#6b7f92` `#4a5a68` `#45566a`.
+**Text ramp**, brightest to faintest: `#ffffff` `#c7cfdd` `#b4b4b4` `#92a1b9`
+`#858585` `#657392` `#5d5d5d` `#3d3d3d`. EDG64's slate ramp gives five usable
+steps and the HUD needs eight, so its neutral greys fill the gaps — the ramp
+alternates hue but its luminance descends strictly, which is what the eye reads.
 
-The canvas clears to `#05070a`, darker than any panel — panels should read as
-lighter than the void behind them, never darker.
+The canvas clears to `--c-bg-void`, darker than any panel — panels should read as
+lighter than the void behind them, never darker. The four surface tokens are
+ordered by luminance (11 → 19 → 28 → 40) so that stays true by construction.
+
+Two consequences of the EDG64 move worth knowing. The **lit border is blue, not
+teal**: EDG64's teals (`#134c4c`, `#1e6f50`) both fall below `--c-border-cool`,
+which would invert the lit > cool > dim ordering those three names depend on.
+And `--c-green` is a true green rather than the old mint, so "healthy" and the
+Shared Field's `--c-green-soft` now separate by hue as well as brightness.
 
 ## 4. Panel chrome
 
@@ -94,20 +118,64 @@ Panels are the one thing that cannot be a fixed sprite: they wrap content of
 different widths, and some change width at runtime. They ship as **nine-slice** —
 corners fixed, edges stretched along one axis, middle stretched both ways.
 
-- **Source size: 48x48. Slice inset: 12px.** That gives four 12x12 corners, four
+The shipped panel is `public/assets/ui/panel/ui-panel.png`, a bevelled casing with
+a recessed well, rivets, a gem, and a status lamp. Draw a replacement to the same
+terms:
+
+- **Frame size: 48x48. Slice inset: 12px.** That gives four 12x12 corners, four
   12x24 edges, and a 24x24 middle. Registered as `ui-panel` in
-  `src/ui/UiTextures.ts`.
+  `src/ui/UiTextures.ts`, and mirrored by `PANEL_INSET` in `hudLayout.ts`, which
+  is what every widget insets its contents by. **Change one and change the other**
+  or text lands on the casing instead of in the well.
 - **Only the corners are safe for detail.** Anything drawn in an edge region gets
   stretched along that edge — a bolt head in the top edge becomes a smear. Put
-  detail in corners; keep edges to lines that survive stretching.
+  detail in corners; keep edges to lines that survive stretching. The shipped
+  panel obeys this exactly: its rivets, gem and lamp are all inside the 12px
+  corners, which is what lets it carry that much detail at any size.
 - **1px stroke weight.** At 1:1 there is no zoom to hide a 2px line, and the HUD's
   existing chrome is all 1px. Use `--c-border-cool` for the default border.
-- **The middle should be near-flat.** `--c-bg-panel` at ~85% alpha is what the
-  drawn fallback uses; a gradient in the middle region stretches unevenly.
+- **The middle must be near-flat and dark.** It is the surface HUD text sits on,
+  and it is the region stretched in both axes, so a gradient there stretches
+  unevenly *and* costs legibility. `--c-bg-panel` is the right value; anything
+  much lighter puts the faint end of the text ramp out of reach.
 
 Panels degrade to a stroked rectangle when the art is absent (`uiPanel()` in
 `src/ui/NineSlicePanel.ts`), so the sprite should read as an *upgrade* of that
 rectangle, not a different visual language.
+
+### The status lamp
+
+The panel is **five frames**, not one, and they differ by twelve pixels: a lamp in
+the top-right corner. `src/ui/PanelLed.ts` owns what the frames mean.
+
+| state | frame(s) | colour | rhythm | shown when |
+|---|---|---|---|---|
+| `off` | 1 | unlit | steady | every panel but one |
+| `active` | 2, 1 | `--c-green` | 500ms lit, 100ms dark | `INFILTRATION` |
+| `warning` | 3, 4 | `--c-amber-bright` | 111ms even | `EVASION` |
+| `alert` | 0, 1 | `--c-red-deep` | 100ms even | `ALERT` |
+
+The uneven durations are the point: a long beat with a short blink reads as a
+heartbeat, an even fast alternation reads as an alarm. Keep them if you redraw.
+
+**Exactly one panel lights its lamp** — the alert-network readout, whose text says
+the same thing the lamp does. A HUD of panels all blinking together reads as a
+fault rather than a readout, so `uiPanel()` defaults to `off` and callers opt in
+with `attachPanelLed`.
+
+Phaser animations cannot drive this: `play()` belongs to `Sprite` and a
+`NineSlice` is a mesh. Frames are stepped by hand, and **`setFrame` must be
+followed by `updateUVs()`** — without it the frame changes and the panel goes on
+drawing the old one, silently. Resizing is the mirror image: `setSize` then
+`updateVertices()`, which is what `placePanel()` wraps.
+
+### Exporting it
+
+The source is `ui-panel.aseprite`, authored in Pixquare. Export as a spritesheet
+zip and drop `ui-panel.png` over the committed one — no code change needed,
+provided the frame order and the **1px margin / 2px spacing** hold. The sheet is a
+3x2 grid with the sixth slot empty; `sheet.count` in the manifest is what stops
+Phaser's generated sixth frame from ever being drawn.
 
 ## 5. Item and status icons
 
@@ -134,9 +202,10 @@ legacy 256px version (`medkit.png`, `battery.png`, …). The pause menu tries th
 native path first and silently falls back to the old one, so the set can be
 replaced one file at a time with the game playable throughout.
 
-**The current set**, all needing redrawing: `EMP_grenade`, `Q0_certification`,
-`access_chit`, `battery`, `disk`, `flashlight-off`, `flashlight-on`, `medkit`,
-`thermal_gel`. `sack_lunch` is already correct.
+**Still needing redrawing**: `Q0_certification`, `access_chit`, `battery`, `disk`,
+`flashlight-off`, `flashlight-on`, `medkit`, `thermal_gel`. `sack_lunch` was
+authored at size and is already correct; `EMP_grenade` has been redrawn and lives
+at `public/assets/ui/icons/EMP_grenade.png`.
 
 **Items with no icon at all** — the backlog: Stun Rounds, the Pneumatic
 Rail-Stapler, and the two LOG_CACHE fragments.
@@ -230,6 +299,7 @@ file at a time without a flag day.
 | the 1:1 rule | `src/render/uiScale.ts` |
 | texture manifest | `src/ui/UiTextures.ts` |
 | nine-slice helper | `src/ui/NineSlicePanel.ts` |
+| the panel's status lamp | `src/ui/PanelLed.ts` |
 | icon paths | `src/systems/ItemIcons.ts` |
 | fonts and the 14 glyphs | `src/ui/fonts.ts` |
 | the two round instruments | `src/ui/Radar.ts`, `src/ui/BioMonitor.ts` |

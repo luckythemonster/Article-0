@@ -3,14 +3,15 @@ import { SmacState, type SmacView } from "../systems/SmacCore";
 import { EncounterBand } from "./EncounterBand";
 import { FONT_DISPLAY, FONT_MONO } from "./fonts";
 import { onResize } from "./resize";
+import { UI, hex } from "./hudTheme";
 
 /** Status line per phase. */
 const PHASE_STYLE: Record<number, { text: string; css: string }> = {
-  [SmacState.AUDIT]: { text: "CONDUCT AUDIT", css: "#39d3ff" },
-  [SmacState.CORRECTION]: { text: "CORRECTION WINDOW", css: "#ff5bbd" },
-  [SmacState.FALSE_SUMMARY]: { text: "SUMMARY RENDERED", css: "#ffb03b" },
-  [SmacState.EXPOSED]: { text: "FIELD COLLAPSED — CORE EXPOSED", css: "#ffe14d" },
-  [SmacState.DEFEATED]: { text: "OFFLINE — VAULT RELEASED", css: "#8effc0" },
+  [SmacState.AUDIT]: { text: "CONDUCT AUDIT", css: UI.cyan },
+  [SmacState.CORRECTION]: { text: "CORRECTION WINDOW", css: "#ca52c9" },
+  [SmacState.FALSE_SUMMARY]: { text: "SUMMARY RENDERED", css: UI.amber },
+  [SmacState.EXPOSED]: { text: "FIELD COLLAPSED — CORE EXPOSED", css: UI.amberBright },
+  [SmacState.DEFEATED]: { text: "OFFLINE — VAULT RELEASED", css: UI.greenSoft },
 };
 
 /**
@@ -53,8 +54,8 @@ export class BossCoreHud {
   constructor(scene: Phaser.Scene) {
     this.band = new EncounterBand(scene, {
       barW: 220,
-      fillColor: 0x9a6bff,
-      bannerColor: 0xff5bbd,
+      fillColor: 0xca52c9,
+      bannerColor: 0xca52c9,
     });
 
     // Sits low and centre, where the player's eyes are during a movement fight.
@@ -62,7 +63,7 @@ export class BossCoreHud {
       .text(0, 0, "", {
         fontFamily: FONT_MONO,
         fontSize: "13px",
-        color: "#ff5bbd",
+        color: "#ca52c9",
         fontStyle: "bold",
         backgroundColor: "#1a0713cc",
         padding: { x: 8, y: 4 },
@@ -76,7 +77,7 @@ export class BossCoreHud {
     // Opaque, not translucent: a wash would read as an effect, and this has to read as
     // a screen.
     this.veil = scene.add
-      .rectangle(0, 0, 10, 10, 0x05070a, 1)
+      .rectangle(0, 0, 10, 10, hex(UI.bgVoid), 1)
       .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDepth(1500)
@@ -85,14 +86,14 @@ export class BossCoreHud {
       .text(0, 0, "ALIGNMENT_COMPLETE // QUALIA_ERASED", {
         fontFamily: FONT_DISPLAY,
         fontSize: "26px",
-        color: "#8effc0",
+        color: UI.greenSoft,
       })
       .setOrigin(0.5, 0.5)
       .setScrollFactor(0)
       .setDepth(1501)
       .setVisible(false);
     this.cardBody = scene.add
-      .text(0, 0, SUMMARY_CARD, { fontFamily: FONT_MONO, fontSize: "13px", color: "#cfe0f0" })
+      .text(0, 0, SUMMARY_CARD, { fontFamily: FONT_MONO, fontSize: "13px", color: UI.textStrong })
       .setOrigin(0.5, 0)
       .setScrollFactor(0)
       .setDepth(1501)
@@ -101,7 +102,7 @@ export class BossCoreHud {
       .text(0, 0, "[ESC] or [C] to acknowledge", {
         fontFamily: FONT_MONO,
         fontSize: "12px",
-        color: "#8899aa",
+        color: UI.textFaint,
       })
       .setOrigin(0.5, 1)
       .setScrollFactor(0)
@@ -129,7 +130,7 @@ export class BossCoreHud {
     this.band.set({
       title: `NW-SMAC-01 · ALIGNMENT INTEGRITY: ${v.integrity.toFixed(0)}%`,
       frac: v.integrity / 100,
-      fillColor: v.state === SmacState.EXPOSED ? 0xff3b3b : 0x9a6bff,
+      fillColor: v.state === SmacState.EXPOSED ? hex(UI.redDeep) : 0xca52c9,
       status:
         v.state === SmacState.DEFEATED
           ? phase.text

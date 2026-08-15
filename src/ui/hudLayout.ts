@@ -55,6 +55,21 @@ export function monoWidth(chars: number, size: number): number {
 }
 
 // ---------------------------------------------------------------------------
+// Panels
+// ---------------------------------------------------------------------------
+
+/**
+ * How far inside a panel its contents sit.
+ *
+ * Equal to the nine-slice inset declared for `ui-panel` in `UiTextures`, and that
+ * is the whole point: the art reproduces its outer 12px as fixed corners and
+ * edges — bevel, rivets, status lamp — and stretches only what lies inside them.
+ * Anything laid out closer than this sits on the casing rather than in the well,
+ * where it collides with the trim instead of reading against a flat surface.
+ */
+export const PANEL_INSET = 12;
+
+// ---------------------------------------------------------------------------
 // Top-left: the status stack (alert phase, SRP meter, bio-integrity, network)
 // ---------------------------------------------------------------------------
 
@@ -139,8 +154,37 @@ export const STATUS_STACK_BOTTOM = BIO_LABEL_TOP + BIO_DIAL_TOP + BIO_DIAL_SIZE 
 /** Right edge of the column. The 180px SRP bar is wider than the 80px dial. */
 export const STATUS_STACK_RIGHT = UI_PAD + BAR_W;
 
-/** Top of the alert-network readout — immediately below the column. */
+/** Top of the alert-network readout's panel — immediately below the column. */
 export const NETWORK_TOP = STATUS_STACK_BOTTOM;
+
+/**
+ * Widest line the readout budgets for, in characters at {@link UI_TEXT.small}.
+ *
+ * `CONVERGING 12 → (100,100)` is the longest string it can build. Checked against
+ * the panel's interior in `hudLayout.test.ts` rather than trusted.
+ */
+export const NETWORK_MAX_CHARS = 26;
+
+/** Tallest the detail block gets: units, converging, relax. */
+export const NETWORK_MAX_LINES = 3;
+
+/** One detail row, 11px type with its leading. `lineSpacing` is added on top. */
+export const NETWORK_LINE_H = 14;
+
+/** Drop from the panel's first row to the detail block, matching the widget. */
+export const NETWORK_DETAIL_TOP = 16;
+
+/**
+ * The panel's outer size.
+ *
+ * Width matches the SRP bar above it so the left column reads as one edge rather
+ * than two that nearly agree. Height is fixed at the readout's maximum instead of
+ * tracking the current line count — a panel that resized as guards converged
+ * would jitter, and the lines below it are the ones that come and go.
+ */
+export const NETWORK_PANEL_W = BAR_W;
+export const NETWORK_PANEL_H =
+  PANEL_INSET * 2 + NETWORK_DETAIL_TOP + NETWORK_MAX_LINES * (NETWORK_LINE_H + 2);
 
 // ---------------------------------------------------------------------------
 // Top-right: the radar, then the debug inspector beneath it

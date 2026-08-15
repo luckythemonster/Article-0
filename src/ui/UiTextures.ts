@@ -26,7 +26,13 @@ export interface UiTextureSpec {
   key: string;
   /** Path under `public/`. */
   path: string;
-  /** The art's authored pixel dimension (square). */
+  /**
+   * The art's authored pixel dimension (square).
+   *
+   * For a {@link UiTextureSpec.sheet}, this is one *frame* rather than the whole
+   * image — which is what the scale rule cares about, and what keeps the file's
+   * outer dimensions (150x102 for a 3x2 grid of 48s) from having to be square.
+   */
   size: number;
   /** The dimension it is drawn at on screen. Defaults to {@link UiTextureSpec.size}. */
   display?: number;
@@ -35,11 +41,43 @@ export interface UiTextureSpec {
    * rather than stretchable middle. Only meaningful for panels.
    */
   slice?: number;
+  /**
+   * Present when the file is a grid of frames rather than one image.
+   *
+   * Aseprite-family exporters pad the sheet, so the offsets have to be declared
+   * or every frame comes out shifted by a pixel. {@link UiSheetSpec.count} exists
+   * because a grid rarely divides evenly: the panel's 5 frames sit in a 3x2 grid,
+   * and Phaser will happily generate a 6th from the empty bottom-right slot.
+   */
+  sheet?: UiSheetSpec;
+}
+
+export interface UiSheetSpec {
+  /** Blank border around the whole grid, in pixels. */
+  margin: number;
+  /** Blank gutter between adjacent frames, in pixels. */
+  spacing: number;
+  /** How many frames are actually drawn, counting across rows first. */
+  count: number;
 }
 
 export const UI_TEXTURES: readonly UiTextureSpec[] = [
-  /** The generic HUD panel: border, corners and fill, stretched to any size. */
-  { key: "ui-panel", path: "assets/ui/panel/panel.png", size: 48, slice: 12 },
+  /**
+   * The generic HUD panel: border, corners and fill, stretched to any size.
+   *
+   * Five frames, and only twelve pixels differ between them — the status LED in
+   * the top-right corner. That the animation lives in a *corner* is what makes it
+   * safe here: nine-slice reproduces corners at native size and stretches only
+   * the edges and middle, so the LED survives at any panel size. See
+   * {@link ./PanelLed} for what the frames mean.
+   */
+  {
+    key: "ui-panel",
+    path: "assets/ui/panel/ui-panel.png",
+    size: 48,
+    slice: 12,
+    sheet: { margin: 1, spacing: 2, count: 5 },
+  },
   /**
    * The radar's ring. Drawn over the scope's masked contents, so its interior must
    * be transparent — see the note in `Radar.drawBezel`.
@@ -88,7 +126,18 @@ export async function discoverUiTextures(): Promise<void> {
 
 /** Queues whichever optional textures {@link discoverUiTextures} found. */
 export function preloadUiTextures(scene: Phaser.Scene): void {
-  for (const spec of present) scene.load.image(spec.key, spec.path);
+  for (const spec of present) {
+    if (spec.sheet) {
+      scene.load.spritesheet(spec.key, spec.path, {
+        frameWidth: spec.size,
+        frameHeight: spec.size,
+        margin: spec.sheet.margin,
+        spacing: spec.sheet.spacing,
+      });
+    } else {
+      scene.load.image(spec.key, spec.path);
+    }
+  }
 }
 
 /** Whether a piece of optional UI art actually loaded. */
