@@ -4,10 +4,12 @@
  * It was previously written out twice — once as a hardcoded string in the HUD's
  * bottom-left hint (`Hud.ts`) and once in the README's controls table — with the
  * pause menu's CONTROLS tab about to make three. The hint had already drifted
- * once. `GameScene.bindInput()` remains the place keys are actually *bound*; this
- * is the place they are *described*, and the two are checked against each other
- * by eye at review time rather than by a mechanism, because Phaser gives no
- * enumerable view of a scene's bindings.
+ * once. `GameScene.bindInput()` remains the place most keys are actually
+ * *bound* (one exception: `N` is `UIScene`'s own, since it toggles a HUD panel
+ * rather than doing anything to the player); this is the place they are all
+ * *described*, and the two are checked against each other by eye at review
+ * time rather than by a mechanism, because Phaser gives no enumerable view of
+ * a scene's bindings.
  */
 
 export interface ControlBinding {
@@ -44,6 +46,7 @@ export const CONTROLS: readonly ControlBinding[] = [
   { key: "Enter", action: "Use the selected consumable", hint: "Enter use item" },
   { key: "C", action: "Open the EIRA-7 codec", hint: "C codec" },
   { key: "Esc", action: "Pause — objectives, journal, inventory, index, saves", hint: "Esc pause" },
+  { key: "N", action: "Hide/show the security-network readout" },
 ];
 
 /** The HUD's one-line controls hint, built from the bindings that opt into it. */

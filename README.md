@@ -49,6 +49,7 @@ npm test         # vitest, covers the pure systems
 | Enter | Use the selected consumable (the **Sack Lunch** takes two uses: open, then drop) |
 | C | Open the EIRA-7 codec |
 | Esc | Pause menu — objectives, journal, inventory, index, status, map, controls, settings, saves |
+| N | Hide/show the security-network readout |
 
 Inside the pause menu: **← / →** move between sections, **1–9** jump straight to
 one, **↑ / ↓** move within a list, **Enter** confirms, **Esc** resumes. Quitting a

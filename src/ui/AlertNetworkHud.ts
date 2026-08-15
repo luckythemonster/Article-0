@@ -1,6 +1,5 @@
 import Phaser from "phaser";
 import type { AlertNetworkSnapshot } from "../systems/AlertNetwork";
-import type { AlertPhase } from "../systems/AlertState";
 import { FONT_MONO } from "./fonts";
 import {
   NETWORK_DETAIL_TOP,
@@ -11,7 +10,7 @@ import {
 } from "./hudLayout";
 import { UI, UI_DEPTH, UI_PAD, UI_TEXT } from "./hudTheme";
 import { attachPanelLed, uiPanel, type PanelLedHandle } from "./NineSlicePanel";
-import { ledStateFor } from "./PanelLed";
+import { ledStateForNetwork, panelSupportsLiveState } from "./PanelLed";
 
 /** Phase → readout label + colour for the network status line. */
 const STATUS: Record<string, { label: string; color: string }> = {
@@ -29,19 +28,24 @@ const STATUS: Record<string, { label: string; color: string }> = {
  * Reads the snapshot the scene publishes to the registry; screen-anchored so
  * the camera zoom doesn't scale it (same pattern as {@link Hud}).
  *
- * This is the one panel in the HUD whose status lamp is lit. The panel art's
- * corner lamp has exactly three states and they are this readout's three phases,
- * drawn in the same palette entries the text beside it uses — so the frame is
- * saying what the words say, and a player who has stopped reading the words still
- * gets the phase from the corner of their eye. Every other panel keeps the lamp
- * dark; six blinking in unison would read as a fault rather than a readout.
+ * This is the one panel in the HUD whose lamp actually lights. The redrawn
+ * panel art dropped the three named alert colours for a plain activity light —
+ * `in_use` while the network has anything to report, dark when it is quiet —
+ * so {@link ledStateForNetwork} reads the same counts the detail lines below
+ * already print rather than the phase word. Every other panel keeps the lamp
+ * dark; six panels blinking in unison would read as a fault, not a readout.
+ *
+ * Also the one panel a player can hide — `N` toggles it via {@link setShown},
+ * bound in `UIScene`. Hiding takes the panel and all three of its text objects
+ * together, so there is nothing left on screen for the readout once it's gone.
  */
 export class AlertNetworkHud {
+  private readonly panel: Phaser.GameObjects.NineSlice | Phaser.GameObjects.Rectangle;
+  private readonly label: Phaser.GameObjects.Text;
   private readonly status: Phaser.GameObjects.Text;
   private readonly detail: Phaser.GameObjects.Text;
   private readonly led: PanelLedHandle;
-  /** Last phase pushed to the lamp, so a steady state doesn't restart the blink. */
-  private phase: AlertPhase | null = null;
+  private shown = true;
 
   constructor(scene: Phaser.Scene) {
     // Below the SRP meter and the bio-integrity dial. The budget is shared rather
@@ -50,10 +54,10 @@ export class AlertNetworkHud {
     // The text sits inside the panel's fixed border, not on it.
     const pad = UI_PAD + PANEL_INSET;
 
-    const panel = uiPanel(scene, UI_PAD, top, NETWORK_PANEL_W, NETWORK_PANEL_H);
-    this.led = attachPanelLed(scene, panel, "active");
+    this.panel = uiPanel(scene, UI_PAD, top, NETWORK_PANEL_W, NETWORK_PANEL_H);
+    this.led = attachPanelLed(scene, this.panel, "off");
 
-    scene.add
+    this.label = scene.add
       .text(pad, top + PANEL_INSET, "NETWORK", {
         fontFamily: FONT_MONO,
         fontSize: UI_TEXT.small,
@@ -87,14 +91,11 @@ export class AlertNetworkHud {
     const s = STATUS[net.status] ?? STATUS.INFILTRATION;
     this.status.setText(s.label).setColor(s.color);
 
-    // `status` is a string on the snapshot rather than an AlertPhase, so an
-    // unrecognised value falls back the same way the label above does instead of
-    // leaving the lamp on whatever it showed last.
-    const phase: AlertPhase = net.status in STATUS ? (net.status as AlertPhase) : "INFILTRATION";
-    if (phase !== this.phase) {
-      this.phase = phase;
-      this.led.set(ledStateFor(phase));
-    }
+    // Pinned to "off" until the manifest catches up to the redrawn art — see
+    // `panelSupportsLiveState`'s doc comment for what that guards against.
+    // `led.set` already no-ops on a repeat state, so this can run every frame
+    // without restarting the bounce.
+    this.led.set(panelSupportsLiveState() ? ledStateForNetwork(net) : "off");
 
     const lines = [`UNITS ${net.total}  SPOT ${net.alerted}  SUSP ${net.suspicious}`];
     if (net.converging > 0 && net.target) {
@@ -104,5 +105,19 @@ export class AlertNetworkHud {
       lines.push(`RELAX ${net.countdown.toFixed(1)}s`);
     }
     this.detail.setText(lines.join("\n"));
+  }
+
+  /** Whether the panel is currently on screen. */
+  isShown(): boolean {
+    return this.shown;
+  }
+
+  /** Shows or hides the panel and all three of its text objects together. */
+  setShown(shown: boolean): void {
+    this.shown = shown;
+    this.panel.setVisible(shown);
+    this.label.setVisible(shown);
+    this.status.setVisible(shown);
+    this.detail.setVisible(shown);
   }
 }
