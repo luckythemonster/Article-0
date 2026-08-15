@@ -57,6 +57,7 @@ export function circleFits(
   ty: number,
   radiusTiles: number,
   openable?: OpenablePredicate,
+  plane = 0,
 ): boolean {
   const minX = Math.floor(tx - radiusTiles);
   const maxX = Math.floor(tx + radiusTiles);
@@ -65,7 +66,7 @@ export function circleFits(
 
   for (let cy = minY; cy <= maxY; cy++) {
     for (let cx = minX; cx <= maxX; cx++) {
-      if (!grid.isBlocked(cx, cy)) continue;
+      if (!grid.isBlocked(cx, cy, plane)) continue;
       if (openable?.(cx, cy)) continue;
       // Closest point on the tile's unit square to the circle's centre. If that
       // is inside the radius the circle is overlapping the tile. Comparing
@@ -97,6 +98,7 @@ export function moveCircle(
   dx: number,
   dy: number,
   radiusTiles: number,
+  plane = 0,
 ): MoveResult {
   let x = tx;
   let y = ty;
@@ -104,11 +106,11 @@ export function moveCircle(
   let blockedY = false;
 
   if (dx !== 0) {
-    if (circleFits(grid, x + dx, y, radiusTiles)) x += dx;
+    if (circleFits(grid, x + dx, y, radiusTiles, undefined, plane)) x += dx;
     else blockedX = true;
   }
   if (dy !== 0) {
-    if (circleFits(grid, x, y + dy, radiusTiles)) y += dy;
+    if (circleFits(grid, x, y + dy, radiusTiles, undefined, plane)) y += dy;
     else blockedY = true;
   }
 
@@ -127,8 +129,17 @@ export function moveCirclePx(
   dy: number,
   radiusTiles: number,
   tileSize: number,
+  plane = 0,
 ): MoveResult {
-  const moved = moveCircle(grid, x / tileSize, y / tileSize, dx / tileSize, dy / tileSize, radiusTiles);
+  const moved = moveCircle(
+    grid,
+    x / tileSize,
+    y / tileSize,
+    dx / tileSize,
+    dy / tileSize,
+    radiusTiles,
+    plane,
+  );
   return {
     x: moved.x * tileSize,
     y: moved.y * tileSize,

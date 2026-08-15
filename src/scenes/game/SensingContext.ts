@@ -70,6 +70,7 @@ export class SensingContext {
       playerConcealed: false,
       playerCompliant: false,
       playerThermalConcealed: false,
+      playerPlane: 0,
       chaffZone: null,
       thermalRadiusMultiplier: (base) => deps.detection.thermalRadiusFor(base, deps.thermalMasked()),
       alert: deps.alert,
@@ -97,6 +98,11 @@ export class SensingContext {
    * @param compliant reads as staff, so sensing is suppressed outright.
    * @param thermalConcealed hidden from the short-range heat sense as well.
    */
+  /** Which walk surface the player is on — see `src/map/planes.ts`. */
+  setPlane(plane: number): void {
+    this.ctx.playerPlane = plane;
+  }
+
   setConcealment(concealed: boolean, compliant: boolean, thermalConcealed: boolean): void {
     this.ctx.playerConcealed = concealed;
     this.ctx.playerCompliant = compliant;

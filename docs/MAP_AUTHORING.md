@@ -87,18 +87,33 @@ generates and the legacy names below. Don't author against it.)
 A guard board can be called anything — `security_guard_A`, `drone_B`, `orderly`. What the
 engine reads is the component every tile on it carries:
 
-| Every tile carries | Becomes |
+**A board is one character, and its tiles are that character's waypoints.** That
+holds for every kind of body, so the rule you author against is the same one every
+time:
+
+| The bodies on the board carry | Becomes |
 | --- | --- |
 | `Human` with `Job: SECURITY` | **One `Enforcer` for the whole board**, its tiles that guard's ordered waypoints — see §3.1 |
 | `Silicate` | Same, for one `Drone` — identical AI, different skin |
-| `Human` with `Job: ORDERLY` | One `Orderly` per tile. Orderlies don't patrol, so the tiles are placements, not a route |
+| `Human` with `Job: ORDERLY` | Same, for one `Orderly`. It loiters near each stop before ambling to the next, rather than marching — see §3.1 |
+| `enemySpawn` | Same, for one `Enforcer`. There is no wave system, so a spawn point is a post, and several on a board of their own are a beat — but see the exception below |
+
+A board mixing two *kinds* of body is refused rather than guessed, since it
+describes no single route.
+
+**The exception: a board the engine already reads for something else.** A board is
+one character only when the board *is* that character. `enemySpawn` tiles filed on a
+**transitions** board — `verticals`, `elevator*`, `stairs`, `maintenance_access`,
+`roof_access` — stay one sentry per tile, because that board is the level's ways out
+and the posts are sharing it. `main2vault` is the case: two `stairwell1` posts flanking
+the stair are two men watching it, not one man shuffling between adjacent tiles. Give a
+beat its own board, as every other route on the map does.
 
 And per tile, on any board:
 
 | Tile carries | Becomes |
 | --- | --- |
-| `Sensor` | One fixed camera. Facing is **inferred from surrounding walls**; the `facing` field is not read |
-| `enemySpawn` | One `Enforcer` standing post. There is no wave system, so a spawn point is a sentry |
+| `Sensor` | One fixed camera. Facing is **inferred from surrounding walls**; the `facing` field is not read. Cameras stay per tile — a sensor is bolted to a wall and has no round to walk |
 
 The legacy board names `enforcers`, `drones`, `orderlies` and `security` still work and are
 read by name; the engine's own generators emit them.
@@ -108,7 +123,7 @@ read by name; the engine's own generators emit them.
 | Board | What the engine does | Component |
 | --- | --- | --- |
 | `spawn` | **First tile only** = player start. Extra tiles ignored. Falls back to level centre. | — |
-| `walls` | Collision grid + static physics bodies + blocks sight. Tile presence is enough. **Not the only solid board** — see §3.2. | — |
+| `walls` | Collision grid + static physics bodies + blocks sight. Tile presence is enough. **Not the only solid board** — see §3.3. | — |
 | `floor` | Nothing special — just art. (Only `VentCoreLevel` looks it up, for prototypes.) | — |
 | `doors` | Tiles **with** a `door` component become doors. Board-scoped on purpose: a `Door` component on any other board stays art, which is what keeps an elevator car's own doors from sealing the player inside. | **`door` required** |
 | `terminals` | Tiles **with** a `terminal` component become terminals. A `terminalN` tile here with *no* component is given the export's own `Terminal` defaults — see `InertTerminals.ts` — so anything else on this board should be named something else. | **`terminal` required** |
@@ -124,13 +139,23 @@ read by name; the engine's own generators emit them.
 Lasers are the exception to all of this and are found **by ref** across every board — see
 "Lasers are found by ref, not by board" below.
 
-### 3.1 A guard board is one guard's patrol route
+### 3.1 An entity board is one entity's route
 
-Tiles on a guard board are **ordered waypoints for a single guard**, walked as a loop, not
-one guard each. Ordering comes from the trailing number on each tile's `ref`
+Tiles on an entity board are **ordered waypoints for a single character**, walked as a
+loop, not one character each. Ordering comes from the trailing number on each tile's `ref`
 (`security_guard1`, `security_guard2`, …); tiles whose ref has no number keep their file
-order and sort behind the numbered ones. The guard spawns on the first waypoint and reads
-its stats from that tile.
+order and sort behind the numbered ones. The character spawns on the first waypoint and
+reads its stats from that tile.
+
+**Art may share the board.** Only the tiles carrying a body are read as waypoints; anything
+else stays art and is painted into the level as usual. A board that mixed one prop in with
+three guards used to yield *zero* guards, silently.
+
+**Orderlies walk their round differently from guards.** An orderly is a member of staff, not
+a patrol: it loiters near a stop for eight to sixteen seconds, drifting on a short leash,
+then ambles to the next one. It routes between stops with A* exactly as a guard does, so
+its waypoints can be rooms apart, and a leg it cannot solve is skipped rather than ground
+against.
 
 **Number each tile on the board individually.** The number is the *step*, not the guard —
 the board is already the guard. An export that gives all four tiles of a route the same ref
@@ -156,8 +181,60 @@ Practical notes for authoring:
 - A leg A* can't solve is skipped, and the loop picks the waypoint up next time round, so a
   route temporarily severed by a locked door degrades rather than wedging the guard.
 - Want more guards on a level? That needs a second guard board, not more tiles on this one.
+  The same goes for orderlies, and for spawn posts on a board of their own: two
+  `enemySpawn` tiles on an `enforcer_spawn` board are one guard walking between them, not
+  two standing at each. (On a transitions board they stay one each — see §3's exception.)
 
-### 3.2 What blocks: the board says so, the tile says what shape
+### 3.2 Two walk surfaces: `catwalks` is a deck over the floor
+
+A level with a **`catwalks`** board carrying tiles has *two* walk surfaces. `floor` is
+the ground; `catwalks` is a raised deck laid over it, walkable exactly where its tiles
+are. Everything else — the seven levels with no such board — has one surface and behaves
+exactly as it always has.
+
+The rules, all derived, none of them needing anything new in the export:
+
+- **The deck's edge is its collision.** Anything that is not a deck tile stops you while
+  you are up there, which covers the drop off the side, the gaps between gantries and the
+  level border at once. You do not need a `chasm` board (and `vent_core`'s empty one does
+  nothing).
+- **Walls are structure the deck runs over.** On both shipped deck levels *every* wall
+  cell is also a deck cell, and `roof_array` runs deck columns the full height of the
+  level straight through its wall band — so walls block the floor and neither block nor
+  occlude the deck. Read the other way the gantry would be cut into islands. If you want
+  something solid up top, give it `Collision: 1` and it is handled as an ordinary solid.
+- **Nothing on the deck occludes sight**, for the same reason: you are above the walls.
+- **Fixtures belong to the surface their cell is on**, per tile — the boards they sit on
+  say nothing about height. `roof_array`'s dish and its east enforcer rail come out on the
+  gantry; its calibration terminals and both spawn posts come out on the deck floor.
+- **Sight and detection do not cross surfaces.** A guard on the floor loses you the moment
+  you climb, and vice versa. Noise is unaffected.
+
+#### Ways between the surfaces
+
+Put them on **`catwalk_access_up`**, **`floor_access_down`** or **`ramps`**, and place each
+tile on a floor cell **beside** a deck cell. That is the whole convention: the tile is the
+foot and the deck cell next to it is the head. Press `E` on either end to move between
+them.
+
+Both of the shipped map's conventions work, and neither is read as authoritative — the
+geometry is:
+
+```
+vent_core   catwalk_access_up + floor_access_down at the same coordinate  (one link, named twice)
+roof_array  ramps, single tiles                                            (one link each)
+```
+
+A link tile with no deck beside it is inert rather than a guess.
+
+#### Boards drawn above everything: `rain_cover`
+
+A **`rain_cover`** board is a canopy — roof art the player walks *under*. It is lifted out
+of the ground texture and drawn above the world, and it thins out while the player is
+beneath it so he stays visible. Filed as ordinary art it would paint a roof over the deck
+you walk on, which is exactly what it used to do.
+
+### 3.3 What blocks: the board says so, the tile says what shape
 
 Solidity is the **board's** `Collision` field, not a hardcoded list of names:
 
@@ -259,9 +336,8 @@ Three things follow from it:
   `hatch`, `ladder`, `stairs` or `elevator` — or a tile carrying a `Vertical` component —
   are read as ways out. `stairwell1` is art and stays art; that is deliberate, since the
   shipped map files two guard posts on `verticals` under that name.
-- **Ladders inside one level are not transitions.** The engine models no intra-level
-  verticals, so a catwalk↔floor ladder belongs on its own board (the shipped map uses
-  `catwalk_access_up` / `floor_access_down`), not on `verticals`.
+- **Ladders inside one level are not level transitions** — they are *plane* links, and
+  they belong on their own board, not on `verticals`. See §3.2.
 
 #### Elevators
 
@@ -358,7 +434,7 @@ Not components — the fields on the tile definition and the board itself.
 | --- | --- | --- |
 | `ColSpan` / `RowSpan` | ✅ | The footprint, in tiles. Sub-cell values are fine: half-tile props are `0.5×0.5`. |
 | `OffsetX` / `OffsetY` | ✅ | Pixel nudge off the cell centre. |
-| `ColliderPadding` | ✅ | Per-side inset of the collision box — §3.2. |
+| `ColliderPadding` | ✅ | Per-side inset of the collision box — §3.3. |
 | `CollisionMode` | `1` only | Per-tile "always solid". `2` now appears in exports and is *not* read; the board field uses `2` for marker/trigger, so the symmetry is strong but unconfirmed, and it is currently inert (its one def sits on a non-solid board). |
 | `Animation.KeyFrames[].FlipY` | ✅ | Mirrors the frame vertically — how the editor gets two facings from one sprite rect. |
 | `TintColor` (def **and** board) | ✅ | `0xAARRGGBB` colour multiply; `0xFFFFFFFF` means none. The two **multiply**, so a tinted def on a tinted board wears both. Alpha is dropped. |
@@ -504,7 +580,7 @@ at 32×32, the same 2× reduction `security_node1` gets from the same source siz
    1.5-wide door still only claims one cell because its 8px overhang misses both
    neighbours' centres. A tile can also be *smaller* than its footprint —
    `ColliderPadding` insets the collision box without moving the art or the cells
-   the grid claims (§3.2).
+   the grid claims (§3.3).
 
 ## 6. Minimum viable map
 

@@ -1,5 +1,5 @@
 import { raySlabIntersect } from "../map/footprint";
-import type { CollisionGrid } from "./CollisionGrid";
+import { NO_PADDED_RECT, type CollisionGrid } from "./CollisionGrid";
 
 /**
  * Line-of-sight raycasting for the *render* path: how far the player can actually
@@ -36,6 +36,29 @@ export const SIGHT_RAYS = 720;
  * the dark rather than a hard edge.
  */
 export const WALL_REVEAL_TILES = 0.5;
+
+/**
+ * PADDED_WALK_NOTE — why the walk tests a stepped-into cell's *precise* collider,
+ * not just its coarse opaque bit.
+ *
+ * Half of NW-SMAC-01's wall tiles carry `ColliderPadding: {Bottom: 0.4}`: the solid
+ * rect is the top 60% of the cell and the bottom 40% is walkable floor in front of
+ * the wall's face. The walk used to check the *origin* cell precisely (so a viewer
+ * standing in that strip didn't get free sight through the wall he leans on) but
+ * every subsequent cell coarsely.
+ *
+ * That asymmetry is what made the darkness jump. Pressed flush against a
+ * south-facing wall the player's body centre lands at about `row + 0.99` — inside
+ * the wall's own cell — so a ray running *along* the wall misses the origin's slab,
+ * falls through to the walk, immediately enters the next wall cell in the same row,
+ * and dies there. Hugging a wall blacked out the corridor in a wedge each side, and
+ * stepping one pixel off the wall restored it in a single frame.
+ *
+ * Testing the precise rect on every blocked cell fixes both halves at once: sight
+ * runs down the strip of floor that is genuinely open, and the distance it returns
+ * is the ray's true entry into the solid, which varies continuously as the viewer
+ * moves instead of snapping when `Math.floor` of his position changes cell.
+ */
 
 /** Unit ray directions, split into parallel arrays so casting allocates nothing. */
 export interface RayDirections {
@@ -105,11 +128,12 @@ export function rayDistance(
   dirY: number,
   maxTiles: number,
   reveal: number = WALL_REVEAL_TILES,
+  plane = 0,
 ): number {
   let ix = Math.floor(originX);
   let iy = Math.floor(originY);
 
-  const originPadded = grid.paddedRectAt(ix, iy);
+  const originPadded = grid.paddedRectAt(ix, iy, plane);
   if (originPadded) {
     const t = raySlabIntersect(originX, originY, dirX, dirY, originPadded);
     if (t !== undefined && t < maxTiles) return Math.min(t + reveal, maxTiles);
@@ -142,13 +166,78 @@ export function rayDistance(
     }
     // Ran out of reach before entering the next cell.
     if (enter >= maxTiles) return maxTiles;
-    if (grid.blocksSight(ix, iy)) {
-      // Half a tile past the face we just crossed — the wall's mid-depth, never its
-      // far face. See WALL_REVEAL_TILES for why that distinction is the whole ballgame.
-      return Math.min(enter + reveal, maxTiles);
+    if (grid.blocksSight(ix, iy, plane)) {
+      const slot =
+        grid.paddedCount === 0 ? NO_PADDED_RECT : grid.paddedSlotAt(ix, iy, plane);
+      if (slot === NO_PADDED_RECT) {
+        // Half a tile past the face we just crossed — the wall's mid-depth, never its
+        // far face. See WALL_REVEAL_TILES for why that distinction is the whole ballgame.
+        return Math.min(enter + reveal, maxTiles);
+      }
+      // The cell is only opaque over part of itself. Stop at the face of that
+      // part rather than at the cell boundary — see PADDED_WALK_NOTE.
+      const hit = grid.paddedEntryAt(slot, originX, originY, dirX, dirY);
+      if (hit === undefined) continue;
+      if (hit >= maxTiles) return maxTiles;
+      return Math.min(hit + reveal, maxTiles);
     }
   }
   return maxTiles;
+}
+
+/**
+ * Visits every cell the ray from `(originX, originY)` along `(dirX, dirY)` passes
+ * through, out to `maxTiles` — the origin cell first, then each cell the walk
+ * enters, including the one it ends in.
+ *
+ * The same Amanatides–Woo stepping {@link rayDistance} uses, with no grid to
+ * consult: this answers "which cells did this ray cover", where that answers "how
+ * far did it get". Pairing the two is what lets the explored-tile sweep remember
+ * exactly the polygon the darkness carved, rather than approximating it with a
+ * second algorithm that disagrees at the edges.
+ *
+ * Because a cast distance already carries {@link WALL_REVEAL_TILES} past the face
+ * it stopped at, the wall cell itself is visited — which is what you want: you
+ * have seen that wall, and a remembered room with no walls is not a room.
+ */
+export function walkRayCells(
+  originX: number,
+  originY: number,
+  dirX: number,
+  dirY: number,
+  maxTiles: number,
+  visit: (tileX: number, tileY: number) => void,
+): void {
+  let ix = Math.floor(originX);
+  let iy = Math.floor(originY);
+  visit(ix, iy);
+  if (!(maxTiles > 0)) return;
+
+  const stepX = dirX > 0 ? 1 : -1;
+  const stepY = dirY > 0 ? 1 : -1;
+  const deltaX = dirX === 0 ? Infinity : Math.abs(1 / dirX);
+  const deltaY = dirY === 0 ? Infinity : Math.abs(1 / dirY);
+  let nextX =
+    dirX === 0 ? Infinity : dirX > 0 ? (ix + 1 - originX) / dirX : (ix - originX) / dirX;
+  let nextY =
+    dirY === 0 ? Infinity : dirY > 0 ? (iy + 1 - originY) / dirY : (iy - originY) / dirY;
+
+  let steps = Math.ceil(maxTiles) * 2 + 4;
+  while (steps-- > 0) {
+    let enter: number;
+    if (nextX < nextY) {
+      enter = nextX;
+      ix += stepX;
+      nextX += deltaX;
+    } else {
+      enter = nextY;
+      iy += stepY;
+      nextY += deltaY;
+    }
+    // Strictly greater: the cell the ray ends *inside* has been seen.
+    if (enter > maxTiles) return;
+    visit(ix, iy);
+  }
 }
 
 /**
@@ -162,6 +251,7 @@ export function sightDistances(
   maxTiles: number,
   dirs: RayDirections,
   out: Float64Array,
+  plane = 0,
 ): Float64Array {
   const { cos, sin, invCos, invSin, deltaX, deltaY, stepX, stepY } = dirs;
   if (invCos && invSin && deltaX && deltaY && stepX && stepY) {
@@ -177,7 +267,8 @@ export function sightDistances(
     // Same origin for every ray this call, so resolved once — see
     // `rayDistance`'s doc comment for why a padded origin cell needs its
     // precise shape checked instead of the coarse walk's blanket skip.
-    const originPadded = grid.paddedRectAt(originIx, originIy);
+    const originPadded = grid.paddedRectAt(originIx, originIy, plane);
+    const anyPadded = grid.paddedCount > 0 && plane === 0;
 
     for (let i = 0; i < cos.length; i++) {
       const c = cos[i];
@@ -224,7 +315,16 @@ export function sightDistances(
           dist = maxTiles;
           break;
         }
-        if (grid.blocksSight(ix, iy)) {
+        if (grid.blocksSight(ix, iy, plane)) {
+          const slot = anyPadded ? grid.paddedSlotAt(ix, iy, plane) : NO_PADDED_RECT;
+          if (slot !== NO_PADDED_RECT) {
+            // Only opaque over part of its cell — see PADDED_WALK_NOTE.
+            const hit = grid.paddedEntryAt(slot, originX, originY, c, s);
+            if (hit === undefined) continue;
+            dist = hit + WALL_REVEAL_TILES;
+            if (dist > maxTiles) dist = maxTiles;
+            break;
+          }
           const val = enter + WALL_REVEAL_TILES;
           dist = val < maxTiles ? val : maxTiles;
           break;
@@ -234,7 +334,7 @@ export function sightDistances(
     }
   } else {
     for (let i = 0; i < cos.length; i++) {
-      out[i] = rayDistance(grid, originX, originY, cos[i], sin[i], maxTiles);
+      out[i] = rayDistance(grid, originX, originY, cos[i], sin[i], maxTiles, WALL_REVEAL_TILES, plane);
     }
   }
   return out;

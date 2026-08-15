@@ -75,9 +75,10 @@ describe("EntityIndex — the cast", () => {
     expect(ix.guards.map((g) => g.kind).sort()).toEqual(["drone", "enforcer"]);
   });
 
-  it("spawns one orderly per tile rather than a route", () => {
-    // `Orderly` wanders around a home spot and takes no waypoints, so a board of
-    // four is four porters — not one walking a beat.
+  it("reads an orderly board as one orderly's round, in ref order", () => {
+    // An entity board is one entity, and its tiles are that entity's waypoints —
+    // the same rule guard boards follow. A board of four is one porter with a
+    // four-stop round, not four porters standing about.
     const ix = indexEntities(
       level({
         orderly: [
@@ -88,10 +89,54 @@ describe("EntityIndex — the cast", () => {
       LEGACY,
     );
     expect(ix.guards).toEqual([]);
-    expect(ix.orderlies.map((t) => [t.x, t.y])).toEqual([
-      [4, 1],
-      [25, 8],
+    expect(ix.orderlies).toHaveLength(1);
+    // Ordered by the trailing number on the ref, not by file order.
+    expect(ix.orderlies[0].route).toEqual([
+      { x: 25, y: 8 },
+      { x: 4, y: 1 },
     ]);
+  });
+
+  it("reads a spawn board as one sentry's round too", () => {
+    // `enemySpawn` has no wave system behind it, so its tiles are places a guard
+    // stands rather than times one appears — which makes them waypoints.
+    const ix = indexEntities(
+      level({
+        enforcer_spawn: [
+          tile(7, 1, "enforcer_spawn1", spawner),
+          tile(5, 3, "enforcer_spawn2", spawner),
+        ],
+      }),
+      LEGACY,
+    );
+    expect(ix.guards).toHaveLength(1);
+    expect(ix.guards[0].route).toEqual([
+      { x: 7, y: 1 },
+      { x: 5, y: 3 },
+    ]);
+  });
+
+  it("keeps the character on a board that mixes bodies with scenery", () => {
+    // One prop dragged onto a route board used to delete the whole character,
+    // silently. The bodies decide it now, and the prop stays art.
+    const scenery = tile(9, 9, "stairwell1");
+    const ix = indexEntities(
+      level({
+        security_guard_A: [
+          tile(11, 4, "security_guard1", human("SECURITY")),
+          scenery,
+          tile(16, 8, "security_guard2", human("SECURITY")),
+        ],
+      }),
+      LEGACY,
+    );
+    expect(ix.guards).toHaveLength(1);
+    expect(ix.guards[0].route).toEqual([
+      { x: 11, y: 4 },
+      { x: 16, y: 8 },
+    ]);
+    // Unclaimed, so `bakeTileLayers` still paints it.
+    expect(ix.claimed.has(scenery)).toBe(false);
   });
 
   it("stands a sentry on a spawn point, since nothing schedules waves", () => {
@@ -104,10 +149,12 @@ describe("EntityIndex — the cast", () => {
     ]);
   });
 
-  it("classifies fixtures per tile on a board that also holds art", () => {
+  it("keeps spawn posts individual on a board the engine reads for something else", () => {
     // main2vault files two stairwell pieces that are guard posts on `verticals`,
-    // beside the stair that is a real way out. Reading the board off its first
-    // tile would mishandle one or the other.
+    // beside the stair that is a real way out. A board is one character only when
+    // the board *is* that character — `verticals` is the level's ways out, so its
+    // two posts are two men watching a stairwell, not one shuffling between
+    // adjacent tiles. The stair itself must stay art either way.
     const ix = indexEntities(
       level({
         verticals: [
@@ -119,6 +166,7 @@ describe("EntityIndex — the cast", () => {
       LEGACY,
     );
     expect(ix.guards).toHaveLength(2);
+    expect(ix.guards.map((g) => g.route)).toEqual([[{ x: 25, y: 15 }], [{ x: 25, y: 16 }]]);
     // The stair itself is art the bake still has to paint.
     expect([...ix.claimed].map((t) => t.y).sort()).toEqual([15, 16]);
   });

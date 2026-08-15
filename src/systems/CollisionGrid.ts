@@ -1,6 +1,17 @@
-import { colliderRect, footprintCells, hasPlainCollider, raySlabIntersect, type Rect } from "../map/footprint";
+import {
+  colliderRect,
+  footprintCells,
+  hasPlainCollider,
+  raySlabIntersect,
+  raySlabIntersectRaw,
+  type Rect,
+} from "../map/footprint";
 import { isForcedSolid, SEE_THROUGH_BOARDS, type GameLevel } from "../map/types";
 import { glassStatsFor, isGlass } from "./EntityStats";
+import { deckCells, planeCount } from "../map/planes";
+
+/** {@link CollisionGrid.paddedSlotAt}'s answer for a cell with no padded rect. */
+export const NO_PADDED_RECT = -1;
 
 /**
  * A growable list of (dx, dy) point pairs, backed by one `Float32Array`.
@@ -79,18 +90,39 @@ export class CollisionGrid {
   /** Cells that stop movement but not sight — glazing. Only meaningful where blocked. */
   private readonly seeThrough: Uint8Array;
   /**
-   * Precise solid rect (tile units), for opaque cells whose tile carries
-   * authored `ColliderPadding` — a sparse index, only ever a handful of cells
-   * map-wide. See {@link paddedRectAt}.
+   * Precise solid rects (tile units), for opaque cells whose tile carries
+   * authored `ColliderPadding`. See {@link paddedRectAt}.
+   *
+   * Stored as a slot index per cell into a flat `[x, y, w, h, …]` buffer rather
+   * than a `Map<number, Rect>`, because the sight-ray walks now consult this on
+   * **every blocked cell they step into**, not just their own — 720 rays deep
+   * into a level, that is a hot path, and neither a hash lookup nor a `Rect`
+   * object per query belongs in it. Sparse in the sense that most cells hold
+   * `NO_PADDED_RECT`, but not rare: 157 of `main1`'s 318 wall tiles are padded.
    */
-  private readonly paddedRect = new Map<number, Rect>();
+  private readonly paddedSlot: Int32Array;
+  /** Flat `[x, y, w, h]` quads, indexed by {@link paddedSlot} times four. */
+  private readonly paddedRects: Float64Array;
+  /** How many cells carry a padded rect — zero lets every caller skip the test. */
+  readonly paddedCount: number;
+
+  /**
+   * How many walk surfaces this level has — see `src/map/planes.ts`.
+   *
+   * 1 for every level that authors no `catwalks` board, which is seven of the
+   * nine shipped ones, and for those every plane-aware method below collapses to
+   * exactly what it did before planes existed.
+   */
+  readonly planeCount: number;
 
   /** @param tileSize pixels per cell, for reading the tiles' authored footprints. */
   constructor(level: GameLevel, blockingLayers: string[] = ["walls"], tileSize = 32) {
     this.width = level.width;
     this.height = level.height;
-    this.blocked = new Uint8Array(this.width * this.height);
-    this.seeThrough = new Uint8Array(this.width * this.height);
+    this.planeCount = planeCount(level);
+    const cells = this.width * this.height;
+    this.blocked = new Uint8Array(cells * this.planeCount);
+    this.seeThrough = new Uint8Array(cells * this.planeCount);
     // Cells claimed by something that stops sight. Kept apart from `seeThrough`
     // so the result doesn't depend on which of two overlapping tiles is placed
     // first: an opaque tile anywhere over a cell wins, whatever the board order.
@@ -99,6 +131,9 @@ export class CollisionGrid {
     // any padded rect recorded for the same cell, same "wins regardless of
     // placement order" reasoning as `opaque` above.
     const plainOpaque = new Uint8Array(this.width * this.height);
+    // Collected as a map while building — construction is not hot, and the
+    // `plainOpaque` pass below still needs to retract entries — then flattened.
+    const padded = new Map<number, Rect>();
     for (const layer of level.layers) {
       const boardBlocks = blockingLayers.includes(layer.name);
       // Some boards are solid without being opaque: you see over a crate and
@@ -125,24 +160,58 @@ export class CollisionGrid {
               plainOpaque[i] = 1;
             } else {
               const px = colliderRect(tile, tileSize);
-              this.paddedRect.set(i, { x: px.x / tileSize, y: px.y / tileSize, w: px.w / tileSize, h: px.h / tileSize });
+              padded.set(i, { x: px.x / tileSize, y: px.y / tileSize, w: px.w / tileSize, h: px.h / tileSize });
             }
           }
         }
       }
     }
     for (let i = 0; i < opaque.length; i++) if (opaque[i] === 1) this.seeThrough[i] = 0;
-    for (let i = 0; i < plainOpaque.length; i++) if (plainOpaque[i] === 1) this.paddedRect.delete(i);
+    for (let i = 0; i < plainOpaque.length; i++) if (plainOpaque[i] === 1) padded.delete(i);
+
+    // The upper plane, where there is one. Its walkable set is the deck itself:
+    // you cannot step off a gantry, and that single rule covers the edges, the
+    // gaps and the level border at once. Nothing on it occludes — the walls are
+    // structure *below* the deck (see `src/map/planes.ts`), so off-deck cells are
+    // marked see-through and sight carries across the gap you cannot walk over.
+    if (this.planeCount > 1) {
+      const deck = deckCells(level, tileSize);
+      for (let i = 0; i < cells; i++) {
+        if (deck[i] === 1) continue;
+        this.blocked[cells + i] = 1;
+        this.seeThrough[cells + i] = 1;
+      }
+    }
+
+    this.paddedSlot = new Int32Array(this.width * this.height).fill(NO_PADDED_RECT);
+    this.paddedRects = new Float64Array(padded.size * 4);
+    this.paddedCount = padded.size;
+    let slot = 0;
+    for (const [cell, rect] of padded) {
+      this.paddedSlot[cell] = slot;
+      const o = slot * 4;
+      this.paddedRects[o] = rect.x;
+      this.paddedRects[o + 1] = rect.y;
+      this.paddedRects[o + 2] = rect.w;
+      this.paddedRects[o + 3] = rect.h;
+      slot++;
+    }
   }
 
   inBounds(x: number, y: number): boolean {
     return x >= 0 && y >= 0 && x < this.width && y < this.height;
   }
 
-  /** Blocks movement. Out of bounds counts as blocked. */
-  isBlocked(tileX: number, tileY: number): boolean {
+  /**
+   * Blocks movement. Out of bounds counts as blocked.
+   *
+   * `plane` selects the walk surface — see `src/map/planes.ts`. It is trailing
+   * and defaults to the floor, so every caller that predates planes keeps asking
+   * the question it was already asking.
+   */
+  isBlocked(tileX: number, tileY: number, plane = 0): boolean {
     if (!this.inBounds(tileX, tileY)) return true;
-    return this.blocked[tileY * this.width + tileX] === 1;
+    return this.blocked[this.at(tileX, tileY, plane)] === 1;
   }
 
   /**
@@ -150,10 +219,20 @@ export class CollisionGrid {
    * was registered as see-through. Out of bounds blocks sight, which is also what stops
    * the ray walks in {@link hasLineOfSight} and `Visibility.rayDistance` running away.
    */
-  blocksSight(tileX: number, tileY: number): boolean {
+  blocksSight(tileX: number, tileY: number, plane = 0): boolean {
     if (!this.inBounds(tileX, tileY)) return true;
-    const i = tileY * this.width + tileX;
+    const i = this.at(tileX, tileY, plane);
     return this.blocked[i] === 1 && this.seeThrough[i] === 0;
+  }
+
+  /**
+   * Flat index of a cell on a plane. Clamps to the floor for a plane this level
+   * doesn't have, so a stale plane number reads as the ground rather than
+   * indexing off the end of the buffer.
+   */
+  private at(tileX: number, tileY: number, plane: number): number {
+    const p = plane > 0 && plane < this.planeCount ? plane : 0;
+    return p * this.width * this.height + tileY * this.width + tileX;
   }
 
   /**
@@ -164,9 +243,9 @@ export class CollisionGrid {
    * @param seeThrough when blocking, let sight through anyway (clear glazing). Ignored
    *   when clearing a cell, since an open cell blocks nothing either way.
    */
-  setBlocked(tileX: number, tileY: number, blocked: boolean, seeThrough = false): void {
+  setBlocked(tileX: number, tileY: number, blocked: boolean, seeThrough = false, plane = 0): void {
     if (!this.inBounds(tileX, tileY)) return;
-    const i = tileY * this.width + tileX;
+    const i = this.at(tileX, tileY, plane);
     const nextBlocked = blocked ? 1 : 0;
     const nextSee = blocked && seeThrough ? 1 : 0;
     if (this.blocked[i] === nextBlocked && this.seeThrough[i] === nextSee) return;
@@ -186,14 +265,15 @@ export class CollisionGrid {
    * is a steady stream of short-lived objects for something that is only ever
    * read and thrown away within the frame.
    */
-  wallsNear(cx: number, cy: number, radius: number, out: WallBuffer): WallBuffer {
+  wallsNear(cx: number, cy: number, radius: number, out: WallBuffer, plane = 0): WallBuffer {
     const r2 = radius * radius;
+    const base = this.at(0, 0, plane);
     const minX = Math.max(0, Math.floor(cx - radius));
     const maxX = Math.min(this.width - 1, Math.ceil(cx + radius));
     const minY = Math.max(0, Math.floor(cy - radius));
     const maxY = Math.min(this.height - 1, Math.ceil(cy + radius));
     for (let y = minY; y <= maxY; y++) {
-      const row = y * this.width;
+      const row = base + y * this.width;
       const dy = y - cy;
       const dy2 = dy * dy;
       for (let x = minX; x <= maxX; x++) {
@@ -221,16 +301,66 @@ export class CollisionGrid {
    * straight through the *solid* part of a thin padded wall the viewer is
    * standing against.
    */
-  paddedRectAt(tileX: number, tileY: number): Rect | undefined {
-    if (!this.inBounds(tileX, tileY)) return undefined;
-    return this.paddedRect.get(tileY * this.width + tileX);
+  paddedRectAt(tileX: number, tileY: number, plane = 0): Rect | undefined {
+    const slot = this.paddedSlotAt(tileX, tileY, plane);
+    if (slot === NO_PADDED_RECT) return undefined;
+    const o = slot * 4;
+    return {
+      x: this.paddedRects[o],
+      y: this.paddedRects[o + 1],
+      w: this.paddedRects[o + 2],
+      h: this.paddedRects[o + 3],
+    };
+  }
+
+  /**
+   * This cell's padded-rect slot, or {@link NO_PADDED_RECT}.
+   *
+   * The allocation-free half of {@link paddedRectAt}, for the ray walks. Paired
+   * with {@link paddedEntryAt}: read the slot once to learn *whether* the cell is
+   * only partly opaque, then ask where the ray enters that part.
+   */
+  paddedSlotAt(tileX: number, tileY: number, plane = 0): number {
+    // Padded rects describe authored wall colliders, which are floor-plane
+    // geometry. The deck's own blocking is "not a deck cell", which has no shape
+    // finer than the cell.
+    if (plane !== 0) return NO_PADDED_RECT;
+    if (!this.inBounds(tileX, tileY)) return NO_PADDED_RECT;
+    return this.paddedSlot[tileY * this.width + tileX];
+  }
+
+  /**
+   * Distance along `(dx, dy)` at which the ray from `(ox, oy)` enters the solid
+   * rect held in `slot`, or `undefined` when it misses it entirely.
+   *
+   * `slot` comes from {@link paddedSlotAt}. Everything is in tile units, and
+   * `(dx, dy)` need not be normalized — `t` comes back in whatever unit they are.
+   */
+  paddedEntryAt(
+    slot: number,
+    ox: number,
+    oy: number,
+    dx: number,
+    dy: number,
+  ): number | undefined {
+    const o = slot * 4;
+    return raySlabIntersectRaw(
+      ox,
+      oy,
+      dx,
+      dy,
+      this.paddedRects[o],
+      this.paddedRects[o + 1],
+      this.paddedRects[o + 2],
+      this.paddedRects[o + 3],
+    );
   }
 
   /**
    * Line-of-sight test between two tile coordinates using a supercover DDA walk.
    * Returns true if no blocked tile lies strictly between the endpoints.
    */
-  hasLineOfSight(x0: number, y0: number, x1: number, y1: number): boolean {
+  hasLineOfSight(x0: number, y0: number, x1: number, y1: number, plane = 0): boolean {
     let ix0 = Math.floor(x0);
     let iy0 = Math.floor(y0);
     const startIx = ix0;
@@ -244,13 +374,13 @@ export class CollisionGrid {
     // margin — see `paddedRectAt`.
     const segDx = x1 - x0;
     const segDy = y1 - y0;
-    const r0 = this.paddedRectAt(ix0, iy0);
+    const r0 = this.paddedRectAt(ix0, iy0, plane);
     if (r0) {
       const t = raySlabIntersect(x0, y0, segDx, segDy, r0);
       if (t !== undefined && t <= 1) return false;
     }
     if (ix1 !== ix0 || iy1 !== iy0) {
-      const r1 = this.paddedRectAt(ix1, iy1);
+      const r1 = this.paddedRectAt(ix1, iy1, plane);
       if (r1) {
         const t = raySlabIntersect(x0, y0, segDx, segDy, r1);
         if (t !== undefined && t <= 1) return false;
@@ -270,7 +400,12 @@ export class CollisionGrid {
     while (steps-- > 0) {
       if (ix0 === ix1 && iy0 === iy1) return true;
       if (!(ix0 === startIx && iy0 === startIy)) {
-        if (this.blocksSight(ix0, iy0)) return false;
+        if (
+          this.blocksSight(ix0, iy0, plane) &&
+          this.solidHere(ix0, iy0, x0, y0, segDx, segDy, plane)
+        ) {
+          return false;
+        }
       }
       const e2 = 2 * err;
       if (e2 > -dy) {
@@ -286,11 +421,44 @@ export class CollisionGrid {
   }
 
   /**
+   * Whether the segment from `(x0, y0)` along `(segDx, segDy)` actually meets
+   * the solid part of an opaque cell it walks through.
+   *
+   * True for the ordinary whole-cell wall. False only for a cell whose tile is
+   * padded and whose solid rect this particular segment misses — the strip of
+   * floor a `ColliderPadding: {Bottom: 0.4}` wall leaves in front of its own
+   * face. Looking *along* that strip is looking along open floor, and used to
+   * read as looking into a wall.
+   */
+  private solidHere(
+    tileX: number,
+    tileY: number,
+    x0: number,
+    y0: number,
+    segDx: number,
+    segDy: number,
+    plane = 0,
+  ): boolean {
+    if (this.paddedCount === 0 || plane !== 0) return true;
+    const slot = this.paddedSlotAt(tileX, tileY, plane);
+    if (slot === NO_PADDED_RECT) return true;
+    const t = this.paddedEntryAt(slot, x0, y0, segDx, segDy);
+    return t !== undefined && t <= 1;
+  }
+
+  /**
    * {@link hasLineOfSight} for callers working in pixel space — divides both
    * endpoints by `tileSize` before delegating. Used by guards checking sight
    * to a noise's pixel origin.
    */
-  lineOfSightPx(x0: number, y0: number, x1: number, y1: number, tileSize: number): boolean {
-    return this.hasLineOfSight(x0 / tileSize, y0 / tileSize, x1 / tileSize, y1 / tileSize);
+  lineOfSightPx(
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    tileSize: number,
+    plane = 0,
+  ): boolean {
+    return this.hasLineOfSight(x0 / tileSize, y0 / tileSize, x1 / tileSize, y1 / tileSize, plane);
   }
 }

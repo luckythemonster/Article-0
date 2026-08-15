@@ -404,6 +404,25 @@ export class Player {
     this.sprite.play(playerAnimKey(anim, dir), true);
   }
 
+  /**
+   * Teleports the body, for the one move that is not walking: stepping between a
+   * level's walk surfaces (see `GameScene.switchPlane`).
+   *
+   * Arcade derives the body from the sprite each `preUpdate`, but the body also
+   * carries its own position and velocity between steps, so setting the sprite
+   * alone leaves a step of stale motion to be resolved against whatever bodies
+   * are now active. Both are set, and the velocity killed, so he arrives
+   * standing still.
+   */
+  moveTo(x: number, y: number): void {
+    this.sprite.setPosition(x, y);
+    const body = this.sprite.body as Phaser.Physics.Arcade.Body | null;
+    if (body) {
+      body.reset(x, y);
+      body.setVelocity(0, 0);
+    }
+  }
+
   get x(): number {
     return this.sprite.x;
   }

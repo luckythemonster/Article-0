@@ -43,6 +43,11 @@ export interface Eye {
    * with three different decay rates and no light sensitivity between them.
    */
   readsConduct?: boolean;
+  /**
+   * Which walk surface this eye stands on — see `src/map/planes.ts`. Defaults to
+   * the floor, which is where every eye on a single-plane level is.
+   */
+  plane?: number;
 }
 
 /**
@@ -53,9 +58,13 @@ export interface Eye {
  * plain object. `EnforcerContext` satisfies this by shape.
  */
 export interface SensingWorld {
-  grid: { hasLineOfSight(x0: number, y0: number, x1: number, y1: number): boolean };
+  grid: {
+    hasLineOfSight(x0: number, y0: number, x1: number, y1: number, plane?: number): boolean;
+  };
   tileSize: number;
   player: { x: number; y: number };
+  /** Which walk surface the player is on; defaults to the floor. */
+  playerPlane?: number;
   playerConcealed: boolean;
   playerCompliant: boolean;
   playerThermalConcealed: boolean;
@@ -94,6 +103,13 @@ export const DETECTION_DECAY_PER_SECOND = 0.6;
 export function canSense(eye: Eye, ctx: SensingWorld): boolean {
   if (ctx.playerCompliant && eye.readsConduct !== false) return false;
 
+  // Sight does not cross between a level's walk surfaces. Modelling it properly
+  // needs railings and a height the map does not author, and the legible rule is
+  // the better one for a stealth game: a gantry is a separate room that happens
+  // to share a skybox. One gate here covers guards, drones, cameras, searchlights
+  // and the boss's beams together, which is the reason this module exists.
+  if ((eye.plane ?? 0) !== (ctx.playerPlane ?? 0)) return false;
+
   // A live EMP Grenade EMP zone blinds anything caught inside it outright.
   const chaff = ctx.chaffZone;
   if (chaff) {
@@ -109,12 +125,14 @@ export function canSense(eye: Eye, ctx: SensingWorld): boolean {
   // square root would only be thrown away.
   const dist2 = dx * dx + dy * dy;
 
+  const plane = eye.plane ?? 0;
   const hasLos = (): boolean =>
     grid.hasLineOfSight(
       eye.x / tileSize,
       eye.y / tileSize,
       player.x / tileSize,
       player.y / tileSize,
+      plane,
     );
 
   // Thermal: close-range body heat betrays the player even outside the cone.

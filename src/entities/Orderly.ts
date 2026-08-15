@@ -9,6 +9,8 @@ import {
   SANITATION_SIGHT_MULTIPLIER,
 } from "../systems/EntityStats";
 import { moveCirclePx } from "../systems/GridMotion";
+import { findPath, type PathNode } from "../systems/Pathfinder";
+import type { PatrolRoute } from "../systems/PatrolRoute";
 import { LURE_SPECS, noticedLure, type DeployedLure } from "../systems/Deployables";
 import { DIRS_8, nearestDirection, type Dir8 } from "./directions";
 import { shadowShapeFor, type ShadowShape } from "../render/shadowShape";
@@ -80,6 +82,15 @@ type OrderlyState = "WANDER" | "INSPECT" | "SANITATION" | "SURRENDERED" | "WITNE
 
 const SIGHT_RANGE_TILES = 5;
 const WANDER_LEASH_TILES = 2.5;
+/**
+ * Seconds an orderly loiters near a waypoint before walking to the next one.
+ *
+ * Long, and deliberately so. An orderly's board is a round, not a patrol: the
+ * character is a member of staff who has somewhere to be eventually, not a guard
+ * pacing a beat. Loitering for most of the cycle keeps the leash-drift above as
+ * the behaviour you actually see, with the walk between posts as punctuation.
+ */
+const POST_SECONDS: readonly [number, number] = [8, 16];
 const WALK_SPEED_TILES = paced(1.1);
 /** Seconds an orderly lingers at a knock it walked over to inspect before resuming its wander. */
 const DISTRACT_PAUSE = 2.5;
@@ -130,6 +141,21 @@ export class Orderly {
   readonly shadow: ShadowShape;
   private readonly spawnX: number;
   private readonly spawnY: number;
+  /**
+   * The round this orderly walks — its board's tiles, in authored order.
+   *
+   * Empty or single-waypoint is the ordinary case and behaves exactly as it
+   * always did: the orderly drifts on a leash around one spot and never paths
+   * anywhere. Two or more waypoints turn that spot into a *current* post that
+   * moves on, which is what makes a board one orderly rather than four.
+   */
+  private route: PatrolRoute = [];
+  private routeIndex = 0;
+  /** Seconds left loitering at the current post before walking to the next. */
+  private postTimer = Phaser.Math.FloatBetween(...POST_SECONDS);
+  /** The A* legs left to walk to the next post, or null while loitering. */
+  private legPath: PathNode[] | null = null;
+  private legStep = 0;
   private facing = 0;
   private moving = false;
   private wanderTimer: number;
@@ -175,9 +201,16 @@ export class Orderly {
   private readonly bang: Phaser.GameObjects.Text;
   private readonly speech: Phaser.GameObjects.Text;
 
-  constructor(scene: Phaser.Scene, tileX: number, tileY: number, tileSize: number) {
+  constructor(
+    scene: Phaser.Scene,
+    tileX: number,
+    tileY: number,
+    tileSize: number,
+    route: PatrolRoute = [],
+  ) {
     this.x = this.spawnX = (tileX + 0.5) * tileSize;
     this.y = this.spawnY = (tileY + 0.5) * tileSize;
+    this.route = route;
     this.wanderTimer = Phaser.Math.FloatBetween(1, 3);
 
     Orderly.ensureAnimations(scene);
@@ -344,17 +377,85 @@ export class Orderly {
     }
   }
 
+  /**
+   * The round: loiter near the current post, then walk to the next one.
+   *
+   * Delegates to {@link drift} for the loitering, which is the whole of the
+   * behaviour on a board with fewer than two waypoints — i.e. everywhere the map
+   * doesn't author a round, and everywhere it did before rounds existed.
+   */
   private wander(dt: number, ctx: OrderlyContext): void {
+    if (this.walkRound(dt, ctx)) return;
+    this.drift(dt, ctx);
+  }
+
+  /**
+   * Advances the walk between posts. Returns true while a leg is being walked,
+   * so the caller leaves the loitering alone.
+   *
+   * A leg A* can't solve is skipped rather than ground against — the loop brings
+   * that post back round next time, exactly as a guard's does
+   * (`Enforcer.patrol`). Same for a leg that wedges partway: the orderly gives
+   * the post up and loiters where it stands rather than standing in a wall.
+   */
+  private walkRound(dt: number, ctx: OrderlyContext): boolean {
+    if (this.route.length < 2) return false;
+    const { grid, tileSize } = ctx;
+
+    if (!this.legPath) {
+      this.postTimer -= dt;
+      if (this.postTimer > 0) return false;
+      const next = (this.routeIndex + 1) % this.route.length;
+      const path = findPath(
+        grid,
+        { x: Math.floor(this.x / tileSize), y: Math.floor(this.y / tileSize) },
+        this.route[next],
+        { radiusTiles: ORDERLY_COLLISION_RADIUS_TILES },
+      );
+      this.routeIndex = next;
+      this.postTimer = Phaser.Math.FloatBetween(...POST_SECONDS);
+      if (!path || path.length === 0) return false;
+      this.legPath = path;
+      this.legStep = 0;
+    }
+
+    const node = this.legPath[this.legStep];
+    const step = this.stepToward((node.x + 0.5) * tileSize, (node.y + 0.5) * tileSize, dt, ctx);
+    if (step === "arrived") {
+      this.legStep++;
+      if (this.legStep >= this.legPath.length) this.clearLeg();
+    } else if (step === "blocked") {
+      this.clearLeg();
+    }
+    return true;
+  }
+
+  /** Ends the current leg and starts the loiter at whatever post was reached. */
+  private clearLeg(): void {
+    this.legPath = null;
+    this.legStep = 0;
+    this.postTimer = Phaser.Math.FloatBetween(...POST_SECONDS);
+  }
+
+  /** Where the leash is anchored: the current post, or the spawn if there is no round. */
+  private anchor(tileSize: number): { x: number; y: number } {
+    const wp = this.route[this.routeIndex];
+    if (!wp) return { x: this.spawnX, y: this.spawnY };
+    return { x: (wp.x + 0.5) * tileSize, y: (wp.y + 0.5) * tileSize };
+  }
+
+  private drift(dt: number, ctx: OrderlyContext): void {
     const { grid, tileSize } = ctx;
     this.wanderTimer -= dt;
     if (this.wanderTimer <= 0) {
       this.moving = !this.moving || Math.random() < 0.5;
       if (this.moving) {
-        // Head roughly back toward spawn once the leash stretches too far,
+        // Head roughly back toward the post once the leash stretches too far,
         // otherwise wander in a random direction.
-        const strayed = len(this.x - this.spawnX, this.y - this.spawnY) > WANDER_LEASH_TILES * tileSize;
+        const home = this.anchor(tileSize);
+        const strayed = len(this.x - home.x, this.y - home.y) > WANDER_LEASH_TILES * tileSize;
         this.facing = strayed
-          ? Math.atan2(this.spawnY - this.y, this.spawnX - this.x)
+          ? Math.atan2(home.y - this.y, home.x - this.x)
           : Phaser.Math.FloatBetween(0, Math.PI * 2);
       }
       this.wanderTimer = this.moving

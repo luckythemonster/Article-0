@@ -11,8 +11,15 @@ import { Player } from "../../entities/Player";
 import { Sensor } from "../../entities/Sensor";
 import { Terminal } from "../../entities/Terminal";
 import { indexEntities, indexFixtures, type EntityIndex } from "../../map/EntityIndex";
-import { bakeTileLayers, buildWallBodies, type CoverBody } from "../../map/TileBake";
-import type { GameLevel } from "../../map/types";
+import {
+  bakePlanes,
+  buildDeckEdgeBodies,
+  buildWallBodies,
+  type BakedPlane,
+  type CoverBody,
+} from "../../map/TileBake";
+import type { GameLevel, GameTile } from "../../map/types";
+import { deckCells, deckPlaneAt, PLANE_UPPER } from "../../map/planes";
 import type { CollisionGrid } from "../../systems/CollisionGrid";
 import type { DetectionSystem } from "../../systems/DetectionSystem";
 import { str } from "../../systems/EntityStats";
@@ -56,6 +63,25 @@ export interface BuiltLevel {
   coverBodies: Phaser.GameObjects.GameObject[];
   /** Arcade bodies for the closed doors, for the player collider. */
   doorBodies: Phaser.GameObjects.GameObject[];
+  /**
+   * The level's baked art, one texture per walk surface plus the canopy — see
+   * `bakePlanes`. A single-plane level has exactly one entry, at the depth the
+   * engine has always drawn its tiles.
+   */
+  planes: BakedPlane[];
+  /**
+   * Static bodies that pen the player onto the upper walk surface, or empty on a
+   * level with only one. `GameScene` swaps its collider to these when he steps up.
+   */
+  deckEdgeBodies: Phaser.GameObjects.GameObject[];
+  /**
+   * Tiles that became entities, and so were left out of the bake.
+   *
+   * Handed on so `src/ui/MemoryLayer.ts` can skip exactly the same tiles: what
+   * the player remembers of a room is the art that was painted into it, never
+   * the guard who happened to be standing there.
+   */
+  claimedTiles: ReadonlySet<GameTile>;
 }
 
 /**
@@ -80,8 +106,15 @@ export function buildLevel(
   const index = indexEntities(level, entityLayers);
   indexFixtures(level, index);
 
-  const tileTexture = bakeTileLayers(scene, level, tileSize, entityLayers, index.claimed);
+  const planes = bakePlanes(scene, level, tileSize, entityLayers, index.claimed);
+  // Destructible cover stamps itself back into the art it was cut from, and cover
+  // is floor-plane furniture, so it belongs to the floor's texture.
+  const tileTexture = planes[0].texture;
   const { wallBodies, coverBodies: coverBodyEntries } = buildWallBodies(scene, level, tileSize);
+  const deckEdgeBodies =
+    planes.length > 1 && planes[1].plane === PLANE_UPPER
+      ? buildDeckEdgeBodies(scene, level, tileSize)
+      : [];
 
   const built: BuiltLevel = {
     player: spawnPlayer(scene, level, tileSize, arriveTile),
@@ -96,6 +129,9 @@ export function buildLevel(
     wallBodies,
     coverBodies: coverBodyEntries.map((e) => e.body),
     doorBodies: [],
+    claimedTiles: index.claimed,
+    planes,
+    deckEdgeBodies,
   };
 
   spawnCast(scene, level, tileSize, index, built);
@@ -165,6 +201,11 @@ function spawnCast(
   index: EntityIndex,
   out: BuiltLevel,
 ): void {
+  // A character belongs to whichever surface its first waypoint stands on. Per
+  // cell rather than per board, because the boards the cast sits on say nothing
+  // about height — see `deckPlaneAt`.
+  const deck = deckCells(level, tileSize);
+  const planeOf = (t: { x: number; y: number }): number => deckPlaneAt(deck, level, t.x, t.y);
   // A guard board is one guard's *route*, not a headcount — see
   // `routeFromLayer`. Each board therefore spawns a single guard standing on
   // waypoint 0 and walking the rest as a loop.
@@ -172,7 +213,7 @@ function spawnCast(
     const start = g.route[0];
     out.guards.push(
       g.kind === "drone"
-        ? new Drone(scene, start.x, start.y, tileSize, g.components, g.route)
+        ? new Drone(scene, start.x, start.y, tileSize, g.components, g.route, planeOf(start))
         : new Enforcer(
             scene,
             start.x,
@@ -181,10 +222,16 @@ function spawnCast(
             g.components,
             ENFORCER_SKIN,
             g.route,
+            planeOf(start),
           ),
     );
   }
-  for (const t of index.orderlies) out.orderlies.push(new Orderly(scene, t.x, t.y, tileSize));
+  // An orderly board is one orderly's round, the same way a guard board is one
+  // guard's beat — it spawns on waypoint 0 and loiters its way round the rest.
+  for (const o of index.orderlies) {
+    const start = o.route[0];
+    out.orderlies.push(new Orderly(scene, start.x, start.y, tileSize, o.route));
+  }
 
   const enforcerLayer = level.layers.find((l) => l.name === "enforcers");
   const enforcerRoute = routeFromLayer(enforcerLayer);
@@ -231,6 +278,9 @@ function spawnInteractables(
   index: EntityIndex,
   out: BuiltLevel,
 ): void {
+  const deck = deckCells(level, tileSize);
+  const planeOf = (t: { x: number; y: number }): number => deckPlaneAt(deck, level, t.x, t.y);
+
   for (const t of index.doors) {
     const door = new Door(scene, t, tileSize, grid);
     out.doors.push(door);
@@ -239,13 +289,15 @@ function spawnInteractables(
 
   for (const t of index.terminals) out.terminals.push(new Terminal(scene, t, tileSize));
   for (const t of index.chests) out.chests.push(new Chest(scene, t, tileSize));
-  for (const t of index.sensors) out.sensors.push(new Sensor(scene, t, tileSize, grid));
+  for (const t of index.sensors) {
+    out.sensors.push(new Sensor(scene, t, tileSize, grid, planeOf(t)));
+  }
 
   // Sensor cameras: the legacy `security` board holds fixed optical cameras (its
   // tiles use a laser-ref sprite but are reinterpreted as cameras here). v0.4's
   // cameras carry a `Sensor` component and come through the index above.
   for (const t of level.layers.find((l) => l.name === "security")?.tiles ?? []) {
-    out.sensors.push(new Sensor(scene, t, tileSize, grid));
+    out.sensors.push(new Sensor(scene, t, tileSize, grid, planeOf(t)));
   }
 
   // Lasers can sit on several boards (a dedicated `lasers` board, `duct2`'s

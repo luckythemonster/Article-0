@@ -33,10 +33,13 @@ import {
   isSingleCell,
   type Rect,
 } from "./footprint";
+import { CANOPY, deckCells, planeCount, planeOfLayer } from "./planes";
+import { CANOPY_DEPTH, planeDepthOffset } from "../render/depths";
 import {
   blockingLayerNames,
   isCrawlable,
   isForcedSolid,
+  type GameLayer,
   type GameLevel,
   type GameTile,
 } from "./types";
@@ -141,58 +144,160 @@ export function bakeTileLayers(
   tileSize: number,
   skipLayers: ReadonlySet<string>,
   claimedTiles: ReadonlySet<GameTile> = new Set(),
+  /**
+   * Which boards belong in this texture. Defaults to all of them, which is the
+   * single-texture level the engine has always baked; `bakePlanes` narrows it to
+   * one walk surface at a time so a deck can draw over the floor beneath it.
+   */
+  includeLayer: (layer: GameLayer) => boolean = () => true,
 ): Phaser.GameObjects.RenderTexture {
   const rt = scene.add
     .renderTexture(0, 0, level.width * tileSize, level.height * tileSize)
     .setOrigin(0, 0)
     .setDepth(BAKED_TILES_DEPTH);
 
-  // Tiles that span more than their own cell (or sit off its centre) are drawn
-  // through this instead of `batchDrawFrame`, which takes a position but no
-  // size. Their art is authored pre-squished into one 32px cell and is meant to
-  // be stretched over the footprint — the same thing `Door` does for the door
-  // tiles, and what the `main2` glass panes need to read as glass at all. One
-  // reusable off-list image rather than one per tile: the same trick
-  // `Cover.destroy` uses to stamp against this texture.
-  let scaled: Phaser.GameObjects.Image | undefined;
-
+  const stamper = new TileStamper(scene, tileSize);
   rt.beginDraw();
   for (const layer of level.layers) {
-    if (skipLayers.has(layer.name)) continue;
+    if (skipLayers.has(layer.name) || !includeLayer(layer)) continue;
     for (const tile of layer.tiles) {
-      if (!tile.frame || claimedTiles.has(tile)) continue;
-      // `batchDrawFrame` takes a position, an alpha and a tint, but no *flip* —
-      // so a mirrored tile has to go the long way round even when its geometry is
-      // otherwise plain.
-      if (isSingleCell(tile) && !tile.flipY) {
-        rt.batchDrawFrame(
-          tile.frame.textureKey,
-          tile.frame.frameKey,
-          tile.x * tileSize,
-          tile.y * tileSize,
-          1,
-          tile.tint,
-        );
-        continue;
-      }
-      const centre = footprintCentre(tile, tileSize);
-      scaled ??= scene.make.image({ key: tile.frame.textureKey, add: false }).setOrigin(0.5);
-      // Tinted through the image rather than `batchDraw`'s trailing arguments,
-      // whose `x`/`y` would fight the position set here. Set every time, not only
-      // when tinted, so the last tile's colour can't leak onto the next.
-      scaled
-        .setTexture(tile.frame.textureKey, tile.frame.frameKey)
-        .setDisplaySize(tile.colSpan * tileSize, tile.rowSpan * tileSize)
-        .setFlipY(tile.flipY === true)
-        .setTint(tile.tint)
-        .setPosition(centre.x, centre.y);
-      rt.batchDraw(scaled);
+      if (claimedTiles.has(tile)) continue;
+      stamper.stamp(rt, tile);
     }
   }
   rt.endDraw();
-  scaled?.destroy();
+  stamper.destroy();
 
   return rt;
+}
+
+/** One walk surface's (or the canopy's) baked art. */
+export interface BakedPlane {
+  /** The plane this texture belongs to, or {@link CANOPY} for roof art. */
+  plane: number;
+  texture: Phaser.GameObjects.RenderTexture;
+}
+
+/**
+ * Bakes one texture per walk surface, plus one for the canopy, each at its own
+ * depth — see `src/render/depths.ts`.
+ *
+ * A single-plane level yields exactly one texture at {@link BAKED_TILES_DEPTH},
+ * which is the level the engine has always drawn. The two-plane levels get their
+ * floor pushed below the deck, and their roof art lifted out of the ground
+ * texture entirely: `roof_array` files `rain_cover` after the deck, so baked in
+ * board order it paints a roof over the ground the player walks on.
+ */
+export function bakePlanes(
+  scene: Phaser.Scene,
+  level: GameLevel,
+  tileSize: number,
+  skipLayers: ReadonlySet<string>,
+  claimedTiles: ReadonlySet<GameTile>,
+): BakedPlane[] {
+  const planes = planeCount(level);
+  const out: BakedPlane[] = [];
+
+  for (let plane = 0; plane < planes; plane++) {
+    const texture = bakeTileLayers(
+      scene,
+      level,
+      tileSize,
+      skipLayers,
+      claimedTiles,
+      (l) => planeOfLayer(l.name) === plane,
+    );
+    texture.setDepth(BAKED_TILES_DEPTH + planeDepthOffset(plane, planes));
+    out.push({ plane, texture });
+  }
+
+  const hasCanopy = level.layers.some(
+    (l) => planeOfLayer(l.name) === CANOPY && l.tiles.length > 0,
+  );
+  if (hasCanopy) {
+    const texture = bakeTileLayers(
+      scene,
+      level,
+      tileSize,
+      skipLayers,
+      claimedTiles,
+      (l) => planeOfLayer(l.name) === CANOPY,
+    );
+    texture.setDepth(CANOPY_DEPTH);
+    out.push({ plane: CANOPY, texture });
+  }
+
+  return out;
+}
+
+/**
+ * Draws individual tiles into a RenderTexture, art-correct and batched.
+ *
+ * Split out of {@link bakeTileLayers} so the memory overlay
+ * (`src/ui/MemoryLayer.ts`) paints a remembered tile through *exactly* the path
+ * that painted it into the level in the first place. Footprints, offsets and
+ * mirroring are fiddly enough that a second implementation would drift, and a
+ * remembered room that doesn't line up with the real one is worse than none.
+ *
+ * Hold one across a batch and `destroy()` it after `endDraw()`.
+ */
+export class TileStamper {
+  /**
+   * Tiles that span more than their own cell (or sit off its centre) are drawn
+   * through this instead of `batchDrawFrame`, which takes a position but no
+   * size. Their art is authored pre-squished into one 32px cell and is meant to
+   * be stretched over the footprint — the same thing `Door` does for the door
+   * tiles, and what the `main2` glass panes need to read as glass at all. One
+   * reusable off-list image rather than one per tile: the same trick
+   * `Cover.destroy` uses to stamp against this texture.
+   */
+  private scaled: Phaser.GameObjects.Image | undefined;
+
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private readonly tileSize: number,
+  ) {}
+
+  /**
+   * Draws one tile. A frameless tile is skipped, exactly as the bake skips it.
+   * Call between the target's `beginDraw()` and `endDraw()`.
+   */
+  stamp(rt: Phaser.GameObjects.RenderTexture, tile: GameTile): void {
+    if (!tile.frame) return;
+    // `batchDrawFrame` takes a position, an alpha and a tint, but no *flip* — so
+    // a mirrored tile has to go the long way round even when its geometry is
+    // otherwise plain.
+    if (isSingleCell(tile) && !tile.flipY) {
+      rt.batchDrawFrame(
+        tile.frame.textureKey,
+        tile.frame.frameKey,
+        tile.x * this.tileSize,
+        tile.y * this.tileSize,
+        1,
+        tile.tint,
+      );
+      return;
+    }
+    const centre = footprintCentre(tile, this.tileSize);
+    this.scaled ??= this.scene.make
+      .image({ key: tile.frame.textureKey, add: false })
+      .setOrigin(0.5);
+    // Tinted through the image rather than `batchDraw`'s trailing arguments,
+    // whose `x`/`y` would fight the position set here. Set every time, not only
+    // when tinted, so the last tile's colour can't leak onto the next.
+    this.scaled
+      .setTexture(tile.frame.textureKey, tile.frame.frameKey)
+      .setDisplaySize(tile.colSpan * this.tileSize, tile.rowSpan * this.tileSize)
+      .setFlipY(tile.flipY === true)
+      .setTint(tile.tint)
+      .setPosition(centre.x, centre.y);
+    rt.batchDraw(this.scaled);
+  }
+
+  destroy(): void {
+    this.scaled?.destroy();
+    this.scaled = undefined;
+  }
 }
 
 /**
@@ -277,6 +382,41 @@ export function buildWallBodies(
     wallBodies: rects.walls.map(toZone),
     coverBodies: rects.crawlable.map((r) => ({ tileX: r.tileX, tileY: r.tileY, body: toZone(r) })),
   };
+}
+
+/**
+ * Static bodies that pen the player onto the upper walk surface.
+ *
+ * The deck's edge *is* its collision: everything that is not a deck cell stops
+ * you, which covers the drop off the side, the gaps between gantries and the
+ * level border in one rule. Merged into maximal rectangles by the same
+ * {@link mergeWallRects} the walls use — `roof_array`'s off-deck region is 300-odd
+ * cells and would otherwise be 300-odd bodies.
+ *
+ * Built once at load for every plane and left inert; `GameScene` enables the
+ * collider for the surface the player is actually on.
+ */
+export function buildDeckEdgeBodies(
+  scene: Phaser.Scene,
+  level: GameLevel,
+  tileSize: number,
+): Phaser.GameObjects.GameObject[] {
+  const deck = deckCells(level, tileSize);
+  const rects = mergeWallRects(
+    level.width,
+    level.height,
+    (x, y) => deck[y * level.width + x] !== 1,
+  );
+  return rects.map((r) => {
+    const zone = scene.add.zone(
+      (r.x + r.w / 2) * tileSize,
+      (r.y + r.h / 2) * tileSize,
+      r.w * tileSize,
+      r.h * tileSize,
+    );
+    scene.physics.add.existing(zone, true);
+    return zone;
+  });
 }
 
 /** One crawlable tile's rectangle, tagged with the cell it belongs to. */

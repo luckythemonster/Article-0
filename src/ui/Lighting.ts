@@ -135,6 +135,11 @@ export class Lighting {
   /** The shadow fan, layered directly above {@link rt}. */
   private readonly shadowGfx: Phaser.GameObjects.Graphics;
   /**
+   * A never-rendered twin of {@link shadowGfx}, existing only to be a geometry
+   * mask source — see {@link shadowGeometry}.
+   */
+  private readonly shadowMaskGfx: Phaser.GameObjects.Graphics;
+  /**
    * Reused erase list. The fixed `light_source` stamps occupy the first
    * {@link lightCount} slots; the player's pool and the cone are appended per draw.
    */
@@ -165,6 +170,8 @@ export class Lighting {
   private dirty = true;
   /** Debug switch (see GameScene's `O` hotkey). */
   private enabled = true;
+  /** The walk surface the visibility polygon is cast against. */
+  private plane = 0;
   /** Scratch result for {@link sampleLight} — see the note there on why it is reused. */
   private readonly sample: LightSample = emptySample();
 
@@ -243,6 +250,15 @@ export class Lighting {
       SHADOW_FEATHER_STEPS,
     );
 
+    // The mask twin. It shares `shadowGfx`'s command buffer *by reference*, so it
+    // always holds exactly the fan that was last drawn at no cost: `drawShadows`
+    // emits its triangles once, and `Graphics.clear()` empties the buffer in
+    // place (`commandBuffer.length = 0`) rather than replacing the array, so the
+    // two never come apart. It is never added to the display list's render pass —
+    // `setVisible(false)` — because that is the whole point of it existing.
+    this.shadowMaskGfx = scene.add.graphics().setVisible(false);
+    this.shadowMaskGfx.commandBuffer = this.shadowGfx.commandBuffer;
+
     // No first draw here: the viewer isn't known until the first update(), which
     // lands inside the scene's fade-in from black.
   }
@@ -301,6 +317,25 @@ export class Lighting {
   }
 
   /**
+   * The shadow fan's geometry — the region the viewer *cannot* see.
+   *
+   * Exposed for `src/ui/MemoryLayer.ts`, which masks itself to exactly this so
+   * remembered art appears only outside line of sight. Sharing the geometry
+   * rather than casting a second polygon is what keeps the two boundaries the
+   * same line by construction, at no extra cost.
+   *
+   * This hands back the **mask twin**, not the fan that is actually drawn, and
+   * the distinction is load-bearing: a `Graphics` that is rendered on the display
+   * list does not also work as a geometry-mask source. Masking to the drawn fan
+   * silently produced a stencil that passed everywhere, so remembered art washed
+   * over the lit room the player was standing in — measurably, the visible floor
+   * came out 30% darker. Two objects over one command buffer is what fixes it.
+   */
+  get shadowGeometry(): Phaser.GameObjects.Graphics {
+    return this.shadowMaskGfx;
+  }
+
+  /**
    * How the point `(x, y)` is lit — see {@link sampleLightAt} for the arithmetic.
    *
    * Exists so `EntityShadows` can throw a character's shadow away from whatever is
@@ -349,7 +384,22 @@ export class Lighting {
     this.coneStamp.destroy();
     this.playerStamp.destroy();
     this.rt.destroy();
+    // The twin first: it borrows `shadowGfx`'s command buffer, so drop the
+    // borrower before the owner.
+    this.shadowMaskGfx.destroy();
     this.shadowGfx.destroy();
+  }
+
+  /**
+   * Which walk surface sight is cast against — see `src/map/planes.ts`.
+   *
+   * Changing it invalidates the polygon outright: the deck and the floor beneath
+   * it occlude completely differently, so there is nothing to reuse.
+   */
+  setPlane(plane: number): void {
+    if (plane === this.plane) return;
+    this.plane = plane;
+    this.dirty = true;
   }
 
   /**
@@ -414,6 +464,7 @@ export class Lighting {
       far / this.tileSize,
       this.dirs,
       this.dist,
+      this.plane,
     );
 
     const g = this.shadowGfx;

@@ -4,6 +4,7 @@ import {
   rayDirections,
   rayDistance,
   sightDistances,
+  walkRayCells,
   SIGHT_RAYS,
   WALL_REVEAL_TILES,
 } from "./Visibility";
@@ -74,6 +75,35 @@ function paddedWallLevel(): GameLevel {
         ],
       },
     ],
+  } as unknown as GameLevel;
+}
+
+/**
+ * A 40×40 level with a full wall row at y=10 whose tiles are inset from the
+ * bottom by 0.4 — the shipped map's commonest wall by far (157 of `main1`'s 318
+ * `walls` tiles carry exactly this padding). Solid portion: y∈[10,10.6). The
+ * strip y∈[10.6,11) is walkable floor in front of the wall's face, and it shares
+ * the wall's own grid row.
+ */
+function paddedWallRowLevel(): GameLevel {
+  const tiles: unknown[] = [];
+  for (let x = 0; x < 40; x++) {
+    tiles.push({
+      x,
+      y: 10,
+      colSpan: 1,
+      rowSpan: 1,
+      offsetX: 0,
+      offsetY: 0,
+      components: [],
+      collider: { Bottom: 0.4 },
+    });
+  }
+  return {
+    name: "paddedRow",
+    width: 40,
+    height: 40,
+    layers: [{ name: "walls", tiles }],
   } as unknown as GameLevel;
 }
 
@@ -172,6 +202,59 @@ describe("rayDistance", () => {
     it("still sees out of a *plain* wall tile — the no-clip case above is unaffected", () => {
       const g = new CollisionGrid(level());
       expect(rayDistance(g, 2.5, 1.5, 1, 0, 3)).toBe(3);
+    });
+  });
+
+  describe("walking along a padded wall (the darkness jump)", () => {
+    it("sees down the strip of floor a padded wall leaves in front of its face", () => {
+      // Hugging the wall puts the eye at y≈10.8 — inside the wall's own row, in
+      // the open bottom 40%. Every cell east of here is a wall cell, but none of
+      // their *solid* portions reach down to this y, so sight runs the corridor.
+      // Before the fix the walk stopped at the first cell boundary: ~1 tile.
+      const g = new CollisionGrid(paddedWallRowLevel());
+      expect(rayDistance(g, 20.5, 10.8, 1, 0, 15)).toBe(15);
+      expect(rayDistance(g, 20.5, 10.8, -1, 0, 15)).toBe(15);
+    });
+
+    it("still stops against the solid portion of the wall it is pressed to", () => {
+      const g = new CollisionGrid(paddedWallRowLevel());
+      // Straight up from the strip crosses the solid face at y=10.6.
+      expect(rayDistance(g, 20.5, 10.8, 0, -1, 10, 0)).toBeCloseTo(0.2, 5);
+    });
+
+    it("does not step as the eye crosses out of the wall's row", () => {
+      // The regression proper. `Math.floor(originY)` flips from 10 to 11 at
+      // y=11, which used to switch all 720 rays between the precise origin test
+      // and the coarse walk at once — a full-corridor blackout that appeared and
+      // vanished within one pixel of movement.
+      const g = new CollisionGrid(paddedWallRowLevel());
+      const dirs = rayDirections(SIGHT_RAYS);
+      const out = new Float64Array(SIGHT_RAYS);
+
+      const totals: number[] = [];
+      // A pixel at tileSize 32 is 1/32 of a tile; sweep either side of the row
+      // boundary in half-pixel steps.
+      for (let oy = 10.7; oy <= 11.3001; oy += 1 / 64) {
+        sightDistances(g, 20.5, oy, 15, dirs, out);
+        let sum = 0;
+        for (const d of out) sum += d;
+        totals.push(sum);
+      }
+
+      // Total visible reach across all 720 rays necessarily *drifts* as the eye
+      // backs away from the wall — more of the corridor comes into view. What a
+      // discontinuity looks like is an outlier: one step far larger than its
+      // neighbours. So compare the largest step against the typical one rather
+      // than against an absolute bound, which would only be measuring the drift.
+      const steps: number[] = [];
+      for (let i = 1; i < totals.length; i++) steps.push(Math.abs(totals[i] - totals[i - 1]));
+      const median = [...steps].sort((a, b) => a - b)[steps.length >> 1];
+      const maxStep = Math.max(...steps);
+
+      // Measured: 1.4x with the precise walk. Before the fix the eye crossing
+      // y=11 moved the total by 133 tiles against a median of 21 — 6.2x — and
+      // the sweep *inside* the wall's row oscillated between 88 and 116.
+      expect(maxStep).toBeLessThan(median * 3);
     });
   });
 });
@@ -280,5 +363,60 @@ describe("sightDistances optimization parity and benchmark", () => {
     console.log(`[BENCHMARK] Fallback path: ${fallbackTime.toFixed(2)}ms, Fast path: ${fastTime.toFixed(2)}ms (Speedup: ${speedup.toFixed(2)}x)`);
 
     expect(fastTime).toBeLessThanOrEqual(fallbackTime + 15.0);
+  });
+});
+
+describe("walkRayCells", () => {
+  /** Collects the cells a ray covers, as "x,y" keys. */
+  function cover(ox: number, oy: number, dx: number, dy: number, max: number): string[] {
+    const out: string[] = [];
+    walkRayCells(ox, oy, dx, dy, max, (x, y) => out.push(`${x},${y}`));
+    return out;
+  }
+
+  it("visits the origin cell even with no reach at all", () => {
+    expect(cover(2.5, 3.5, 1, 0, 0)).toEqual(["2,3"]);
+  });
+
+  it("walks a straight run one cell at a time", () => {
+    expect(cover(0.5, 0.5, 1, 0, 3)).toEqual(["0,0", "1,0", "2,0", "3,0"]);
+  });
+
+  it("covers the cell the ray ends inside, not just the ones it fully crosses", () => {
+    // Ends at x=2.2, which is inside cell 2 — you have seen it.
+    expect(cover(0.5, 0.5, 1, 0, 1.7)).toEqual(["0,0", "1,0", "2,0"]);
+  });
+
+  it("steps both axes on a diagonal", () => {
+    const cells = cover(0.5, 0.5, Math.SQRT1_2, Math.SQRT1_2, 2);
+    expect(cells[0]).toBe("0,0");
+    expect(cells).toContain("1,1");
+    // Every step moves exactly one cell on exactly one axis.
+    for (let i = 1; i < cells.length; i++) {
+      const [ax, ay] = cells[i - 1].split(",").map(Number);
+      const [bx, by] = cells[i].split(",").map(Number);
+      expect(Math.abs(bx - ax) + Math.abs(by - ay)).toBe(1);
+    }
+  });
+
+  it("marks exactly what a cast saw: the room, its walls, and nothing past them", () => {
+    // The pairing that makes the explored mask agree with the darkness. A sealed
+    // 1x1 room at (1,1): every ray stops in the wall ring, so the cells covered
+    // are the room and its eight walls — never the open floor beyond.
+    const g = new CollisionGrid(sealedLevel());
+    const dirs = rayDirections(64);
+    const dist = new Float64Array(64);
+    sightDistances(g, 1.5, 1.5, 20, dirs, dist);
+
+    const seen = new Set<string>();
+    for (let i = 0; i < 64; i++) {
+      walkRayCells(1.5, 1.5, dirs.cos[i], dirs.sin[i], dist[i], (x, y) => seen.add(`${x},${y}`));
+    }
+
+    for (let y = 0; y <= 2; y++) {
+      for (let x = 0; x <= 2; x++) expect(seen.has(`${x},${y}`)).toBe(true);
+    }
+    expect(seen.has("3,1")).toBe(false);
+    expect(seen.has("1,3")).toBe(false);
   });
 });

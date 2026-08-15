@@ -30,7 +30,10 @@ import { Cover } from "../entities/Cover";
 import { playVfx, EMP_BLAST, ELECTRONICS_SPARK, IMPACT } from "../entities/Vfx";
 import { buildAlertNetworkSnapshot, NoiseSpamTracker } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
+import { MemoryLayer } from "../ui/MemoryLayer";
+import { PlaneOverlay } from "../ui/PlaneOverlay";
 import { EntityShadows, type ShadowCaster } from "../ui/EntityShadows";
+import { rayDirections, sightDistances, walkRayCells, SIGHT_RAYS } from "../systems/Visibility";
 import {
   missionFeatures,
   resumeFromSave,
@@ -126,6 +129,8 @@ import { RelayState, type RelayTransition } from "../systems/RelayCore";
 import { ROOF_ARRAY_LEVEL } from "../map/RoofArrayLevel";
 import { Encounters } from "./game/Encounters";
 import { blockingLayerNames, isInteractTransition } from "../map/types";
+import { linkAt, planeLinksFor, type PlaneLink } from "../systems/PlaneLinks";
+import { PLANE_FLOOR, PLANE_UPPER } from "../map/planes";
 import { planFor, type MapPlan } from "../map/MapPlan";
 import { getAudio } from "../systems/AudioDirector";
 import { saveGame, clearSave, loadGame, type SlotId } from "../systems/SaveGame";
@@ -156,12 +161,11 @@ interface GameSceneData {
 }
 
 /**
- * Explored-tile sweep cadence and reach, for the pause menu's map. A quarter
- * second at walking pace reveals nothing a full sweep would have missed, and the
- * radius is a little beyond the lit halo so a corridor fills in as you walk it.
+ * Explored-tile sweep cadence. A quarter second at walking pace reveals nothing
+ * a full sweep would have missed. The *reach* is no longer a constant — it comes
+ * off the camera, see `GameScene.exploreReachTiles`.
  */
 const EXPLORE_INTERVAL = 0.25;
-const EXPLORE_RADIUS_TILES = 9;
 
 /** Screen-fade duration for a level transition, in ms. */
 const FADE_MS = 320;
@@ -316,6 +320,31 @@ export class GameScene extends Phaser.Scene {
   private explored!: ExploredMap;
   /** Seconds until the next explored-tile sweep (they're throttled, not per-frame). */
   private exploredCooldown = 0;
+  /** Remembered geometry, drawn where the player can no longer see it. */
+  private memory!: MemoryLayer;
+  /** Fades whichever surface is over the player's head — roof, or gantry. */
+  private planeOverlay!: PlaneOverlay;
+  /** Which walk surface the player is on; 0 everywhere but the two deck levels. */
+  private plane = 0;
+  /** The ways between this level's surfaces — empty on a single-plane level. */
+  private planeLinks: PlaneLink[] = [];
+  /** Bodies penning the player onto the deck, enabled only while he is on it. */
+  private deckEdgeCollider?: Phaser.Physics.Arcade.Collider;
+  /** Cleared when he steps off a link, so a switch never bounces straight back. */
+  private planeArmed = true;
+  /**
+   * The explored sweep's own ray fan and distance buffer.
+   *
+   * Cast separately from `Lighting`'s rather than borrowing its result. Four
+   * sweeps a second against sixty frames is a rounding error, and buying the
+   * independence is worth it: the sweep keeps working with the darkness toggled
+   * off (debug `O`), and it does not inherit the overlay's own recast cadence.
+   * Reused across levels — a `scene.restart()` does not re-run field initialisers.
+   */
+  private readonly exploreDirs = rayDirections(SIGHT_RAYS);
+  private readonly exploreDist = new Float64Array(SIGHT_RAYS);
+  /** Cells first seen this sweep, as `y * width + x`, handed to {@link memory}. */
+  private readonly freshlyExplored: number[] = [];
   /** Milliseconds of play in this run, for the pause menu's STATUS clock. */
   private playTimeMs = 0;
   /** The Shared Field (WX-9) charge / active state. */
@@ -545,6 +574,29 @@ export class GameScene extends Phaser.Scene {
 
     this.restoreRunState();
 
+    // The third visibility state: tiles already surveyed, painted back over the
+    // darkness wherever sight no longer reaches them. Built here rather than
+    // beside `Lighting` because it primes itself from the explored mask, which
+    // `restoreRunState` is what loads. Clipped to the darkness's own shadow fan,
+    // so "seeing" and "remembering" are divided by the same line.
+    this.memory = new MemoryLayer(
+      this,
+      this.level,
+      this.tileSize,
+      ENTITY_LAYERS,
+      built.claimedTiles,
+    );
+    this.memory.clipTo(this.lighting.shadowGeometry);
+    this.memory.prime(this.explored);
+    this.planeOverlay = new PlaneOverlay(this.level, this.tileSize, built.planes);
+    this.planeLinks = planeLinksFor(this.level, this.tileSize);
+    if (built.deckEdgeBodies.length > 0) {
+      this.deckEdgeCollider = this.physics.add.collider(this.player.sprite, built.deckEdgeBodies);
+      // Inert until he actually climbs: on the floor the deck's edges are
+      // overhead, not underfoot.
+      this.deckEdgeCollider.active = false;
+    }
+
     if (!this.scene.isActive("UIScene")) this.scene.launch("UIScene");
 
     // A level transition is a scene.restart(), which builds a fresh Lighting.
@@ -553,6 +605,7 @@ export class GameScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.persistRunState();
       this.lighting.destroy();
+      this.memory.destroy();
       this.entityShadows.destroy();
     });
 
@@ -757,11 +810,21 @@ export class GameScene extends Phaser.Scene {
   /**
    * Marks everything currently in the player's line of sight as seen.
    *
-   * Throttled rather than run per frame: it is a radius-squared raycast sweep,
-   * and at walking pace a quarter-second of movement reveals no tile a full
-   * sweep wouldn't have. Uses the same `hasLineOfSight` the guards' vision and
-   * the darkness overlay use, so the map reveals exactly what Rowan could
-   * actually see — walk a corridor and the rooms off it stay dark.
+   * Throttled rather than run per frame: at walking pace a quarter-second of
+   * movement reveals no tile a full sweep wouldn't have.
+   *
+   * This casts *the same visibility polygon the darkness does* — `sightDistances`
+   * over the same ray fan — and then remembers every cell those rays crossed.
+   * It used to scan a 9-tile box and test each tile centre with the boolean
+   * `hasLineOfSight`, which is a different algorithm over a different shape: two
+   * answers that disagreed at every boundary, and a hard circular horizon. That
+   * was survivable while the mask only fed the pause menu's minimap. Now that
+   * remembered tiles are drawn *in the world*, any disagreement between the mask
+   * and the shadow fan is visible as a seam, so there is only one cast.
+   *
+   * A cast distance carries half a tile past the face it stopped at
+   * (`WALL_REVEAL_TILES`), so the walls of a room are remembered along with its
+   * floor — a room recalled without its walls is not a room.
    */
   private markExplored(dt: number): void {
     this.exploredCooldown -= dt;
@@ -774,17 +837,80 @@ export class GameScene extends Phaser.Scene {
     const eye = this.player.eye;
     const px = eye.x / this.tileSize;
     const py = eye.y / this.tileSize;
-    const cx = Math.floor(px);
-    const cy = Math.floor(py);
-    const r = EXPLORE_RADIUS_TILES;
-    for (let ty = cy - r; ty <= cy + r; ty++) {
-      for (let tx = cx - r; tx <= cx + r; tx++) {
-        if ((tx - cx) ** 2 + (ty - cy) ** 2 > r * r) continue;
-        if (this.explored.has(tx, ty)) continue;
-        if (!this.grid.hasLineOfSight(px, py, tx + 0.5, ty + 0.5)) continue;
-        this.explored.mark(tx, ty);
-      }
+    sightDistances(
+      this.grid,
+      px,
+      py,
+      this.exploreReachTiles(eye.x, eye.y),
+      this.exploreDirs,
+      this.exploreDist,
+    );
+
+    const fresh = this.freshlyExplored;
+    fresh.length = 0;
+    const { width, height } = this.level;
+    // One closure for the sweep rather than one per ray.
+    const visit = (tx: number, ty: number): void => {
+      if (tx < 0 || ty < 0 || tx >= width || ty >= height) return;
+      if (this.explored.has(tx, ty)) return;
+      this.explored.mark(tx, ty);
+      fresh.push(ty * width + tx);
+    };
+
+    const { cos, sin } = this.exploreDirs;
+    for (let i = 0; i < cos.length; i++) {
+      walkRayCells(px, py, cos[i], sin[i], this.exploreDist[i], visit);
     }
+
+    if (fresh.length > 0) this.memory.remember(fresh);
+  }
+
+  /**
+   * How far the explored sweep casts, in tiles: to the furthest corner of what
+   * the camera is showing, plus a tile of slack.
+   *
+   * The same reach `Lighting.viewReach` uses, and for the same reason — there is
+   * no point remembering ground the player could not have been shown, and no
+   * point stopping short of the screen edge either.
+   */
+  private exploreReachTiles(viewX: number, viewY: number): number {
+    const v = this.cameras.main.worldView;
+    const dx = Math.max(Math.abs(viewX - v.x), Math.abs(v.right - viewX));
+    const dy = Math.max(Math.abs(viewY - v.y), Math.abs(v.bottom - viewY));
+    return (len(dx, dy) + this.tileSize) / this.tileSize;
+  }
+
+  /**
+   * Moves the player between this level's walk surfaces.
+   *
+   * Not a level transition: no scene restart, nothing rebuilt. What changes is
+   * which grid everything asks, which Arcade bodies pen him in, and where he is
+   * standing — the link's far end, so he arrives on the surface rather than
+   * hanging off its edge.
+   *
+   * The body is moved *before* the collider swaps, or he starts the next frame
+   * overlapping the deck's edge bodies and gets ejected off the gantry.
+   */
+  private switchPlane(link: PlaneLink): void {
+    const goingUp = this.plane === PLANE_FLOOR;
+    const to = goingUp ? { x: link.toX, y: link.toY } : { x: link.x, y: link.y };
+    const half = this.tileSize / 2;
+    this.player.moveTo(to.x * this.tileSize + half, to.y * this.tileSize + half);
+
+    this.plane = goingUp ? PLANE_UPPER : PLANE_FLOOR;
+    this.planeArmed = false;
+
+    // On the deck the floor's walls are below him and its cover is furniture he
+    // is standing over; the deck's own edge is the only thing that stops him.
+    if (this.deckEdgeCollider) this.deckEdgeCollider.active = goingUp;
+    if (this.wallCollider) this.wallCollider.active = !goingUp;
+    if (this.coverCollider) this.coverCollider.active = !goingUp;
+    if (this.doorCollider) this.doorCollider.active = !goingUp;
+
+    // Sight is cast against the surface he is on, so the darkness has to recast
+    // from scratch rather than reuse the polygon it built downstairs.
+    this.lighting.setPlane(this.plane);
+    getAudio().door();
   }
 
   /** Hands the pause menu everything its MAP tab needs to draw this level. */
@@ -1833,6 +1959,7 @@ export class GameScene extends Phaser.Scene {
     );
     this.sensing.setPlayer(this.player.x, this.player.y, noise, body.velocity.x, body.velocity.y);
     this.sensing.setConcealment(concealed, compliant, thermalConcealed);
+    this.sensing.setPlane(this.plane);
     // Opened doors/chests, EMP'd devices and stunned orderlies, for anomaly scanning.
     this.sensing.setAnomalies(this.buildAnomalies(this.sensing.chaffZone));
     this.sensing.setDeployables(this.deployables);
@@ -1928,6 +2055,7 @@ export class GameScene extends Phaser.Scene {
     this.playTimeMs += delta;
     this.registry.set("playTimeMs", this.playTimeMs);
     this.markExplored(dt);
+    this.planeOverlay.update(dt, this.player.x, this.player.y, this.plane, this.tileSize);
   }
 
   /**
@@ -2143,6 +2271,11 @@ export class GameScene extends Phaser.Scene {
     }
     const hatch = tr && isInteractTransition(tr.kind) && this.transitionArmed ? tr : undefined;
 
+    // --- Plane links: the ladders and ramps between this level's two surfaces ---
+    // Read before the E press is consumed below, so the prompt can offer it.
+    const link = linkAt(this.planeLinks, this.plane, Math.floor(ptx), Math.floor(pty));
+    if (!link) this.planeArmed = true;
+
     // A hold-up claims Rowan's hands: he cannot work a panel, empty a chest, swing a
     // door or fire the Stapler while pointing a weapon at somebody. Masking both E
     // reads here short-circuits the entire claim chain below in one place, because
@@ -2248,6 +2381,12 @@ export class GameScene extends Phaser.Scene {
       } else if (hatch) {
         this.beginTransition(hatch);
         return;
+      } else if (link && this.planeArmed) {
+        // A way between this level's own surfaces. Unlike a level transition it
+        // is not a scene restart — nothing is rebuilt, the player just steps onto
+        // the other surface where the link comes out.
+        this.switchPlane(link);
+        return;
       } else if (vault) {
         adjacentClaimedTap = true;
         this.beginVault(vault);
@@ -2290,7 +2429,7 @@ export class GameScene extends Phaser.Scene {
       nearestTerminalDist,
       nearestDoor,
       nearestDoorDist,
-      hatch !== undefined,
+      hatch !== undefined || (link !== undefined && this.planeArmed),
       nearestChest,
       nearestChestDist,
       encounter.label,

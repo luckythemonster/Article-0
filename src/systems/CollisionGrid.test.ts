@@ -263,6 +263,48 @@ describe("CollisionGrid", () => {
       const g = new CollisionGrid(level());
       expect(g.hasLineOfSight(0, 1, 4, 1)).toBe(false); // crosses the plain wall at x=2
     });
+
+    describe("cells the walk steps *through*, not just its endpoints", () => {
+      /**
+       * A wall row at y=1 inset from the bottom by 0.4, as half of `main1`'s
+       * walls are: solid y∈[1,1.6), open floor y∈[1.6,2) sharing the same row.
+       */
+      function paddedWallRow(): GameLevel {
+        const tiles: unknown[] = [];
+        for (let x = 0; x < 10; x++) {
+          tiles.push({
+            x,
+            y: 1,
+            colSpan: 1,
+            rowSpan: 1,
+            offsetX: 0,
+            offsetY: 0,
+            components: [],
+            collider: { Bottom: 0.4 },
+          });
+        }
+        return {
+          name: "t",
+          width: 10,
+          height: 6,
+          layers: [{ name: "walls", tiles }],
+        } as unknown as GameLevel;
+      }
+
+      it("sees along the strip of floor the wall leaves in front of its face", () => {
+        // Both endpoints sit in the open bottom 40% of the wall's own row, and
+        // every cell between them is a wall cell — but none of their solid
+        // portions reach down to y=1.8. The walk used to stop at the first one.
+        const g = new CollisionGrid(paddedWallRow());
+        expect(g.hasLineOfSight(1.5, 1.8, 8.5, 1.8)).toBe(true);
+      });
+
+      it("still blocks a segment that crosses a mid-walk wall's solid portion", () => {
+        const g = new CollisionGrid(paddedWallRow());
+        // From below the row up to above it, well away from either endpoint cell.
+        expect(g.hasLineOfSight(1.5, 2.5, 8.5, 0.5)).toBe(false);
+      });
+    });
   });
 
   describe("wallsNear", () => {
