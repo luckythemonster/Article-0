@@ -194,7 +194,24 @@ export function raySlabIntersectRaw(
   return tMax < 0 ? undefined : tMin;
 }
 
-/** Centre of a tile's footprint rectangle, in pixels. */
+/**
+ * Centre of a tile's footprint rectangle, in pixels.
+ *
+ * The cell centre plus the authored offset, and deliberately nothing else. The
+ * export also carries `Anchor` / `CellAnchor` on 85 placed defs, which look like
+ * they belong here — read as "put the sprite's anchor on the cell's anchor" they
+ * would move 32 of those defs across 44 placements, by up to a full tile.
+ *
+ * They are already resolved into the export. The six 1×1.5 doors carry
+ * `Anchor: 7` / `CellAnchor: 7` *and* `OffsetY: +4`; the anchor implies an 8px
+ * shift up, and the doors render correctly seated in their jambs as exported — so
+ * the offset *is* the exporter's resolution of the anchor, and applying it again
+ * would double-count. This function feeds `colliderRect` and `footprintCells` as
+ * well as the bake, so it would have taken collision off true with the art.
+ *
+ * See `docs/MAP_AUTHORING.md` — "Anchor / CellAnchor are the editor's, not the
+ * engine's".
+ */
 export function footprintCentre(
   tile: GameTile,
   tileSize: number,

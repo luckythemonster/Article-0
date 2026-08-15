@@ -337,7 +337,7 @@ Three things follow from it:
   are read as ways out. `stairwell1` is art and stays art; that is deliberate, since the
   shipped map files two guard posts on `verticals` under that name.
 - **Ladders inside one level are not level transitions** — they are *plane* links, and
-  they belong on their own board, not on `verticals`. See §3.3.
+  they belong on their own board, not on `verticals`. See §3.2.
 
 #### Elevators
 
@@ -425,6 +425,59 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
 | `sensor` | presence (→ a camera) | every field, `facing` included: it is inferred from the surrounding walls |
 | `vertical` | presence (→ a way out, on a `verticals` board) | `direction`, `material` |
 | `hatch`, `audio_hazard`, `powergrid` | **nothing** | every field |
+
+### TileDef and board fields
+
+Not components — the fields on the tile definition and the board itself.
+
+| Field | Read | Notes |
+| --- | --- | --- |
+| `ColSpan` / `RowSpan` | ✅ | The footprint, in tiles. Sub-cell values are fine: half-tile props are `0.5×0.5`. |
+| `OffsetX` / `OffsetY` | ✅ | Pixel nudge off the cell centre. |
+| `ColliderPadding` | ✅ | Per-side inset of the collision box — §3.3. |
+| `CollisionMode` | `1` only | Per-tile "always solid". `2` now appears in exports and is *not* read; the board field uses `2` for marker/trigger, so the symmetry is strong but unconfirmed, and it is currently inert (its one def sits on a non-solid board). |
+| `Animation.KeyFrames[].FlipY` | ✅ | Mirrors the frame vertically — how the editor gets two facings from one sprite rect. |
+| `TintColor` (def **and** board) | ✅ | `0xAARRGGBB` colour multiply; `0xFFFFFFFF` means none. The two **multiply**, so a tinted def on a tinted board wears both. Alpha is dropped. |
+| `Anchor` / `CellAnchor` | ❌ **and should stay that way** | See below. |
+| `BlendModeId`, `Opacity`, `ParallaxX/Y`, `TileFlags`, `BackgroundColor` | ❌ | Authored, never acted on. `Opacity` is `1` on every board of the shipped map. |
+
+#### `Anchor` / `CellAnchor` are the editor's, not the engine's
+
+85 placed defs carry them and the engine reads neither, which looks like a gap and
+isn't. Read as "put the sprite's anchor point on the cell's anchor point" they would
+move 32 defs across 44 placements, by 8px to a full tile.
+
+They are already resolved into the export. The proof is the six 1×1.5 doors, which
+carry `Anchor: 7` / `CellAnchor: 7` **and** `OffsetY: +4`: the anchor implies an 8px
+shift *up*, and the doors render correctly seated in their jambs as exported. The
+offset is the exporter's own resolution of the anchor, so applying the anchor again
+would double-count it — and take the colliders along, since `footprintCentre` feeds
+`colliderRect` and `footprintCells` too.
+
+So: **the placement is `x`/`y` plus `OffsetX`/`OffsetY`, full stop.** If you move a
+sprite by changing its anchor in the editor, check the exported offset moved with it.
+
+### The 1×1 placeholder sprite
+
+`spawn`, `blank`, `security_guard*`, `drone*`, `light_overhead*`, `elevator`,
+`stairwell1`, `enforcer_spawn1` and `enforcer_rail_mounted*` all resolve to a
+**1×1-pixel transparent source** stretched over their span. That is the editor's "this
+def has no art", not a defect — the tiles are markers, and the things they mark
+(guards, lights, spawns) are drawn by the engine. Don't go looking for their art.
+
+It is also why the cast can't be drawn from the map's own spritesheet: there is none.
+See `src/entities/CastArt.ts`.
+
+### Oversized sources are normal, but pick the span to match
+
+A def's art is stretched to `ColSpan × RowSpan` tiles regardless of its source
+resolution, and the map downscales freely — `tdWinch1` is 96×96 into 32×32,
+`security_node1` 64×64 into 32×32, `rain1`–`rain6` 50×50 into 32×32. With
+`pixelArt: true` that is a nearest-neighbour decimation, so a big ratio throws away a
+lot of pixels: `breaker_main1` is a 64×64 source on a `0.5×0.5` span, drawn at 16×16,
+which keeps one pixel in sixteen. It is correctly *placed* and correctly *sized* — every
+other half-cell prop is 16×16 too — but it will look mangled. A `1×1` span would draw it
+at 32×32, the same 2× reduction `security_node1` gets from the same source size.
 
 ### Notes on the ones with teeth
 
@@ -527,7 +580,7 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
    1.5-wide door still only claims one cell because its 8px overhang misses both
    neighbours' centres. A tile can also be *smaller* than its footprint —
    `ColliderPadding` insets the collision box without moving the art or the cells
-   the grid claims (§3.2).
+   the grid claims (§3.3).
 
 ## 6. Minimum viable map
 

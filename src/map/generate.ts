@@ -1,3 +1,4 @@
+import { NO_TINT } from "./EdplayLoader";
 import type { ComponentData, GameLayer, GameLevel, GameMap, GameTile } from "./types";
 
 /**
@@ -109,6 +110,7 @@ export function marker(ref: string, x: number, y: number): GameTile {
     offsetX: 0,
     offsetY: 0,
     flipY: false,
+    tint: NO_TINT,
     components: [],
   };
 }

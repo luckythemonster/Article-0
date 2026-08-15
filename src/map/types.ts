@@ -73,7 +73,6 @@ export interface EdTileDef {
   /** Sprite anchor (4 = centre in the editor's 0–8 grid). */
   Anchor?: number;
   CellAnchor?: number;
-  TintColor?: number;
   BackgroundColor?: number;
   /**
    * Per-side inset of the collision box from the footprint rectangle, in
@@ -104,6 +103,15 @@ export interface EdTileDef {
   Handle: number;
   Ref: string;
   Id: string;
+  /**
+   * Per-tile colour multiply, as `0xAARRGGBB`. `0xFFFFFFFF` — the value on all
+   * but a handful of defs — means none.
+   *
+   * Composes *with* the board's {@link EdBoard.TintColor} rather than replacing
+   * it: NW-SMAC-01 darkens two stair pieces to `808080` and a secret door to
+   * `cccccc`, and the door also sits on a board tinted `c3e8ff`.
+   */
+  TintColor?: number;
 }
 
 /** Collider inset per side, in fractions of a cell. Absent side = no inset. */
@@ -140,6 +148,14 @@ export interface EdBoard {
    * boards block", replacing a hardcoded `["walls"]` — see {@link SOLID_COLLISION}.
    */
   Collision?: number;
+  /**
+   * Colour multiply applied to every tile on the board, as `0xAARRGGBB`.
+   *
+   * How the map grades a deck: NW-SMAC-01 tints `main1`'s floor cold blue,
+   * `duct1`'s walls slate, `vent_core`'s floor amber, and so on across five of
+   * its nine levels. Unread, the whole facility renders one shade of grey.
+   */
+  TintColor?: number;
 }
 
 export interface EdLevel {
@@ -238,6 +254,15 @@ export interface GameTile {
    * disagree about the flip, which is the whole point of the field.
    */
   flipY: boolean;
+  /**
+   * Colour multiply for this placement, as `0xRRGGBB`, with {@link NO_TINT}
+   * meaning "draw it as authored".
+   *
+   * Resolved once at parse time from the board's tint and the def's own, for the
+   * same reason `flipY` is: a tile is drawn by four different code paths, and
+   * making each of them find its board again would be four chances to forget.
+   */
+  tint: number;
   /** Present only for tiles whose TileDef carries a DataComponent. */
   entityType?: string;
   components: ComponentData[];

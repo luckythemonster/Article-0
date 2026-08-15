@@ -264,14 +264,17 @@ export class TileStamper {
    */
   stamp(rt: Phaser.GameObjects.RenderTexture, tile: GameTile): void {
     if (!tile.frame) return;
-    // `batchDrawFrame` takes a position and nothing else, so a mirrored tile has
-    // to go the long way round even when its geometry is otherwise plain.
+    // `batchDrawFrame` takes a position, an alpha and a tint, but no *flip* — so
+    // a mirrored tile has to go the long way round even when its geometry is
+    // otherwise plain.
     if (isSingleCell(tile) && !tile.flipY) {
       rt.batchDrawFrame(
         tile.frame.textureKey,
         tile.frame.frameKey,
         tile.x * this.tileSize,
         tile.y * this.tileSize,
+        1,
+        tile.tint,
       );
       return;
     }
@@ -279,10 +282,14 @@ export class TileStamper {
     this.scaled ??= this.scene.make
       .image({ key: tile.frame.textureKey, add: false })
       .setOrigin(0.5);
+    // Tinted through the image rather than `batchDraw`'s trailing arguments,
+    // whose `x`/`y` would fight the position set here. Set every time, not only
+    // when tinted, so the last tile's colour can't leak onto the next.
     this.scaled
       .setTexture(tile.frame.textureKey, tile.frame.frameKey)
       .setDisplaySize(tile.colSpan * this.tileSize, tile.rowSpan * this.tileSize)
       .setFlipY(tile.flipY === true)
+      .setTint(tile.tint)
       .setPosition(centre.x, centre.y);
     rt.batchDraw(this.scaled);
   }
