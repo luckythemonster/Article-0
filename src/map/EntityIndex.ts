@@ -44,10 +44,18 @@ export interface GuardRoute {
   components: GameTile["components"];
 }
 
+/** One orderly's board: the round it walks and the stats it carries. */
+export interface OrderlyRoute {
+  /** Waypoints in authored order, walked as a loop. */
+  route: PatrolRoute;
+  /** The board's own components, for parity with {@link GuardRoute}. */
+  components: GameTile["components"];
+}
+
 /** Everything on a level that spawns rather than bakes. */
 export interface EntityIndex {
   guards: GuardRoute[];
-  orderlies: GameTile[];
+  orderlies: OrderlyRoute[];
   sensors: GameTile[];
   doors: GameTile[];
   terminals: GameTile[];
@@ -69,30 +77,42 @@ const has = (tile: GameTile, type: string): boolean =>
   tile.components.some((c) => c.type === type);
 
 /**
- * What a whole board is, when every entity on it is the same kind of body.
+ * The tiles on a board that carry a body, whatever else shares it.
  *
- * Guards are classified per *board* because a board is one guard's route — see
- * `docs/MAP_AUTHORING.md` §3.1 and `routeFromLayer`. Fixtures are classified per
- * *tile*, because the boards they sit on are shared with art.
+ * Classification used to require *every* tile on the board to be a body, which
+ * meant one piece of scenery dragged onto a route board deleted the whole
+ * character — silently, because a board that classifies as nothing reads exactly
+ * like a board with nobody on it. That is the same failure mode the per-tile
+ * `claimed` set was introduced to fix for fixtures, and v0.4 mixes art with
+ * entities freely enough that a route board will eventually get the same
+ * treatment. So the bodies decide the character, and the rest of the board stays
+ * art: unclaimed, and painted into the level as usual.
  */
-function guardKindOf(layer: GameLayer): GuardRoute["kind"] | undefined {
-  const bodies = layer.tiles.filter((t) => has(t, HUMAN) || has(t, SILICATE));
-  if (bodies.length === 0 || bodies.length !== layer.tiles.length) return undefined;
-  if (bodies.every((t) => has(t, SILICATE))) return "drone";
-  if (bodies.every((t) => has(t, HUMAN) && str(t.components, HUMAN, "Job", "") !== JOB_ORDERLY)) {
-    return "enforcer";
-  }
-  return undefined;
+function bodiesOn(layer: GameLayer): GameTile[] {
+  return layer.tiles.filter((t) => has(t, HUMAN) || has(t, SILICATE));
 }
 
-/** True for a board of humans whose job is portering, not guarding. */
-function isOrderlyBoard(layer: GameLayer): boolean {
-  return (
-    layer.tiles.length > 0 &&
-    layer.tiles.every(
-      (t) => has(t, HUMAN) && str(t.components, HUMAN, "Job", "") === JOB_ORDERLY,
-    )
-  );
+/**
+ * What kind of body a board carries, or `undefined` for one that carries none.
+ *
+ * The cast is classified per *board* because a board is one character's route —
+ * see `docs/MAP_AUTHORING.md` §3.1 and `routeFromLayer`. Fixtures are classified
+ * per *tile*, because the boards they sit on are shared with art.
+ *
+ * Mixed kinds are refused rather than guessed: a board holding both a guard and
+ * a drone describes no single route, and picking one would silently drop the
+ * other.
+ */
+function bodyKindOf(bodies: readonly GameTile[]): "enforcer" | "drone" | "orderly" | undefined {
+  if (bodies.length === 0) return undefined;
+  if (bodies.every((t) => has(t, SILICATE))) return "drone";
+  if (!bodies.every((t) => has(t, HUMAN))) return undefined;
+  const orderlies = bodies.filter(
+    (t) => str(t.components, HUMAN, "Job", "") === JOB_ORDERLY,
+  ).length;
+  if (orderlies === bodies.length) return "orderly";
+  if (orderlies === 0) return "enforcer";
+  return undefined;
 }
 
 /**
@@ -121,38 +141,34 @@ export function indexEntities(level: GameLevel, legacyBoards: ReadonlySet<string
     // clones of map art and carry no components of their own.
     if (legacyBoards.has(layer.name)) continue;
 
-    const guard = guardKindOf(layer);
-    if (guard) {
-      const route = routeFromLayer(layer);
+    const bodies = bodiesOn(layer);
+    const kind = bodyKindOf(bodies);
+    if (kind) {
+      const route = routeFromLayer({ ...layer, tiles: bodies });
       if (route.length > 0) {
-        out.guards.push({ kind: guard, route, components: layer.tiles[0].components });
-        claim(layer.tiles);
+        const components = bodies[0].components;
+        if (kind === "orderly") out.orderlies.push({ route, components });
+        else out.guards.push({ kind, route, components });
+        claim(bodies);
       }
       continue;
     }
 
-    if (isOrderlyBoard(layer)) {
-      // One orderly per tile, not a route: `Orderly` wanders around a home spot
-      // and has no waypoints to walk. The board's numbering is kept for the
-      // author's sake even though nothing reads it yet.
-      out.orderlies.push(...layer.tiles);
-      claim(layer.tiles);
-      continue;
+    // A spawn board is a route too. There is no wave system behind `enemySpawn`,
+    // so its tiles are places an enforcer stands rather than times one appears —
+    // which makes them waypoints, and makes the board one sentry's beat. A board
+    // with a single tile still yields a single-waypoint post, which is what it
+    // always did.
+    const spawns = layer.tiles.filter((t) => has(t, ENEMY_SPAWN));
+    if (spawns.length > 0) {
+      const route = routeFromLayer({ ...layer, tiles: spawns });
+      out.guards.push({ kind: "enforcer", route, components: spawns[0].components });
+      claim(spawns);
     }
 
     for (const tile of layer.tiles) {
-      // A spawn point with no wave system behind it is a guard standing post —
-      // strictly better than a spawner that never spawns. `spawnTime` is
-      // exported but never non-empty, so there is nothing to schedule.
-      if (has(tile, ENEMY_SPAWN)) {
-        out.guards.push({
-          kind: "enforcer",
-          route: [{ x: tile.x, y: tile.y }],
-          components: tile.components,
-        });
-        out.claimed.add(tile);
-        continue;
-      }
+      // Cameras stay per tile: a sensor is bolted to a wall and has no round to
+      // walk, so a board of them is a board of cameras, not one camera's route.
       if (has(tile, SENSOR)) {
         out.sensors.push(tile);
         out.claimed.add(tile);

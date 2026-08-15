@@ -87,18 +87,25 @@ generates and the legacy names below. Don't author against it.)
 A guard board can be called anything — `security_guard_A`, `drone_B`, `orderly`. What the
 engine reads is the component every tile on it carries:
 
-| Every tile carries | Becomes |
+**A board is one character, and its tiles are that character's waypoints.** That
+holds for every kind of body, so the rule you author against is the same one every
+time:
+
+| The bodies on the board carry | Becomes |
 | --- | --- |
 | `Human` with `Job: SECURITY` | **One `Enforcer` for the whole board**, its tiles that guard's ordered waypoints — see §3.1 |
 | `Silicate` | Same, for one `Drone` — identical AI, different skin |
-| `Human` with `Job: ORDERLY` | One `Orderly` per tile. Orderlies don't patrol, so the tiles are placements, not a route |
+| `Human` with `Job: ORDERLY` | Same, for one `Orderly`. It loiters near each stop before ambling to the next, rather than marching — see §3.1 |
+| `enemySpawn` | Same, for one `Enforcer`. There is no wave system, so a spawn point is a post, and several are a beat |
+
+A board mixing two *kinds* of body is refused rather than guessed, since it
+describes no single route.
 
 And per tile, on any board:
 
 | Tile carries | Becomes |
 | --- | --- |
-| `Sensor` | One fixed camera. Facing is **inferred from surrounding walls**; the `facing` field is not read |
-| `enemySpawn` | One `Enforcer` standing post. There is no wave system, so a spawn point is a sentry |
+| `Sensor` | One fixed camera. Facing is **inferred from surrounding walls**; the `facing` field is not read. Cameras stay per tile — a sensor is bolted to a wall and has no round to walk |
 
 The legacy board names `enforcers`, `drones`, `orderlies` and `security` still work and are
 read by name; the engine's own generators emit them.
@@ -124,13 +131,23 @@ read by name; the engine's own generators emit them.
 Lasers are the exception to all of this and are found **by ref** across every board — see
 "Lasers are found by ref, not by board" below.
 
-### 3.1 A guard board is one guard's patrol route
+### 3.1 An entity board is one entity's route
 
-Tiles on a guard board are **ordered waypoints for a single guard**, walked as a loop, not
-one guard each. Ordering comes from the trailing number on each tile's `ref`
+Tiles on an entity board are **ordered waypoints for a single character**, walked as a
+loop, not one character each. Ordering comes from the trailing number on each tile's `ref`
 (`security_guard1`, `security_guard2`, …); tiles whose ref has no number keep their file
-order and sort behind the numbered ones. The guard spawns on the first waypoint and reads
-its stats from that tile.
+order and sort behind the numbered ones. The character spawns on the first waypoint and
+reads its stats from that tile.
+
+**Art may share the board.** Only the tiles carrying a body are read as waypoints; anything
+else stays art and is painted into the level as usual. A board that mixed one prop in with
+three guards used to yield *zero* guards, silently.
+
+**Orderlies walk their round differently from guards.** An orderly is a member of staff, not
+a patrol: it loiters near a stop for eight to sixteen seconds, drifting on a short leash,
+then ambles to the next one. It routes between stops with A* exactly as a guard does, so
+its waypoints can be rooms apart, and a leg it cannot solve is skipped rather than ground
+against.
 
 **Number each tile on the board individually.** The number is the *step*, not the guard —
 the board is already the guard. An export that gives all four tiles of a route the same ref
@@ -156,6 +173,8 @@ Practical notes for authoring:
 - A leg A* can't solve is skipped, and the loop picks the waypoint up next time round, so a
   route temporarily severed by a locked door degrades rather than wedging the guard.
 - Want more guards on a level? That needs a second guard board, not more tiles on this one.
+  The same goes for orderlies and for spawn posts: two `enemySpawn` tiles on one board are
+  one guard walking between them, not two standing at each.
 
 ### 3.2 What blocks: the board says so, the tile says what shape
 

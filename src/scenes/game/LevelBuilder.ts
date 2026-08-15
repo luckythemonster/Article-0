@@ -193,7 +193,12 @@ function spawnCast(
           ),
     );
   }
-  for (const t of index.orderlies) out.orderlies.push(new Orderly(scene, t.x, t.y, tileSize));
+  // An orderly board is one orderly's round, the same way a guard board is one
+  // guard's beat — it spawns on waypoint 0 and loiters its way round the rest.
+  for (const o of index.orderlies) {
+    const start = o.route[0];
+    out.orderlies.push(new Orderly(scene, start.x, start.y, tileSize, o.route));
+  }
 
   const enforcerLayer = level.layers.find((l) => l.name === "enforcers");
   const enforcerRoute = routeFromLayer(enforcerLayer);
