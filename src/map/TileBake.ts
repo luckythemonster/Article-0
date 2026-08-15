@@ -33,10 +33,13 @@ import {
   isSingleCell,
   type Rect,
 } from "./footprint";
+import { CANOPY, planeCount, planeOfLayer } from "./planes";
+import { CANOPY_DEPTH, planeDepthOffset } from "../render/depths";
 import {
   blockingLayerNames,
   isCrawlable,
   isForcedSolid,
+  type GameLayer,
   type GameLevel,
   type GameTile,
 } from "./types";
@@ -141,6 +144,12 @@ export function bakeTileLayers(
   tileSize: number,
   skipLayers: ReadonlySet<string>,
   claimedTiles: ReadonlySet<GameTile> = new Set(),
+  /**
+   * Which boards belong in this texture. Defaults to all of them, which is the
+   * single-texture level the engine has always baked; `bakePlanes` narrows it to
+   * one walk surface at a time so a deck can draw over the floor beneath it.
+   */
+  includeLayer: (layer: GameLayer) => boolean = () => true,
 ): Phaser.GameObjects.RenderTexture {
   const rt = scene.add
     .renderTexture(0, 0, level.width * tileSize, level.height * tileSize)
@@ -150,7 +159,7 @@ export function bakeTileLayers(
   const stamper = new TileStamper(scene, tileSize);
   rt.beginDraw();
   for (const layer of level.layers) {
-    if (skipLayers.has(layer.name)) continue;
+    if (skipLayers.has(layer.name) || !includeLayer(layer)) continue;
     for (const tile of layer.tiles) {
       if (claimedTiles.has(tile)) continue;
       stamper.stamp(rt, tile);
@@ -160,6 +169,65 @@ export function bakeTileLayers(
   stamper.destroy();
 
   return rt;
+}
+
+/** One walk surface's (or the canopy's) baked art. */
+export interface BakedPlane {
+  /** The plane this texture belongs to, or {@link CANOPY} for roof art. */
+  plane: number;
+  texture: Phaser.GameObjects.RenderTexture;
+}
+
+/**
+ * Bakes one texture per walk surface, plus one for the canopy, each at its own
+ * depth — see `src/render/depths.ts`.
+ *
+ * A single-plane level yields exactly one texture at {@link BAKED_TILES_DEPTH},
+ * which is the level the engine has always drawn. The two-plane levels get their
+ * floor pushed below the deck, and their roof art lifted out of the ground
+ * texture entirely: `roof_array` files `rain_cover` after the deck, so baked in
+ * board order it paints a roof over the ground the player walks on.
+ */
+export function bakePlanes(
+  scene: Phaser.Scene,
+  level: GameLevel,
+  tileSize: number,
+  skipLayers: ReadonlySet<string>,
+  claimedTiles: ReadonlySet<GameTile>,
+): BakedPlane[] {
+  const planes = planeCount(level);
+  const out: BakedPlane[] = [];
+
+  for (let plane = 0; plane < planes; plane++) {
+    const texture = bakeTileLayers(
+      scene,
+      level,
+      tileSize,
+      skipLayers,
+      claimedTiles,
+      (l) => planeOfLayer(l.name) === plane,
+    );
+    texture.setDepth(BAKED_TILES_DEPTH + planeDepthOffset(plane, planes));
+    out.push({ plane, texture });
+  }
+
+  const hasCanopy = level.layers.some(
+    (l) => planeOfLayer(l.name) === CANOPY && l.tiles.length > 0,
+  );
+  if (hasCanopy) {
+    const texture = bakeTileLayers(
+      scene,
+      level,
+      tileSize,
+      skipLayers,
+      claimedTiles,
+      (l) => planeOfLayer(l.name) === CANOPY,
+    );
+    texture.setDepth(CANOPY_DEPTH);
+    out.push({ plane: CANOPY, texture });
+  }
+
+  return out;
 }
 
 /**

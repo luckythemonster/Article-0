@@ -11,7 +11,7 @@ import { Player } from "../../entities/Player";
 import { Sensor } from "../../entities/Sensor";
 import { Terminal } from "../../entities/Terminal";
 import { indexEntities, indexFixtures, type EntityIndex } from "../../map/EntityIndex";
-import { bakeTileLayers, buildWallBodies, type CoverBody } from "../../map/TileBake";
+import { bakePlanes, buildWallBodies, type BakedPlane, type CoverBody } from "../../map/TileBake";
 import type { GameLevel, GameTile } from "../../map/types";
 import type { CollisionGrid } from "../../systems/CollisionGrid";
 import type { DetectionSystem } from "../../systems/DetectionSystem";
@@ -57,6 +57,12 @@ export interface BuiltLevel {
   /** Arcade bodies for the closed doors, for the player collider. */
   doorBodies: Phaser.GameObjects.GameObject[];
   /**
+   * The level's baked art, one texture per walk surface plus the canopy — see
+   * `bakePlanes`. A single-plane level has exactly one entry, at the depth the
+   * engine has always drawn its tiles.
+   */
+  planes: BakedPlane[];
+  /**
    * Tiles that became entities, and so were left out of the bake.
    *
    * Handed on so `src/ui/MemoryLayer.ts` can skip exactly the same tiles: what
@@ -88,7 +94,10 @@ export function buildLevel(
   const index = indexEntities(level, entityLayers);
   indexFixtures(level, index);
 
-  const tileTexture = bakeTileLayers(scene, level, tileSize, entityLayers, index.claimed);
+  const planes = bakePlanes(scene, level, tileSize, entityLayers, index.claimed);
+  // Destructible cover stamps itself back into the art it was cut from, and cover
+  // is floor-plane furniture, so it belongs to the floor's texture.
+  const tileTexture = planes[0].texture;
   const { wallBodies, coverBodies: coverBodyEntries } = buildWallBodies(scene, level, tileSize);
 
   const built: BuiltLevel = {
@@ -105,6 +114,7 @@ export function buildLevel(
     coverBodies: coverBodyEntries.map((e) => e.body),
     doorBodies: [],
     claimedTiles: index.claimed,
+    planes,
   };
 
   spawnCast(scene, level, tileSize, index, built);

@@ -31,6 +31,7 @@ import { playVfx, EMP_BLAST, ELECTRONICS_SPARK, IMPACT } from "../entities/Vfx";
 import { buildAlertNetworkSnapshot, NoiseSpamTracker } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
 import { MemoryLayer } from "../ui/MemoryLayer";
+import { PlaneOverlay } from "../ui/PlaneOverlay";
 import { EntityShadows, type ShadowCaster } from "../ui/EntityShadows";
 import { rayDirections, sightDistances, walkRayCells, SIGHT_RAYS } from "../systems/Visibility";
 import {
@@ -319,6 +320,10 @@ export class GameScene extends Phaser.Scene {
   private exploredCooldown = 0;
   /** Remembered geometry, drawn where the player can no longer see it. */
   private memory!: MemoryLayer;
+  /** Fades whichever surface is over the player's head — roof, or gantry. */
+  private planeOverlay!: PlaneOverlay;
+  /** Which walk surface the player is on; 0 everywhere but the two deck levels. */
+  private plane = 0;
   /**
    * The explored sweep's own ray fan and distance buffer.
    *
@@ -575,6 +580,7 @@ export class GameScene extends Phaser.Scene {
     );
     this.memory.clipTo(this.lighting.shadowGeometry);
     this.memory.prime(this.explored);
+    this.planeOverlay = new PlaneOverlay(this.level, this.tileSize, built.planes);
 
     if (!this.scene.isActive("UIScene")) this.scene.launch("UIScene");
 
@@ -2000,6 +2006,7 @@ export class GameScene extends Phaser.Scene {
     this.playTimeMs += delta;
     this.registry.set("playTimeMs", this.playTimeMs);
     this.markExplored(dt);
+    this.planeOverlay.update(dt, this.player.x, this.player.y, this.plane, this.tileSize);
   }
 
   /**
