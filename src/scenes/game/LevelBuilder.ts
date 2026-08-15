@@ -19,7 +19,7 @@ import {
   type CoverBody,
 } from "../../map/TileBake";
 import type { GameLevel, GameTile } from "../../map/types";
-import { PLANE_UPPER } from "../../map/planes";
+import { deckCells, deckPlaneAt, PLANE_UPPER } from "../../map/planes";
 import type { CollisionGrid } from "../../systems/CollisionGrid";
 import type { DetectionSystem } from "../../systems/DetectionSystem";
 import { str } from "../../systems/EntityStats";
@@ -201,6 +201,11 @@ function spawnCast(
   index: EntityIndex,
   out: BuiltLevel,
 ): void {
+  // A character belongs to whichever surface its first waypoint stands on. Per
+  // cell rather than per board, because the boards the cast sits on say nothing
+  // about height — see `deckPlaneAt`.
+  const deck = deckCells(level, tileSize);
+  const planeOf = (t: { x: number; y: number }): number => deckPlaneAt(deck, level, t.x, t.y);
   // A guard board is one guard's *route*, not a headcount — see
   // `routeFromLayer`. Each board therefore spawns a single guard standing on
   // waypoint 0 and walking the rest as a loop.
@@ -208,7 +213,7 @@ function spawnCast(
     const start = g.route[0];
     out.guards.push(
       g.kind === "drone"
-        ? new Drone(scene, start.x, start.y, tileSize, g.components, g.route)
+        ? new Drone(scene, start.x, start.y, tileSize, g.components, g.route, planeOf(start))
         : new Enforcer(
             scene,
             start.x,
@@ -217,6 +222,7 @@ function spawnCast(
             g.components,
             ENFORCER_SKIN,
             g.route,
+            planeOf(start),
           ),
     );
   }
@@ -272,6 +278,9 @@ function spawnInteractables(
   index: EntityIndex,
   out: BuiltLevel,
 ): void {
+  const deck = deckCells(level, tileSize);
+  const planeOf = (t: { x: number; y: number }): number => deckPlaneAt(deck, level, t.x, t.y);
+
   for (const t of index.doors) {
     const door = new Door(scene, t, tileSize, grid);
     out.doors.push(door);
@@ -280,13 +289,15 @@ function spawnInteractables(
 
   for (const t of index.terminals) out.terminals.push(new Terminal(scene, t, tileSize));
   for (const t of index.chests) out.chests.push(new Chest(scene, t, tileSize));
-  for (const t of index.sensors) out.sensors.push(new Sensor(scene, t, tileSize, grid));
+  for (const t of index.sensors) {
+    out.sensors.push(new Sensor(scene, t, tileSize, grid, planeOf(t)));
+  }
 
   // Sensor cameras: the legacy `security` board holds fixed optical cameras (its
   // tiles use a laser-ref sprite but are reinterpreted as cameras here). v0.4's
   // cameras carry a `Sensor` component and come through the index above.
   for (const t of level.layers.find((l) => l.name === "security")?.tiles ?? []) {
-    out.sensors.push(new Sensor(scene, t, tileSize, grid));
+    out.sensors.push(new Sensor(scene, t, tileSize, grid, planeOf(t)));
   }
 
   // Lasers can sit on several boards (a dedicated `lasers` board, `duct2`'s

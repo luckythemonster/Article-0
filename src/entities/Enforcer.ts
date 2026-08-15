@@ -99,6 +99,12 @@ export interface EnforcerContext {
    * them to the short-range heat sense while breaking the visible cone.
    */
   playerThermalConcealed: boolean;
+  /**
+   * Which walk surface the player is on — see `src/map/planes.ts`. Sensing does
+   * not cross between them, so a guard on the floor loses a player who has
+   * climbed the gantry, and vice versa.
+   */
+  playerPlane?: number;
   /** Non-null while an EMP Grenade's EMP zone is live; guards inside it can't see. */
   chaffZone: { x: number; y: number; radiusPx: number } | null;
   /** Scales a guard's thermalRadius stat (in tiles) — 0 while Thermal Gel is active. */
@@ -219,6 +225,8 @@ export class Enforcer {
   /** Reused across frames — {@link canSense} only reads it. */
   private readonly eye: Eye;
 
+  /** Which walk surface this guard patrols — see `src/map/planes.ts`. */
+  readonly plane: number;
   private readonly cone: Phaser.GameObjects.Graphics;
   private readonly body: Phaser.GameObjects.Sprite;
   private readonly bang: Phaser.GameObjects.Text;
@@ -262,7 +270,9 @@ export class Enforcer {
     components: ComponentData[],
     skin: GuardSkin = ENFORCER_SKIN,
     route: PatrolRoute = [],
+    plane = 0,
   ) {
+    this.plane = plane;
     this.skin = skin;
     this.radiusTiles = skin.collisionRadiusTiles;
     this.stats = enforcerStatsFor(components);
@@ -287,6 +297,7 @@ export class Enforcer {
       rangeTiles: this.stats.sightRange,
       coneDegrees: this.stats.sightAngle,
       thermalTiles: this.stats.thermalRadius,
+      plane: this.plane,
     };
 
     this.cone = scene.add.graphics().setDepth(400);

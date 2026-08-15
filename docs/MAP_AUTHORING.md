@@ -115,7 +115,7 @@ read by name; the engine's own generators emit them.
 | Board | What the engine does | Component |
 | --- | --- | --- |
 | `spawn` | **First tile only** = player start. Extra tiles ignored. Falls back to level centre. | — |
-| `walls` | Collision grid + static physics bodies + blocks sight. Tile presence is enough. **Not the only solid board** — see §3.2. | — |
+| `walls` | Collision grid + static physics bodies + blocks sight. Tile presence is enough. **Not the only solid board** — see §3.3. | — |
 | `floor` | Nothing special — just art. (Only `VentCoreLevel` looks it up, for prototypes.) | — |
 | `doors` | Tiles **with** a `door` component become doors. Board-scoped on purpose: a `Door` component on any other board stays art, which is what keeps an elevator car's own doors from sealing the player inside. | **`door` required** |
 | `terminals` | Tiles **with** a `terminal` component become terminals. A `terminalN` tile here with *no* component is given the export's own `Terminal` defaults — see `InertTerminals.ts` — so anything else on this board should be named something else. | **`terminal` required** |
@@ -176,7 +176,56 @@ Practical notes for authoring:
   The same goes for orderlies and for spawn posts: two `enemySpawn` tiles on one board are
   one guard walking between them, not two standing at each.
 
-### 3.2 What blocks: the board says so, the tile says what shape
+### 3.2 Two walk surfaces: `catwalks` is a deck over the floor
+
+A level with a **`catwalks`** board carrying tiles has *two* walk surfaces. `floor` is
+the ground; `catwalks` is a raised deck laid over it, walkable exactly where its tiles
+are. Everything else — the seven levels with no such board — has one surface and behaves
+exactly as it always has.
+
+The rules, all derived, none of them needing anything new in the export:
+
+- **The deck's edge is its collision.** Anything that is not a deck tile stops you while
+  you are up there, which covers the drop off the side, the gaps between gantries and the
+  level border at once. You do not need a `chasm` board (and `vent_core`'s empty one does
+  nothing).
+- **Walls are structure the deck runs over.** On both shipped deck levels *every* wall
+  cell is also a deck cell, and `roof_array` runs deck columns the full height of the
+  level straight through its wall band — so walls block the floor and neither block nor
+  occlude the deck. Read the other way the gantry would be cut into islands. If you want
+  something solid up top, give it `Collision: 1` and it is handled as an ordinary solid.
+- **Nothing on the deck occludes sight**, for the same reason: you are above the walls.
+- **Fixtures belong to the surface their cell is on**, per tile — the boards they sit on
+  say nothing about height. `roof_array`'s dish and its east enforcer rail come out on the
+  gantry; its calibration terminals and both spawn posts come out on the deck floor.
+- **Sight and detection do not cross surfaces.** A guard on the floor loses you the moment
+  you climb, and vice versa. Noise is unaffected.
+
+#### Ways between the surfaces
+
+Put them on **`catwalk_access_up`**, **`floor_access_down`** or **`ramps`**, and place each
+tile on a floor cell **beside** a deck cell. That is the whole convention: the tile is the
+foot and the deck cell next to it is the head. Press `E` on either end to move between
+them.
+
+Both of the shipped map's conventions work, and neither is read as authoritative — the
+geometry is:
+
+```
+vent_core   catwalk_access_up + floor_access_down at the same coordinate  (one link, named twice)
+roof_array  ramps, single tiles                                            (one link each)
+```
+
+A link tile with no deck beside it is inert rather than a guess.
+
+#### Boards drawn above everything: `rain_cover`
+
+A **`rain_cover`** board is a canopy — roof art the player walks *under*. It is lifted out
+of the ground texture and drawn above the world, and it thins out while the player is
+beneath it so he stays visible. Filed as ordinary art it would paint a roof over the deck
+you walk on, which is exactly what it used to do.
+
+### 3.3 What blocks: the board says so, the tile says what shape
 
 Solidity is the **board's** `Collision` field, not a hardcoded list of names:
 
@@ -278,9 +327,8 @@ Three things follow from it:
   `hatch`, `ladder`, `stairs` or `elevator` — or a tile carrying a `Vertical` component —
   are read as ways out. `stairwell1` is art and stays art; that is deliberate, since the
   shipped map files two guard posts on `verticals` under that name.
-- **Ladders inside one level are not transitions.** The engine models no intra-level
-  verticals, so a catwalk↔floor ladder belongs on its own board (the shipped map uses
-  `catwalk_access_up` / `floor_access_down`), not on `verticals`.
+- **Ladders inside one level are not level transitions** — they are *plane* links, and
+  they belong on their own board, not on `verticals`. See §3.3.
 
 #### Elevators
 

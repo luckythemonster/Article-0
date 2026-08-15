@@ -1959,6 +1959,7 @@ export class GameScene extends Phaser.Scene {
     );
     this.sensing.setPlayer(this.player.x, this.player.y, noise, body.velocity.x, body.velocity.y);
     this.sensing.setConcealment(concealed, compliant, thermalConcealed);
+    this.sensing.setPlane(this.plane);
     // Opened doors/chests, EMP'd devices and stunned orderlies, for anomaly scanning.
     this.sensing.setAnomalies(this.buildAnomalies(this.sensing.chaffZone));
     this.sensing.setDeployables(this.deployables);

@@ -76,6 +76,23 @@ describe("canSense — cone", () => {
   });
 });
 
+describe("canSense — walk surfaces", () => {
+  it("cannot see a player who has climbed to the other surface", () => {
+    // Clear line of sight, dead ahead, well in range — and still nothing, because
+    // a gantry is a separate room that happens to share a skybox.
+    expect(canSense(eye({ plane: 0 }), world({ playerPlane: 1 }))).toBe(false);
+    expect(canSense(eye({ plane: 1 }), world({ playerPlane: 0 }))).toBe(false);
+  });
+
+  it("sees them normally once both are on the same surface", () => {
+    expect(canSense(eye({ plane: 1 }), world({ playerPlane: 1 }))).toBe(true);
+  });
+
+  it("defaults both to the floor, so a single-plane level is unaffected", () => {
+    expect(canSense(eye(), world())).toBe(true);
+  });
+});
+
 describe("canSense — suppression", () => {
   it("clears a compliant player at any range, cone or thermal", () => {
     const w = world({ playerCompliant: true, player: { x: TILE, y: 0 } });

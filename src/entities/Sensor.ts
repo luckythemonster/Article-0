@@ -39,7 +39,17 @@ export class Sensor {
   /** Reused across frames — {@link canSense} only reads it. */
   private readonly eye: Eye;
 
-  constructor(scene: Phaser.Scene, tile: GameTile, tileSize: number, grid: CollisionGrid) {
+  /** Which walk surface this camera watches — see `src/map/planes.ts`. */
+  readonly plane: number;
+
+  constructor(
+    scene: Phaser.Scene,
+    tile: GameTile,
+    tileSize: number,
+    grid: CollisionGrid,
+    plane = 0,
+  ) {
+    this.plane = plane;
     this.stats = sensorStatsFor(tile.components);
     this.x = (tile.x + 0.5) * tileSize + tile.offsetX;
     this.y = (tile.y + 0.5) * tileSize + tile.offsetY;
@@ -52,6 +62,7 @@ export class Sensor {
       rangeTiles: this.stats.detectionRange,
       coneDegrees: this.stats.sightAngle,
       thermalTiles: this.stats.thermalRadius,
+      plane,
     };
 
     this.cone = scene.add.graphics().setDepth(400);

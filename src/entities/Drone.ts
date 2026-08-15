@@ -18,7 +18,8 @@ export class Drone extends Enforcer {
     tileSize: number,
     components: ComponentData[],
     route: PatrolRoute = [],
+    plane = 0,
   ) {
-    super(scene, tileX, tileY, tileSize, components, DRONE_SKIN, route);
+    super(scene, tileX, tileY, tileSize, components, DRONE_SKIN, route, plane);
   }
 }
