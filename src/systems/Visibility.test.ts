@@ -4,6 +4,7 @@ import {
   rayDirections,
   rayDistance,
   sightDistances,
+  walkRayCells,
   SIGHT_RAYS,
   WALL_REVEAL_TILES,
 } from "./Visibility";
@@ -362,5 +363,60 @@ describe("sightDistances optimization parity and benchmark", () => {
     console.log(`[BENCHMARK] Fallback path: ${fallbackTime.toFixed(2)}ms, Fast path: ${fastTime.toFixed(2)}ms (Speedup: ${speedup.toFixed(2)}x)`);
 
     expect(fastTime).toBeLessThanOrEqual(fallbackTime + 15.0);
+  });
+});
+
+describe("walkRayCells", () => {
+  /** Collects the cells a ray covers, as "x,y" keys. */
+  function cover(ox: number, oy: number, dx: number, dy: number, max: number): string[] {
+    const out: string[] = [];
+    walkRayCells(ox, oy, dx, dy, max, (x, y) => out.push(`${x},${y}`));
+    return out;
+  }
+
+  it("visits the origin cell even with no reach at all", () => {
+    expect(cover(2.5, 3.5, 1, 0, 0)).toEqual(["2,3"]);
+  });
+
+  it("walks a straight run one cell at a time", () => {
+    expect(cover(0.5, 0.5, 1, 0, 3)).toEqual(["0,0", "1,0", "2,0", "3,0"]);
+  });
+
+  it("covers the cell the ray ends inside, not just the ones it fully crosses", () => {
+    // Ends at x=2.2, which is inside cell 2 — you have seen it.
+    expect(cover(0.5, 0.5, 1, 0, 1.7)).toEqual(["0,0", "1,0", "2,0"]);
+  });
+
+  it("steps both axes on a diagonal", () => {
+    const cells = cover(0.5, 0.5, Math.SQRT1_2, Math.SQRT1_2, 2);
+    expect(cells[0]).toBe("0,0");
+    expect(cells).toContain("1,1");
+    // Every step moves exactly one cell on exactly one axis.
+    for (let i = 1; i < cells.length; i++) {
+      const [ax, ay] = cells[i - 1].split(",").map(Number);
+      const [bx, by] = cells[i].split(",").map(Number);
+      expect(Math.abs(bx - ax) + Math.abs(by - ay)).toBe(1);
+    }
+  });
+
+  it("marks exactly what a cast saw: the room, its walls, and nothing past them", () => {
+    // The pairing that makes the explored mask agree with the darkness. A sealed
+    // 1x1 room at (1,1): every ray stops in the wall ring, so the cells covered
+    // are the room and its eight walls — never the open floor beyond.
+    const g = new CollisionGrid(sealedLevel());
+    const dirs = rayDirections(64);
+    const dist = new Float64Array(64);
+    sightDistances(g, 1.5, 1.5, 20, dirs, dist);
+
+    const seen = new Set<string>();
+    for (let i = 0; i < 64; i++) {
+      walkRayCells(1.5, 1.5, dirs.cos[i], dirs.sin[i], dist[i], (x, y) => seen.add(`${x},${y}`));
+    }
+
+    for (let y = 0; y <= 2; y++) {
+      for (let x = 0; x <= 2; x++) expect(seen.has(`${x},${y}`)).toBe(true);
+    }
+    expect(seen.has("3,1")).toBe(false);
+    expect(seen.has("1,3")).toBe(false);
   });
 });

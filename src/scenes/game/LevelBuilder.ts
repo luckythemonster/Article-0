@@ -12,7 +12,7 @@ import { Sensor } from "../../entities/Sensor";
 import { Terminal } from "../../entities/Terminal";
 import { indexEntities, indexFixtures, type EntityIndex } from "../../map/EntityIndex";
 import { bakeTileLayers, buildWallBodies, type CoverBody } from "../../map/TileBake";
-import type { GameLevel } from "../../map/types";
+import type { GameLevel, GameTile } from "../../map/types";
 import type { CollisionGrid } from "../../systems/CollisionGrid";
 import type { DetectionSystem } from "../../systems/DetectionSystem";
 import { str } from "../../systems/EntityStats";
@@ -56,6 +56,14 @@ export interface BuiltLevel {
   coverBodies: Phaser.GameObjects.GameObject[];
   /** Arcade bodies for the closed doors, for the player collider. */
   doorBodies: Phaser.GameObjects.GameObject[];
+  /**
+   * Tiles that became entities, and so were left out of the bake.
+   *
+   * Handed on so `src/ui/MemoryLayer.ts` can skip exactly the same tiles: what
+   * the player remembers of a room is the art that was painted into it, never
+   * the guard who happened to be standing there.
+   */
+  claimedTiles: ReadonlySet<GameTile>;
 }
 
 /**
@@ -96,6 +104,7 @@ export function buildLevel(
     wallBodies,
     coverBodies: coverBodyEntries.map((e) => e.body),
     doorBodies: [],
+    claimedTiles: index.claimed,
   };
 
   spawnCast(scene, level, tileSize, index, built);

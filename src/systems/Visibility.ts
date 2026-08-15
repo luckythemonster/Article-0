@@ -184,6 +184,61 @@ export function rayDistance(
 }
 
 /**
+ * Visits every cell the ray from `(originX, originY)` along `(dirX, dirY)` passes
+ * through, out to `maxTiles` — the origin cell first, then each cell the walk
+ * enters, including the one it ends in.
+ *
+ * The same Amanatides–Woo stepping {@link rayDistance} uses, with no grid to
+ * consult: this answers "which cells did this ray cover", where that answers "how
+ * far did it get". Pairing the two is what lets the explored-tile sweep remember
+ * exactly the polygon the darkness carved, rather than approximating it with a
+ * second algorithm that disagrees at the edges.
+ *
+ * Because a cast distance already carries {@link WALL_REVEAL_TILES} past the face
+ * it stopped at, the wall cell itself is visited — which is what you want: you
+ * have seen that wall, and a remembered room with no walls is not a room.
+ */
+export function walkRayCells(
+  originX: number,
+  originY: number,
+  dirX: number,
+  dirY: number,
+  maxTiles: number,
+  visit: (tileX: number, tileY: number) => void,
+): void {
+  let ix = Math.floor(originX);
+  let iy = Math.floor(originY);
+  visit(ix, iy);
+  if (!(maxTiles > 0)) return;
+
+  const stepX = dirX > 0 ? 1 : -1;
+  const stepY = dirY > 0 ? 1 : -1;
+  const deltaX = dirX === 0 ? Infinity : Math.abs(1 / dirX);
+  const deltaY = dirY === 0 ? Infinity : Math.abs(1 / dirY);
+  let nextX =
+    dirX === 0 ? Infinity : dirX > 0 ? (ix + 1 - originX) / dirX : (ix - originX) / dirX;
+  let nextY =
+    dirY === 0 ? Infinity : dirY > 0 ? (iy + 1 - originY) / dirY : (iy - originY) / dirY;
+
+  let steps = Math.ceil(maxTiles) * 2 + 4;
+  while (steps-- > 0) {
+    let enter: number;
+    if (nextX < nextY) {
+      enter = nextX;
+      ix += stepX;
+      nextX += deltaX;
+    } else {
+      enter = nextY;
+      iy += stepY;
+      nextY += deltaY;
+    }
+    // Strictly greater: the cell the ray ends *inside* has been seen.
+    if (enter > maxTiles) return;
+    visit(ix, iy);
+  }
+}
+
+/**
  * {@link rayDistance} for every direction in `dirs`, written into `out` (which must
  * be at least as long) and returned. Reuse one `out` buffer across frames.
  */

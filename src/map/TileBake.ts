@@ -147,45 +147,82 @@ export function bakeTileLayers(
     .setOrigin(0, 0)
     .setDepth(BAKED_TILES_DEPTH);
 
-  // Tiles that span more than their own cell (or sit off its centre) are drawn
-  // through this instead of `batchDrawFrame`, which takes a position but no
-  // size. Their art is authored pre-squished into one 32px cell and is meant to
-  // be stretched over the footprint — the same thing `Door` does for the door
-  // tiles, and what the `main2` glass panes need to read as glass at all. One
-  // reusable off-list image rather than one per tile: the same trick
-  // `Cover.destroy` uses to stamp against this texture.
-  let scaled: Phaser.GameObjects.Image | undefined;
-
+  const stamper = new TileStamper(scene, tileSize);
   rt.beginDraw();
   for (const layer of level.layers) {
     if (skipLayers.has(layer.name)) continue;
     for (const tile of layer.tiles) {
-      if (!tile.frame || claimedTiles.has(tile)) continue;
-      // `batchDrawFrame` takes a position and nothing else, so a mirrored tile has
-      // to go the long way round even when its geometry is otherwise plain.
-      if (isSingleCell(tile) && !tile.flipY) {
-        rt.batchDrawFrame(
-          tile.frame.textureKey,
-          tile.frame.frameKey,
-          tile.x * tileSize,
-          tile.y * tileSize,
-        );
-        continue;
-      }
-      const centre = footprintCentre(tile, tileSize);
-      scaled ??= scene.make.image({ key: tile.frame.textureKey, add: false }).setOrigin(0.5);
-      scaled
-        .setTexture(tile.frame.textureKey, tile.frame.frameKey)
-        .setDisplaySize(tile.colSpan * tileSize, tile.rowSpan * tileSize)
-        .setFlipY(tile.flipY === true)
-        .setPosition(centre.x, centre.y);
-      rt.batchDraw(scaled);
+      if (claimedTiles.has(tile)) continue;
+      stamper.stamp(rt, tile);
     }
   }
   rt.endDraw();
-  scaled?.destroy();
+  stamper.destroy();
 
   return rt;
+}
+
+/**
+ * Draws individual tiles into a RenderTexture, art-correct and batched.
+ *
+ * Split out of {@link bakeTileLayers} so the memory overlay
+ * (`src/ui/MemoryLayer.ts`) paints a remembered tile through *exactly* the path
+ * that painted it into the level in the first place. Footprints, offsets and
+ * mirroring are fiddly enough that a second implementation would drift, and a
+ * remembered room that doesn't line up with the real one is worse than none.
+ *
+ * Hold one across a batch and `destroy()` it after `endDraw()`.
+ */
+export class TileStamper {
+  /**
+   * Tiles that span more than their own cell (or sit off its centre) are drawn
+   * through this instead of `batchDrawFrame`, which takes a position but no
+   * size. Their art is authored pre-squished into one 32px cell and is meant to
+   * be stretched over the footprint — the same thing `Door` does for the door
+   * tiles, and what the `main2` glass panes need to read as glass at all. One
+   * reusable off-list image rather than one per tile: the same trick
+   * `Cover.destroy` uses to stamp against this texture.
+   */
+  private scaled: Phaser.GameObjects.Image | undefined;
+
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private readonly tileSize: number,
+  ) {}
+
+  /**
+   * Draws one tile. A frameless tile is skipped, exactly as the bake skips it.
+   * Call between the target's `beginDraw()` and `endDraw()`.
+   */
+  stamp(rt: Phaser.GameObjects.RenderTexture, tile: GameTile): void {
+    if (!tile.frame) return;
+    // `batchDrawFrame` takes a position and nothing else, so a mirrored tile has
+    // to go the long way round even when its geometry is otherwise plain.
+    if (isSingleCell(tile) && !tile.flipY) {
+      rt.batchDrawFrame(
+        tile.frame.textureKey,
+        tile.frame.frameKey,
+        tile.x * this.tileSize,
+        tile.y * this.tileSize,
+      );
+      return;
+    }
+    const centre = footprintCentre(tile, this.tileSize);
+    this.scaled ??= this.scene.make
+      .image({ key: tile.frame.textureKey, add: false })
+      .setOrigin(0.5);
+    this.scaled
+      .setTexture(tile.frame.textureKey, tile.frame.frameKey)
+      .setDisplaySize(tile.colSpan * this.tileSize, tile.rowSpan * this.tileSize)
+      .setFlipY(tile.flipY === true)
+      .setPosition(centre.x, centre.y);
+    rt.batchDraw(this.scaled);
+  }
+
+  destroy(): void {
+    this.scaled?.destroy();
+    this.scaled = undefined;
+  }
 }
 
 /**
