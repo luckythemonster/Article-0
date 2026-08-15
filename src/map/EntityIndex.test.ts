@@ -148,11 +148,12 @@ describe("EntityIndex — the cast", () => {
     ]);
   });
 
-  it("takes the spawn tiles off a board that also holds art, and leaves the art", () => {
+  it("keeps spawn posts individual on a board the engine reads for something else", () => {
     // main2vault files two stairwell pieces that are guard posts on `verticals`,
-    // beside the stair that is a real way out. The stair must stay art, and the
-    // two posts become one guard's round — a board is one entity, so a level
-    // wanting two guards here needs two boards.
+    // beside the stair that is a real way out. A board is one character only when
+    // the board *is* that character — `verticals` is the level's ways out, so its
+    // two posts are two men watching a stairwell, not one shuffling between
+    // adjacent tiles. The stair itself must stay art either way.
     const ix = indexEntities(
       level({
         verticals: [
@@ -163,11 +164,8 @@ describe("EntityIndex — the cast", () => {
       }),
       LEGACY,
     );
-    expect(ix.guards).toHaveLength(1);
-    expect(ix.guards[0].route).toEqual([
-      { x: 25, y: 15 },
-      { x: 25, y: 16 },
-    ]);
+    expect(ix.guards).toHaveLength(2);
+    expect(ix.guards.map((g) => g.route)).toEqual([[{ x: 25, y: 15 }], [{ x: 25, y: 16 }]]);
     // The stair itself is art the bake still has to paint.
     expect([...ix.claimed].map((t) => t.y).sort()).toEqual([15, 16]);
   });

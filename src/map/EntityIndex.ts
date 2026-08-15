@@ -1,5 +1,6 @@
 import { str } from "../systems/EntityStats";
 import { routeFromLayer, type PatrolRoute } from "../systems/PatrolRoute";
+import { transitionClassOf } from "../systems/TransitionGraph";
 import type { GameLayer, GameLevel, GameTile } from "./types";
 
 /**
@@ -159,11 +160,31 @@ export function indexEntities(level: GameLevel, legacyBoards: ReadonlySet<string
     // which makes them waypoints, and makes the board one sentry's beat. A board
     // with a single tile still yields a single-waypoint post, which is what it
     // always did.
+    //
+    // Unless the board is one the engine already reads for something else. A
+    // board is one character only when the board *is* that character; `verticals`
+    // is the level's ways out, and `main2vault` files two stairwell guard posts on
+    // it beside the stair itself. Those are two men watching a stairwell, not one
+    // man shuffling between two adjacent tiles — and an author who wanted a beat
+    // there would have given it its own board, as every other route on the map
+    // has. Same reasoning as `indexFixtures` below: what a shared board's tiles
+    // mean depends on the board.
     const spawns = layer.tiles.filter((t) => has(t, ENEMY_SPAWN));
     if (spawns.length > 0) {
-      const route = routeFromLayer({ ...layer, tiles: spawns });
-      out.guards.push({ kind: "enforcer", route, components: spawns[0].components });
-      claim(spawns);
+      if (transitionClassOf(layer.name)) {
+        for (const tile of spawns) {
+          out.guards.push({
+            kind: "enforcer",
+            route: [{ x: tile.x, y: tile.y }],
+            components: tile.components,
+          });
+          out.claimed.add(tile);
+        }
+      } else {
+        const route = routeFromLayer({ ...layer, tiles: spawns });
+        out.guards.push({ kind: "enforcer", route, components: spawns[0].components });
+        claim(spawns);
+      }
     }
 
     for (const tile of layer.tiles) {

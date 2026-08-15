@@ -96,10 +96,18 @@ time:
 | `Human` with `Job: SECURITY` | **One `Enforcer` for the whole board**, its tiles that guard's ordered waypoints — see §3.1 |
 | `Silicate` | Same, for one `Drone` — identical AI, different skin |
 | `Human` with `Job: ORDERLY` | Same, for one `Orderly`. It loiters near each stop before ambling to the next, rather than marching — see §3.1 |
-| `enemySpawn` | Same, for one `Enforcer`. There is no wave system, so a spawn point is a post, and several are a beat |
+| `enemySpawn` | Same, for one `Enforcer`. There is no wave system, so a spawn point is a post, and several on a board of their own are a beat — but see the exception below |
 
 A board mixing two *kinds* of body is refused rather than guessed, since it
 describes no single route.
+
+**The exception: a board the engine already reads for something else.** A board is
+one character only when the board *is* that character. `enemySpawn` tiles filed on a
+**transitions** board — `verticals`, `elevator*`, `stairs`, `maintenance_access`,
+`roof_access` — stay one sentry per tile, because that board is the level's ways out
+and the posts are sharing it. `main2vault` is the case: two `stairwell1` posts flanking
+the stair are two men watching it, not one man shuffling between adjacent tiles. Give a
+beat its own board, as every other route on the map does.
 
 And per tile, on any board:
 
@@ -173,8 +181,9 @@ Practical notes for authoring:
 - A leg A* can't solve is skipped, and the loop picks the waypoint up next time round, so a
   route temporarily severed by a locked door degrades rather than wedging the guard.
 - Want more guards on a level? That needs a second guard board, not more tiles on this one.
-  The same goes for orderlies and for spawn posts: two `enemySpawn` tiles on one board are
-  one guard walking between them, not two standing at each.
+  The same goes for orderlies, and for spawn posts on a board of their own: two
+  `enemySpawn` tiles on an `enforcer_spawn` board are one guard walking between them, not
+  two standing at each. (On a transitions board they stay one each — see §3's exception.)
 
 ### 3.2 Two walk surfaces: `catwalks` is a deck over the floor
 
