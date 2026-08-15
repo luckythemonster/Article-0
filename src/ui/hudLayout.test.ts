@@ -9,6 +9,14 @@ import {
   INVENTORY_TOP_LIMIT,
   MIN_CANVAS_H,
   MIN_CANVAS_W,
+  NETWORK_DETAIL_TOP,
+  NETWORK_LINE_H,
+  NETWORK_MAX_CHARS,
+  NETWORK_MAX_LINES,
+  NETWORK_PANEL_H,
+  NETWORK_PANEL_W,
+  NETWORK_TOP,
+  PANEL_INSET,
   RADAR_BOTTOM,
   STATUS_STACK_RIGHT,
   hintWrapWidth,
@@ -18,7 +26,8 @@ import {
   radarLeft,
   sharedFieldLeft,
 } from "./hudLayout";
-import { UI_PAD } from "./hudTheme";
+import { UI_PAD, UI_TEXT } from "./hudTheme";
+import { UI_TEXTURES } from "./UiTextures";
 
 /**
  * The HUD's budget guard.
@@ -123,6 +132,45 @@ describe("hudLayout: the bottom-left controls hint", () => {
     const width = monoWidth(controlsHintLine().length, 12);
     expect(Math.ceil(width / hintWrapWidth(MIN_CANVAS_W))).toBeLessThanOrEqual(4);
     expect(Math.ceil(width / hintWrapWidth(1280))).toBeLessThanOrEqual(2);
+  });
+});
+
+describe("hudLayout: the alert-network panel", () => {
+  /** The type size the readout draws its rows at. */
+  const SMALL = Number.parseInt(UI_TEXT.small, 10);
+
+  it("insets its contents by the panel art's own nine-slice border", () => {
+    // If these two ever disagree, the readout's text drifts onto the casing —
+    // over the bevel and the rivets — instead of sitting in the flat well.
+    const panel = UI_TEXTURES.find((t) => t.key === "ui-panel");
+    expect(panel?.slice).toBe(PANEL_INSET);
+  });
+
+  it("fits its widest line inside the panel's interior", () => {
+    // `CONVERGING 12 → (100,100)` is the longest string `update` can build.
+    const widest = "CONVERGING 12 → (100,100)";
+    expect(widest.length).toBeLessThanOrEqual(NETWORK_MAX_CHARS);
+    const interior = NETWORK_PANEL_W - PANEL_INSET * 2;
+    expect(monoWidth(NETWORK_MAX_CHARS, SMALL)).toBeLessThanOrEqual(interior);
+  });
+
+  it("fits the status row inside the panel's interior", () => {
+    // The label sits at the interior's left edge and the phase 70px along it.
+    const widestPhase = "SEARCHING".length;
+    const interior = NETWORK_PANEL_W - PANEL_INSET * 2;
+    expect(70 + monoWidth(widestPhase, SMALL)).toBeLessThanOrEqual(interior);
+  });
+
+  it("is tall enough for every row it can show", () => {
+    const needed = PANEL_INSET * 2 + NETWORK_DETAIL_TOP + NETWORK_MAX_LINES * (NETWORK_LINE_H + 2);
+    expect(NETWORK_PANEL_H).toBeGreaterThanOrEqual(needed);
+  });
+
+  it("stays on screen at the smallest supported canvas", () => {
+    // The readout is the bottom of the left column, so it is the one that runs
+    // out of room first when the window shrinks.
+    expect(NETWORK_TOP + NETWORK_PANEL_H).toBeLessThanOrEqual(MIN_CANVAS_H);
+    expect(UI_PAD + NETWORK_PANEL_W).toBeLessThanOrEqual(MIN_CANVAS_W);
   });
 });
 

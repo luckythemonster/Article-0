@@ -207,6 +207,34 @@ wired up.
 
 ---
 
+## Interface art
+
+One piece of hand-drawn UI art ships: **`public/assets/ui/panel/ui-panel.png`**,
+the HUD's panel frame. Everything about how to draw or replace it lives in
+`docs/GUI_STYLE_GUIDE.md` §4; what belongs here is why it is the shape it is.
+
+It is authored in **Pixquare** (`ui-panel.aseprite`, with the exported spritesheet
+zip beside it) — a different tool from anything else in this document, which is
+fine, because the export is an ordinary padded sprite sheet and nothing in the
+build cares what drew it.
+
+The interface obeys a *stricter* rule than the world does. `UIScene` is unzoomed,
+so where a world sprite may be drawn at 1, 2 or 3 screen pixels per source pixel,
+a UI texture reaches the screen at exactly the size it was authored — see
+`src/render/uiScale.ts` and its test. The panel is 48×48 shown at 48×48.
+
+It is also the first piece of art here that **animates without being an effect**.
+Five frames differing by twelve pixels — a status lamp — and the frames are
+addressed by *state* rather than played as a clip: `src/ui/PanelLed.ts` maps the
+security phase onto a lamp, so the frame the panel shows is a readout, not a
+timeline. That is why it is not in `Vfx.ts` despite also being a sprite animation.
+
+The lamp survives nine-slice stretching for one reason worth remembering if you
+draw another: **it sits in a corner**, and nine-slice reproduces corners at native
+size. Detail in an edge or the middle would smear the moment a panel grew.
+
+---
+
 ## Sprite scaling still matters
 
 There is no regeneration step any more, but the whole-number rule above has not

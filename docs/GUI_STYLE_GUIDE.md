@@ -114,20 +114,64 @@ Panels are the one thing that cannot be a fixed sprite: they wrap content of
 different widths, and some change width at runtime. They ship as **nine-slice** —
 corners fixed, edges stretched along one axis, middle stretched both ways.
 
-- **Source size: 48x48. Slice inset: 12px.** That gives four 12x12 corners, four
+The shipped panel is `public/assets/ui/panel/ui-panel.png`, a bevelled casing with
+a recessed well, rivets, a gem, and a status lamp. Draw a replacement to the same
+terms:
+
+- **Frame size: 48x48. Slice inset: 12px.** That gives four 12x12 corners, four
   12x24 edges, and a 24x24 middle. Registered as `ui-panel` in
-  `src/ui/UiTextures.ts`.
+  `src/ui/UiTextures.ts`, and mirrored by `PANEL_INSET` in `hudLayout.ts`, which
+  is what every widget insets its contents by. **Change one and change the other**
+  or text lands on the casing instead of in the well.
 - **Only the corners are safe for detail.** Anything drawn in an edge region gets
   stretched along that edge — a bolt head in the top edge becomes a smear. Put
-  detail in corners; keep edges to lines that survive stretching.
+  detail in corners; keep edges to lines that survive stretching. The shipped
+  panel obeys this exactly: its rivets, gem and lamp are all inside the 12px
+  corners, which is what lets it carry that much detail at any size.
 - **1px stroke weight.** At 1:1 there is no zoom to hide a 2px line, and the HUD's
   existing chrome is all 1px. Use `--c-border-cool` for the default border.
-- **The middle should be near-flat.** `--c-bg-panel` at ~85% alpha is what the
-  drawn fallback uses; a gradient in the middle region stretches unevenly.
+- **The middle must be near-flat and dark.** It is the surface HUD text sits on,
+  and it is the region stretched in both axes, so a gradient there stretches
+  unevenly *and* costs legibility. `--c-bg-panel` is the right value; anything
+  much lighter puts the faint end of the text ramp out of reach.
 
 Panels degrade to a stroked rectangle when the art is absent (`uiPanel()` in
 `src/ui/NineSlicePanel.ts`), so the sprite should read as an *upgrade* of that
 rectangle, not a different visual language.
+
+### The status lamp
+
+The panel is **five frames**, not one, and they differ by twelve pixels: a lamp in
+the top-right corner. `src/ui/PanelLed.ts` owns what the frames mean.
+
+| state | frame(s) | colour | rhythm | shown when |
+|---|---|---|---|---|
+| `off` | 1 | unlit | steady | every panel but one |
+| `active` | 2, 1 | `--c-green` | 500ms lit, 100ms dark | `INFILTRATION` |
+| `warning` | 3, 4 | `--c-amber-bright` | 111ms even | `EVASION` |
+| `alert` | 0, 1 | `--c-red-deep` | 100ms even | `ALERT` |
+
+The uneven durations are the point: a long beat with a short blink reads as a
+heartbeat, an even fast alternation reads as an alarm. Keep them if you redraw.
+
+**Exactly one panel lights its lamp** — the alert-network readout, whose text says
+the same thing the lamp does. A HUD of panels all blinking together reads as a
+fault rather than a readout, so `uiPanel()` defaults to `off` and callers opt in
+with `attachPanelLed`.
+
+Phaser animations cannot drive this: `play()` belongs to `Sprite` and a
+`NineSlice` is a mesh. Frames are stepped by hand, and **`setFrame` must be
+followed by `updateUVs()`** — without it the frame changes and the panel goes on
+drawing the old one, silently. Resizing is the mirror image: `setSize` then
+`updateVertices()`, which is what `placePanel()` wraps.
+
+### Exporting it
+
+The source is `ui-panel.aseprite`, authored in Pixquare. Export as a spritesheet
+zip and drop `ui-panel.png` over the committed one — no code change needed,
+provided the frame order and the **1px margin / 2px spacing** hold. The sheet is a
+3x2 grid with the sixth slot empty; `sheet.count` in the manifest is what stops
+Phaser's generated sixth frame from ever being drawn.
 
 ## 5. Item and status icons
 
@@ -251,6 +295,7 @@ file at a time without a flag day.
 | the 1:1 rule | `src/render/uiScale.ts` |
 | texture manifest | `src/ui/UiTextures.ts` |
 | nine-slice helper | `src/ui/NineSlicePanel.ts` |
+| the panel's status lamp | `src/ui/PanelLed.ts` |
 | icon paths | `src/systems/ItemIcons.ts` |
 | fonts and the 14 glyphs | `src/ui/fonts.ts` |
 | the two round instruments | `src/ui/Radar.ts`, `src/ui/BioMonitor.ts` |

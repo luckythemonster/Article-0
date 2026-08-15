@@ -1,8 +1,10 @@
 import Phaser from "phaser";
 import type { ActiveItemsView } from "../systems/ActiveItems";
 import { FONT_MONO } from "./fonts";
+import { PANEL_INSET } from "./hudLayout";
 import { UI, UI_DEPTH, UI_PAD, UI_TEXT } from "./hudTheme";
 import { inventoryLines } from "./inventoryLines";
+import { placePanel, uiPanel } from "./NineSlicePanel";
 import { onResize } from "./resize";
 
 /**
@@ -19,10 +21,16 @@ import { onResize } from "./resize";
  */
 export class InventoryHud {
   private readonly text: Phaser.GameObjects.Text;
+  private readonly panel: Phaser.GameObjects.NineSlice | Phaser.GameObjects.Rectangle;
   private lastRender = "";
 
   constructor(scene: Phaser.Scene) {
     const pad = UI_PAD;
+
+    // Created before the text so it sorts underneath at equal depth, though
+    // UI_DEPTH.PANEL already puts it there.
+    this.panel = uiPanel(scene, 0, 0, 1, 1);
+
     this.text = scene.add
       .text(scene.scale.width - pad, scene.scale.height - pad, "", {
         fontFamily: FONT_MONO,
@@ -35,7 +43,34 @@ export class InventoryHud {
       .setScrollFactor(0)
       .setDepth(UI_DEPTH.BASE);
 
-    onResize(scene, (w, h) => this.text.setPosition(w - pad, h - pad));
+    onResize(scene, (w, h) => {
+      this.text.setPosition(w - pad, h - pad);
+      this.fitPanel();
+    });
+
+    this.fitPanel();
+  }
+
+  /**
+   * Wraps the panel around whatever the readout currently says.
+   *
+   * The text is bottom-right anchored and its box changes with the inventory, so
+   * the panel is derived from the text's measured bounds rather than a budget.
+   * Nine-slice is what makes that cheap — the border is reproduced at any size
+   * instead of being redrawn — and it is why the strip can gain a frame without
+   * `inventoryLines` learning anything about panels.
+   *
+   * Hidden entirely while the readout is empty: an empty inventory would
+   * otherwise leave a bare 24px box of trim sitting in the corner.
+   */
+  private fitPanel(): void {
+    const empty = this.lastRender.length === 0;
+    this.panel.setVisible(!empty);
+    if (empty) return;
+
+    const w = this.text.width + PANEL_INSET * 2;
+    const h = this.text.height + PANEL_INSET * 2;
+    placePanel(this.panel, this.text.x - this.text.width - PANEL_INSET, this.text.y - this.text.height - PANEL_INSET, w, h);
   }
 
   update(items: string[], active: ActiveItemsView, selected: string | undefined): void {
@@ -44,5 +79,7 @@ export class InventoryHud {
     if (body === this.lastRender) return;
     this.lastRender = body;
     this.text.setText(body);
+    // After setText, so the bounds are the new ones.
+    this.fitPanel();
   }
 }
