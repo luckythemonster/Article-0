@@ -9,6 +9,10 @@ currently drawn with rectangles and strokes rather than art. This document is fo
 replacing that with hand-drawn chrome, and for the one existing set of UI art —
 the item icons — which does not currently follow any of it.
 
+> This is the *how*. For **what is actually outstanding** — every sprite still
+> owed, at what size, and whether it needs code as well as art — see
+> [`SPRITE_BACKLOG.md`](./SPRITE_BACKLOG.md).
+
 ---
 
 ## 1. The one rule
