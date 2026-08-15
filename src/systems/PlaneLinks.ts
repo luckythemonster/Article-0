@@ -28,7 +28,23 @@ import type { GameLevel } from "../map/types";
  * is the foot, and the deck cell beside it is the head. So neither the direction
  * boards nor the ramp refs have to be trusted to say which way is up — the
  * geometry says it, and the two conventions need no separate code.
+ *
+ * The art agrees, which is worth knowing but not worth depending on: the four
+ * ramp refs name their own direction — `ramp_up_south_metal1`,
+ * `catwalk_ramp_up_east1`, `ramp_up_north_metal1`, `catwalk_up_west_metal1` —
+ * and all four match the foot→head vector derived here. A test asserts it, so a
+ * re-export that disagreed with itself would say so. The ladders carry no
+ * direction in their refs at all, which is why the geometry leads.
  */
+
+/**
+ * How a link is entered: a ramp is walked over, a ladder is climbed on `E`.
+ *
+ * The same distinction level transitions already draw — see
+ * `isInteractTransition` — and for the same reason: a ramp is a slope you walk
+ * up without thinking about it, a ladder is something you stop and get on.
+ */
+export type PlaneLinkKind = "ramp" | "ladder";
 
 /** One way between the two surfaces, usable in both directions. */
 export interface PlaneLink {
@@ -38,6 +54,47 @@ export interface PlaneLink {
   /** The head: the deck cell it leads onto. */
   toX: number;
   toY: number;
+  kind: PlaneLinkKind;
+}
+
+/**
+ * Refs that prompt rather than being walked over.
+ *
+ * The vocabulary is `TransitionGraph`'s `VERTICAL_REF`, narrowed to the ones
+ * that mean "climb this". Deliberately a list of what *prompts* rather than a
+ * list of what doesn't: `roof_array` has a ramp called `catwalk_up_west_metal1`
+ * whose ref never says "ramp", so a rule keyed on ramp-ish names would file it
+ * as a ladder and make the player press `E` at one corner of the roof and not
+ * the other three.
+ */
+const PROMPT_REF = /^(access_hatch|hatch|ladder)/i;
+
+/** Which way a link tile is entered, from the art the author chose for it. */
+export function linkKindOf(ref: string | undefined): PlaneLinkKind {
+  return ref && PROMPT_REF.test(ref) ? "ladder" : "ramp";
+}
+
+/**
+ * Whether a body moving at `(vx, vy)` is heading from one cell toward another.
+ *
+ * The whole of the walk-over rule, and it has to exist because **every link head
+ * on the shipped map is a cell you walk *through*** — `roof_array`'s (23,7) sits
+ * in the middle of the x=23 gantry, so "standing on it goes down" would tip the
+ * player off the deck every time they walked that column. A ramp is entered by
+ * walking *at* it, which is both the fix and the honest reading of a slope.
+ *
+ * It also removes the ping-pong for free: having arrived, you are moving away
+ * from the end you came from, so the return trip cannot immediately fire.
+ */
+export function movingToward(
+  vx: number,
+  vy: number,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+): boolean {
+  return vx * (toX - fromX) + vy * (toY - fromY) > 0;
 }
 
 /** Boards whose tiles are ways between the surfaces of one level. */
@@ -86,7 +143,13 @@ export function planeLinksFor(level: GameLevel, tileSize: number): PlaneLink[] {
       );
       if (!head) continue;
       seen.add(key);
-      out.push({ x: tile.x, y: tile.y, toX: head.x, toY: head.y });
+      out.push({
+        x: tile.x,
+        y: tile.y,
+        toX: head.x,
+        toY: head.y,
+        kind: linkKindOf(tile.ref),
+      });
     }
   }
   return out;
