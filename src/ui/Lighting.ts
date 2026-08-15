@@ -170,6 +170,8 @@ export class Lighting {
   private dirty = true;
   /** Debug switch (see GameScene's `O` hotkey). */
   private enabled = true;
+  /** The walk surface the visibility polygon is cast against. */
+  private plane = 0;
   /** Scratch result for {@link sampleLight} — see the note there on why it is reused. */
   private readonly sample: LightSample = emptySample();
 
@@ -389,6 +391,18 @@ export class Lighting {
   }
 
   /**
+   * Which walk surface sight is cast against — see `src/map/planes.ts`.
+   *
+   * Changing it invalidates the polygon outright: the deck and the floor beneath
+   * it occlude completely differently, so there is nothing to reuse.
+   */
+  setPlane(plane: number): void {
+    if (plane === this.plane) return;
+    this.plane = plane;
+    this.dirty = true;
+  }
+
+  /**
    * Debug switch: hides the whole overlay so the level can be read at full
    * brightness. Re-enabling rebuilds both layers, since they went stale while off.
    */
@@ -450,6 +464,7 @@ export class Lighting {
       far / this.tileSize,
       this.dirs,
       this.dist,
+      this.plane,
     );
 
     const g = this.shadowGfx;

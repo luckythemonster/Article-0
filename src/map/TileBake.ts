@@ -33,7 +33,7 @@ import {
   isSingleCell,
   type Rect,
 } from "./footprint";
-import { CANOPY, planeCount, planeOfLayer } from "./planes";
+import { CANOPY, deckCells, planeCount, planeOfLayer } from "./planes";
 import { CANOPY_DEPTH, planeDepthOffset } from "../render/depths";
 import {
   blockingLayerNames,
@@ -375,6 +375,41 @@ export function buildWallBodies(
     wallBodies: rects.walls.map(toZone),
     coverBodies: rects.crawlable.map((r) => ({ tileX: r.tileX, tileY: r.tileY, body: toZone(r) })),
   };
+}
+
+/**
+ * Static bodies that pen the player onto the upper walk surface.
+ *
+ * The deck's edge *is* its collision: everything that is not a deck cell stops
+ * you, which covers the drop off the side, the gaps between gantries and the
+ * level border in one rule. Merged into maximal rectangles by the same
+ * {@link mergeWallRects} the walls use — `roof_array`'s off-deck region is 300-odd
+ * cells and would otherwise be 300-odd bodies.
+ *
+ * Built once at load for every plane and left inert; `GameScene` enables the
+ * collider for the surface the player is actually on.
+ */
+export function buildDeckEdgeBodies(
+  scene: Phaser.Scene,
+  level: GameLevel,
+  tileSize: number,
+): Phaser.GameObjects.GameObject[] {
+  const deck = deckCells(level, tileSize);
+  const rects = mergeWallRects(
+    level.width,
+    level.height,
+    (x, y) => deck[y * level.width + x] !== 1,
+  );
+  return rects.map((r) => {
+    const zone = scene.add.zone(
+      (r.x + r.w / 2) * tileSize,
+      (r.y + r.h / 2) * tileSize,
+      r.w * tileSize,
+      r.h * tileSize,
+    );
+    scene.physics.add.existing(zone, true);
+    return zone;
+  });
 }
 
 /** One crawlable tile's rectangle, tagged with the cell it belongs to. */

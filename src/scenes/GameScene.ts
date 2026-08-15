@@ -129,6 +129,8 @@ import { RelayState, type RelayTransition } from "../systems/RelayCore";
 import { ROOF_ARRAY_LEVEL } from "../map/RoofArrayLevel";
 import { Encounters } from "./game/Encounters";
 import { blockingLayerNames, isInteractTransition } from "../map/types";
+import { linkAt, planeLinksFor, type PlaneLink } from "../systems/PlaneLinks";
+import { PLANE_FLOOR, PLANE_UPPER } from "../map/planes";
 import { planFor, type MapPlan } from "../map/MapPlan";
 import { getAudio } from "../systems/AudioDirector";
 import { saveGame, clearSave, loadGame, type SlotId } from "../systems/SaveGame";
@@ -324,6 +326,12 @@ export class GameScene extends Phaser.Scene {
   private planeOverlay!: PlaneOverlay;
   /** Which walk surface the player is on; 0 everywhere but the two deck levels. */
   private plane = 0;
+  /** The ways between this level's surfaces — empty on a single-plane level. */
+  private planeLinks: PlaneLink[] = [];
+  /** Bodies penning the player onto the deck, enabled only while he is on it. */
+  private deckEdgeCollider?: Phaser.Physics.Arcade.Collider;
+  /** Cleared when he steps off a link, so a switch never bounces straight back. */
+  private planeArmed = true;
   /**
    * The explored sweep's own ray fan and distance buffer.
    *
@@ -581,6 +589,13 @@ export class GameScene extends Phaser.Scene {
     this.memory.clipTo(this.lighting.shadowGeometry);
     this.memory.prime(this.explored);
     this.planeOverlay = new PlaneOverlay(this.level, this.tileSize, built.planes);
+    this.planeLinks = planeLinksFor(this.level, this.tileSize);
+    if (built.deckEdgeBodies.length > 0) {
+      this.deckEdgeCollider = this.physics.add.collider(this.player.sprite, built.deckEdgeBodies);
+      // Inert until he actually climbs: on the floor the deck's edges are
+      // overhead, not underfoot.
+      this.deckEdgeCollider.active = false;
+    }
 
     if (!this.scene.isActive("UIScene")) this.scene.launch("UIScene");
 
@@ -863,6 +878,39 @@ export class GameScene extends Phaser.Scene {
     const dx = Math.max(Math.abs(viewX - v.x), Math.abs(v.right - viewX));
     const dy = Math.max(Math.abs(viewY - v.y), Math.abs(v.bottom - viewY));
     return (len(dx, dy) + this.tileSize) / this.tileSize;
+  }
+
+  /**
+   * Moves the player between this level's walk surfaces.
+   *
+   * Not a level transition: no scene restart, nothing rebuilt. What changes is
+   * which grid everything asks, which Arcade bodies pen him in, and where he is
+   * standing — the link's far end, so he arrives on the surface rather than
+   * hanging off its edge.
+   *
+   * The body is moved *before* the collider swaps, or he starts the next frame
+   * overlapping the deck's edge bodies and gets ejected off the gantry.
+   */
+  private switchPlane(link: PlaneLink): void {
+    const goingUp = this.plane === PLANE_FLOOR;
+    const to = goingUp ? { x: link.toX, y: link.toY } : { x: link.x, y: link.y };
+    const half = this.tileSize / 2;
+    this.player.moveTo(to.x * this.tileSize + half, to.y * this.tileSize + half);
+
+    this.plane = goingUp ? PLANE_UPPER : PLANE_FLOOR;
+    this.planeArmed = false;
+
+    // On the deck the floor's walls are below him and its cover is furniture he
+    // is standing over; the deck's own edge is the only thing that stops him.
+    if (this.deckEdgeCollider) this.deckEdgeCollider.active = goingUp;
+    if (this.wallCollider) this.wallCollider.active = !goingUp;
+    if (this.coverCollider) this.coverCollider.active = !goingUp;
+    if (this.doorCollider) this.doorCollider.active = !goingUp;
+
+    // Sight is cast against the surface he is on, so the darkness has to recast
+    // from scratch rather than reuse the polygon it built downstairs.
+    this.lighting.setPlane(this.plane);
+    getAudio().door();
   }
 
   /** Hands the pause menu everything its MAP tab needs to draw this level. */
@@ -2222,6 +2270,11 @@ export class GameScene extends Phaser.Scene {
     }
     const hatch = tr && isInteractTransition(tr.kind) && this.transitionArmed ? tr : undefined;
 
+    // --- Plane links: the ladders and ramps between this level's two surfaces ---
+    // Read before the E press is consumed below, so the prompt can offer it.
+    const link = linkAt(this.planeLinks, this.plane, Math.floor(ptx), Math.floor(pty));
+    if (!link) this.planeArmed = true;
+
     // A hold-up claims Rowan's hands: he cannot work a panel, empty a chest, swing a
     // door or fire the Stapler while pointing a weapon at somebody. Masking both E
     // reads here short-circuits the entire claim chain below in one place, because
@@ -2327,6 +2380,12 @@ export class GameScene extends Phaser.Scene {
       } else if (hatch) {
         this.beginTransition(hatch);
         return;
+      } else if (link && this.planeArmed) {
+        // A way between this level's own surfaces. Unlike a level transition it
+        // is not a scene restart — nothing is rebuilt, the player just steps onto
+        // the other surface where the link comes out.
+        this.switchPlane(link);
+        return;
       } else if (vault) {
         adjacentClaimedTap = true;
         this.beginVault(vault);
@@ -2369,7 +2428,7 @@ export class GameScene extends Phaser.Scene {
       nearestTerminalDist,
       nearestDoor,
       nearestDoorDist,
-      hatch !== undefined,
+      hatch !== undefined || (link !== undefined && this.planeArmed),
       nearestChest,
       nearestChestDist,
       encounter.label,

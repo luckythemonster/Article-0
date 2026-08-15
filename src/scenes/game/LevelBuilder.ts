@@ -11,8 +11,15 @@ import { Player } from "../../entities/Player";
 import { Sensor } from "../../entities/Sensor";
 import { Terminal } from "../../entities/Terminal";
 import { indexEntities, indexFixtures, type EntityIndex } from "../../map/EntityIndex";
-import { bakePlanes, buildWallBodies, type BakedPlane, type CoverBody } from "../../map/TileBake";
+import {
+  bakePlanes,
+  buildDeckEdgeBodies,
+  buildWallBodies,
+  type BakedPlane,
+  type CoverBody,
+} from "../../map/TileBake";
 import type { GameLevel, GameTile } from "../../map/types";
+import { PLANE_UPPER } from "../../map/planes";
 import type { CollisionGrid } from "../../systems/CollisionGrid";
 import type { DetectionSystem } from "../../systems/DetectionSystem";
 import { str } from "../../systems/EntityStats";
@@ -63,6 +70,11 @@ export interface BuiltLevel {
    */
   planes: BakedPlane[];
   /**
+   * Static bodies that pen the player onto the upper walk surface, or empty on a
+   * level with only one. `GameScene` swaps its collider to these when he steps up.
+   */
+  deckEdgeBodies: Phaser.GameObjects.GameObject[];
+  /**
    * Tiles that became entities, and so were left out of the bake.
    *
    * Handed on so `src/ui/MemoryLayer.ts` can skip exactly the same tiles: what
@@ -99,6 +111,10 @@ export function buildLevel(
   // is floor-plane furniture, so it belongs to the floor's texture.
   const tileTexture = planes[0].texture;
   const { wallBodies, coverBodies: coverBodyEntries } = buildWallBodies(scene, level, tileSize);
+  const deckEdgeBodies =
+    planes.length > 1 && planes[1].plane === PLANE_UPPER
+      ? buildDeckEdgeBodies(scene, level, tileSize)
+      : [];
 
   const built: BuiltLevel = {
     player: spawnPlayer(scene, level, tileSize, arriveTile),
@@ -115,6 +131,7 @@ export function buildLevel(
     doorBodies: [],
     claimedTiles: index.claimed,
     planes,
+    deckEdgeBodies,
   };
 
   spawnCast(scene, level, tileSize, index, built);
