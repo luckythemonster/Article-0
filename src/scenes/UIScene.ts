@@ -53,6 +53,8 @@ export class UIScene extends Phaser.Scene {
     next: Phaser.Input.Keyboard.Key;
     use: Phaser.Input.Keyboard.Key;
   };
+  /** Shows/hides the NETWORK panel — see `AlertNetworkHud.setShown`. */
+  private networkKey!: Phaser.Input.Keyboard.Key;
 
   constructor() {
     super("UIScene");
@@ -77,6 +79,7 @@ export class UIScene extends Phaser.Scene {
       next: kb.addKey(K.PERIOD),
       use: kb.addKey(K.ENTER),
     };
+    this.networkKey = kb.addKey(K.N);
   }
 
   update(_time: number, delta: number): void {
@@ -141,6 +144,12 @@ export class UIScene extends Phaser.Scene {
       sackLunchOpened: false,
     };
     this.inventory.update(items, activeItems, selected);
+
+    // Gated the same as the item keys: a keypress behind the pause menu, the
+    // codec or a minigame shouldn't toggle background HUD chrome.
+    if (!isSuspended(this.registry) && Phaser.Input.Keyboard.JustDown(this.networkKey)) {
+      this.network.setShown(!this.network.isShown());
+    }
 
     const network = this.registry.get("alertNetwork") as AlertNetworkSnapshot | undefined;
     if (network) this.network.update(network);

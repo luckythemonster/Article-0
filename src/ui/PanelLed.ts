@@ -1,25 +1,29 @@
-import type { AlertPhase } from "../systems/AlertState";
+import type { AlertNetworkSnapshot } from "../systems/AlertNetwork";
+import { UI_TEXTURES } from "./UiTextures";
 
 /**
  * What the panel's status LED is doing, and which frames say it.
  *
- * `ui-panel.png` is five 48x48 frames that are pixel-for-pixel identical except
- * for twelve pixels in the top-right corner: a lamp in its housing. The art was
- * authored with three named states, and their colours are the palette's own —
- * `--c-green` for nominal, `--c-amber-bright` for caution, `--c-red-deep` for
- * alert — so the lamp is not decoration. It is the same reading the NETWORK line
- * gives in words, in the corner of the frame around it.
+ * `ui-panel.png` is eight 48x48 frames sharing one casing (`base`), with two
+ * layers that actually move: `indicator_LEDs`, three small lamps in the
+ * bottom-right corner, and `screen`, a flat fill across the nine-slice middle
+ * that darkens to the panel's own background colour when nothing is happening
+ * and lifts to a lighter fill while it is. There is no longer a colour per
+ * security phase — the art only distinguishes two states, `off` and `in_use`,
+ * so this reads as an activity light rather than a mood ring: the console is
+ * either idle or it has something to show.
  *
- * The blink rates come from the art too, and they are deliberately uneven: a
- * long lit beat with a short blink reads as a heartbeat, an even fast alternation
- * reads as an alarm. A single frame rate would flatten that distinction, which is
- * why {@link PANEL_LED_CLIPS} carries a duration per frame rather than an fps.
+ * `in_use` is frame 0's tag pingponging across frames 1-7 (Aseprite direction
+ * 2), each held 100ms per the source file. {@link PANEL_LED_CLIPS} carries
+ * that sequence expanded into literal steps rather than reconstructing the
+ * bounce at runtime — the frame list is short and fixed, so there is nothing
+ * a general ping-pong player would buy over just writing it down.
  *
  * Kept free of Phaser so the timing can be tested without a scene.
  */
 
 /** Which lamp a panel is showing. */
-export type PanelLedState = "off" | "active" | "warning" | "alert";
+export type PanelLedState = "off" | "in_use";
 
 /** One step of a lamp's cycle: which frame, and how long it holds. */
 export interface PanelLedStep {
@@ -31,47 +35,54 @@ export interface PanelLedStep {
 
 /**
  * Every lamp's cycle, decoded from the tags and frame durations in
- * `public/assets/ui/panel/ui-panel.aseprite`.
+ * `public/assets/ui/panel/UI_panel.aseprite`.
  *
- * Frame 1 is the unlit lamp, which is why it appears in three of the four: it is
- * the gap in every blink, and it is the whole of `off`.
+ * Frame 0 is the idle frame — dark LEDs, the darker of the screen's two fills
+ * — and it is the whole of `off`. `in_use` never revisits it: the cycle
+ * bounces between frames 1 and 7 and back, which is what keeps the console
+ * reading as "on" for the full duration of the activity rather than flashing
+ * back to idle every lap.
  */
 export const PANEL_LED_CLIPS: Readonly<Record<PanelLedState, readonly PanelLedStep[]>> = {
-  /** A dark lamp. Every panel that isn't the status panel sits here. */
-  off: [{ frame: 1, duration: 0 }],
-  /** Nominal: a long green beat with a short gap. */
-  active: [
-    { frame: 2, duration: 500 },
-    { frame: 1, duration: 100 },
-  ],
-  /** Caution: an even amber blink, quicker than nominal's beat. */
-  warning: [
-    { frame: 3, duration: 111 },
-    { frame: 4, duration: 111 },
-  ],
-  /** Alert: an even red blink, the fastest of the three. */
-  alert: [
-    { frame: 0, duration: 100 },
-    { frame: 1, duration: 100 },
-  ],
+  /** Idle. Every panel that isn't the status panel sits here. */
+  off: [{ frame: 0, duration: 0 }],
+  /** Working: the LED trio and the screen fill cycle 1→7→1, 100ms a step. */
+  in_use: [1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2].map((frame) => ({ frame, duration: 100 })),
 };
 
 /**
- * The lamp for a security phase.
+ * Whether the security network has anything to show.
  *
- * The mapping is the art's, not an invention: the tags are named ACTIVE, WARNING
- * and ALERT and coloured to match what `AlertNetworkHud` already prints for
- * INFILTRATION, EVASION and ALERT.
+ * `in_use` whenever a unit is actively spotting, merely suspicious, or
+ * converging on a last-known position — any of the three is the network
+ * doing work, which is what the lamp is standing in for. `off` only when the
+ * board is fully quiet, the same reading the NOMINAL label gives in words.
  */
-export function ledStateFor(phase: AlertPhase): PanelLedState {
-  switch (phase) {
-    case "ALERT":
-      return "alert";
-    case "EVASION":
-      return "warning";
-    default:
-      return "active";
-  }
+export function ledStateForNetwork(net: AlertNetworkSnapshot): PanelLedState {
+  return net.alerted > 0 || net.suspicious > 0 || net.converging > 0 ? "in_use" : "off";
+}
+
+/**
+ * Whether the currently shipped `ui-panel` texture has enough frames to draw
+ * every step of `in_use`.
+ *
+ * `public/assets/ui/panel/ui-panel.png` is still the previous five-frame
+ * export while the redrawn `.aseprite` — eight frames — hasn't been exported
+ * yet. Phaser doesn't error on a frame index a spritesheet lacks; `Texture.get`
+ * falls back to frame 0 and prints a console warning, so wiring `in_use` in
+ * before the art lands wouldn't crash, it would flicker against the *old*
+ * panel's frames 1-5 (which mean something else entirely there) and spam the
+ * console every step.
+ *
+ * Reads `UI_TEXTURES` rather than a hardcoded flag, so this flips to `true` the
+ * moment the manifest's `sheet.count` is updated to match the real export —
+ * the same "no call site changes, nothing to remember" seam
+ * `NineSlicePanel.ts` already uses for whether the art exists at all.
+ */
+export function panelSupportsLiveState(): boolean {
+  const count = UI_TEXTURES.find((t) => t.key === "ui-panel")?.sheet?.count ?? 0;
+  const highest = Math.max(...PANEL_LED_CLIPS.in_use.map((s) => s.frame));
+  return count > highest;
 }
 
 /**
