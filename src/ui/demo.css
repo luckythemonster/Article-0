@@ -15,9 +15,9 @@ html,
 body {
   margin: 0;
   min-height: 100%;
-  background: #05070a;
+  background: #0e071b;
   font-family: "Share Tech Mono", "Article Zero Symbols", "Courier New", monospace;
-  color: #bfe3ea;
+  color: #c7cfdd;
 }
 
 #shell {
@@ -37,7 +37,7 @@ body {
 #shell h1 {
   font-size: 15px;
   letter-spacing: 1px;
-  color: #39d3ff;
+  color: #00cdf9;
   margin: 0;
 }
 
@@ -45,7 +45,7 @@ body {
   margin: 0;
   font-size: 12px;
   line-height: 1.5;
-  color: #6b7f92;
+  color: #657392;
 }
 
 .demo-banner {
@@ -56,11 +56,11 @@ body {
 }
 
 .demo-banner.is-solved {
-  color: #5effa0;
+  color: #5ac54f;
 }
 
 .demo-banner.is-aborted {
-  color: #ff5c6a;
+  color: #f5555d;
 }
 
 /*

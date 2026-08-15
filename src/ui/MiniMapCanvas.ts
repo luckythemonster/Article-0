@@ -1,4 +1,5 @@
 import type { MapSnapshot } from "../systems/PauseState";
+import { UI } from "./hudTheme";
 
 /**
  * The pause menu's level map.
@@ -30,10 +31,10 @@ function token(name: string, fallback: string): string {
 
 function palette(): Palette {
   return {
-    wall: token("--c-border-cool", "#2b4356"),
-    floor: token("--c-track", "#11202b"),
-    exit: token("--c-amber", "#ffb03b"),
-    player: token("--c-cyan", "#39d3ff"),
+    wall: token("--c-border-cool", UI.borderCool),
+    floor: token("--c-track", UI.track),
+    exit: token("--c-amber", UI.amber),
+    player: token("--c-cyan", UI.cyan),
   };
 }
 

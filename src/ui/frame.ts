@@ -1,4 +1,5 @@
 import { createFrame, type Frame, type FrameSettings } from "@arwes/frames";
+import { UI } from "./hudTheme";
 
 /**
  * The overlay panel border, in one place.
@@ -7,9 +8,11 @@ import { createFrame, type Frame, type FrameSettings } from "@arwes/frames";
  * hardcoded to the terminal palette. The half-pixel offsets are what keep the
  * 1px stroke on the pixel grid instead of straddling two rows and going grey.
  *
- * The values are literals rather than `theme.css` variables because this paints
- * into an SVG built in script, where the custom properties aren't resolved — they
- * are kept in step with `--c-bg-panel` / `--c-border` by hand.
+ * The colours come from `hudTheme` rather than `theme.css` because this paints
+ * into an SVG built in script, where the custom properties aren't resolved. They
+ * used to be hand-copied literals kept "in step by hand", which is the drift
+ * `hudTheme` exists to stop — the TS constant resolves fine here even though a
+ * `var()` would not.
  */
 export function terminalFrameSettings(): FrameSettings {
   return {
@@ -21,7 +24,7 @@ export function terminalFrameSettings(): FrameSettings {
         y: 0,
         width: "100%",
         height: "100%",
-        style: { fill: "#070c12", fillOpacity: 0.97, stroke: "none" },
+        style: { fill: UI.bgPanel, fillOpacity: 0.97, stroke: "none" },
       },
       {
         type: "rect",
@@ -30,7 +33,7 @@ export function terminalFrameSettings(): FrameSettings {
         y: 0.5,
         width: "100% - 1",
         height: "100% - 1",
-        style: { fill: "none", stroke: "#2b6e7a", strokeWidth: 1 },
+        style: { fill: "none", stroke: UI.border, strokeWidth: 1 },
       },
     ],
   };

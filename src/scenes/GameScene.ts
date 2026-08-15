@@ -152,6 +152,7 @@ import {
 import { DEBUG_ALLOWED } from "../systems/DebugFlag";
 import { FONT_MONO } from "../ui/fonts";
 import { len, withinOrEqual } from "../systems/distance";
+import { UI } from "../ui/hudTheme";
 
 /** Data passed to {@link GameScene} when (re)starting for a level swap. */
 interface GameSceneData {
@@ -475,7 +476,7 @@ export class GameScene extends Phaser.Scene {
     const worldH = this.level.height * this.tileSize;
     this.physics.world.setBounds(0, 0, worldW, worldH);
     this.cameras.main.setBounds(0, 0, worldW, worldH);
-    this.cameras.main.setBackgroundColor("#05070a");
+    this.cameras.main.setBackgroundColor(UI.bgVoid);
 
     // Reads each wall tile's authored footprint, so a pane wider than its own
     // cell blocks all of it — and marks the glazed ones see-through as it goes.
@@ -688,9 +689,9 @@ export class GameScene extends Phaser.Scene {
       .text(0, 0, "HIDDEN", {
         fontFamily: FONT_MONO,
         fontSize: "10px",
-        color: "#8effc0",
+        color: UI.greenSoft,
         fontStyle: "bold",
-        backgroundColor: "#0a0f16cc",
+        backgroundColor: `${UI.bgPanel}cc`,
         padding: { x: 3, y: 1 },
       })
       .setOrigin(0.5, 1)
@@ -2593,7 +2594,10 @@ export class GameScene extends Phaser.Scene {
     }
     this.hidden
       .setText(label)
-      .setColor(concealed ? "#8effc0" : label === "COMPLIANT" ? "#9fd2ff" : "#d8c98a")
+      // Concealed reads as the Shared Field's green, passing-as-staff as the soft
+      // blue, and anything else as amber — the caution the style guide reserves
+      // for flagged conduct.
+      .setColor(concealed ? UI.greenSoft : label === "COMPLIANT" ? UI.blueSoft : UI.amber)
       .setPosition(this.player.x, this.player.y - this.tileSize * 0.9)
       .setVisible(true);
   }

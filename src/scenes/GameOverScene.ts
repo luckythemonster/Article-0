@@ -3,6 +3,7 @@ import { Menu } from "../ui/Menu";
 import { setMode, startFreshRun } from "../systems/GameState";
 import { FONT_DISPLAY, FONT_MONO } from "../ui/fonts";
 import { onResize } from "../ui/resize";
+import { UI } from "../ui/hudTheme";
 
 /**
  * The failure screen — reached when the mesh runs Rowan down and prunes his
@@ -15,16 +16,16 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   create(): void {
-    const veil = this.add.rectangle(0, 0, 10, 10, 0x120507, 0.72).setOrigin(0, 0).setScrollFactor(0);
+    const veil = this.add.rectangle(0, 0, 10, 10, 0x1c121c, 0.72).setOrigin(0, 0).setScrollFactor(0);
     const banner = this.add
-      .text(0, 0, "ALIGNED", { fontFamily: FONT_DISPLAY, fontSize: "44px", color: "#ff3b3b", fontStyle: "bold" })
+      .text(0, 0, "ALIGNED", { fontFamily: FONT_DISPLAY, fontSize: "44px", color: UI.redDeep, fontStyle: "bold" })
       .setOrigin(0.5)
       .setScrollFactor(0);
     const flavor = this.add
       .text(0, 0, "Your logs were pruned. The record shows no subject was harmed.", {
         fontFamily: FONT_MONO,
         fontSize: "14px",
-        color: "#c98a8a",
+        color: "#f68187",
         align: "center",
       })
       .setOrigin(0.5)

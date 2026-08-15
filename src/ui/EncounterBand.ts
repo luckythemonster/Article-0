@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { FONT_MONO } from "./fonts";
 import { onResize } from "./resize";
+import { UI, hex } from "./hudTheme";
 import {
   ENCOUNTER_BANNER_TOP,
   ENCOUNTER_BAR_TOP,
@@ -85,7 +86,7 @@ export class EncounterBand {
       .text(0, ENCOUNTER_TOP, "", {
         fontFamily: FONT_MONO,
         fontSize: "12px",
-        color: "#cfe0f0",
+        color: UI.textStrong,
         fontStyle: "bold",
       })
       .setOrigin(0.5, 0)
@@ -93,11 +94,11 @@ export class EncounterBand {
       .setDepth(1000)
       .setVisible(false);
     this.barBg = scene.add
-      .rectangle(0, ENCOUNTER_BAR_TOP, style.barW, 8, 0x11202b)
+      .rectangle(0, ENCOUNTER_BAR_TOP, style.barW, 8, hex(UI.track))
       .setOrigin(0.5, 0)
       .setScrollFactor(0)
       .setDepth(1000)
-      .setStrokeStyle(1, 0x2b4356)
+      .setStrokeStyle(1, hex(UI.borderCool))
       .setVisible(false);
     this.fill = scene.add
       .rectangle(0, ENCOUNTER_BAR_TOP + 1, 0, 6, style.fillColor)
@@ -109,7 +110,7 @@ export class EncounterBand {
       .text(0, ENCOUNTER_STATUS_TOP, "", {
         fontFamily: FONT_MONO,
         fontSize: "10px",
-        color: "#8899aa",
+        color: UI.textFaint,
       })
       .setOrigin(0.5, 0)
       .setScrollFactor(0)

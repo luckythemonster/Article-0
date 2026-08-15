@@ -51,42 +51,62 @@ radar, an icon) can be a fixed-size sprite, because corners do not stretch.
 
 ## 3. Palette
 
+Every colour in the interface is an entry in **[ENDESGA-64][edg64]**, the 64-colour
+palette the game's hand-drawn art is authored in. That constraint is the point: before
+it, the UI mixed its own colours while the sprites used EDG64, so a panel drawn in
+Aseprite could never quite sit beside a HUD drawn in canvas.
+
 `src/ui/theme.css` is the single source of truth, mirrored for canvas code in
 `src/ui/hudTheme.ts` and checked by `hudTheme.test.ts`. **Use these values and no
 others.** A GUI sprite introducing its own blue is the thing this guide most wants
 to prevent — the HUD spent a while with four slightly different greys before the
 tokens existed.
 
+If a token seems to want a colour EDG64 doesn't have, the token is wrong — don't
+extend the palette.
+
+[edg64]: https://lospec.com/palette-list/endesga-64
+
 **Accents** — these carry meaning, don't use them decoratively:
 
 | token | hex | means |
 |---|---|---|
-| `--c-cyan` | `#39d3ff` | the interface itself; nominal state |
-| `--c-cyan-bright` | `#5fe0ff` | emphasis on cyan |
-| `--c-amber` | `#ffb03b` | caution — evasion, flagged conduct |
-| `--c-amber-bright` | `#ffe14d` | guard blips |
-| `--c-red` | `#ff5c6a` | jammed, degraded |
-| `--c-red-deep` | `#ff3b3b` | alert |
-| `--c-green` | `#5effa0` | healthy |
-| `--c-green-soft` | `#8effc0` | the Shared Field's "we" |
-| `--c-blue-soft` | `#9fd2ff` | compliant, passing as staff |
+| `--c-cyan` | `#00cdf9` | the interface itself; nominal state |
+| `--c-cyan-bright` | `#0cf1ff` | emphasis on cyan |
+| `--c-amber` | `#ffa214` | caution — evasion, flagged conduct |
+| `--c-amber-bright` | `#ffeb57` | guard blips |
+| `--c-red` | `#f5555d` | jammed, degraded |
+| `--c-red-deep` | `#ea323c` | alert |
+| `--c-green` | `#5ac54f` | healthy |
+| `--c-green-soft` | `#99e65f` | the Shared Field's "we" |
+| `--c-blue-soft` | `#94fdff` | compliant, passing as staff |
 
 **Surfaces and structure:**
 
 | token | hex | use |
 |---|---|---|
-| `--c-bg-panel` | `#070c12` | panel interiors |
-| `--c-bg-scope` | `#03070c` | the radar's well |
-| `--c-track` | `#11202b` | empty bar tracks |
-| `--c-border` | `#2b6e7a` | lit border |
-| `--c-border-cool` | `#2b4356` | the default border |
-| `--c-border-dim` | `#2b3a44` | recessed border |
+| `--c-bg-void` | `#0e071b` | what the canvas clears to |
+| `--c-bg-panel` | `#1a1932` | panel interiors |
+| `--c-bg-scope` | `#131313` | the radar's well |
+| `--c-track` | `#0c2e44` | empty bar tracks |
+| `--c-border` | `#0069aa` | lit border |
+| `--c-border-cool` | `#424c6e` | the default border |
+| `--c-border-dim` | `#2a2f4e` | recessed border |
 
-**Text ramp**, brightest to faintest: `#bfe3ea` `#cfe0f0` `#9fb6c2` `#8fa9b4`
-`#8899aa` `#6b7f92` `#4a5a68` `#45566a`.
+**Text ramp**, brightest to faintest: `#ffffff` `#c7cfdd` `#b4b4b4` `#92a1b9`
+`#858585` `#657392` `#5d5d5d` `#3d3d3d`. EDG64's slate ramp gives five usable
+steps and the HUD needs eight, so its neutral greys fill the gaps — the ramp
+alternates hue but its luminance descends strictly, which is what the eye reads.
 
-The canvas clears to `#05070a`, darker than any panel — panels should read as
-lighter than the void behind them, never darker.
+The canvas clears to `--c-bg-void`, darker than any panel — panels should read as
+lighter than the void behind them, never darker. The four surface tokens are
+ordered by luminance (11 → 19 → 28 → 40) so that stays true by construction.
+
+Two consequences of the EDG64 move worth knowing. The **lit border is blue, not
+teal**: EDG64's teals (`#134c4c`, `#1e6f50`) both fall below `--c-border-cool`,
+which would invert the lit > cool > dim ordering those three names depend on.
+And `--c-green` is a true green rather than the old mint, so "healthy" and the
+Shared Field's `--c-green-soft` now separate by hue as well as brightness.
 
 ## 4. Panel chrome
 
@@ -134,9 +154,10 @@ legacy 256px version (`medkit.png`, `battery.png`, …). The pause menu tries th
 native path first and silently falls back to the old one, so the set can be
 replaced one file at a time with the game playable throughout.
 
-**The current set**, all needing redrawing: `EMP_grenade`, `Q0_certification`,
-`access_chit`, `battery`, `disk`, `flashlight-off`, `flashlight-on`, `medkit`,
-`thermal_gel`. `sack_lunch` is already correct.
+**Still needing redrawing**: `Q0_certification`, `access_chit`, `battery`, `disk`,
+`flashlight-off`, `flashlight-on`, `medkit`, `thermal_gel`. `sack_lunch` was
+authored at size and is already correct; `EMP_grenade` has been redrawn and lives
+at `public/assets/ui/icons/EMP_grenade.png`.
 
 **Items with no icon at all** — the backlog: Stun Rounds, the Pneumatic
 Rail-Stapler, and the two LOG_CACHE fragments.

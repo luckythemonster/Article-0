@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { getAudio } from "../systems/AudioDirector";
 import { FONT_MONO } from "./fonts";
+import { UI } from "./hudTheme";
 
 /** Pixels between the caret and the left edge of the label column. */
 const CARET_GAP = 12;
@@ -34,7 +35,7 @@ export class Menu {
           .text(0, 0, item.label, {
             fontFamily: FONT_MONO,
             fontSize: "20px",
-            color: "#8899aa",
+            color: UI.textFaint,
           })
           .setOrigin(0.5)
           .setScrollFactor(0)
@@ -42,7 +43,7 @@ export class Menu {
       );
       this.carets.push(
         scene.add
-          .text(0, 0, "▸", { fontFamily: FONT_MONO, fontSize: "20px", color: "#39d3ff" })
+          .text(0, 0, "▸", { fontFamily: FONT_MONO, fontSize: "20px", color: UI.cyan })
           .setOrigin(1, 0.5)
           .setScrollFactor(0)
           .setDepth(1000)
@@ -103,7 +104,7 @@ export class Menu {
       const it = this.items[i];
       const disabled = it.enabled === false;
       const selected = i === this.index && !disabled;
-      t.setColor(disabled ? "#3a4654" : selected ? "#39d3ff" : "#8899aa");
+      t.setColor(disabled ? UI.textDisabled : selected ? UI.cyan : UI.textFaint);
       // The label text never changes, so its centred position can't shift. The
       // caret used to be prefixed to it ("▸ " against two spaces), which slid the
       // label sideways on every selection change: ▸ (U+25B8) is not in Share Tech

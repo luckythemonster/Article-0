@@ -5,6 +5,13 @@
  * @import this file and reference the variables instead of repeating hex
  * literals.
  *
+ * Every value below is drawn from **ENDESGA-64**, the 64-colour palette the
+ * game's hand-drawn art is authored in. That is the point of the constraint:
+ * before this, the UI mixed its own colours and the sprites used EDG64, so a
+ * panel drawn in Aseprite could never quite sit next to a HUD drawn in canvas.
+ * A token that wants a colour EDG64 does not have is a sign the token is wrong,
+ * not that the palette needs extending — see docs/GUI_STYLE_GUIDE.md §3.
+ *
  * Only the opaque identity colours and the type stack live here. The @font-face
  * rules are deliberately *not* — they live in fonts.css, imported once per page
  * entry, because Vite inlines an @import into every chunk that pulls it and this
@@ -19,39 +26,56 @@
 
 :root {
   /* --- accents --- */
-  --c-cyan: #39d3ff;
-  --c-cyan-bright: #5fe0ff;
-  --c-amber: #ffb03b;
-  --c-amber-bright: #ffe14d;
-  --c-red: #ff5c6a;
-  --c-red-deep: #ff3b3b;
-  --c-green: #5effa0;
-  --c-green-bright: #d6ffe8;
+  --c-cyan: #00cdf9;
+  --c-cyan-bright: #0cf1ff;
+  --c-amber: #ffa214;
+  --c-amber-bright: #ffeb57;
+  --c-red: #f5555d;
+  --c-red-deep: #ea323c;
+  --c-green: #5ac54f;
+  --c-green-bright: #d3fc7e;
   /* The "we" of a merged Shared Field, and the ready state that precedes it. */
-  --c-green-soft: #8effc0;
+  --c-green-soft: #99e65f;
   /* Body text that reads as interface without the accent's heat — the HUD's
      compliance line. Between --c-cyan and the text ramp, belonging to neither. */
-  --c-blue-soft: #9fd2ff;
+  --c-blue-soft: #94fdff;
 
   /* --- surfaces --- */
-  --c-bg-panel: #070c12;
-  --c-bg-scope: #03070c;
-  --c-track: #11202b;
+  /* Ordered by luminance so the style guide's rule still holds: the void (11) is
+     darker than the scope well (19), which is darker than a panel interior (28).
+     A panel reads as lighter than the void behind it.
+
+     --c-bg-void is what the canvas clears to, and it was five hardcoded copies
+     before it was a token — main.ts, GameScene, TitleScene, Lighting's unlit
+     overlay and the boss HUD's veil each carried their own. The page shell in
+     index.html still repeats it as a literal on purpose: it paints before this
+     stylesheet loads, so a var() there would flash unstyled. */
+  --c-bg-void: #0e071b;
+  --c-bg-panel: #1a1932;
+  --c-bg-scope: #131313;
+  --c-track: #0c2e44;
 
   /* --- structure --- */
-  --c-border: #2b6e7a;
-  --c-border-cool: #2b4356;
-  --c-border-dim: #2b3a44;
+  /* Lit > cool > dim, by luminance (81 > 76 > 49). The lit border trades the old
+     teal for ENDESGA-64's blue: the palette's teals (#134c4c, #1e6f50) both fall
+     below --c-border-cool, which would invert the ordering these three names
+     depend on. */
+  --c-border: #0069aa;
+  --c-border-cool: #424c6e;
+  --c-border-dim: #2a2f4e;
 
   /* --- text ramp (brightest → faintest) --- */
-  --c-text: #bfe3ea;
-  --c-text-strong: #cfe0f0;
-  --c-text-btn: #9fb6c2;
-  --c-text-muted: #8fa9b4;
-  --c-text-faint: #8899aa;
-  --c-text-dim: #6b7f92;
-  --c-text-disabled: #4a5a68;
-  --c-text-debug: #45566a;
+  /* ENDESGA-64's slate ramp interleaved with its neutral greys: the slate ramp
+     alone gives five usable steps and the HUD needs eight, so the greys fill the
+     gaps. Strictly descending luminance — 255, 205, 180, 160, 133, 114, 93, 61. */
+  --c-text: #c7cfdd;
+  --c-text-strong: #ffffff;
+  --c-text-btn: #b4b4b4;
+  --c-text-muted: #92a1b9;
+  --c-text-faint: #858585;
+  --c-text-dim: #657392;
+  --c-text-disabled: #5d5d5d;
+  --c-text-debug: #3d3d3d;
 
   /* --- type --- */
   /* Keep in step with FONT_MONO / FONT_DISPLAY in src/ui/fonts.ts, which say the

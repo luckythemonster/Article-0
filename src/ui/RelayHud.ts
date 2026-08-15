@@ -1,13 +1,14 @@
 import type Phaser from "phaser";
 import { RelayState, type RelayView } from "../systems/RelayCore";
 import { EncounterBand } from "./EncounterBand";
+import { UI, hex } from "./hudTheme";
 
 const PHASE_STYLE: Record<number, { text: string; css: string }> = {
-  [RelayState.CALIBRATE]: { text: "CALIBRATION", css: "#ffb03b" },
-  [RelayState.ARMED]: { text: "DISH ALIGNED — FEED READY", css: "#39d3ff" },
-  [RelayState.UPLINK]: { text: "UPLINK RUNNING — HOLD THE LINE", css: "#8effc0" },
-  [RelayState.CAPTURE]: { text: "CONTAINMENT INBOUND", css: "#ff3b3b" },
-  [RelayState.SEIZED]: { text: "IN CUSTODY", css: "#ff3b3b" },
+  [RelayState.CALIBRATE]: { text: "CALIBRATION", css: UI.amber },
+  [RelayState.ARMED]: { text: "DISH ALIGNED — FEED READY", css: UI.cyan },
+  [RelayState.UPLINK]: { text: "UPLINK RUNNING — HOLD THE LINE", css: UI.greenSoft },
+  [RelayState.CAPTURE]: { text: "CONTAINMENT INBOUND", css: UI.redDeep },
+  [RelayState.SEIZED]: { text: "IN CUSTODY", css: UI.redDeep },
 };
 
 /**
@@ -26,9 +27,9 @@ export class RelayHud {
   constructor(scene: Phaser.Scene) {
     this.band = new EncounterBand(scene, {
       barW: 240,
-      fillColor: 0x8effc0,
-      bannerColor: 0x8effc0,
-      wash: { color: 0xff3300, alpha: 0.1 },
+      fillColor: hex(UI.greenSoft),
+      bannerColor: hex(UI.greenSoft),
+      wash: { color: 0xff5000, alpha: 0.1 },
     });
   }
 
@@ -53,7 +54,7 @@ export class RelayHud {
     this.band.set({
       title: `LATTICE UPLINK · ${pct}%`,
       frac: v.progress,
-      fillColor: captured ? 0xff3b3b : 0x8effc0,
+      fillColor: captured ? hex(UI.redDeep) : hex(UI.greenSoft),
       status:
         v.state === RelayState.CALIBRATE
           ? `${phase.text} · PEDESTALS ${v.pedestalsSet}/${v.pedestalCount}`
