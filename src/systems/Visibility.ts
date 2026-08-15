@@ -128,11 +128,12 @@ export function rayDistance(
   dirY: number,
   maxTiles: number,
   reveal: number = WALL_REVEAL_TILES,
+  plane = 0,
 ): number {
   let ix = Math.floor(originX);
   let iy = Math.floor(originY);
 
-  const originPadded = grid.paddedRectAt(ix, iy);
+  const originPadded = grid.paddedRectAt(ix, iy, plane);
   if (originPadded) {
     const t = raySlabIntersect(originX, originY, dirX, dirY, originPadded);
     if (t !== undefined && t < maxTiles) return Math.min(t + reveal, maxTiles);
@@ -165,8 +166,9 @@ export function rayDistance(
     }
     // Ran out of reach before entering the next cell.
     if (enter >= maxTiles) return maxTiles;
-    if (grid.blocksSight(ix, iy)) {
-      const slot = grid.paddedCount === 0 ? NO_PADDED_RECT : grid.paddedSlotAt(ix, iy);
+    if (grid.blocksSight(ix, iy, plane)) {
+      const slot =
+        grid.paddedCount === 0 ? NO_PADDED_RECT : grid.paddedSlotAt(ix, iy, plane);
       if (slot === NO_PADDED_RECT) {
         // Half a tile past the face we just crossed — the wall's mid-depth, never its
         // far face. See WALL_REVEAL_TILES for why that distinction is the whole ballgame.
@@ -249,6 +251,7 @@ export function sightDistances(
   maxTiles: number,
   dirs: RayDirections,
   out: Float64Array,
+  plane = 0,
 ): Float64Array {
   const { cos, sin, invCos, invSin, deltaX, deltaY, stepX, stepY } = dirs;
   if (invCos && invSin && deltaX && deltaY && stepX && stepY) {
@@ -264,8 +267,8 @@ export function sightDistances(
     // Same origin for every ray this call, so resolved once — see
     // `rayDistance`'s doc comment for why a padded origin cell needs its
     // precise shape checked instead of the coarse walk's blanket skip.
-    const originPadded = grid.paddedRectAt(originIx, originIy);
-    const anyPadded = grid.paddedCount > 0;
+    const originPadded = grid.paddedRectAt(originIx, originIy, plane);
+    const anyPadded = grid.paddedCount > 0 && plane === 0;
 
     for (let i = 0; i < cos.length; i++) {
       const c = cos[i];
@@ -312,8 +315,8 @@ export function sightDistances(
           dist = maxTiles;
           break;
         }
-        if (grid.blocksSight(ix, iy)) {
-          const slot = anyPadded ? grid.paddedSlotAt(ix, iy) : NO_PADDED_RECT;
+        if (grid.blocksSight(ix, iy, plane)) {
+          const slot = anyPadded ? grid.paddedSlotAt(ix, iy, plane) : NO_PADDED_RECT;
           if (slot !== NO_PADDED_RECT) {
             // Only opaque over part of its cell — see PADDED_WALK_NOTE.
             const hit = grid.paddedEntryAt(slot, originX, originY, c, s);
@@ -331,7 +334,7 @@ export function sightDistances(
     }
   } else {
     for (let i = 0; i < cos.length; i++) {
-      out[i] = rayDistance(grid, originX, originY, cos[i], sin[i], maxTiles);
+      out[i] = rayDistance(grid, originX, originY, cos[i], sin[i], maxTiles, WALL_REVEAL_TILES, plane);
     }
   }
   return out;

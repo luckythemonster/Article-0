@@ -45,6 +45,11 @@ export interface PathOptions {
    * a door when it's genuinely the way through.
    */
   openable?: OpenablePredicate;
+  /**
+   * Which walk surface to search — see `src/map/planes.ts`. Guards stay on the
+   * plane they spawned on, so a route is planned entirely within one.
+   */
+  plane?: number;
 }
 
 const DEFAULT_RADIUS_TILES = 0.4;
@@ -68,9 +73,10 @@ export function tilePassable(
   ty: number,
   radiusTiles: number = DEFAULT_RADIUS_TILES,
   openable?: OpenablePredicate,
+  plane = 0,
 ): boolean {
   if (!grid.inBounds(tx, ty)) return false;
-  return circleFits(grid, tx + 0.5, ty + 0.5, radiusTiles, openable);
+  return circleFits(grid, tx + 0.5, ty + 0.5, radiusTiles, openable, plane);
 }
 
 // Reusable static buffers to ensure zero dynamic allocation during hot pathfinding loops.
@@ -112,8 +118,9 @@ export function findPath(
   const radius = opts.radiusTiles ?? DEFAULT_RADIUS_TILES;
   const maxNodes = opts.maxNodes ?? DEFAULT_MAX_NODES;
   const openable = opts.openable;
+  const plane = opts.plane ?? 0;
   const passable = (x: number, y: number): boolean =>
-    tilePassable(grid, x, y, radius, openable);
+    tilePassable(grid, x, y, radius, openable, plane);
 
   const sx = Math.floor(start.x);
   const sy = Math.floor(start.y);
@@ -195,6 +202,7 @@ export function smoothPath(
   path: PathNode[],
   radiusTiles: number = DEFAULT_RADIUS_TILES,
   openable?: OpenablePredicate,
+  plane = 0,
 ): PathNode[] {
   if (path.length <= 2) return path.slice();
 
@@ -204,7 +212,7 @@ export function smoothPath(
     // Reach as far along the path as the body can travel in a straight line.
     let furthest = anchor + 1;
     for (let probe = path.length - 1; probe > anchor + 1; probe--) {
-      if (clearCorridor(grid, path[anchor], path[probe], radiusTiles, openable)) {
+      if (clearCorridor(grid, path[anchor], path[probe], radiusTiles, openable, plane)) {
         furthest = probe;
         break;
       }
@@ -227,6 +235,7 @@ export function clearCorridor(
   b: PathNode,
   radiusTiles: number = DEFAULT_RADIUS_TILES,
   openable?: OpenablePredicate,
+  plane = 0,
 ): boolean {
   const ax = a.x + 0.5;
   const ay = a.y + 0.5;
@@ -236,7 +245,7 @@ export function clearCorridor(
   const steps = Math.max(1, Math.ceil(dist / Math.max(0.05, radiusTiles * 0.5)));
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
-    if (!circleFits(grid, ax + (bx - ax) * t, ay + (by - ay) * t, radiusTiles, openable)) {
+    if (!circleFits(grid, ax + (bx - ax) * t, ay + (by - ay) * t, radiusTiles, openable, plane)) {
       return false;
     }
   }
