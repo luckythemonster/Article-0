@@ -214,8 +214,21 @@ The rules, all derived, none of them needing anything new in the export:
 
 Put them on **`catwalk_access_up`**, **`floor_access_down`** or **`ramps`**, and place each
 tile on a floor cell **beside** a deck cell. That is the whole convention: the tile is the
-foot and the deck cell next to it is the head. Press `E` on either end to move between
-them.
+foot and the deck cell next to it is the head.
+
+**The ref decides how it is entered**, the same rule level transitions follow: a ref
+starting `ladder`, `hatch` or `access_hatch` is climbed with `E`; anything else is a ramp
+and is **walked over**. So `vent_core`'s `ladder_up3` / `ladder_down1` prompt, and
+`roof_array`'s four `ramps` tiles do not. Note the rule is "prompt *only* if it names a
+ladder" — `roof_array`'s west ramp is called `catwalk_up_west_metal1` and never says
+"ramp", so a rule that looked for ramp-ish names would make one corner of the roof behave
+unlike the other three.
+
+A ramp fires only when the player is **moving toward its far end**, which is worth knowing
+before you place one. Heads are ordinary deck cells and are usually walked *through* — all
+four of `roof_array`'s sit mid-gantry — so a ramp that triggered on contact would tip the
+player off the deck every time they walked that run. Walking across a ramp does nothing;
+walking *at* it takes you up or down, over about a third of a second.
 
 Both of the shipped map's conventions work, and neither is read as authoritative — the
 geometry is:
