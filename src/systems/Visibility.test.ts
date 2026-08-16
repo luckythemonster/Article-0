@@ -342,8 +342,23 @@ describe("sightDistances optimization parity and benchmark", () => {
     const originY = 2.5;
     const maxTiles = 10;
 
-    // Benchmark Fallback Path
     const strippedDirs = { cos: dirs.cos, sin: dirs.sin };
+
+    // Warm both paths before either is timed.
+    //
+    // Without this the first loop measured pays for JIT-compiling code the
+    // second one then runs hot, so the two timings are not comparable and the
+    // 15ms tolerance is riding on which happened to go first. It usually
+    // flattered the fast path — it runs second — which is why this only ever
+    // failed on a contended runner, once in thirty runs on `main`, reporting
+    // the fast path as *slower* than the fallback. Neither implementation
+    // changed between those runs; only the machine's mood did.
+    for (let i = 0; i < iterations; i++) {
+      sightDistances(g, originX, originY, maxTiles, strippedDirs, out);
+      sightDistances(g, originX, originY, maxTiles, dirs, out);
+    }
+
+    // Benchmark Fallback Path
     const startFallback = performance.now();
     for (let i = 0; i < iterations; i++) {
       sightDistances(g, originX, originY, maxTiles, strippedDirs, out);

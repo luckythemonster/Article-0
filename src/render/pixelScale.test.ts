@@ -5,6 +5,11 @@ import { DRONE_SKIN } from "../entities/DroneAnimations";
 import { ENFORCER_SKIN } from "../entities/EnforcerAnimations";
 import { ORDERLY_DISPLAY_TILES, ORDERLY_SOURCE_SIZE } from "../entities/OrderlyAnimations";
 import { assertVfxScales, vfxScales } from "../entities/Vfx";
+import {
+  assertEntitySpriteScales,
+  assertEntitySpriteSizes,
+  entitySpriteScales,
+} from "../entities/EntitySprites";
 
 describe("screenPixelsPerSourcePixel", () => {
   it("is the sprite scale times the camera zoom", () => {
@@ -94,6 +99,59 @@ describe("the one-shot effects", () => {
       "impact",
       "smoke-plume",
     ]);
+  });
+});
+
+describe("the hand-drawn entity sprites", () => {
+  /**
+   * The terminal, substation, camera and breaker are held to the cast's rule.
+   *
+   * These are the easiest of the three groups to get wrong, because their
+   * display size is not a free choice: it is the footprint the map already
+   * gives the object, so the *art* has to be drawn to divide into it. The
+   * breaker is the one that shows why — its map tile is authored at half a
+   * tile, so 16px art is right and the 32px that suits the terminal would be
+   * a 1:1 downscale.
+   */
+  it("resamples nothing", () => {
+    expect(assertEntitySpriteScales()).toEqual([]);
+  });
+
+  it("covers every sprite that ships", () => {
+    // Guards against the check above passing because the list is empty.
+    expect(entitySpriteScales().map((s) => s.id).sort()).toEqual([
+      "breaker",
+      "security-camera",
+      "terminal",
+      "terminal-substation",
+    ]);
+  });
+
+  it("agrees with the build tool about every frame size", () => {
+    // `sourceSize` here and `Spec.size` in tools/sprites/build_sprites.py are
+    // two hand-written copies of one number, in two languages. A redraw at a
+    // new canvas moves one and not the other, and everything downstream — the
+    // loader's frameWidth, the strip's geometry, the rule above — assumes they
+    // match.
+    expect(assertEntitySpriteSizes()).toEqual([]);
+  });
+
+  it("pairs each sprite to a whole number of screen pixels at every footprint", () => {
+    const byId = new Map(entitySpriteScales().map((s) => [s.id, s]));
+    const ratios = (id: string): number[] => {
+      const s = byId.get(id);
+      if (!s) throw new Error(`no entity sprite ${id}`);
+      return s.displayTiles.map((t) => screenPixelsPerSourcePixel(t, s.sourceSize));
+    };
+    // The map gives terminals both a whole tile and a half one, so 32px art has
+    // to survive both. It does: 2 screen pixels per source pixel, and 1.
+    expect(ratios("terminal")).toEqual([2, 1]);
+    expect(ratios("terminal-substation")).toEqual([2, 1]);
+    // 16px art across a whole tile — the chunkiest thing in the world, but a
+    // whole number, so still reproduced rather than resampled.
+    expect(ratios("security-camera")).toEqual([4]);
+    // 16px art at the half tile `breaker_main1` is authored at.
+    expect(ratios("breaker")).toEqual([2]);
   });
 });
 

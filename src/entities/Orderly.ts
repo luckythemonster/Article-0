@@ -10,6 +10,7 @@ import {
 } from "../systems/EntityStats";
 import { moveCirclePx } from "../systems/GridMotion";
 import { findPath, type PathNode } from "../systems/Pathfinder";
+import { workDoors } from "./doorWork";
 import type { PatrolRoute } from "../systems/PatrolRoute";
 import { LURE_SPECS, noticedLure, type DeployedLure } from "../systems/Deployables";
 import { DIRS_8, nearestDirection, type Dir8 } from "./directions";
@@ -45,6 +46,19 @@ export interface OrderlyContext {
    * global alert state the orderly has no other reason to know about.
    */
   rationSpoof?: boolean;
+  /**
+   * True when this tile holds a door the orderly may work itself.
+   *
+   * The same predicate the guards get, and for the same reason their own copy
+   * spells out: a facility's staff route *through* its doors rather than
+   * treating every one as permanent geometry. Without it `main1`'s orderly could
+   * not reach three of the four waypoints on its own authored round — it walked
+   * to the first, found a shut door, and loitered at spawn for the rest of the
+   * run.
+   */
+  isOperableDoor?: (tileX: number, tileY: number) => boolean;
+  /** Opens or closes a door the orderly is working. */
+  setDoorOpen?: (tileX: number, tileY: number, open: boolean) => void;
 }
 
 /**
@@ -156,6 +170,13 @@ export class Orderly {
   /** The A* legs left to walk to the next post, or null while loitering. */
   private legPath: PathNode[] | null = null;
   private legStep = 0;
+  /**
+   * Body radius and the door currently held open, both read by the shared
+   * {@link workDoors} — see `doorWork.ts`. Public for the same structural reason
+   * `Enforcer`'s are.
+   */
+  readonly radiusTiles = ORDERLY_COLLISION_RADIUS_TILES;
+  heldDoor: PathNode | null = null;
   private facing = 0;
   private moving = false;
   private wanderTimer: number;
@@ -284,16 +305,23 @@ export class Orderly {
    * its wander, walks over, pauses, then drifts back. A no-op while stunned,
    * already startled by witnessing the player, or busy with a spill — a knock
    * does not out-rank an actual work order.
+   *
+   * Returns whether the override took. The refusals above are the only place
+   * those rules are written down, so a caller that needs somebody who will
+   * *actually* come — `GameScene.updateBreakerResets`, picking an orderly to
+   * reset a thrown breaker — asks by calling rather than by re-deriving them
+   * from the public getters and drifting.
    */
-  distract(sx: number, sy: number): void {
-    if (this.isImmobilized) return;
+  distract(sx: number, sy: number): boolean {
+    if (this.isImmobilized) return false;
     // A knock does not out-rank an actual work order, and it certainly does not
     // out-rank the weapon pointed at him.
-    if (this.state === "WITNESSED" || this.state === "SANITATION") return;
-    if (this.state === "SURRENDERED") return;
+    if (this.state === "WITNESSED" || this.state === "SANITATION") return false;
+    if (this.state === "SURRENDERED") return false;
     this.state = "INSPECT";
     this.distractTarget = { x: sx, y: sy };
     this.distractPause = 0;
+    return true;
   }
 
   /** True on the exact frame the orderly first spots the player. */
@@ -410,7 +438,7 @@ export class Orderly {
         grid,
         { x: Math.floor(this.x / tileSize), y: Math.floor(this.y / tileSize) },
         this.route[next],
-        { radiusTiles: ORDERLY_COLLISION_RADIUS_TILES },
+        { radiusTiles: ORDERLY_COLLISION_RADIUS_TILES, openable: ctx.isOperableDoor },
       );
       this.routeIndex = next;
       this.postTimer = Phaser.Math.FloatBetween(...POST_SECONDS);
@@ -420,7 +448,11 @@ export class Orderly {
     }
 
     const node = this.legPath[this.legStep];
-    const step = this.stepToward((node.x + 0.5) * tileSize, (node.y + 0.5) * tileSize, dt, ctx);
+    const nodeX = (node.x + 0.5) * tileSize;
+    const nodeY = (node.y + 0.5) * tileSize;
+    // The round crosses doors too — that is exactly what it could not do before.
+    workDoors(this, ctx, grid, tileSize, Math.atan2(nodeY - this.y, nodeX - this.x));
+    const step = this.stepToward(nodeX, nodeY, dt, ctx);
     if (step === "arrived") {
       this.legStep++;
       if (this.legStep >= this.legPath.length) this.clearLeg();
@@ -487,16 +519,89 @@ export class Orderly {
    * Walks toward a knock and lingers there before giving up. Once the pause
    * elapses (or the path is blocked) it returns to WANDER — the spawn leash then
    * drifts the orderly back home.
+   *
+   * **Pathfound, not walked at.** This used to aim {@link stepToward} straight at
+   * the target, which is fine for a knock a few tiles away — the wall slide gets
+   * around most furniture — but it cannot leave a room. A breaker thrown across
+   * the deck asks for exactly that: `GameScene` diverts an orderly to reset it,
+   * and on `main1` the only one is twenty-odd tiles and several walls away. It
+   * stalled against the first one it met and oscillated there.
    */
   private investigateDistraction(dt: number, ctx: OrderlyContext): void {
     const target = this.distractTarget!;
-    const step = this.stepToward(target.x, target.y, dt, ctx);
+    const step = this.walkPathTo(target.x, target.y, dt, ctx);
 
     if (step === "arrived" || step === "blocked") {
       // Arrived: look around for a beat. Blocked: give up on the same clock.
       this.distractPause += dt;
       if (this.distractPause >= DISTRACT_PAUSE) this.returnToRound();
     }
+  }
+
+  /**
+   * {@link stepToward}, but around corners: A* to the target, then along it.
+   *
+   * Shares {@link legPath}/{@link legStep} with {@link walkRound}, which is safe
+   * because the two never run in the same frame — a state is WANDER or INSPECT,
+   * never both — and {@link returnToRound} clears the leg on the way out.
+   *
+   * The path is computed once per leg and re-used, so this costs one A* per
+   * diversion rather than one per frame. A target A* cannot reach reports
+   * `blocked` immediately, which is the same answer the straight walk gave when
+   * it wedged, and the same one the callers already handle.
+   */
+  private walkPathTo(
+    tx: number,
+    ty: number,
+    dt: number,
+    ctx: OrderlyContext,
+  ): "arrived" | "blocked" | "walking" {
+    const { grid, tileSize } = ctx;
+    if (len(tx - this.x, ty - this.y) <= tileSize * ARRIVE_TILES) {
+      this.moving = false;
+      // Not `clearLeg()`: that also re-rolls `postTimer`, which belongs to the
+      // round this diversion interrupted and should resume where it left off.
+      this.legPath = null;
+      this.legStep = 0;
+      return "arrived";
+    }
+
+    if (!this.legPath) {
+      const path = findPath(
+        grid,
+        { x: Math.floor(this.x / tileSize), y: Math.floor(this.y / tileSize) },
+        { x: Math.floor(tx / tileSize), y: Math.floor(ty / tileSize) },
+        { radiusTiles: ORDERLY_COLLISION_RADIUS_TILES, openable: ctx.isOperableDoor },
+      );
+      if (!path || path.length === 0) {
+        this.moving = false;
+        return "blocked";
+      }
+      this.legPath = path;
+      this.legStep = 0;
+    }
+
+    const node = this.legPath[this.legStep];
+    const nodeX = (node.x + 0.5) * tileSize;
+    const nodeY = (node.y + 0.5) * tileSize;
+    // Work the door before stepping into it, or the body meets the closed leaf
+    // A* just routed through and reports blocked. Aimed at the next node rather
+    // than the final target, since the path turns corners.
+    workDoors(this, ctx, grid, tileSize, Math.atan2(nodeY - this.y, nodeX - this.x));
+    const step = this.stepToward(nodeX, nodeY, dt, ctx);
+    if (step === "arrived") {
+      this.legStep++;
+      // Path walked out but the target is still beyond `ARRIVE_TILES` — the last
+      // node is a tile centre and the target may sit off it. Drop the leg and let
+      // the check at the top close the gap, or re-path if something moved.
+      if (this.legStep >= this.legPath.length) this.legPath = null;
+      return "walking";
+    }
+    // Wedged against something the grid doesn't know about — a guard in the
+    // doorway. Reported up as blocked so the caller's give-up clock runs, but the
+    // leg is *kept*: re-pathing every frame against a body that is about to walk
+    // on would be an A* per frame for as long as it stood there.
+    return step;
   }
 
   /**
@@ -515,7 +620,10 @@ export class Orderly {
       return;
     }
 
-    const step = this.stepToward(lure.x, lure.y, dt, ctx);
+    // Pathfound, like the round and the knock: "the wall it failed to walk
+    // through" above was a straight-line walk, and a spill two rooms away was
+    // written off as unreachable when it was merely around a corner.
+    const step = this.walkPathTo(lure.x, lure.y, dt, ctx);
     if (step === "blocked") {
       this.distractPause += dt;
       if (this.distractPause >= DISTRACT_PAUSE) {

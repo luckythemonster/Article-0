@@ -48,6 +48,12 @@ These are the ones that bite. Each has burned someone already.
   together, or they part company.
 - **Re-run `npm run docs:types` after adding or renaming a declaration**, and commit the
   result. Never hand-edit `docs/TYPE_REFERENCE.md`.
+- **Every `.aseprite` in `public/assets/` is source; the PNGs beside it are generated.**
+  `tools/panel/build_panel.py` and `tools/sprites/build_sprites.py` cut them, and both
+  emit a JSON frame map (`src/ui/networkIndicatorFrames.json`,
+  `src/entities/entitySpriteFrames.json`) that code addresses frames through. Editing a
+  generated PNG is lost on the next run; addressing a frame by index instead of by the
+  artist's tag or cel label is what the indirection exists to prevent.
 - **Sprite sizes are load-bearing.** `(tileSize * displayTiles) / sourceSize * cameraZoom`
   must come out a whole number or `pixelArt: true` starts resampling. Enforced by
   `src/render/pixelScale.ts` and its test.

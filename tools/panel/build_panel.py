@@ -55,14 +55,17 @@ from __future__ import annotations
 
 import json
 import os
-import struct
-import zlib
+import sys
 from collections import Counter
 
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+
+from aseprite.reader import off_palette, read  # noqa: E402
+
 PANEL_DIR = os.path.join(ROOT, "public", "assets", "ui", "panel")
 SRC = os.path.join(PANEL_DIR, "ui-panel.aseprite")
 OUT_CHROME = os.path.join(PANEL_DIR, "ui-panel.png")
@@ -105,113 +108,6 @@ BLINK_LABEL = "BLINK"
 #: Columns in the indicator sheet. Wide enough for the longest run — the counts,
 #: which are 0..N plus an overflow and a blink — so each cluster gets one row.
 SHEET_COLS = 16
-
-# --- palette ---------------------------------------------------------------
-
-EDG64 = {
-    "ff0040", "131313", "1b1b1b", "272727", "3d3d3d", "5d5d5d", "858585",
-    "b4b4b4", "ffffff", "c7cfdd", "92a1b9", "657392", "424c6e", "2a2f4e",
-    "1a1932", "0e071b", "1c121c", "391f21", "5d2c28", "8a4836", "bf6f4a",
-    "e69c69", "f6ca9f", "f9e6cf", "edab50", "e07438", "c64524", "8e251d",
-    "ff5000", "ed7614", "ffa214", "ffc825", "ffeb57", "d3fc7e", "99e65f",
-    "5ac54f", "33984b", "1e6f50", "134c4c", "0c2e44", "00396d", "0069aa",
-    "0098dc", "00cdf9", "0cf1ff", "94fdff", "fdd2ed", "f389f5", "db3ffd",
-    "7a09fa", "3003d9", "0c0293", "03193f", "3b1443", "622461", "93388f",
-    "ca52c9", "c85086", "f68187", "f5555d", "ea323c", "c42430", "891e2b",
-    "571c27",
-}
-
-
-# --- .aseprite reader ------------------------------------------------------
-#
-# Enough of the format to composite this file: layers, cels (raw + zlib), and
-# linked cels. Written out rather than pulled in as a dependency because it is
-# forty lines and the alternative is a package that has to be pinned, audited
-# and kept working for one asset.
-
-
-def _read_aseprite(path: str):
-    d = open(path, "rb").read()
-    magic, frames = struct.unpack("<H", d[4:6])[0], struct.unpack("<H", d[6:8])[0]
-    w, h = struct.unpack("<HH", d[8:12])
-    if magic != 0xA5E0:
-        raise SystemExit(f"{path}: not an .aseprite file (magic {magic:#06x})")
-    if (w, h) != (CANVAS, CANVAS):
-        raise SystemExit(f"{path}: canvas is {w}x{h}, expected {CANVAS}x{CANVAS}")
-
-    def text(o):
-        n = struct.unpack("<H", d[o : o + 2])[0]
-        return d[o + 2 : o + 2 + n].decode("utf8", "replace"), o + 2 + n
-
-    layers: list[str] = []
-    cels: dict[tuple[int, int], tuple] = {}
-    linked: dict[tuple[int, int], int] = {}
-    #: (frame, layer) -> the artist's own annotation on that cel. This is the
-    #: contract: frames are found by what they are labelled, never by index.
-    labels: dict[tuple[int, int], str] = {}
-
-    off = 128
-    for fi in range(frames):
-        fbytes, _fmagic, oldn = struct.unpack("<IHH", d[off : off + 8])
-        nchunks = struct.unpack("<I", d[off + 12 : off + 16])[0] or oldn
-        co = off + 16
-        last_cel: tuple[int, int] | None = None
-        for _ in range(nchunks):
-            csize, ctype = struct.unpack("<IH", d[co : co + 6])
-            body = co + 6
-            if ctype == 0x2004:
-                name, _ = text(body + 16)
-                layers.append(name)
-            elif ctype == 0x2020:
-                # User data, which Aseprite attaches to the chunk before it.
-                flags = struct.unpack("<I", d[body : body + 4])[0]
-                if flags & 1 and last_cel is not None:
-                    labels[last_cel], _ = text(body + 4)
-            elif ctype == 0x2005:
-                li, x, y, opacity, celtype = struct.unpack("<HhhBH", d[body : body + 9])
-                last_cel = (fi, li)
-                if celtype == 1:
-                    linked[(fi, li)] = struct.unpack("<H", d[body + 16 : body + 18])[0]
-                elif celtype in (0, 2):
-                    cw, ch = struct.unpack("<HH", d[body + 16 : body + 20])
-                    payload = d[body + 20 : co + csize]
-                    if celtype == 2:
-                        # Raw inflate, skipping the 2-byte zlib header: some
-                        # exporters truncate the trailing Adler-32, which makes
-                        # a checked decompress fail on otherwise-complete data.
-                        obj = zlib.decompressobj(-15)
-                        pixels = obj.decompress(payload[2:]) + obj.flush()
-                    else:
-                        pixels = payload
-                    cels[(fi, li)] = (x, y, opacity, cw, ch, pixels)
-            co += csize
-        off += fbytes
-
-    return frames, layers, cels, linked, labels
-
-
-def _cel(cels, linked, fi: int, li: int):
-    if (fi, li) in linked:
-        return _cel(cels, linked, linked[(fi, li)], li)
-    return cels.get((fi, li))
-
-
-def _composite(cels, linked, fi: int, layer_ids: list[int]) -> Image.Image:
-    """Alpha-composite `layer_ids` (bottom first) of frame `fi` onto transparency."""
-    out = Image.new("RGBA", (CANVAS, CANVAS), (0, 0, 0, 0))
-    for li in layer_ids:
-        c = _cel(cels, linked, fi, li)
-        if c is None:
-            continue
-        x, y, opacity, cw, ch, pixels = c
-        layer = Image.new("RGBA", (CANVAS, CANVAS), (0, 0, 0, 0))
-        sub = Image.frombytes("RGBA", (cw, ch), bytes(pixels))
-        if opacity != 255:
-            alpha = sub.getchannel("A").point(lambda a: a * opacity // 255)
-            sub.putalpha(alpha)
-        layer.paste(sub, (x, y))
-        out = Image.alpha_composite(out, layer)
-    return out
 
 
 def _probe(layers: list[str]) -> dict[str, int]:
@@ -287,9 +183,10 @@ def _named_frames(labels, li: int, wanted: tuple[str, ...], layer_name: str) -> 
 
 
 def build() -> None:
-    frames, layers, cels, linked, labels = _read_aseprite(SRC)
-    idx = _probe(layers)
-    print(f"{os.path.relpath(SRC, ROOT)}: {frames} frames, layers {layers}")
+    doc = read(SRC, expect_size=(CANVAS, CANVAS))
+    labels = doc.cel_labels
+    idx = _probe(doc.layer_names)
+    print(f"{os.path.relpath(SRC, ROOT)}: {doc.frame_count} frames, layers {doc.layer_names}")
 
     screen_frames = _named_frames(labels, idx[LAYER_SCREEN], SCREEN_LABELS, LAYER_SCREEN)
     badge_frames = _named_frames(labels, idx[LAYER_BADGE], BADGE_LABELS, LAYER_BADGE)
@@ -315,7 +212,7 @@ def build() -> None:
     # --- chrome: base + screen, one frame per screen state -----------------
     chrome = Image.new("RGBA", (CANVAS * len(screen_frames), CANVAS), (0, 0, 0, 0))
     for slot, fi in enumerate(screen_frames):
-        im = _composite(cels, linked, fi, [idx[LAYER_BASE], idx[LAYER_SCREEN]])
+        im = doc.composite(fi, [idx[LAYER_BASE], idx[LAYER_SCREEN]])
         chrome.paste(im, (slot * CANVAS, 0))
     chrome.save(OUT_CHROME)
 
@@ -327,7 +224,7 @@ def build() -> None:
     def place(row: int, col: int, fi: int, li: int, corner: str) -> None:
         nonlocal placed
         ox, oy = CORNER_ORIGIN[corner]
-        im = _composite(cels, linked, fi, [li])
+        im = doc.composite(fi, [li])
         sheet.paste(im.crop((ox, oy, ox + INDICATOR, oy + INDICATOR)),
                     (col * INDICATOR, row * INDICATOR))
         placed += 1
@@ -386,8 +283,7 @@ def _verify(chrome: Image.Image, sheet: Image.Image, placed: int,
                 r, g, b, a = px[x, y]
                 if a:
                     cols[(r, g, b)] += 1
-        off = sorted({f"#{r:02x}{g:02x}{b:02x}" for r, g, b in cols
-                      if f"{r:02x}{g:02x}{b:02x}" not in EDG64})
+        off = off_palette(im)
         print(f"  {os.path.relpath(name, ROOT)}: {im.width}x{im.height}, {len(cols)} colours")
         if off:
             bad.append(f"{os.path.basename(name)}: off-palette {off[:6]}")

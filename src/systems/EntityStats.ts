@@ -247,6 +247,45 @@ export function sensorStatsFor(components: ComponentData[]): SensorStats {
   };
 }
 
+export interface BreakerStats {
+  /**
+   * The tile-def `ref` whose lights this breaker feeds.
+   *
+   * A *class* of fixture, not one instance: the shipped breaker names
+   * `light_overhead1`, and the map places 50 of those across main1. Throwing it
+   * takes out every one of them, which is what makes it worth a walk.
+   */
+  target: string;
+  /**
+   * Whether the circuit is closed — that is, whether the power is **on**.
+   *
+   * The map's `circuitState` enum reads the electrician's way round, `OPEN = off`
+   * and `CLOSED = on`, and the art agrees: the breaker's screen is green while
+   * the circuit is closed. Stored as a boolean here so no call site has to
+   * remember which way the words go.
+   */
+  closed: boolean;
+}
+
+export const BREAKER_DEFAULTS: BreakerStats = {
+  // The schema's own default for `PowerGrid.Target`.
+  target: "light_source",
+  closed: true,
+};
+
+/** Reads the `PowerGrid` component off a breaker tile. */
+export function breakerStatsFor(components: ComponentData[]): BreakerStats {
+  return {
+    target: str(components, "power_grid", "Target", BREAKER_DEFAULTS.target),
+    closed:
+      str(components, "power_grid", "state", CIRCUIT_CLOSED).toUpperCase() !== CIRCUIT_OPEN,
+  };
+}
+
+/** The two `circuitState` values, spelled as the map spells them. */
+export const CIRCUIT_OPEN = "OPEN";
+export const CIRCUIT_CLOSED = "CLOSED";
+
 export interface ChestStats {
   /** Seconds of held interaction to search/open. */
   interactionTime: number;

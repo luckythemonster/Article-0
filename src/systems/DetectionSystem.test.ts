@@ -4,17 +4,24 @@ import type { GameLevel } from "../map/types";
 
 const TILE = 32;
 
-type TileSpec = { x: number; y: number; components?: unknown[] };
+type TileSpec = { x: number; y: number; ref?: string; components?: unknown[] };
 
 function level(layers: { name: string; tiles: TileSpec[] }[]): GameLevel {
   return { name: "t", width: 64, height: 64, layers } as unknown as GameLevel;
 }
 
 /** A `light_sources` tile with an explicit radius (tiles) and multiplier. */
-function light(x: number, y: number, radius: number, multiplier: number): TileSpec {
+function light(
+  x: number,
+  y: number,
+  radius: number,
+  multiplier: number,
+  ref = "light_overhead1",
+): TileSpec {
   return {
     x,
     y,
+    ref,
     components: [
       {
         type: "light_source",
@@ -180,6 +187,62 @@ describe("destroyCoverAt", () => {
     const d = new DetectionSystem(level([{ name: "cover", tiles: [cover(1, 1)] }]), TILE);
     expect(d.destroyCoverAt(1, 1)).toBe(true);
     expect(d.destroyCoverAt(1, 1)).toBe(false);
+  });
+});
+
+/**
+ * The half of a blackout guards can feel.
+ *
+ * `Lighting` decides whether the player can see; this decides whether they can
+ * be seen. A breaker that moved only one of them would be a lie in one direction
+ * or the other, so `GameScene.setCircuit` always calls both.
+ */
+describe("setCircuit", () => {
+  it("drops a killed circuit's lights out of the multiplier", () => {
+    const d = new DetectionSystem(
+      level([{ name: "light_sources", tiles: [light(4, 4, 3.5, 1.6)] }]),
+      TILE,
+    );
+    expect(d.multiplierAt(...at(4, 4))).toBeCloseTo(1.6);
+
+    d.setCircuit("light_overhead1", false);
+    // Standing under a dead lamp is standing in the dark: no bonus at all.
+    expect(d.multiplierAt(...at(4, 4))).toBe(1);
+
+    d.setCircuit("light_overhead1", true);
+    expect(d.multiplierAt(...at(4, 4))).toBeCloseTo(1.6);
+  });
+
+  it("only touches the circuit it names", () => {
+    // One breaker feeds one tile-def ref. A second fixture type in the same room
+    // has its own switch, and must not go out with it.
+    const d = new DetectionSystem(
+      level([
+        {
+          name: "light_sources",
+          tiles: [light(4, 4, 3.5, 1.6), light(20, 20, 3.5, 1.6, "light_overhead2")],
+        },
+      ]),
+      TILE,
+    );
+    d.setCircuit("light_overhead1", false);
+    expect(d.multiplierAt(...at(4, 4))).toBe(1);
+    expect(d.multiplierAt(...at(20, 20))).toBeCloseTo(1.6);
+  });
+
+  it("cuts every fixture sharing the ref, which is the whole mechanic", () => {
+    // `light_overhead1` is one tile def the shipped map places fifty times, so
+    // main1's single breaker takes the deck's entire overhead lighting with it.
+    const tiles = [light(4, 4, 3.5, 1.6), light(4, 20, 3.5, 1.6), light(20, 4, 3.5, 1.6)];
+    const d = new DetectionSystem(level([{ name: "light_sources", tiles }]), TILE);
+    d.setCircuit("light_overhead1", false);
+    for (const [tx, ty] of [
+      [4, 4],
+      [4, 20],
+      [20, 4],
+    ]) {
+      expect(d.multiplierAt(...at(tx, ty)), `${tx},${ty}`).toBe(1);
+    }
   });
 });
 

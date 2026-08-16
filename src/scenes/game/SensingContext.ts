@@ -41,7 +41,7 @@ export interface SensingDeps {
   /** Below 1, unlike the two above: pressing *reduces* how fast you fill a meter. */
   pressMultiplier: number;
   coverTilesNear: (tileX: number, tileY: number, radiusTiles: number) => { x: number; y: number }[];
-  isGuardDoor: (tileX: number, tileY: number) => boolean;
+  isOperableDoor: (tileX: number, tileY: number) => boolean;
   setDoorOpen: (tileX: number, tileY: number, open: boolean) => void;
 }
 
@@ -79,7 +79,7 @@ export class SensingContext {
       rationSpoof: false,
       playerVelocity: { x: 0, y: 0 },
       coverTilesNear: deps.coverTilesNear,
-      isGuardDoor: deps.isGuardDoor,
+      isOperableDoor: deps.isOperableDoor,
       setDoorOpen: deps.setDoorOpen,
     };
   }

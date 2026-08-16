@@ -1,5 +1,11 @@
 import type Phaser from "phaser";
 import type { GameTile } from "../map/types";
+import {
+  ensureEntityAnim,
+  entitySpriteKey,
+  hasEntitySprite,
+  type EntitySpriteId,
+} from "./EntitySprites";
 
 /**
  * The hold-to-interact fixture shared by every "stand next to it and hold E"
@@ -40,6 +46,14 @@ export class HoldTarget {
   /** Seconds accumulated toward {@link duration}. */
   private progress = 0;
   private readonly image?: Phaser.GameObjects.Image;
+  /**
+   * Set instead of {@link image} when hand-drawn art is on disk for this
+   * object — see {@link EntitySprites}. Both are Game Objects at the same
+   * place, depth and size, so everything below treats them alike; only
+   * {@link play} needs the distinction.
+   */
+  private readonly sprite?: Phaser.GameObjects.Sprite;
+  private readonly art?: EntitySpriteId;
   private readonly bar: Phaser.GameObjects.Graphics;
 
   /**
@@ -47,6 +61,10 @@ export class HoldTarget {
    *   less) completes on the first frame and draws a full bar rather than
    *   dividing by zero.
    * @param barColor the fill — see {@link HOLD_BAR_CYAN} / {@link HOLD_BAR_AMBER}.
+   * @param art the hand-drawn sprite to prefer over the map tile's own frame,
+   *   when it is on disk. Absent art is not an error and not a special case:
+   *   the tile frame is drawn exactly as before, which is what lets the art be
+   *   added one file at a time.
    */
   constructor(
     scene: Phaser.Scene,
@@ -54,19 +72,60 @@ export class HoldTarget {
     private readonly tileSize: number,
     private readonly duration: number,
     private readonly barColor: number,
+    art?: EntitySpriteId,
   ) {
     this.x = (tile.x + 0.5) * tileSize + tile.offsetX;
     this.y = (tile.y + 0.5) * tileSize + tile.offsetY;
 
-    if (tile.frame) {
+    // Display size comes off the *tile*, not the art, so a drawn sprite lands
+    // exactly where the one it replaces did. The map does not agree with itself
+    // here — some terminal tile defs are a whole tile and some half of one —
+    // which is why `EntitySprites` lists every footprint and the scale test
+    // checks them all.
+    const width = tile.colSpan * tileSize;
+    const height = tile.rowSpan * tileSize;
+
+    if (art !== undefined && hasEntitySprite(scene, art)) {
+      this.art = art;
+      this.sprite = scene.add
+        .sprite(this.x, this.y, entitySpriteKey(art))
+        .setDisplaySize(width, height)
+        .setDepth(120);
+      this.image = this.sprite;
+    } else if (tile.frame) {
       this.image = scene.add
         .image(this.x, this.y, tile.frame.textureKey, tile.frame.frameKey)
-        .setDisplaySize(tile.colSpan * tileSize, tile.rowSpan * tileSize)
+        .setDisplaySize(width, height)
         .setFlipY(tile.flipY === true)
         .setTint(tile.tint)
         .setDepth(120);
     }
     this.bar = scene.add.graphics().setDepth(1000).setVisible(false);
+  }
+
+  /**
+   * Whether any hold has accumulated and not yet drained away.
+   *
+   * What the owners use to tell "being worked on" from "untouched" — a
+   * distinction the bar has always drawn and the art now has a clip for.
+   */
+  get inProgress(): boolean {
+    return this.progress > 0;
+  }
+
+  /**
+   * Plays a named clip from the art, if there is art and it has that clip.
+   *
+   * Returns whether it took — callers use that to decide whether they still
+   * need their tint fallback, so the two paths stay one line apart rather than
+   * two branches at every call site.
+   */
+  play(tag: string, label?: string): boolean {
+    if (!this.sprite || this.art === undefined) return false;
+    const key = ensureEntityAnim(this.sprite.scene, this.art, tag, label);
+    if (key === undefined) return false;
+    this.sprite.play(key, true);
+    return true;
   }
 
   /**
@@ -86,16 +145,31 @@ export class HoldTarget {
     this.drawBar(this.progress > 0);
   }
 
-  /** Back to untouched — no progress, no bar, no tint. */
-  reset(): void {
+  /**
+   * Back to untouched — no progress, no bar, no tint.
+   *
+   * `state` is the clip that means "untouched" for this object, played when
+   * there is art. Without it the tint clears and the tile frame stands as it
+   * always did.
+   */
+  reset(state?: string): void {
     this.progress = 0;
     this.bar.setVisible(false);
     this.image?.clearTint();
+    if (state !== undefined) this.play(state);
   }
 
-  /** Done: hide the bar and mark the sprite with `color`. */
-  settle(color: number): void {
+  /**
+   * Done: hide the bar and mark the sprite as finished.
+   *
+   * Two ways of saying one thing, and the art wins when it is there. A flat
+   * tint over a drawn sprite would fight the frame underneath — these sources
+   * already carry a finished state, drawn in the same green the tint uses —
+   * so `state` is tried first and `color` is the fallback for the tile frame.
+   */
+  settle(color: number, state?: string): void {
     this.bar.setVisible(false);
+    if (state !== undefined && this.play(state)) return;
     this.image?.setTint(color);
   }
 

@@ -218,11 +218,12 @@ the HUD's panel frame. Everything about how to draw or replace it lives in
 
 It is authored in **Pixquare** — a different tool from anything else in this
 document, which is fine, because nothing downstream cares what drew it. Unlike
-every other asset here, though, **the `.aseprite` is the shipped source and the
-PNGs are build output**: `python3 tools/panel/build_panel.py` reads the layered
-file directly and emits two sheets plus a JSON frame map, all committed. Same
+the effect packs, though, **the `.aseprite` is the shipped source and the PNGs
+are build output**: `python3 tools/panel/build_panel.py` reads the layered file
+directly and emits two sheets plus a JSON frame map, all committed. Same
 arrangement as `tools/font/build_symbols.py`. Nothing is hand-exported, so the
-grid geometry cannot be misread off a re-export.
+grid geometry cannot be misread off a re-export. The world's entity art follows
+the same pattern — see [Entity art](#entity-art) below.
 
 The interface obeys a *stricter* rule than the world does. `UIScene` is unzoomed,
 so where a world sprite may be drawn at 1, 2 or 3 screen pixels per source pixel,
@@ -267,6 +268,152 @@ The result **animates without being an effect**, which is why it is not in
 `src/ui/NetworkPanel.ts` maps a published `AlertNetworkSnapshot` onto five frame
 indices, so the panel shows a readout, not a timeline. Even the alert blink is a
 pure function of the clock rather than a timer stepping through a clip.
+
+---
+
+## Entity art
+
+Four things in the world are hand-drawn rather than generated: the hackable
+terminal, the VENT-4 pressure substation, the mounted security camera and the
+power breaker. Sources live in `public/assets/sprites/`, the strips beside them
+are build output, and `python3 tools/sprites/build_sprites.py` is what turns one
+into the other.
+
+Everything the panel established applies here — `.aseprite` is the source, the
+PNG is generated, the run is by hand and the output is committed. What is new is
+that these are *world* sprites, so they answer to the pixel-scale rule above
+rather than the interface's stricter one, and that they carry state the panel
+never had to express.
+
+| sprite | source | canvas | frames | drawn at | ratio |
+| --- | --- | --- | --- | --- | --- |
+| Terminal | `Terminal.aseprite` | 32×32 | 7 | 1 tile / ½ tile | 2 / 1 |
+| Substation | `terminal_substation.aseprite` | 32×32 | 11 | 1 tile / ½ tile | 2 / 1 |
+| Security camera | `security_camera.aseprite` | 16×16 | 8 | 1 tile | 4 |
+| Breaker | `Breaker.aseprite` | 16×16 | 24 | ½ tile | 2 |
+
+**Display size comes off the map tile, not the art.** Each object is drawn at its
+own tile's `RowSpan`/`ColSpan` so the sprite lands exactly where the one it
+replaces did — and the shipped map does not agree with itself: `terminal1`…`terminal9`
+are half a tile and `terminal11`/`terminal12` a whole one. So the art has to
+survive *both*, which is why `EntitySprites.ts` lists every footprint per sprite
+and `pixelScale.test.ts` checks each one rather than a nominal size. 32px art
+obliges — a whole tile is 2 screen pixels per source pixel and a half tile is 1.
+
+### Two kinds of annotation, and both are the contract
+
+The panel's rule was "label your cels". These four need one more idea, because
+some of what they say is about a *range* of frames rather than a single one:
+
+- **Tags** name a clip. `POWER_ON` is frames 0–11 of the breaker; the terminal
+  uses tags and nothing else.
+- **Cel labels** name one frame on one layer. The substation's status ring is
+  annotated `GOOD`/`WARNING`/`ERROR` frame by frame.
+
+Between them they answer questions neither could alone. The camera's eight frames
+are four facings × a two-frame LED blink: the *tag* says which pair is `active`,
+the *cel label* says which pair is `south`, and `clipFrames()` intersects them.
+
+**Tag names repeat, so the generated manifest stores a list and not a map.** The
+breaker has two `IDLE`s — the cabinet shut before a cycle and after it — and the
+camera has four `active`/`disabled` pairs, one per facing. A name→range dict
+would silently keep whichever came last, and every camera in the level would
+point the same way.
+
+**Hidden layers are dropped.** `Terminal.aseprite` carries a `Reference Layer 1`
+with the eye off, at 128 opacity — art the artist traced over. Compositing it
+would bake the reference into the shipped sheet.
+
+### What each clip means
+
+Read off the art rather than assigned to it. The terminal is the instructive one:
+its `active` frame is a teal screen with a `#5effa0` lamp, which is the exact
+green `HoldTarget` has always tinted a finished hack — so `active` is the
+*breached* terminal, not one being worked on.
+
+| | idle | in progress | finished |
+| --- | --- | --- | --- |
+| Terminal | `idle` — dark screen, a 77ms yellow blip once a second | `alert` — amber/red at 100ms | `active` — teal screen, green lamp |
+| Substation | `idle` — black screen, cyan ring | `active` — readout churning, ring GOOD→WARNING→ERROR | `deactivated` — red cross, then a flatlined face |
+| Camera | — | — | `active` / `disabled`, per facing |
+| Breaker | `IDLE` — cabinet shut, green *or* red screen | `IN_USE` — cabinet open, keypad running | the other `IDLE` |
+
+The camera's two states are one pixel apart: the `#ff0040` status lamp, lit or
+dark, held 500ms. `active` is that pair looping; `disabled` is the dark frame
+held. `SensorStats.state` already carried the words `active` and `disabled`, so
+it maps onto the tag names with no translation table.
+
+### The breaker's keypad reads as binary
+
+The `CONTROLS` layer looks like a spinning readout and is not. Its alpha never
+changes across all 24 frames — only colour does — because it is **four 2×2 LEDs,
+one per bit**, lit `#ff0040` and unlit `#571c27`:
+
+| digit | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| lit | — | TL | TR | TL·TR | BL | TL·BL | TR·BL | TL·TR·BL | BR | TL·BR |
+
+**Top-left is worth 1**, bottom-right 8. Every digit appears twice, once against
+the green `POWER_ON` screen and once against the red `POWER_OFF` one, which is what
+lets `Breaker.ts` compose a *different* animation per throw: four digits from
+`keypadCode`, looked up by label, against whichever screen colour the throw starts
+on. Cutting power is `[idle-green, open, d1..d4, open-red, idle-red]`; restoring is
+the mirror.
+
+> ⚠️ **The opposite endianness to the HUD.** `docs/GUI_STYLE_GUIDE.md` §4 says the
+> network panel's clusters read "leftmost worth 8"; this one reads leftmost worth 1.
+> Both are as-drawn and each is right for its own art. Documented rather than
+> reconciled — renaming either would break a readout that currently reads correctly.
+
+The two `IDLE` tags are told apart by intersecting the tag with the `SCREEN`
+layer's cel label, which is the two-annotation contract earning its keep: neither
+the tag nor the label alone says "cabinet shut *and* unpowered".
+
+The substation's `locked` amber is still a tint rather than a clip. The source
+has no state for it, and inventing one would be wrong: locked is the boss
+resisting the finisher station, a fiction of that arena rather than something the
+machine does, and it lasts seconds.
+
+### Timing is part of the drawing
+
+The manifest carries every frame's authored duration and the animations honour
+it. That is not fussiness: the camera's blink is 500ms a frame and the terminal's
+idle is a 1000ms dark hold followed by a 77ms blip. A single frame rate would
+flatten that standby flicker into a strobe.
+
+Phaser shows a frame for `msPerFrame + frame.duration` and will not accept a zero
+base — `frameRate: 0` falls back to 24fps — so `EntitySprites.ts` runs the base at
+1000fps and subtracts that millisecond from each authored hold.
+
+### Fails open
+
+Each strip is probed for before boot and used only if it is there, the same way
+`UiTextures.ts` treats the HUD chrome and for the same reason: every one of these
+entities already draws something. Without the art the terminal and substation
+render their map tile's frame through `HoldTarget` and the camera falls back to
+`Sensor.drawHousing`'s `Graphics`, exactly as before. Deleting the four PNGs is a
+supported state, not a broken one.
+
+### The shared reader
+
+`tools/aseprite/reader.py` parses the format — layers, cels (raw, compressed and
+linked), tags and user data. It used to live inside `build_panel.py`; both tools
+now import it, so there is one parser rather than two that drift. It fails loudly
+on the things that would otherwise corrupt output silently: a non-32bpp save
+(cels are decoded straight into RGBA), a canvas that no longer matches what the
+caller expects, and any blend mode other than Normal, which the editor would
+composite differently than a plain `alpha_composite` does.
+
+### Palette
+
+`sack_lunch`-style strictness is not enforced here. The panel's tool fails on an
+off-ENDESGA-64 colour because that art was authored against the assertion; these
+four were drawn before it existed, so `build_sprites.py` reports and continues,
+with `--strict` to make it fatal. As it stands the camera and breaker are exactly
+on palette; the terminal carries 8 off-palette colours and the substation 37.
+Neither is noise — the terminal's include `#5effa0` and `#ffb03b`, the game's own
+hacked-green and locked-amber, and the substation's are a hand-drawn purple-to-red
+gradient across its screen.
 
 ---
 

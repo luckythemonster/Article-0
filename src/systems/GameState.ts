@@ -64,6 +64,9 @@ const RUN_KEYS = [
   "conductMetrics",
   "pauseRequest",
   "mapSnapshot",
+  // Which breakers the player has thrown. Belongs to the run, not the save file:
+  // a fresh start must find the lights on, whatever the last one left them.
+  "powerGrid",
   SUSPENDED_KEY,
 ] as const;
 

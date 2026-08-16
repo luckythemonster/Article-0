@@ -16,6 +16,74 @@ icons specifically.
 
 ---
 
+## Done — three world entities
+
+`Terminal.aseprite`, `terminal_substation.aseprite` and `security_camera.aseprite`
+in `public/assets/sprites/` are finished and wired. The terminal shows a standby
+blip when idle, flashes amber and red while it is being breached, and settles on
+a teal screen with a green lamp once it is. The substation runs its readout while
+being patched and ends on a flatlined face. The camera blinks a red status lamp
+once a second, faces whichever of four cardinals it is mounted toward, and goes
+dark when its `Sensor` component says `disabled`.
+
+Same arrangement as the panel: **the `.aseprite` is the source and the PNG strip
+is build output.** `python3 tools/sprites/build_sprites.py` composites the visible
+layers and writes `src/entities/entitySpriteFrames.json`. Two annotations are read,
+not one — Aseprite **tags** for clips and **cel labels** for single frames — which
+is what lets the camera's four identically-named `active` tags be told apart by
+facing. `docs/ART_PIPELINE.md` §"Entity art" has the full contract.
+
+Nothing left to redraw here. If you do redraw one, re-run the tool and commit
+what it writes; the frame numbers are generated, so inserting or reordering
+frames needs no code change.
+
+---
+
+## Done — the breaker and the power grid
+
+`Breaker.aseprite` is finished and wired. Tapping it cuts a named circuit and taps
+again to restore it; `src/entities/Breaker.ts` owns the throw and
+`src/systems/PowerGrid.ts` owns which circuits are live. Nothing left to draw here.
+
+**The `CONTROLS` layer is a four-LED binary keypad, not a spinning readout** — that
+was the open question, and the pixels answered it. Each of the four 2×2 lamps is one
+bit, lit `#ff0040` and unlit `#571c27`:
+
+| digit | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| lit | — | TL | TR | TL·TR | BL | TL·BL | TR·BL | TL·TR·BL | BR | TL·BR |
+
+so **top-left is worth 1** and bottom-right 8. Every digit is drawn twice, once
+against the green `POWER_ON` screen and once against the red `POWER_OFF` one, which
+is what lets a code be shown going in while cutting power *and* while restoring it.
+
+> ⚠️ **This is the opposite endianness to the HUD.** `docs/GUI_STYLE_GUIDE.md` §4
+> says the network panel's LED clusters read "leftmost worth 8"; this one reads
+> leftmost worth 1. Both are as-drawn and both are correct for their own art —
+> documented rather than reconciled, because renaming either would break a readout
+> that currently reads right. Do not "fix" one to match the other.
+
+A throw is composed per-press rather than played as a fixed range: the four digits
+are picked by `keypadCode` and looked up by label, so no two throws animate alike.
+Cutting power reads `[idle-green, open, d1..d4, open-red, idle-red]` and restoring is
+the mirror through the red digits.
+
+| clip | frames | reads as |
+|---|---|---|
+| `IDLE` | 0, and 23 | cabinet shut — green screen at 0, red at 23 |
+| `POWER_ON` | 0–11 | door opens, controls run, screen green |
+| `POWER_OFF` | 12–23 | screen flips red, controls run, door shuts |
+| `IN_USE` | 1–21 | the whole open-cabinet stretch |
+
+`IDLE` appears **twice** and the two mean different things — powered and unpowered.
+They are told apart by intersecting the tag with the `SCREEN` layer's own cel label,
+which is the two-annotation contract doing exactly what it is for.
+
+It is authored at **½ tile** (`breaker_main1` is `RowSpan`/`ColSpan` 0.5), which is
+why the art is 16×16 and not 32.
+
+---
+
 ## Done — the network panel
 
 `public/assets/ui/panel/ui-panel.aseprite` is finished and wired. It is no longer
@@ -207,6 +275,10 @@ than shipping soft.
 - **`sack_lunch.png`** and **`EMP_grenade.png`** icons.
 - **The network panel** — finished, wired to live data, and every colour an
   exact EDG64 entry asserted by its build tool. See "Done" above.
+- **The terminal, substation and security camera** — hand-drawn, state-driven and
+  wired. See "Done — three world entities" above.
+- **The breaker** — art, entity and power grid all done. See "Done — the breaker
+  and the power grid" above.
 - Everything listed under GUI_STYLE_GUIDE §7 "What not to draw" — light cones,
   radial light stamps, radar blips and sweep, the EKG trace, bars and gauges. All
   generated at runtime from live state.
@@ -223,4 +295,7 @@ than shipping soft.
 | item name → icon path | `src/systems/ItemIcons.ts` |
 | what each panel frame means | `src/ui/NetworkPanel.ts` |
 | the panel's build tool | `tools/panel/build_panel.py` |
+| the entity sprites' build tool | `tools/sprites/build_sprites.py` |
+| the shared `.aseprite` reader | `tools/aseprite/reader.py` |
+| entity sprite manifest and clip lookup | `src/entities/EntitySprites.ts` |
 | effect specs | `src/entities/Vfx.ts` |

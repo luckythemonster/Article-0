@@ -218,6 +218,28 @@ describe("EntityIndex — fixtures", () => {
     expect(ix.claimed.size).toBe(3);
   });
 
+  it("takes the breaker off `power` and leaves the door beside it as art", () => {
+    // main1's `power` board is the sharpest mixed board on the map: a door that
+    // stays baked art next to a breaker that must become an entity. It is
+    // deliberately absent from GameScene's `ENTITY_LAYERS` for that reason, so
+    // per-tile claiming is the only thing stopping the breaker being painted
+    // into the level texture *and* drawn as a sprite on top of it.
+    const art = tile(15, 10, "door_single_horizontal1", door);
+    const breaker = tile(3, 7, "breaker_main1", {
+      type: "power_grid",
+      values: { Target: "light_overhead1", state: "CLOSED" },
+    });
+    const lvl = level({ power: [art, breaker] });
+    const ix = indexEntities(lvl, LEGACY);
+    indexFixtures(lvl, ix);
+
+    expect(ix.breakers).toEqual([breaker]);
+    expect(ix.claimed.has(breaker)).toBe(true);
+    // The door is on `power`, not on `doors`, so it is scenery here.
+    expect(ix.doors).toEqual([]);
+    expect(ix.claimed.has(art)).toBe(false);
+  });
+
   it("keeps doors board-scoped, so an elevator car's doors stay art", () => {
     // Both exits of the one-tile car carry a LOCKED door component. Made real,
     // they would seal the player inside it.

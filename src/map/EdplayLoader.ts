@@ -29,6 +29,7 @@ const COMPONENT_ALIASES: Record<string, string> = {
   lightsource: "light_source",
   sensors: "sensor",
   audiohazard: "audio_hazard",
+  powergrid: "power_grid",
 };
 
 /**
