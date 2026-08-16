@@ -153,6 +153,17 @@ export class Player {
     return this.leanX !== 0 || this.leanY !== 0;
   }
 
+  /**
+   * Facing for anything that should track the peek — currently just the
+   * flashlight. `facing` itself stays untouched by leaning: WallPress
+   * re-derives the pressed surface from it every frame, and weapons/vault
+   * aim from it too, so swinging it to the lean angle would risk detaching
+   * the press or retargeting a shot mid-peek.
+   */
+  get viewFacing(): number {
+    return this.peeking ? Math.atan2(this.leanY, this.leanX) : this.facing;
+  }
+
   get alive(): boolean {
     return this.hp > 0;
   }

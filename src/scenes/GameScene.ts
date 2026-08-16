@@ -2146,7 +2146,7 @@ export class GameScene extends Phaser.Scene {
       dt,
       eye,
       this.activeItems.flashlightBeamActive
-        ? { x: eye.x, y: eye.y, facing: this.player.facing }
+        ? { x: eye.x, y: eye.y, facing: this.player.viewFacing }
         : null,
     );
     this.playTimeMs += delta;
