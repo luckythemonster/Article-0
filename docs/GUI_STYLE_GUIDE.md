@@ -118,9 +118,9 @@ Panels are the one thing that cannot be a fixed sprite: they wrap content of
 different widths, and some change width at runtime. They ship as **nine-slice** —
 corners fixed, edges stretched along one axis, middle stretched both ways.
 
-The shipped panel is `public/assets/ui/panel/ui-panel.png`, a bevelled casing with
-a flat-fill screen, an LED indicator trio, and an exit-button icon. Draw a
-replacement to the same terms:
+The shipped panel is `public/assets/ui/panel/ui-panel.aseprite` — the layered
+source, not a PNG. `python3 tools/panel/build_panel.py` cuts it into what the
+game loads. Draw a replacement to the same terms:
 
 - **Frame size: 48x48. Slice inset: 12px.** That gives four 12x12 corners, four
   12x24 edges, and a 24x24 middle. Registered as `ui-panel` in
@@ -130,9 +130,8 @@ replacement to the same terms:
 - **Only the corners are safe for detail.** Anything drawn in an edge region gets
   stretched along that edge — a bolt head in the top edge becomes a smear. Put
   detail in corners; keep edges to lines that survive stretching. The shipped
-  panel obeys this exactly: its exit-button icon (bottom-left) and LED trio
-  (bottom-right) are both inside the 12px corners, which is what lets them carry
-  that much detail at any size.
+  panel obeys this exactly: all four of its instruments sit inside the 12px
+  corners, which is what lets them carry that much detail at any size.
 - **1px stroke weight.** At 1:1 there is no zoom to hide a 2px line, and the HUD's
   existing chrome is all 1px. Use `--c-border-cool` for the default border.
 - **The middle must be near-flat and dark.** It is the surface HUD text sits on,
@@ -144,59 +143,112 @@ Panels degrade to a stroked rectangle when the art is absent (`uiPanel()` in
 `src/ui/NineSlicePanel.ts`), so the sprite should read as an *upgrade* of that
 rectangle, not a different visual language.
 
-### The status lamp
+### The chrome, and the instruments
 
-The panel is **eight frames**. Two layers move: `indicator_LEDs`, three small
-lamps in the bottom-right corner, and `screen`, the nine-slice middle's own flat
-fill — darker when idle, lighter while something's happening. `src/ui/PanelLed.ts`
-owns what the frames mean.
+The build emits **two** sheets, and the split is the important part.
 
-| state | frames | rhythm | shown when |
-|---|---|---|---|
-| `off` | 0 | steady, idle | every panel but one |
-| `in_use` | 1→7→1 (ping-pong) | 100ms a step | the network has any activity |
+`ui-panel.png` is **casing and screen only** — three 48x48 frames, no
+instruments. This is what `uiPanel()` gives every widget, and it is why the
+inventory strip does not inherit three meaningless LED labels.
 
-Unlike the panel's previous design, there's no colour per named alert phase — the
-lamp reads as an activity light (idle vs. working) rather than a three-way status
-indicator. `ledStateForNetwork()` derives `in_use` from live counts (`alerted`,
-`suspicious`, `converging`) on the published snapshot, not from `AlertPhase`.
+| screen frame | reads as | used by |
+|---|---|---|
+| `off` | dark well | the network readout before its first snapshot |
+| `on` | lit well | every panel, always |
+| `ALERT_FLASH` | red fill, white `!` | one brief stinger, on the way into ALERT |
 
-**Exactly one panel lights its lamp** — the alert-network readout. A HUD of panels
-all blinking together reads as a fault rather than a readout, so `uiPanel()`
-defaults to `off` and callers opt in with `attachPanelLed`.
+`network-indicators.png` is the other half: **four 12x12 instruments**, each
+cropped to the corner it lives in, laid on the panel as ordinary `Image` objects.
+They are separate sprites rather than baked frames because they vary
+independently — three counts of 0-10-plus-overflow against five badge states is
+over twenty thousand combinations, and no sheet covers that. Pinning works
+because nine-slice reproduces corners at native size however far the middle is
+stretched, so each sprite sits flush at any panel size with no scaling maths.
 
-Phaser animations cannot drive this: `play()` belongs to `Sprite` and a
-`NineSlice` is a mesh. Frames are stepped by hand, and **`setFrame` must be
-followed by `updateUVs()`** — without it the frame changes and the panel goes on
-drawing the old one, silently. Resizing is the mirror image: `setSize` then
-`updateVertices()`, which is what `placePanel()` wraps.
+| corner | instrument | source layer |
+|---|---|---|
+| top-left | units online | `UNIT_indicator_LEDs` |
+| top-right | status badge | `NETWORK` |
+| bottom-left | suspicious contacts | `SUSP_indicator_LEDs` |
+| bottom-right | spotters | `SPOT_indicator_LEDs` |
 
-### The exit button
+`src/ui/NetworkPanel.ts` owns what every frame means; `AlertNetworkHud` places
+them. **Exactly one panel wears them** — a HUD of panels all blinking together
+reads as a fault rather than a readout.
 
-The bottom-left corner carries a small red X — `exit_button`, static across most
-of the cycle. It's wired as a real dismiss control on the NETWORK panel, but as a
-**keyboard toggle (`N`)**, not a click target: nothing in the world HUD has ever
-handled pointer input, and this icon doesn't need to be the first thing that does.
-`AlertNetworkHud.setShown()` hides the panel and its text together; `UIScene`
-binds the key the same way it binds the item-cycle keys.
+### Reading the counts
 
-That icon ships on **every** panel using this art, dismissable or not — it's baked
-into the shared frames, not toggled per instance. Right now that means the
-inventory strip shows the same X with no key wired to it. Worth a look before
-adding a second dismissable panel: either accept it as chrome that only some
-panels act on, or split the icon out so it can be per-instance.
+**The clusters are binary, not bargraphs.** Four LEDs read as a 4-bit number,
+leftmost worth 8: `....` is 0, `...*` is 1, `..*.` is 2, up to `*.*.` for 10.
+Past 10 the cluster shows a single all-lit overflow frame — overflow rather than
+clamping, because holding at "10" while twelve units hunt you is a quietly wrong
+readout, where all-lit at least says *more than this can count*.
 
-### Exporting it
+**The lit colours rotate and mean nothing.** Count 4 is red on the UNIT cluster,
+cyan on SPOT and amber on SUSP; it is the same number. Reading severity into
+them is reading something the art does not say. Only the badge's colour is
+semantic:
 
-The source is `UI_panel.aseprite`, authored in Pixquare. Export as a spritesheet
-and drop `ui-panel.png` over the committed one. **Margin and spacing aren't
-assumed** — the shipped export is a tight 144x144, 3x3 grid with *no* padding at
-all (unlike the original panel's 1px margin / 2px spacing), so read the real
-numbers off whatever Pixquare produces rather than reusing the old ones. Frame
-order matters: `PANEL_LED_CLIPS` in `src/ui/PanelLed.ts` addresses frames by
-index, so a re-export has to keep 0 as idle and 1-7 as the bounce, in that order.
-The grid holds one more slot than there are frames (9 for 8); `sheet.count` in the
-manifest is what stops Phaser's generated ninth frame from ever being drawn.
+| badge | colour | shown when |
+|---|---|---|
+| `DISCONNECTED` | dark | no snapshot published yet |
+| `NOMINAL` | `#0cf1ff` cyan | quiet |
+| `SUSPICIOUS` | `#ffc825` amber | any unit suspicious, **or** phase EVASION |
+| `ALERT` | `#ff0040` red | phase ALERT |
+| `BLINK` | dark | the off beat of the alert pulse |
+
+The badge **leads** the status word rather than echoing it: one guard
+half-noticing you lights amber while the phase is still INFILTRATION, which is
+the moment the readout is worth glancing at.
+
+### The alert animation
+
+Two things move, and only under ALERT:
+
+- **The whole panel blinks** — every instrument drops to its dark frame together
+  on a 600ms cycle, dark for the last 100ms of it. As one, deliberately: four
+  things blinking independently reads as a fault. Asymmetric because a 50/50
+  strobe is hard to actually read, and reading it is the point.
+- **The screen flashes red once**, for 220ms, on the *transition* into ALERT.
+  A stinger, not a state — HUD text draws over the screen, so a sustained red
+  fill would sit under the words that say what is happening.
+
+Neither uses a `TimerEvent`. `alertPulse(nowMs)` is a pure function of the scene
+clock and `AlertNetworkHud.update()` already runs every frame, so there is
+nothing to keep in step with the phase and nothing to unhook at shutdown — a
+timer outliving its panel keeps firing into destroyed Game Objects.
+
+Phaser animations could not drive this anyway: `play()` belongs to `Sprite` and a
+`NineSlice` is a mesh. Frames are set by hand, and **`setFrame` must be followed
+by `updateUVs()`** — without it the frame changes and the panel goes on drawing
+the old one, silently. Resizing is the mirror image: `setSize` then
+`updateVertices()`. `setPanelFrame()` and `placePanel()` wrap both.
+
+### Changing the art
+
+There is no export step. Redraw `ui-panel.aseprite`, run
+`python3 tools/panel/build_panel.py`, and commit what it writes — two PNGs and
+`src/ui/networkIndicatorFrames.json`.
+
+**Label your cels; the labels are the contract.** The tool reads each frame's
+annotation, never its position: `'0'`…`'10'` and a `>`-prefixed overflow on the
+count layers, and the state names above on the `NETWORK` and `screen` layers.
+That is what let the counts grow from 0-7 to 0-10 across two redraws with no code
+change at all — a re-run, not an edit. So:
+
+- Reorder or insert frames freely. Rename a label and you have changed the
+  contract.
+- Numeric labels must be a **gap-free run from 0**; the tool fails loudly rather
+  than let a missing count fall through to overflow.
+- Keep every instrument inside its own 12px corner, and the `screen` layer inside
+  the stretchable middle.
+- Stay in ENDESGA-64. The tool asserts it, so an off-palette pixel fails the
+  build instead of shipping.
+
+Two duplications are **intentional** and asserted rather than tolerated: a
+cluster's `BLINK` frame is pixel-identical to its `0`, and the badge's `BLINK` to
+`DISCONNECTED`. Blink-off *is* dark. They stay separate frames because they mean
+different things.
 
 ## 5. Item and status icons
 
@@ -296,8 +348,12 @@ size, not at 64px.
 4. For anything else, add an entry to `UI_TEXTURES` in `src/ui/UiTextures.ts`:
 
    ```ts
-   { key: "ui-panel", path: "assets/ui/panel/panel.png", size: 48, slice: 12 }
+   { key: "ui-radar-bezel", path: "assets/ui/radar/bezel.png", size: 96 }
    ```
+
+   The panel is the exception to steps 1-2: its source is the layered
+   `.aseprite`, and its PNGs are written by `tools/panel/build_panel.py`. See
+   "Changing the art" in §4.
 
 5. `npm test` — `uiScale.test.ts` checks the entry is pixel-perfect at its display
    size.
@@ -320,7 +376,8 @@ file at a time without a flag day.
 | the 1:1 rule | `src/render/uiScale.ts` |
 | texture manifest | `src/ui/UiTextures.ts` |
 | nine-slice helper | `src/ui/NineSlicePanel.ts` |
-| the panel's status lamp | `src/ui/PanelLed.ts` |
+| what each panel frame means | `src/ui/NetworkPanel.ts` |
+| the panel's build tool | `tools/panel/build_panel.py` |
 | icon paths | `src/systems/ItemIcons.ts` |
 | fonts and the 14 glyphs | `src/ui/fonts.ts` |
 | the two round instruments | `src/ui/Radar.ts`, `src/ui/BioMonitor.ts` |

@@ -212,34 +212,61 @@ wired up.
 
 ## Interface art
 
-One piece of hand-drawn UI art ships: **`public/assets/ui/panel/ui-panel.png`**,
+One piece of hand-drawn UI art ships: **`public/assets/ui/panel/ui-panel.aseprite`**,
 the HUD's panel frame. Everything about how to draw or replace it lives in
 `docs/GUI_STYLE_GUIDE.md` §4; what belongs here is why it is the shape it is.
 
-It is authored in **Pixquare** (`UI_panel.aseprite`, source kept alongside the
-export) — a different tool from anything else in this document, which is fine,
-because the export is an ordinary sprite sheet and nothing in the build cares
-what drew it. Not every export from it is padded the same way, though — the
-current one is packed with no margin or spacing at all, where the original was —
-so a re-export's grid geometry gets read off the actual file, never assumed.
+It is authored in **Pixquare** — a different tool from anything else in this
+document, which is fine, because nothing downstream cares what drew it. Unlike
+every other asset here, though, **the `.aseprite` is the shipped source and the
+PNGs are build output**: `python3 tools/panel/build_panel.py` reads the layered
+file directly and emits two sheets plus a JSON frame map, all committed. Same
+arrangement as `tools/font/build_symbols.py`. Nothing is hand-exported, so the
+grid geometry cannot be misread off a re-export.
 
 The interface obeys a *stricter* rule than the world does. `UIScene` is unzoomed,
 so where a world sprite may be drawn at 1, 2 or 3 screen pixels per source pixel,
 a UI texture reaches the screen at exactly the size it was authored — see
 `src/render/uiScale.ts` and its test. The panel is 48×48 shown at 48×48.
 
-It is also the first piece of art here that **animates without being an effect**.
-Eight frames, and two layers move: an LED trio and the panel's own background
-fill. The frames are addressed by *state* rather than played as a clip:
-`src/ui/PanelLed.ts` maps live network activity onto `off`/`in_use`, so the frame
-the panel shows is a readout, not a timeline. That is why it is not in `Vfx.ts`
-despite also being a sprite animation.
+### Why it is cut in two
 
-The moving parts survive nine-slice stretching for one reason worth remembering
-if you draw another: the LEDs, and the exit-button icon beside them, **sit in
-corners**, and nine-slice reproduces corners at native size. Detail in an edge
-would smear the moment a panel grew — the middle can only carry a flat fill,
-which is exactly what the `screen` layer is.
+The source's six layers are not alternative looks at one panel. Four of them are
+*independent instruments* — three LED clusters counting units, spotters and
+suspicious contacts, plus a status badge — over a screen with three states. They
+combine into more than twenty thousand readouts, so no set of flat frames covers
+them. The generator therefore emits:
+
+- **`ui-panel.png`** — casing and screen only, three frames, the generic panel
+  every widget nine-slices. Deliberately *without* the indicator layers, so the
+  inventory strip doesn't inherit three meaningless LED labels.
+- **`network-indicators.png`** — the four indicators, each cropped to the 12px
+  corner it occupies, laid out one cluster per row.
+
+Two ideas here are worth reusing rather than rediscovering:
+
+**Corner-pinned indicators.** The instruments survive being stretched because
+they **sit in corners**, and nine-slice reproduces corners at native size. So
+each is cropped to its whole 12×12 corner — not to its ink — and laid on the
+panel as an ordinary `Image` at that corner's coordinates. It lands flush at any
+panel size, with no scaling maths anywhere. Detail in an *edge* would smear the
+moment a panel grew; the middle can only carry a flat fill, which is exactly
+what the `screen` layer is.
+
+**Cel labels as the art↔code contract.** Every frame in the source is annotated
+by the artist with what it means — `'0'`…`'10'` and a `>`-prefixed overflow on
+the count layers, `NOMINAL`/`ALERT`/`BLINK` and friends on the badge. The
+generator reads *those*, never frame positions, and writes them out as
+`src/ui/networkIndicatorFrames.json`. This is why the counts could grow from 0–7
+to 0–10 across two redraws without a line of code changing: re-run the tool and
+the new range is in the JSON. Frames may be reordered or inserted freely. It is
+the labels that must not change meaning.
+
+The result **animates without being an effect**, which is why it is not in
+`Vfx.ts` despite being a sprite animation. Frames are addressed by *state*:
+`src/ui/NetworkPanel.ts` maps a published `AlertNetworkSnapshot` onto five frame
+indices, so the panel shows a readout, not a timeline. Even the alert blink is a
+pure function of the clock rather than a timer stepping through a clip.
 
 ---
 

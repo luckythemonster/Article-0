@@ -16,18 +16,24 @@ icons specifically.
 
 ---
 
-## Done — the panel's redraw
+## Done — the network panel
 
-`public/assets/ui/panel/ui-panel.png` was redrawn from scratch: eight frames, an
-LED trio, a flat screen fill, and an exit-button icon, replacing the original
-five-frame lamp. Every one of its fifteen colours is now an exact ENDESGA-64
-entry — checked pixel-by-pixel against the palette, not eyeballed. Nothing left
-to redraw here.
+`public/assets/ui/panel/ui-panel.aseprite` is finished and wired. It is no longer
+just chrome: three of its layers are binary LED clusters counting units, spotters
+and suspicious contacts, and a fourth is a status badge, all driven by the live
+`AlertNetworkSnapshot`. Counts read 0–10 exactly with an all-lit overflow frame
+past that; the badge has five states; the screen has three, including a red
+alert flash. Every colour is an exact ENDESGA-64 entry, asserted by the build
+tool rather than eyeballed. Nothing left to redraw here.
 
-One open question, not a redraw: the exit-button icon ships on **every** panel
-using this art, since it's baked into the shared frames rather than toggled per
-instance — including the inventory strip, which has no key wired to dismiss it.
-See `docs/GUI_STYLE_GUIDE.md` §4 for the detail.
+Worth knowing before touching it: **the `.aseprite` is the source and the PNGs
+are build output.** `python3 tools/panel/build_panel.py` cuts the layered file
+into `ui-panel.png` (casing only) and `network-indicators.png` (the four corner
+instruments), plus `src/ui/networkIndicatorFrames.json`. The tool reads the
+artist's own **cel labels**, not frame positions, so redrawing is a re-run rather
+than a code edit — that indirection is what let the counts grow from 0–7 to 0–10
+across two revisions with nothing in `src/` changing. `docs/GUI_STYLE_GUIDE.md`
+§4 has the full contract.
 
 ---
 
@@ -199,8 +205,8 @@ than shipping soft.
 - **The four wired VFX** — EMP blast, electronics spark, impact, smoke plume — all
   satisfy the scale rule and are covered by a test.
 - **`sack_lunch.png`** and **`EMP_grenade.png`** icons.
-- **The panel** — every one of its colours is an exact EDG64 entry, checked
-  pixel-by-pixel. See "Done" above.
+- **The network panel** — finished, wired to live data, and every colour an
+  exact EDG64 entry asserted by its build tool. See "Done" above.
 - Everything listed under GUI_STYLE_GUIDE §7 "What not to draw" — light cones,
   radial light stamps, radar blips and sweep, the EKG trace, bars and gauges. All
   generated at runtime from live state.
@@ -215,5 +221,6 @@ than shipping soft.
 | the UI scale rule | `src/render/uiScale.ts` |
 | texture manifest | `src/ui/UiTextures.ts` |
 | item name → icon path | `src/systems/ItemIcons.ts` |
-| the panel's status lamp | `src/ui/PanelLed.ts` |
+| what each panel frame means | `src/ui/NetworkPanel.ts` |
+| the panel's build tool | `tools/panel/build_panel.py` |
 | effect specs | `src/entities/Vfx.ts` |

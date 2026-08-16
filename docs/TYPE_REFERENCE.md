@@ -12,10 +12,10 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 | [Entities](#entities) | 0 | 17 | 17 | 14 | 1 | 49 |
 | [Map](#map) | 0 | 4 | 36 | 3 | 1 | 44 |
 | [Scenes](#scenes) | 0 | 14 | 12 | 2 | 0 | 28 |
-| [UI](#ui) | 0 | 22 | 27 | 2 | 5 | 56 |
+| [UI](#ui) | 0 | 22 | 26 | 3 | 5 | 56 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **76** | **174** | **40** | **13** | **306** |
+| **All** | **3** | **76** | **173** | **41** | **13** | **306** |
 
 ## Conventions
 
@@ -4612,10 +4612,10 @@ widget picks a role rather than a number.
 
 #### `UI_TEXTURES` — const
 
-`src/ui/UiTextures.ts:67`
+`src/ui/UiTextures.ts:70`
 
 ```ts
-const UI_TEXTURES = [ /** * The generic HUD panel: border, corners and fill, stretched to any size. * * Eight frames: a shared casing, an idle frame, and a seven-frame bounce * (frames 1-7, ping-pong) where a corner LED trio and the nine-slice middle's * fill both animate. See {@link ./PanelLed} for what the frames mean and how * they're addressed. * * Exported 144x144, a tight 3x3 grid with no margin or spacing at all — see * {@link UiTextureSpec.sheet}'s doc comment for why that isn't assumed. */ { key: "ui-panel", path: "assets/ui/panel/ui-panel.png", size: 48, slice: 12, sheet: { margin: 0, spacing: 0, count… as const;
+const UI_TEXTURES = [ /** * The generic HUD panel: border, corners and fill, stretched to any size. * * Three frames, all just casing and screen: dark, lit, and the red alert * flash. The alert-network readout uses the dark one to mean "no data yet" * and strikes the flash once on the way into ALERT; everything else takes the * lit frame and never changes it. * * Deliberately carries *none* of the source art's indicator layers, so a * widget adopting a panel doesn't inherit three meaningless LED labels — see * `tools/panel/build_panel.py`, which cuts them into a separate sheet. */ { key: "ui-panel", path: "asset… as const;
 ```
 
 ### UI — Classes
@@ -4624,7 +4624,7 @@ const UI_TEXTURES = [ /** * The generic HUD panel: border, corners and fill, str
 
 #### `AlertNetworkHud` — class
 
-`src/ui/AlertNetworkHud.ts:42`
+`src/ui/AlertNetworkHud.ts:65`
 
 A small readout of the base's security network, pinned under the detection
 meter (top-left). Shows the network status, how many detectors are online /
@@ -4634,25 +4634,35 @@ converging on the last-known position and the seconds until it relaxes.
 Reads the snapshot the scene publishes to the registry; screen-anchored so
 the camera zoom doesn't scale it (same pattern as `Hud`).
 
-This is the one panel in the HUD whose lamp actually lights. The redrawn
-panel art dropped the three named alert colours for a plain activity light —
-`in_use` while the network has anything to report, dark when it is quiet —
-so `ledStateForNetwork` reads the same counts the detail lines below
-already print rather than the phase word. Every other panel keeps the lamp
-dark; six panels blinking in unison would read as a fault, not a readout.
+This is the one panel in the HUD that is also an instrument. Its art carries
+four indicators — three binary LED clusters counting units, spotters and
+suspicious contacts, plus a status badge — and they say the same numbers the
+detail lines below print in words, so the two cannot disagree. Everything
+else that adopts a panel gets plain chrome; see `./NetworkPanel` for
+what each frame means.
 
-Also the one panel a player can hide — `N` toggles it via `setShown`,
-bound in `UIScene`. Hiding takes the panel and all three of its text objects
-together, so there is nothing left on screen for the readout once it's gone.
+The indicators are separate sprites rather than baked frames because they
+vary independently: three counts of 0–10-plus-overflow against five badge
+states and three screens is over twenty thousand combinations. Pinning them
+to the panel's corners works because nine-slice reproduces corners at native
+size however far the middle is stretched.
+
+Under ALERT it is also the only animated thing in the HUD: the whole panel
+blinks dark on a slow beat, and the screen flashes red once on the way in.
+See `animate` for why neither uses a timer.
+
+Also the one panel a player can hide — `K` toggles it via `setShown`,
+bound in `UIScene`. Hiding takes the panel, its three text objects *and* its
+four indicators together, so nothing is left stranded on screen.
 
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `constructor` | `constructor(scene: Phaser.Scene)` |  |
 | `update` | `update(net: AlertNetworkSnapshot): void` |  |
 | `isShown` | `isShown(): boolean` | Whether the panel is currently on screen. |
-| `setShown` | `setShown(shown: boolean): void` | Shows or hides the panel and all three of its text objects together. |
+| `setShown` | `setShown(shown: boolean): void` | Shows or hides the panel, its text and its indicators together. |
 
-*Plus 6 private members.*
+*Plus 17 private members.*
 
 <a id="class-biomonitor"></a>
 
@@ -4809,7 +4819,7 @@ UIScene.
 
 #### `InventoryHud` — class
 
-`src/ui/InventoryHud.ts:22`
+`src/ui/InventoryHud.ts:23`
 
 A compact inventory readout pinned to the bottom-right of the screen, in three
 sections: the held CONSUMABLES (with counts and, for timed buffs, their
@@ -5146,7 +5156,7 @@ Everything the transmission depends on, gathered by the caller.
 
 #### `ControlBinding` — interface
 
-`src/ui/Controls.ts:15`
+`src/ui/Controls.ts:20`
 
 **Module note** — the header comment on `src/ui/Controls.ts`, which this declaration heads:
 
@@ -5156,11 +5166,16 @@ It was previously written out twice — once as a hardcoded string in the HUD's
 bottom-left hint (`Hud.ts`) and once in the README's controls table — with the
 pause menu's CONTROLS tab about to make three. The hint had already drifted
 once. `GameScene.bindInput()` remains the place most keys are actually
-*bound* (one exception: `N` is `UIScene`'s own, since it toggles a HUD panel
+*bound* (one exception: `K` is `UIScene`'s own, since it toggles a HUD panel
 rather than doing anything to the player); this is the place they are all
 *described*, and the two are checked against each other by eye at review
 time rather than by a mechanism, because Phaser gives no enumerable view of
 a scene's bindings.
+
+Keys bound outside `GameScene.bindInput` are the ones worth checking twice:
+`DebugOverlay` registers its own, and a collision there is silent because the
+two scenes both receive the keypress. That is how the panel toggle came to be
+on `K` — it shipped on `N` and shared it with no-clip.
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -5305,6 +5320,22 @@ The player's flashlight beam, or null when it isn't emitting.
 | `onSelect` | `() => void` |  |
 | `enabled` *(opt)* | `boolean` | A disabled item is dimmed and skipped by navigation/selection. |
 
+<a id="interface-networkindicatorframes"></a>
+
+#### `NetworkIndicatorFrames` — interface
+
+`src/ui/NetworkPanel.ts:158`
+
+Every indicator frame for one readout.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `screen` | `number` |  |
+| `unit` | `number` |  |
+| `spot` | `number` |  |
+| `susp` | `number` |  |
+| `badge` | `number` |  |
+
 <a id="interface-palette"></a>
 
 #### `Palette` — interface *(module-private)*
@@ -5345,32 +5376,6 @@ One tab's content, plus its share of the keyboard.
 | `node` | `HTMLElement` |  |
 | `onKey` *(opt)* | `onKey?(e: KeyboardEvent): boolean` | Returns whether the key was consumed. |
 | `onShow` *(opt)* | `onShow?(): void` | Called when the tab is shown — panes that measure themselves need it. |
-
-<a id="interface-panelledhandle"></a>
-
-#### `PanelLedHandle` — interface
-
-`src/ui/NineSlicePanel.ts:119`
-
-Drives a panel's status lamp. Returned by `attachPanelLed`.
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `set` | `set(state: PanelLedState): void` | Points the lamp at a new state. A no-op if it is already there. |
-| `stop` | `stop(): void` | Stops the driver. Safe to call more than once. |
-
-<a id="interface-panelledstep"></a>
-
-#### `PanelLedStep` — interface
-
-`src/ui/PanelLed.ts:29`
-
-One step of a lamp's cycle: which frame, and how long it holds.
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `frame` | `number` | Index into the `ui-panel` spritesheet. |
-| `duration` | `number` | Milliseconds to hold before advancing. |
 
 <a id="interface-pausecallbacks"></a>
 
@@ -5513,7 +5518,7 @@ the gap to whatever the last sweep left.
 
 #### `UiPanelOptions` — interface
 
-`src/ui/NineSlicePanel.ts:35`
+`src/ui/NineSlicePanel.ts:25`
 
 A HUD panel background, drawn from art when there is art and from primitives
 when there isn't.
@@ -5540,13 +5545,13 @@ exists — no call site changes, nothing to remember.
 | `fill` *(opt)* | `number` | Fill for the drawn fallback. Ignored when art is present. |
 | `stroke` *(opt)* | `number` | Border for the drawn fallback. Ignored when art is present. |
 | `alpha` *(opt)* | `number` | Fill opacity for the drawn fallback. |
-| `led` *(opt)* | `PanelLedState` | Which status lamp the panel's corner shows. Defaults to `"off"`. Every panel drawn from this art carries the same lamp, so leaving the default alone matters: a HUD of six framed blocks all blinking in unison would read as a fault, not a readout. Exactly one panel should be lit — see `attachPanelLed`. |
+| `frame` *(opt)* | `number` | Which chrome frame to draw: a lit screen (`SCREEN_ON`, the default) or a dark one (`SCREEN_OFF`). Only the alert-network readout has any use for the dark frame — it means "no data published yet". Everything else is a panel that simply exists, and wants the lit interior, which is `--c-bg-panel`. |
 
 <a id="interface-uisheetspec"></a>
 
 #### `UiSheetSpec` — interface
 
-`src/ui/UiTextures.ts:58`
+`src/ui/UiTextures.ts:61`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -5558,7 +5563,7 @@ exists — no call site changes, nothing to remember.
 
 #### `UiTextureSpec` — interface
 
-`src/ui/UiTextures.ts:24`
+`src/ui/UiTextures.ts:25`
 
 The HUD's optional artwork.
 
@@ -5583,23 +5588,41 @@ wrong resolution fails the build instead of shipping a resampled panel.
 | --- | --- | --- |
 | `key` | `string` | Phaser texture key, and the name widgets check for. |
 | `path` | `string` | Path under `public/`. |
-| `size` | `number` | The art's authored pixel dimension (square). For a `UiTextureSpec.sheet`, this is one *frame* rather than the whole image — which is what the scale rule cares about, and what keeps the file's outer dimensions (144x144 for a 3x3 grid of 48s) from having to be square. |
+| `size` | `number` | The art's authored pixel dimension (square). For a `UiTextureSpec.sheet`, this is one *frame* rather than the whole image — which is what the scale rule cares about, and what keeps the file's outer dimensions (96x48 for two 48s side by side) from having to be square. |
 | `display` *(opt)* | `number` | The dimension it is drawn at on screen. Defaults to `UiTextureSpec.size`. |
 | `slice` *(opt)* | `number` | Nine-slice inset, for panel art: how many pixels in from each edge are corner rather than stretchable middle. Only meaningful for panels. |
-| `sheet` *(opt)* | `UiSheetSpec` | Present when the file is a grid of frames rather than one image. Aseprite-family exporters often pad the sheet, so the offsets have to be declared or every frame comes out shifted by a pixel — though not always: the panel's own export is packed edge-to-edge with no padding at all, so `margin`/`spacing` genuinely vary per file and have to be read off each one rather than assumed. `UiSheetSpec.count` exists because a grid rarely divides evenly: the panel's 8 frames sit in a 3x3 grid, and Phaser will happily generate a 9th from the empty bottom-right slot. |
+| `sheet` *(opt)* | `UiSheetSpec` | Present when the file is a grid of frames rather than one image. Aseprite-family exporters often pad the sheet, so the offsets have to be declared or every frame comes out shifted by a pixel — though not always: the sheets under `assets/ui/panel/` are generated by `tools/panel/build_panel.py` and packed edge-to-edge with no padding, so `margin`/`spacing` genuinely vary per file and have to be read off each one rather than assumed. `UiSheetSpec.count` exists because the drawn frames rarely fill the grid: the indicator sheet gives each cluster a whole 16-slot row so its counts stay contiguous, and only 11 of those slots are drawn — the count is the grid, and the gaps are simply never addressed. |
 
 ### UI — Type aliases
 
-<a id="type-panelledstate"></a>
+<a id="type-badgestate"></a>
 
-#### `PanelLedState` — type
+#### `BadgeState` — type
 
-`src/ui/PanelLed.ts:26`
+`src/ui/NetworkPanel.ts:103`
 
-Which lamp a panel is showing.
+What the badge is saying.
+
+`disconnected` is not an alert phase — it is the readout having no data yet,
+which is a real state because `UIScene` only calls `AlertNetworkHud.update()`
+once the scene has published a snapshot. `blink` is the dark half of the
+alert pulse, and is pixel-identical to `disconnected` by design; the art
+names them separately because they mean different things.
 
 ```ts
-type PanelLedState = "off" | "in_use";
+type BadgeState = "disconnected" | "nominal" | "suspicious" | "alert" | "blink";
+```
+
+<a id="type-countkind"></a>
+
+#### `CountKind` — type
+
+`src/ui/NetworkPanel.ts:29`
+
+Which count cluster — the keys the generator writes, so they cannot drift.
+
+```ts
+type CountKind = "UNIT_indicator_LEDs" | "SPOT_indicator_LEDs" | "SUSP_indicator_LEDs";
 ```
 
 <a id="type-rgb"></a>
@@ -5677,12 +5700,13 @@ GameScene.
 | [ActiveItemState](#class-activeitemstate) | class | `src/systems/ActiveItems.ts:33` |
 | [ActiveItemsView](#interface-activeitemsview) | interface | `src/systems/ActiveItems.ts:152` |
 | [Aimer](#interface-aimer) | interface | `src/systems/Surrender.ts:39` |
-| [AlertNetworkHud](#class-alertnetworkhud) | class | `src/ui/AlertNetworkHud.ts:42` |
+| [AlertNetworkHud](#class-alertnetworkhud) | class | `src/ui/AlertNetworkHud.ts:65` |
 | [AlertNetworkSnapshot](#interface-alertnetworksnapshot) | interface | `src/systems/AlertNetwork.ts:11` |
 | [AlertPhase](#type-alertphase) | type | `src/systems/AlertState.ts:13` |
 | [AlertState](#class-alertstate) | class | `src/systems/AlertState.ts:21` |
 | [AppliedCorrections](#type-appliedcorrections) | type | `src/systems/Compliance.ts:64` |
 | [AudioDirector](#class-audiodirector) | class | `src/systems/AudioDirector.ts:26` |
+| [BadgeState](#type-badgestate) | type | `src/ui/NetworkPanel.ts:103` |
 | [BakedPlane](#interface-bakedplane) | interface | `src/map/TileBake.ts:175` |
 | [BinaryHeap](#class-binaryheap) | class | `src/systems/Pathfinder.ts:280` |
 | [BioMonitor](#class-biomonitor) | class | `src/ui/BioMonitor.ts:76` |
@@ -5716,8 +5740,9 @@ GameScene.
 | [ConeStyle](#interface-conestyle) | interface | `src/ui/VisionCone.ts:29` |
 | [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:655` |
 | [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:694` |
-| [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:15` |
+| [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:20` |
 | [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:35` |
+| [CountKind](#type-countkind) | type | `src/ui/NetworkPanel.ts:29` |
 | [Cover](#class-cover) | class | `src/entities/Cover.ts:18` |
 | [CoverBody](#interface-coverbody) | interface | `src/map/TileBake.ts:429` |
 | [DebugHost](#interface-debughost) | interface | `src/scenes/game/DebugOverlay.ts:67` |
@@ -5791,7 +5816,7 @@ GameScene.
 | [HoldTarget](#class-holdtarget) | class | `src/entities/HoldTarget.ts:35` |
 | [Hud](#class-hud) | class | `src/ui/Hud.ts:37` |
 | [InputState](#interface-inputstate) | interface | `src/entities/Player.ts:493` |
-| [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:22` |
+| [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:23` |
 | [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:143` |
 | [ItemInfo](#interface-iteminfo) | interface | `src/systems/ItemCatalog.ts:48` |
 | [JournalEntry](#interface-journalentry) | interface | `src/systems/Journal.ts:43` |
@@ -5824,6 +5849,7 @@ GameScene.
 | [MissionFeatures](#interface-missionfeatures) | interface | `src/systems/Objectives.ts:70` |
 | [MoveResult](#interface-moveresult) | interface | `src/systems/GridMotion.ts:26` |
 | [MusicMood](#type-musicmood) | type | `src/systems/AudioDirector.ts:17` |
+| [NetworkIndicatorFrames](#interface-networkindicatorframes) | interface | `src/ui/NetworkPanel.ts:158` |
 | [NetworkUnit](#interface-networkunit) | interface | `src/systems/AlertNetwork.ts:5` |
 | [NoiseEvents](#class-noiseevents) | class | `src/scenes/game/NoiseEvents.ts:51` |
 | [NoiseSpamTracker](#class-noisespamtracker) | class | `src/systems/AlertNetwork.ts:78` |
@@ -5842,9 +5868,6 @@ GameScene.
 | [OverlayId](#type-overlayid) | type | `src/scenes/game/OverlayGate.ts:19` |
 | [Palette](#interface-palette) | interface | `src/ui/MiniMapCanvas.ts:18` |
 | [Pane](#interface-pane) | interface | `src/ui/PauseMenuView.ts:69` |
-| [PanelLedHandle](#interface-panelledhandle) | interface | `src/ui/NineSlicePanel.ts:119` |
-| [PanelLedState](#type-panelledstate) | type | `src/ui/PanelLed.ts:26` |
-| [PanelLedStep](#interface-panelledstep) | interface | `src/ui/PanelLed.ts:29` |
 | [ParsedMap](#interface-parsedmap) | interface | `src/map/EdplayLoader.ts:260` |
 | [PathNode](#interface-pathnode) | interface | `src/systems/Pathfinder.ts:22` |
 | [PathOptions](#interface-pathoptions) | interface | `src/systems/Pathfinder.ts:27` |
@@ -5952,11 +5975,11 @@ GameScene.
 | [UI](#const-ui) | const | `src/ui/hudTheme.ts:34` |
 | [UI_DEPTH](#const-ui-depth) | const | `src/ui/hudTheme.ts:134` |
 | [UI_TEXT](#const-ui-text) | const | `src/ui/hudTheme.ts:113` |
-| [UI_TEXTURES](#const-ui-textures) | const | `src/ui/UiTextures.ts:67` |
-| [UiPanelOptions](#interface-uipaneloptions) | interface | `src/ui/NineSlicePanel.ts:35` |
+| [UI_TEXTURES](#const-ui-textures) | const | `src/ui/UiTextures.ts:70` |
+| [UiPanelOptions](#interface-uipaneloptions) | interface | `src/ui/NineSlicePanel.ts:25` |
 | [UIScene](#class-uiscene) | class | `src/scenes/UIScene.ts:34` |
-| [UiSheetSpec](#interface-uisheetspec) | interface | `src/ui/UiTextures.ts:58` |
-| [UiTextureSpec](#interface-uitexturespec) | interface | `src/ui/UiTextures.ts:24` |
+| [UiSheetSpec](#interface-uisheetspec) | interface | `src/ui/UiTextures.ts:61` |
+| [UiTextureSpec](#interface-uitexturespec) | interface | `src/ui/UiTextures.ts:25` |
 | [VaultLayout](#interface-vaultlayout) | interface | `src/map/AlignmentVault.ts:81` |
 | [Vec2](#interface-vec2) | interface | `src/systems/Vent4PhysicsSystem.ts:15` |
 | [Vent4Boss](#class-vent4boss) | class | `src/entities/Vent4Boss.ts:100` |
