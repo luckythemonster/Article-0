@@ -55,6 +55,34 @@ export function directionOf(dx: number, dy: number): Dir8 {
 }
 
 /**
+ * The four cardinals in angular order, starting at east (0°) going clockwise.
+ *
+ * A separate list from {@link BY_ANGLE} rather than every other entry of it,
+ * because it is a different contract: these four are the names the hand-drawn
+ * `security_camera.aseprite` labels its cels with, and the art has no diagonals
+ * to fall back on. Keeping them here anyway is the point of this module — a
+ * second angular table living next to its one caller is exactly what the eight
+ * used to do.
+ */
+const CARDINALS_4 = ["east", "south", "west", "north"] as const;
+
+export type Cardinal4 = (typeof CARDINALS_4)[number];
+
+/**
+ * Snaps a facing angle to the nearest of the four cardinals.
+ *
+ * For art drawn at four facings rather than eight — the mounted security
+ * camera. Snapping is the rule and not an edge case there: `Sensor.inferFacing`
+ * sums the clear-neighbour vectors, so a camera in a corner comes out on a
+ * diagonal and has to land on one side or the other.
+ */
+export function nearestCardinal(angle: number): Cardinal4 {
+  const angleDeg = (angle * 180) / Math.PI;
+  const normalized = ((angleDeg % 360) + 360) % 360;
+  return CARDINALS_4[Math.round(normalized / 90) % 4];
+}
+
+/**
  * The heading a direction names, in radians (0 = east, +y = south).
  *
  * The inverse of {@link nearestDirection}, and the reason it belongs here

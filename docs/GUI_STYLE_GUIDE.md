@@ -230,6 +230,11 @@ There is no export step. Redraw `ui-panel.aseprite`, run
 `python3 tools/panel/build_panel.py`, and commit what it writes — two PNGs and
 `src/ui/networkIndicatorFrames.json`.
 
+The `.aseprite` parsing itself now lives in `tools/aseprite/reader.py`, shared
+with `tools/sprites/build_sprites.py`, which does the same job for the world's
+entity art. `build_panel.py` keeps everything panel-specific — the corner crops,
+the count clusters, the palette assertion — and only the format reading moved.
+
 **Label your cels; the labels are the contract.** The tool reads each frame's
 annotation, never its position: `'0'`…`'10'` and a `>`-prefixed overflow on the
 count layers, and the state names above on the `NETWORK` and `screen` layers.

@@ -4,7 +4,17 @@ import type { CollisionGrid } from "../systems/CollisionGrid";
 import { paced, sensorStatsFor, type SensorStats } from "../systems/EntityStats";
 import { accrueDetection, canSense, type Eye } from "../systems/Sensing";
 import { CAMERA_CONE, drawVisionCone } from "../ui/VisionCone";
+import { nearestCardinal } from "./directions";
+import {
+  ensureEntityAnim,
+  entitySpriteKey,
+  hasEntitySprite,
+  type EntitySpriteId,
+} from "./EntitySprites";
 import type { EnforcerContext } from "./Enforcer";
+
+/** The hand-drawn housing, when `assets/sprites/security-camera.png` is on disk. */
+const CAMERA_ART: EntitySpriteId = "security-camera";
 
 const RAY_COUNT = 20;
 /** Half-arc (degrees) the mounted camera pans its cone across. */
@@ -35,7 +45,14 @@ export class Sensor {
   private sweepPhase = Phaser.Math.FloatBetween(0, Math.PI * 2);
 
   private readonly cone: Phaser.GameObjects.Graphics;
-  private readonly housing: Phaser.GameObjects.Graphics;
+  /**
+   * The drawn fallback housing, and only that.
+   *
+   * Left undefined when `public/assets/sprites/security-camera.png` is on disk,
+   * because {@link addHousingSprite} has drawn the housing instead — which is
+   * why {@link drawHousing} checks before drawing into it.
+   */
+  private readonly housing?: Phaser.GameObjects.Graphics;
   /** Reused across frames — {@link canSense} only reads it. */
   private readonly eye: Eye;
 
@@ -66,8 +83,12 @@ export class Sensor {
     };
 
     this.cone = scene.add.graphics().setDepth(400);
-    this.housing = scene.add.graphics().setDepth(455);
-    this.drawHousing(tileSize);
+    if (hasEntitySprite(scene, CAMERA_ART)) {
+      this.addHousingSprite(scene, tileSize);
+    } else {
+      this.housing = scene.add.graphics().setDepth(455);
+      this.drawHousing(tileSize);
+    }
   }
 
   update(dt: number, ctx: EnforcerContext): void {
@@ -105,10 +126,44 @@ export class Sensor {
     );
   }
 
+  /**
+   * The hand-drawn housing, facing whichever of the four cardinals it was drawn for.
+   *
+   * The art has exactly four facings and {@link inferFacing} produces a
+   * continuous angle — it sums the clear-neighbour vectors, so a camera in a
+   * corner comes out diagonal. {@link nearestCardinal} does the snapping, in
+   * the same module as the eight-way snap the character sheets use, and it
+   * happens once at construction because the *housing* never turns; only the
+   * cone sweeps.
+   *
+   * `active` is a two-frame clip, not a still: the pair differs by one pixel,
+   * the `#ff0040` status lamp, held 500ms each. A disabled camera is that same
+   * frame with the lamp dark, which is why `stats.state` maps straight onto the
+   * tag name without a translation table.
+   *
+   * Nothing keeps the sprite: a camera's `state` comes off its map component
+   * and no code changes it, so the clip picked here is the clip for the level.
+   */
+  private addHousingSprite(scene: Phaser.Scene, tileSize: number): void {
+    const sprite = scene.add
+      .sprite(this.x, this.y, entitySpriteKey(CAMERA_ART))
+      .setDisplaySize(tileSize, tileSize)
+      .setDepth(455);
+    const tag = this.stats.state === "disabled" ? "disabled" : "active";
+    const key = ensureEntityAnim(
+      scene,
+      CAMERA_ART,
+      tag,
+      nearestCardinal(this.baseFacing),
+    );
+    if (key !== undefined) sprite.play(key);
+  }
+
   /** A small fixed camera housing with a lens pointing along the mounted facing. */
   private drawHousing(tileSize: number): void {
     const r = tileSize * 0.28;
     const g = this.housing;
+    if (!g) return;
     g.fillStyle(0x1a2330, 1);
     g.fillCircle(this.x, this.y, r);
     g.lineStyle(2, 0x4fd8ff, 0.9);

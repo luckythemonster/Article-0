@@ -9,13 +9,13 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 | Area | Enums | Classes | Interfaces | Type aliases | Constants | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | [Systems](#systems) | 3 | 17 | 79 | 19 | 6 | 124 |
-| [Entities](#entities) | 0 | 17 | 17 | 14 | 1 | 49 |
+| [Entities](#entities) | 0 | 17 | 19 | 16 | 3 | 55 |
 | [Map](#map) | 0 | 4 | 36 | 3 | 1 | 44 |
 | [Scenes](#scenes) | 0 | 14 | 12 | 2 | 0 | 28 |
 | [UI](#ui) | 0 | 22 | 26 | 3 | 5 | 56 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **76** | **173** | **41** | **13** | **306** |
+| **All** | **3** | **76** | **175** | **43** | **15** | **312** |
 
 ## Conventions
 
@@ -2190,6 +2190,25 @@ Actors and props that own a sprite plus the behaviour attached to it. Entities w
 
 ### Entities — Constants
 
+<a id="const-cardinals-4"></a>
+
+#### `CARDINALS_4` — const *(module-private)*
+
+`src/entities/directions.ts:67`
+
+The four cardinals in angular order, starting at east (0°) going clockwise.
+
+A separate list from `BY_ANGLE` rather than every other entry of it,
+because it is a different contract: these four are the names the hand-drawn
+`security_camera.aseprite` labels its cels with, and the art has no diagonals
+to fall back on. Keeping them here anyway is the point of this module — a
+second angular table living next to its one caller is exactly what the eight
+used to do.
+
+```ts
+const CARDINALS_4 = ["east", "south", "west", "north"] as const;
+```
+
 <a id="const-dirs-8"></a>
 
 #### `DIRS_8` — const
@@ -2201,6 +2220,23 @@ out on disk. Iteration order for preloading; not an angular sequence.
 
 ```ts
 const DIRS_8 = [ "south", "south-east", "east", "north-east", "north", "north-west", "west", "south-west", ] as const;
+```
+
+<a id="const-entity-sprites"></a>
+
+#### `ENTITY_SPRITES` — const
+
+`src/entities/EntitySprites.ts:92`
+
+Every entity sprite that ships.
+
+Every pairing comes out whole — 2 and 1 for the 32px art, 4 for the camera,
+2 for the breaker — and `src/render/pixelScale.test.ts` asserts all of them,
+so art redrawn at a size that no longer divides fails the build rather than
+shipping soft.
+
+```ts
+const ENTITY_SPRITES = [ { id: "terminal", key: "entity-terminal", path: "assets/sprites/terminal.png", sourceSize: 32, displayTiles: [1, 0.5], }, { id: "terminal-substation", key: "entity-terminal-substation", path: "assets/sprites/terminal-substation.png", sourceSize: 32, displayTiles: [1, 0.5], }, // The `security_camera_mounted_*` tile defs are a whole tile, both of them. { id: "security-camera", key: "entity-security-camera", path: "assets/sprites/security-camera.png", sourceSize: 16, displayTiles: [1], }, // `breaker_main1` is authored at half a tile, which is why this is 16px art. { id: "breaker", key: "enti… as const;
 ```
 
 ### Entities — Classes
@@ -2450,21 +2486,23 @@ them to share names they shouldn't.
 
 #### `HoldTarget` — class
 
-`src/entities/HoldTarget.ts:35`
+`src/entities/HoldTarget.ts:41`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `x` | `readonly x: number` | Pixel centre: the tile's cell centre plus its authored placement offset. |
 | `y` | `readonly y: number` |  |
-| `constructor` | `constructor( scene: Phaser.Scene, tile: GameTile, private readonly tileSize: number, private readonly duration: number, private readonly barColor: number, )` | @param duration seconds of unbroken holding to complete. A duration of 0 (or   less) completes on the first frame and draws a full bar rather than   dividing by zero. @param barColor the fill — see `HOLD_BAR_CYAN` / `HOLD_BAR_AMBER`. |
+| `constructor` | `constructor( scene: Phaser.Scene, tile: GameTile, private readonly tileSize: number, private readonly duration: number, private readonly barColor: number, art?: EntitySpriteId, )` | @param duration seconds of unbroken holding to complete. A duration of 0 (or   less) completes on the first frame and draws a full bar rather than   dividing by zero. @param barColor the fill — see `HOLD_BAR_CYAN` / `HOLD_BAR_AMBER`. @param art the hand-drawn sprite to prefer over the map tile's own frame,   when it is on disk. Absent art is not an error and not a special case:   the tile frame is drawn exactly as before, which is what lets the art be   added one file at a time. |
+| `inProgress` | `get inProgress(): boolean` | Whether any hold has accumulated and not yet drained away. What the owners use to tell "being worked on" from "untouched" — a distinction the bar has always drawn and the art now has a clip for. |
+| `play` | `play(tag: string, label?: string): boolean` | Plays a named clip from the art, if there is art and it has that clip. Returns whether it took — callers use that to decide whether they still need their tint fallback, so the two paths stay one line apart rather than two branches at every call site. |
 | `advance` | `advance(dt: number): boolean` | Advances the hold by one frame and draws the bar. Returns true on the exact frame the timer fills, so the caller fires its effect once. |
 | `decay` | `decay(dt: number): void` | The player let go this frame: drain partial progress and fade the bar out. |
-| `reset` | `reset(): void` | Back to untouched — no progress, no bar, no tint. |
-| `settle` | `settle(color: number): void` | Done: hide the bar and mark the sprite with `color`. |
+| `reset` | `reset(state?: string): void` | Back to untouched — no progress, no bar, no tint. `state` is the clip that means "untouched" for this object, played when there is art. Without it the tint clears and the tile frame stands as it always did. |
+| `settle` | `settle(color: number, state?: string): void` | Done: hide the bar and mark the sprite as finished. Two ways of saying one thing, and the art wins when it is there. A flat tint over a drawn sprite would fight the frame underneath — these sources already carry a finished state, drawn in the same green the tint uses — so `state` is tried first and `color` is the fallback for the tile frame. |
 | `setTint` | `setTint(color: number): void` | Recolours the sprite without touching progress (a substation being locked). |
 | `clearTint` | `clearTint(): void` |  |
 
-*Plus 4 private members.*
+*Plus 6 private members.*
 
 <a id="class-laser"></a>
 
@@ -2554,6 +2592,7 @@ frightened.
 | `pressed` | `get pressed(): boolean` | True while holding a face — read by the concealment and conduct rules. |
 | `pressedSurface` | `get pressedSurface(): PressState \| null` | The face currently held, for the concealment rules to ask what it is made of. |
 | `peeking` | `get peeking(): boolean` | True once actually leaning past a corner. Keyed off the eased lean rather than the input, so the HUD reads the same thing the sightline does. |
+| `viewFacing` | `get viewFacing(): number` | Facing for anything that should track the peek — currently just the flashlight. `facing` itself stays untouched by leaning: WallPress re-derives the pressed surface from it every frame, and weapons/vault aim from it too, so swinging it to the lean angle would risk detaching the press or retargeting a shot mid-peek. |
 | `alive` | `get alive(): boolean` |  |
 | `takeDamage` | `takeDamage(amount: number): boolean` | Applies damage unless still within the post-hit invulnerability window. Returns true if the hit landed (so callers can trigger feedback/SFX). |
 | `heal` | `heal(amount: number): void` | Restores bio-integrity, capped at `maxHp` (Medkit). |
@@ -2570,17 +2609,7 @@ frightened.
 
 #### `PressureSubStation` — class
 
-`src/entities/PressureSubStation.ts:17`
-
-A pressure relief terminal on the VENT-4 arena perimeter. Hold the interact
-key while adjacent to patch it (Terminal's hold-to-progress contract:
-`patch` returns true exactly on the completion frame, `idle` decays partial
-progress). The machine "locks" the last un-patched station until its purge
-phase — shown as an amber tint and a resisting prompt.
-
-Renders its own sprite from the arena tile's frame (the `substations` board
-is in GameScene's ENTITY_LAYERS so the static renderer skips it). The sprite,
-bar and hold timer are a `HoldTarget`, shared with `Terminal`.
+`src/entities/PressureSubStation.ts:43`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -2625,7 +2654,7 @@ bar and hold timer are a `HoldTarget`, shared with `Terminal`.
 
 #### `Sensor` — class
 
-`src/entities/Sensor.ts:26`
+`src/entities/Sensor.ts:36`
 
 A fixed optical security camera — the `security` board's stationary answer to
 a patrolling guard. It never moves: the cone sweeps back and forth around a
@@ -2648,22 +2677,13 @@ per-frame data, and reuses the same thermal short-range sense.
 | `constructor` | `constructor( scene: Phaser.Scene, tile: GameTile, tileSize: number, grid: CollisionGrid, plane = 0, )` |  |
 | `update` | `update(dt: number, ctx: EnforcerContext): void` |  |
 
-*Plus 6 private members.*
+*Plus 7 private members.*
 
 <a id="class-terminal"></a>
 
 #### `Terminal` — class
 
-`src/entities/Terminal.ts:16`
-
-A hackable terminal. Hold the interact key while adjacent to fill a progress
-bar over the terminal's `HackTime`; finishing marks it hacked (green tint)
-and fires its effect once (in this slice, opening nearby doors — the scene
-owns that, since the map carries no explicit terminal→door links).
-
-Renders its own sprite from the map tile's frame (the `terminals` board is in
-GameScene's ENTITY_LAYERS so the static renderer skips it). The sprite, bar
-and hold timer are a `HoldTarget`.
+`src/entities/Terminal.ts:35`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -2798,6 +2818,20 @@ A shot fired by a pursuing guard this frame — the scene applies its effects.
 | `targetY` | `number` |  |
 | `damage` | `number` |  |
 
+<a id="interface-entityspritespec"></a>
+
+#### `EntitySpriteSpec` — interface
+
+`src/entities/EntitySprites.ts:58`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `EntitySpriteId` |  |
+| `key` | `string` | Phaser texture key. Prefixed so it cannot collide with a map sheet's key. |
+| `path` | `string` | Path under `public/`. |
+| `sourceSize` | `number` | One frame's authored pixel size (square), mirrored by the build tool's `Spec`. |
+| `displayTiles` | `readonly number[]` | **Every** footprint the map draws this object at, in tiles. A list rather than a number because display size is not this module's to choose: each object is drawn at its own map tile's `RowSpan`/`ColSpan`, so the art lands exactly where the sprite it replaces did, and the map does not agree with itself. The shipped `TileDefs` give `terminal1`…`terminal9` half a tile and `terminal11`/`terminal12` a whole one, and the VENT-4 substations clone whichever terminal prototype was to hand. So the art has to survive all of them, and `pixelScale.test.ts` checks every entry rather than a nominal one. 32px art happens to oblige — a whole tile is 2 screen pixels per source pixel and a half tile is 1 — which is the reason the terminal could be drawn at one size at all. |
+
 <a id="interface-guardanomaly"></a>
 
 #### `GuardAnomaly` — interface
@@ -2862,7 +2896,7 @@ The tuning that actually differs between one guard's art and another's.
 
 #### `InputState` — interface
 
-`src/entities/Player.ts:493`
+`src/entities/Player.ts:504`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2958,6 +2992,20 @@ A character's silhouette box, in unscaled source pixels.
 | `transition` | `SmacTransition \| null` |  |
 | `auditHit` | `boolean` | True on the frame an auditing beam confirms — the scene charges the damage. |
 
+<a id="interface-spriteentry"></a>
+
+#### `SpriteEntry` — interface *(module-private)*
+
+`src/entities/EntitySprites.ts:42`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `size` | `number` |  |
+| `frameCount` | `number` |  |
+| `durations` | `number[]` | Authored hold time per frame, in ms. The timing is part of the drawing. |
+| `tags` | `{ name: string; from: number; to: number }[]` | Ordered as the source stores them, **names repeated**. `security-camera` has four `active`s, one per facing; `breaker` has two `IDLE`s. |
+| `cels` | `Record<string, Record<string, string>>` | `layer name -> frame index (as a string) -> label`. |
+
 <a id="interface-steamjet"></a>
 
 #### `SteamJet` — interface *(module-private)*
@@ -3005,6 +3053,16 @@ What happened inside the boss this frame, for the scene to apply/dress.
 
 ### Entities — Type aliases
 
+<a id="type-cardinal4"></a>
+
+#### `Cardinal4` — type
+
+`src/entities/directions.ts:69`
+
+```ts
+type Cardinal4 = (typeof CARDINALS_4)[number];
+```
+
 <a id="type-dir8"></a>
 
 #### `Dir8` — type
@@ -3013,6 +3071,18 @@ What happened inside the boss this frame, for the scene to apply/dress.
 
 ```ts
 type Dir8 = (typeof DIRS_8)[number];
+```
+
+<a id="type-entityspriteid"></a>
+
+#### `EntitySpriteId` — type
+
+`src/entities/EntitySprites.ts:36`
+
+The manifest's own ids, which are the PNG basenames and the texture-key stems.
+
+```ts
+type EntitySpriteId = | "terminal" | "terminal-substation" | "security-camera" | "breaker";
 ```
 
 <a id="type-followresult"></a>
@@ -5678,7 +5748,7 @@ Top-level bootstrap modules.
 
 #### `BootScene` — class *(module-private)*
 
-`src/main.ts:34` · `extends Phaser.Scene`
+`src/main.ts:35` · `extends Phaser.Scene`
 
 Boot scene: loads the edplay map JSON and its spritesheets, parses the map
 into the normalized model, stashes it in the registry, then hands off to
@@ -5712,10 +5782,12 @@ GameScene.
 | [BioMonitor](#class-biomonitor) | class | `src/ui/BioMonitor.ts:76` |
 | [BlockedAt](#type-blockedat) | type | `src/map/TileBake.ts:58` |
 | [BodyExtent](#interface-bodyextent) | interface | `src/systems/WallPress.ts:24` |
-| [BootScene](#class-bootscene) | class | `src/main.ts:34` |
+| [BootScene](#class-bootscene) | class | `src/main.ts:35` |
 | [BossCore](#class-bosscore) | class | `src/entities/BossCore.ts:64` |
 | [BossCoreHud](#class-bosscorehud) | class | `src/ui/BossCoreHud.ts:45` |
 | [BuiltLevel](#interface-builtlevel) | interface | `src/scenes/game/LevelBuilder.ts:44` |
+| [Cardinal4](#type-cardinal4) | type | `src/entities/directions.ts:69` |
+| [CARDINALS_4](#const-cardinals-4) | const | `src/entities/directions.ts:67` |
 | [CastingLight](#undefined) | interface | `src/render/lightSampling.ts:16` |
 | [CastRole](#interface-castrole) | interface | `src/entities/CastArt.ts:63` |
 | [Chest](#class-chest) | class | `src/entities/Chest.ts:16` |
@@ -5789,8 +5861,11 @@ GameScene.
 | [EnforcerContext](#interface-enforcercontext) | interface | `src/entities/Enforcer.ts:79` |
 | [EnforcerFireResult](#interface-enforcerfireresult) | interface | `src/entities/Enforcer.ts:37` |
 | [EnforcerStats](#interface-enforcerstats) | interface | `src/systems/EntityStats.ts:34` |
+| [ENTITY_SPRITES](#const-entity-sprites) | const | `src/entities/EntitySprites.ts:92` |
 | [EntityIndex](#interface-entityindex) | interface | `src/map/EntityIndex.ts:57` |
 | [EntityShadows](#class-entityshadows) | class | `src/ui/EntityShadows.ts:92` |
+| [EntitySpriteId](#type-entityspriteid) | type | `src/entities/EntitySprites.ts:36` |
+| [EntitySpriteSpec](#interface-entityspritespec) | interface | `src/entities/EntitySprites.ts:58` |
 | [ExploredMap](#class-exploredmap) | class | `src/systems/Explored.ts:16` |
 | [ExploredState](#type-exploredstate) | type | `src/systems/Explored.ts:74` |
 | [Eye](#interface-eye) | interface | `src/systems/Sensing.ts:20` |
@@ -5813,9 +5888,9 @@ GameScene.
 | [GuardSkinSpec](#interface-guardskinspec) | interface | `src/entities/GuardSkin.ts:71` |
 | [GuardState](#type-guardstate) | type | `src/entities/Enforcer.ts:34` |
 | [HoldFixture](#class-holdfixture) | class | `src/entities/HoldFixture.ts:24` |
-| [HoldTarget](#class-holdtarget) | class | `src/entities/HoldTarget.ts:35` |
+| [HoldTarget](#class-holdtarget) | class | `src/entities/HoldTarget.ts:41` |
 | [Hud](#class-hud) | class | `src/ui/Hud.ts:37` |
-| [InputState](#interface-inputstate) | interface | `src/entities/Player.ts:493` |
+| [InputState](#interface-inputstate) | interface | `src/entities/Player.ts:504` |
 | [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:23` |
 | [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:143` |
 | [ItemInfo](#interface-iteminfo) | interface | `src/systems/ItemCatalog.ts:48` |
@@ -5889,7 +5964,7 @@ GameScene.
 | [PressSide](#interface-pressside) | interface | `src/systems/WallPress.ts:50` |
 | [PressState](#interface-pressstate) | interface | `src/systems/WallPress.ts:65` |
 | [PressSurface](#interface-presssurface) | interface | `src/systems/WallPress.ts:30` |
-| [PressureSubStation](#class-pressuresubstation) | class | `src/entities/PressureSubStation.ts:17` |
+| [PressureSubStation](#class-pressuresubstation) | class | `src/entities/PressureSubStation.ts:43` |
 | [PuzzleState](#interface-puzzlestate) | interface | `src/systems/Compliance.ts:50` |
 | [QualiaLockConfig](#interface-qualialockconfig) | interface | `src/systems/QualiaLock.ts:46` |
 | [QualiaLockData](#interface-qualialockdata) | interface | `src/scenes/QualiaLockScene.ts:8` |
@@ -5928,7 +6003,7 @@ GameScene.
 | [SensingContext](#class-sensingcontext) | class | `src/scenes/game/SensingContext.ts:48` |
 | [SensingDeps](#interface-sensingdeps) | interface | `src/scenes/game/SensingContext.ts:25` |
 | [SensingWorld](#interface-sensingworld) | interface | `src/systems/Sensing.ts:60` |
-| [Sensor](#class-sensor) | class | `src/entities/Sensor.ts:26` |
+| [Sensor](#class-sensor) | class | `src/entities/Sensor.ts:36` |
 | [SensorStats](#interface-sensorstats) | interface | `src/systems/EntityStats.ts:211` |
 | [Settings](#interface-settings) | interface | `src/systems/Settings.ts:13` |
 | [ShadowCaster](#interface-shadowcaster) | interface | `src/ui/EntityShadows.ts:86` |
@@ -5949,6 +6024,7 @@ GameScene.
 | [SmacTransition](#interface-smactransition) | interface | `src/systems/SmacCore.ts:57` |
 | [SmacView](#interface-smacview) | interface | `src/systems/SmacCore.ts:94` |
 | [SpriteAtlas](#class-spriteatlas) | class | `src/map/SpriteAtlas.ts:12` |
+| [SpriteEntry](#interface-spriteentry) | interface | `src/entities/EntitySprites.ts:42` |
 | [SpriteFrame](#interface-spriteframe) | interface | `src/map/types.ts:212` |
 | [Stance](#type-stance) | type | `src/entities/Player.ts:42` |
 | [SteamJet](#interface-steamjet) | interface | `src/entities/Vent4Boss.ts:80` |
@@ -5957,7 +6033,7 @@ GameScene.
 | [SurrenderResult](#interface-surrenderresult) | interface | `src/systems/Surrender.ts:61` |
 | [SurrenderWorld](#interface-surrenderworld) | interface | `src/systems/Surrender.ts:33` |
 | [Target](#type-target) | type | `src/scenes/GameScene.ts:1492` |
-| [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:16` |
+| [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:35` |
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:199` |
 | [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:190` |
 | [TilePos](#interface-tilepos) | interface | `src/map/generate.ts:118` |

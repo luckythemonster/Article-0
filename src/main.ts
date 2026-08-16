@@ -23,6 +23,7 @@ import "./ui/fonts.css";
 import { buildCastTextures } from "./entities/CastArt";
 import { preloadDeployedItems } from "./entities/DeployedItem";
 import { preloadVfx } from "./entities/Vfx";
+import { discoverEntitySprites, preloadEntitySprites } from "./entities/EntitySprites";
 import { discoverUiTextures, preloadUiTextures } from "./ui/UiTextures";
 import { UI } from "./ui/hudTheme";
 
@@ -55,6 +56,8 @@ class BootScene extends Phaser.Scene {
     preloadVfx(this);
     // Whichever optional HUD chrome was found before boot — see `UiTextures.ts`.
     preloadUiTextures(this);
+    // And whichever hand-drawn entity art was found — see `EntitySprites.ts`.
+    preloadEntitySprites(this);
   }
 
   create(): void {
@@ -158,9 +161,11 @@ window.addEventListener("resize", fitGameElement);
  *
  * `discoverUiTextures` rides along on the same wait — it asks which optional HUD
  * art exists so the loader is never handed a path that doesn't, and it fails open
- * the same way.
+ * the same way. `discoverEntitySprites` does the same for the world's hand-drawn
+ * entity art. Both are HEAD requests issued in parallel with the font load, so
+ * neither adds boot latency of its own.
  */
-void Promise.all([fontsReady(), discoverUiTextures()]).then(() => {
+void Promise.all([fontsReady(), discoverUiTextures(), discoverEntitySprites()]).then(() => {
   const game = startGame();
   // Phaser is bundled rather than global, so `Phaser.GAMES` is not reachable
   // from the console or from a browser-driving script. Publish the instance in

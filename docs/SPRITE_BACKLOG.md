@@ -16,6 +16,67 @@ icons specifically.
 
 ---
 
+## Done — three world entities
+
+`Terminal.aseprite`, `terminal_substation.aseprite` and `security_camera.aseprite`
+in `public/assets/sprites/` are finished and wired. The terminal shows a standby
+blip when idle, flashes amber and red while it is being breached, and settles on
+a teal screen with a green lamp once it is. The substation runs its readout while
+being patched and ends on a flatlined face. The camera blinks a red status lamp
+once a second, faces whichever of four cardinals it is mounted toward, and goes
+dark when its `Sensor` component says `disabled`.
+
+Same arrangement as the panel: **the `.aseprite` is the source and the PNG strip
+is build output.** `python3 tools/sprites/build_sprites.py` composites the visible
+layers and writes `src/entities/entitySpriteFrames.json`. Two annotations are read,
+not one — Aseprite **tags** for clips and **cel labels** for single frames — which
+is what lets the camera's four identically-named `active` tags be told apart by
+facing. `docs/ART_PIPELINE.md` §"Entity art" has the full contract.
+
+Nothing left to redraw here. If you do redraw one, re-run the tool and commit
+what it writes; the frame numbers are generated, so inserting or reordering
+frames needs no code change.
+
+---
+
+## Priority 0 — the breaker needs code, not art
+
+**Status: art is done and building. Nothing draws it yet.**
+
+`Breaker.aseprite` is finished — 24 frames at 16×16, and it already passes through
+`tools/sprites/build_sprites.py` into `public/assets/sprites/breaker.png` with its
+tags and cel labels in the manifest. It is listed in `ENTITY_SPRITES` and held to
+the scale rule. What it does not have is anything to attach to.
+
+Three gaps, in order:
+
+1. **There is no `Breaker` entity class.** The other three had one already; this
+   one would be new.
+2. **Nothing reads the `PowerGrid` component.** The map's `breaker_main1` tile
+   carries `Target: light_overhead1` and `State: CLOSED`, and no code in `src/`
+   mentions `PowerGrid` at all. That component is the whole design brief — a
+   breaker that switches a named light.
+3. **The counter's meaning is undecided.** The `CONTROLS` layer is annotated
+   `'1'`…`'9'`, `'0'` twice over, then `idle`. It reads as a readout spinning
+   while the cabinet is open rather than a count of anything, but nobody has said.
+
+What the art gives you, once there is something to drive it:
+
+| clip | frames | reads as |
+|---|---|---|
+| `IDLE` | 0, and 23 | cabinet shut — green screen at 0, red at 23 |
+| `POWER_ON` | 0–11 | door opens, controls run, screen green |
+| `POWER_OFF` | 12–23 | screen flips red, controls run, door shuts |
+| `IN_USE` | 1–21 | the whole open-cabinet stretch |
+
+Note `IDLE` appears **twice** and the two mean different things — powered and
+unpowered — so address it via the manifest's tag list rather than by name alone.
+
+It is authored at **½ tile** (`breaker_main1` is `RowSpan`/`ColSpan` 0.5), which
+is why the art is 16×16 and not 32.
+
+---
+
 ## Done — the network panel
 
 `public/assets/ui/panel/ui-panel.aseprite` is finished and wired. It is no longer
@@ -207,6 +268,9 @@ than shipping soft.
 - **`sack_lunch.png`** and **`EMP_grenade.png`** icons.
 - **The network panel** — finished, wired to live data, and every colour an
   exact EDG64 entry asserted by its build tool. See "Done" above.
+- **The terminal, substation and security camera** — hand-drawn, state-driven and
+  wired. See "Done — three world entities" above. The **breaker**'s art is done
+  too; what it is missing is code, not pixels.
 - Everything listed under GUI_STYLE_GUIDE §7 "What not to draw" — light cones,
   radial light stamps, radar blips and sweep, the EKG trace, bars and gauges. All
   generated at runtime from live state.
@@ -223,4 +287,7 @@ than shipping soft.
 | item name → icon path | `src/systems/ItemIcons.ts` |
 | what each panel frame means | `src/ui/NetworkPanel.ts` |
 | the panel's build tool | `tools/panel/build_panel.py` |
+| the entity sprites' build tool | `tools/sprites/build_sprites.py` |
+| the shared `.aseprite` reader | `tools/aseprite/reader.py` |
+| entity sprite manifest and clip lookup | `src/entities/EntitySprites.ts` |
 | effect specs | `src/entities/Vfx.ts` |
