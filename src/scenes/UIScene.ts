@@ -79,7 +79,9 @@ export class UIScene extends Phaser.Scene {
       next: kb.addKey(K.PERIOD),
       use: kb.addKey(K.ENTER),
     };
-    this.networkKey = kb.addKey(K.N);
+    // K, not N: `DebugOverlay` already binds N to no-clip, and being a separate
+    // scene it would fire alongside this one rather than instead of it.
+    this.networkKey = kb.addKey(K.K);
   }
 
   update(_time: number, delta: number): void {
