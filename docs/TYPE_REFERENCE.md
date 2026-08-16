@@ -8,14 +8,14 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 
 | Area | Enums | Classes | Interfaces | Type aliases | Constants | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| [Systems](#systems) | 3 | 17 | 79 | 19 | 6 | 124 |
-| [Entities](#entities) | 0 | 17 | 19 | 16 | 3 | 55 |
+| [Systems](#systems) | 3 | 17 | 81 | 19 | 6 | 126 |
+| [Entities](#entities) | 0 | 18 | 21 | 16 | 3 | 58 |
 | [Map](#map) | 0 | 4 | 36 | 3 | 1 | 44 |
-| [Scenes](#scenes) | 0 | 14 | 12 | 2 | 0 | 28 |
+| [Scenes](#scenes) | 0 | 14 | 13 | 2 | 0 | 29 |
 | [UI](#ui) | 0 | 22 | 26 | 3 | 5 | 56 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **76** | **175** | **43** | **15** | **312** |
+| **All** | **3** | **77** | **180** | **43** | **15** | **318** |
 
 ## Conventions
 
@@ -146,7 +146,7 @@ below) modulate sweep speed, steam, and thermal behaviour on the boss side.
 
 #### `CHEST_DEFAULTS` — const
 
-`src/systems/EntityStats.ts:259`
+`src/systems/EntityStats.ts:298`
 
 | Key | Value | Notes |
 | --- | --- | --- |
@@ -158,7 +158,7 @@ below) modulate sweep speed, steam, and thermal behaviour on the boss side.
 
 #### `CONSUMABLE_ORDER` — const
 
-`src/systems/EntityStats.ts:655`
+`src/systems/EntityStats.ts:694`
 
 The consumables selectable through the item cursor, in canonical display
 order. Held consumables fill the list dynamically (unheld names are
@@ -383,7 +383,7 @@ so a pane wider than its own cell lost the rest of itself entirely.
 
 #### `DetectionSystem` — class
 
-`src/systems/DetectionSystem.ts:34`
+`src/systems/DetectionSystem.ts:45`
 
 Turns the `light_sources` and `cover` layers into a spatial detection
 modifier. When the player stands in a light pool they are easier to spot
@@ -395,12 +395,13 @@ The result is a single function guards query: `multiplierAt(px, py)`.
 | --- | --- | --- |
 | `constructor` | `constructor(level: GameLevel, tileSize: number)` |  |
 | `multiplierAt` | `multiplierAt(px: number, py: number): number` | Detection sensitivity at a pixel position (1 = neutral). |
+| `setCircuit` | `setCircuit(ref: string, on: boolean): void` | Powers every fixture whose tile-def ref is `ref` on or off — a breaker throw. The mirror of `Lighting.setCircuit`, and the two must always be called together: this one decides whether a guard finds you easier to see, that one decides whether you can see anything. `src/entities/Breaker.ts` calls both. |
 | `coverTypeAt` | `coverTypeAt(px: number, py: number): string \| undefined` | Cover type at a pixel position, or undefined if the tile has no cover. |
 | `thermalBleedAt` | `thermalBleedAt(px: number, py: number): boolean` | True when the cover here leaks body heat — thermal sensing sees through it. |
 | `thermalRadiusFor` | `thermalRadiusFor(baseTiles: number, thermalMasked: boolean): number` | Thermal Gel zeroes every ThermalDetectionRadius check for its duration. |
 | `destroyCoverAt` | `destroyCoverAt(tileX: number, tileY: number): boolean` | Removes a cover tile's gameplay effects — the detection dampening and any thermal bleed — once a destructible cover tile has been broken. Returns whether a cover tile was actually indexed there, so callers (`Cover`) can treat a double-destroy as a no-op. |
 
-*Plus 8 private members.*
+*Plus 9 private members.*
 
 <a id="class-exploredmap"></a>
 
@@ -722,11 +723,22 @@ Half-extents of the pressing body, in tiles.
 | `halfW` | `number` |  |
 | `halfH` | `number` |  |
 
+<a id="interface-breakerstats"></a>
+
+#### `BreakerStats` — interface
+
+`src/systems/EntityStats.ts:250`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `target` | `string` | The tile-def `ref` whose lights this breaker feeds. A *class* of fixture, not one instance: the shipped breaker names `light_overhead1`, and the map places 50 of those across main1. Throwing it takes out every one of them, which is what makes it worth a walk. |
+| `closed` | `boolean` | Whether the circuit is closed — that is, whether the power is **on**. The map's `circuitState` enum reads the electrician's way round, `OPEN = off` and `CLOSED = on`, and the art agrees: the breaker's screen is green while the circuit is closed. Stored as a boolean here so no call site has to remember which way the words go. |
+
 <a id="interface-cheststats"></a>
 
 #### `ChestStats` — interface
 
-`src/systems/EntityStats.ts:250`
+`src/systems/EntityStats.ts:289`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -806,7 +818,7 @@ Snapshot published to the registry for the HUD and the codec.
 
 #### `ConsumableSlot` — interface
 
-`src/systems/EntityStats.ts:694`
+`src/systems/EntityStats.ts:733`
 
 One held, distinct consumable type, with its position in the display list.
 
@@ -1018,6 +1030,8 @@ Inputs the visibility rules read — all of it state the run already keeps.
 | `radiusPx` | `number` |  |
 | `radiusPx2` | `number` | Cached `radiusPx²`, so the reach test never takes a square root. |
 | `multiplier` | `number` |  |
+| `ref` | `string` | The fixture's tile-def ref, which is what a breaker's `Target` names. Carried per light rather than resolved once into a list of indices, because `src/ui/Lighting.ts` has to make the identical cut and the two build their lists separately. Keying both on the ref means they cannot disagree about which lamps a circuit feeds. |
+| `powered` | `boolean` | False once a breaker has opened this light's circuit. |
 
 <a id="interface-lightstats"></a>
 
@@ -1232,7 +1246,7 @@ The player's wave adds an exponential-decay envelope (the DAMPING control).
 
 #### `PlayerStats` — interface
 
-`src/systems/EntityStats.ts:282`
+`src/systems/EntityStats.ts:321`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1242,6 +1256,22 @@ The player's wave adds an exponential-decay envelope (the DAMPING control).
 | `deathHold` | `number` | Seconds the run holds after bio-integrity reaches zero, before the outcome screen. `endRun` stops the HUD scene the same frame it is called, so without this the flatline on the bio-integrity dial renders once and is gone — an entire death state nobody ever sees. Input is already dead through the hold, so it costs the player a beat and buys the one moment the readout exists for. |
 | `hazardDamage` | `number` | Bio-integrity lost per hazard hit (e.g. a laser). |
 | `hitCooldown` | `number` | Seconds of invulnerability after taking a hit. |
+
+<a id="interface-powergridstate"></a>
+
+#### `PowerGridState` — interface
+
+`src/systems/PowerGrid.ts:27`
+
+Circuit state that outlives a level, held in the Phaser registry.
+
+**Only explicit overrides are stored.** A circuit nobody has touched is absent
+and falls back to whatever the map authored, so this never has to be seeded
+from the map and can never disagree with it about an untouched breaker.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `circuits` | `Record<string, boolean>` | `circuitKey` -> whether the circuit is closed (powered). |
 
 <a id="interface-pressside"></a>
 
@@ -1471,7 +1501,7 @@ Unit ray directions, split into parallel arrays so casting allocates nothing.
 
 #### `RelayStats` — interface
 
-`src/systems/EntityStats.ts:918`
+`src/systems/EntityStats.ts:957`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1646,7 +1676,7 @@ Serializable mid-fight state, so re-entering the level doesn't restart the boss.
 
 #### `SmacStats` — interface
 
-`src/systems/EntityStats.ts:846`
+`src/systems/EntityStats.ts:885`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1843,7 +1873,7 @@ Serializable fight progress — kept in the registry across level swaps.
 
 #### `Vent4Stats` — interface
 
-`src/systems/EntityStats.ts:722`
+`src/systems/EntityStats.ts:761`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2267,6 +2297,26 @@ const ENTITY_SPRITES = [ { id: "terminal", key: "entity-terminal", path: "assets
 
 *Plus 13 private members.*
 
+<a id="class-breaker"></a>
+
+#### `Breaker` — class
+
+`src/entities/Breaker.ts:41`
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `tileX` | `readonly tileX: number` |  |
+| `tileY` | `readonly tileY: number` |  |
+| `x` | `readonly x: number` | Pixel centre — public for the same reason as `Terminal.x`. |
+| `y` | `readonly y: number` |  |
+| `stats` | `readonly stats: BreakerStats` |  |
+| `constructor` | `constructor(scene: Phaser.Scene, tile: GameTile, tileSize: number, closed: boolean)` | @param closed the circuit's live state, which is the persisted   `PowerGridState` override if there is one and the map's authored `State`   otherwise — so a deck the player darkened is still dark on the way back. |
+| `isClosed` | `get isClosed(): boolean` | True when the circuit is live. |
+| `isThrowing` | `get isThrowing(): boolean` | True while a throw is playing out — the tap that starts one is refused. |
+| `toggle` | `toggle(onFlip: (closed: boolean) => void): boolean` | Throws the switch, if one isn't already in progress. `onFlip` fires **mid-animation**, on the frame the artist drew the screen changing colour, rather than when the clip ends — the cabinet visibly shuts *after* the power goes, and firing at the end would put the room's lights behind the sprite that just said they were gone. Returns whether a throw actually started, so the caller only spends its tap (and its noise, and its conduct charge) when something happened. |
+
+*Plus 9 private members.*
+
 <a id="class-chest"></a>
 
 #### `Chest` — class
@@ -2414,7 +2464,7 @@ drone's `GuardSkin` wired into the shared AI core.
 
 #### `Enforcer` — class
 
-`src/entities/Enforcer.ts:196`
+`src/entities/Enforcer.ts:197`
 
 A patrolling guard with a wall-clipped vision cone and a per-guard
 detection meter. Behaviour is shared by every guard type (the map's
@@ -2436,7 +2486,9 @@ stays sharper for a while afterward (CAUTIOUS), pursues a confirmed sighting
 | `x` | `x: number` | Pixel position. Public because the scene reads it constantly — radar blips, network alerts, cornering checks, the debug overlay — and a `position` getter returning `{ x, y }` minted a throwaway object on every one of those reads, several times per guard per frame. Same convention as `Player`. |
 | `y` | `y: number` |  |
 | `shadow` | `readonly shadow: ShadowShape` | Footprint the ground shadow is drawn from — see `EntityShadows`. |
+| `radiusTiles` | `readonly radiusTiles: number` | Body radius in tiles. Read by the shared `workDoors` — see `doorWork.ts`. |
 | `plane` | `readonly plane: number` | Which walk surface this guard patrols — see `src/map/planes.ts`. |
+| `heldDoor` | `heldDoor: PathNode \| null = null` | Read and written by the shared `workDoors` — see `doorWork.ts`. |
 | `constructor` | `constructor( scene: Phaser.Scene, tileX: number, tileY: number, tileSize: number, components: ComponentData[], skin: GuardSkin = ENFORCER_SKIN, route: PatrolRoute = [], plane = 0, )` |  |
 | `update` | `update(dt: number, ctx: EnforcerContext): EnforcerFireResult \| undefined` |  |
 | `collisionRadiusTiles` | `get collisionRadiusTiles(): number` | Collision radius in tiles — read by the debug overlay. |
@@ -2444,7 +2496,7 @@ stays sharper for a while afterward (CAUTIOUS), pursues a confirmed sighting
 | `plannedPath` | `get plannedPath(): readonly PathNode[]` | The remaining leg of the path being walked, for the debug overlay. |
 | `hearNoise` | `hearNoise(intensity: number, sx: number, sy: number): void` | Reacts to a nearby noise (e.g. a door operating): the guard turns to look toward the source and grows suspicious, but detection is capped below full so sound alone never trips a hard ALERT — it still takes line of sight to confirm. Also queues the origin for a LOS-aware investigation (pivot if already in clear sight, walk over if obstructed) the next time this guard is free to act on it. `intensity` is 0..1 (louder/closer = higher); `sx,sy` are pixels. |
 
-*Plus 57 private members.*
+*Plus 55 private members.*
 
 <a id="class-holdfixture"></a>
 
@@ -2527,7 +2579,7 @@ them to share names they shouldn't.
 
 #### `Orderly` — class
 
-`src/entities/Orderly.ts:136`
+`src/entities/Orderly.ts:150`
 
 A bystander, not a threat — the map's `orderlies` tiles carry no gameplay
 component (unlike guards/drones), so this is a distinct, lighter mechanic.
@@ -2557,12 +2609,14 @@ frightened.
 | `x` | `x: number` | Pixel position — public for the same reason as `Enforcer.x`. |
 | `y` | `y: number` |  |
 | `shadow` | `readonly shadow: ShadowShape` | Footprint the ground shadow is drawn from — see `EntityShadows`. |
+| `radiusTiles` | `readonly radiusTiles = ORDERLY_COLLISION_RADIUS_TILES` | Body radius and the door currently held open, both read by the shared `workDoors` — see `doorWork.ts`. Public for the same structural reason `Enforcer`'s are. |
+| `heldDoor` | `heldDoor: PathNode \| null = null` |  |
 | `constructor` | `constructor( scene: Phaser.Scene, tileX: number, tileY: number, tileSize: number, route: PatrolRoute = [], )` |  |
 | `stun` | `stun(seconds: number): void` | Freezes the orderly for a stretch (a Stun Rounds dart) — can't witness. |
 | `pin` | `pin(seconds: number): void` | Pins the orderly to a wall for a stretch (the Rail-Stapler's field mode) — can't witness. |
 | `handsUp` | `handsUp(seconds: number): void` | Puts the orderly's hands up, and keeps them there for `seconds`. Shaped exactly like `stun` and `pin`, and called on **every frame** the weapon stays trained: `Math.max` tops the grace back up for as long as the hold lasts, so *releasing someone is simply the scene ceasing to call this*. There is deliberately no `release()` — a second method would be a second thing to forget on a level change, a capture, or any of the paths that drop an aim. Refused to a man who has already reported you. Un-reporting him would re-arm the one-shot alarm this class exists to make one-shot, and a single orderly pinging repeatedly is exactly what `NoiseSpamTracker` escalates to a full ALERT. |
 | `escortTo` | `escortTo(x: number, y: number): void` | Marches a surrendered orderly toward a point this frame — the standoff position ahead of the player, recomputed from Rowan's facing every frame by the scene. A no-op on anyone not currently at gunpoint, so a stray call can't push a man around who never put his hands up. |
-| `distract` | `distract(sx: number, sy: number): void` | Lures the orderly to inspect a nearby noise (a player's knock): it leaves its wander, walks over, pauses, then drifts back. A no-op while stunned, already startled by witnessing the player, or busy with a spill — a knock does not out-rank an actual work order. |
+| `distract` | `distract(sx: number, sy: number): boolean` | Lures the orderly to inspect a nearby noise (a player's knock): it leaves its wander, walks over, pauses, then drifts back. A no-op while stunned, already startled by witnessing the player, or busy with a spill — a knock does not out-rank an actual work order. Returns whether the override took. The refusals above are the only place those rules are written down, so a caller that needs somebody who will *actually* come — `GameScene.updateBreakerResets`, picking an orderly to reset a thrown breaker — asks by calling rather than by re-deriving them from the public getters and drifting. |
 | `update` | `update(dt: number, ctx: OrderlyContext): boolean` | True on the exact frame the orderly first spots the player. |
 | `isStunned` | `get isStunned(): boolean` | True while frozen by a Stun Rounds dart — guards treat this as an anomaly. |
 | `isPinned` | `get isPinned(): boolean` | True while pinned to a wall by the Rail-Stapler's field mode — same effect as stun. |
@@ -2570,7 +2624,7 @@ frightened.
 | `isSurrendered` | `get isSurrendered(): boolean` | Hands up at gunpoint — the patrols read this as an anomaly, same as a dart. |
 | `canSurrender` | `get canSurrender(): boolean` | Eligible to be held up: still has an alarm to withhold, and is awake to withhold it. Read by `Surrender.aimedAt`, which this satisfies structurally. |
 
-*Plus 44 private members.*
+*Plus 45 private members.*
 
 <a id="class-player"></a>
 
@@ -2752,6 +2806,38 @@ A role's shapes and colours.
 | `dark` | `number` | Outline and underside. |
 | `chassis` *(opt)* | `boolean` | Drones have a chassis and rotors where everyone else has a head and legs. |
 
+<a id="interface-dooraccess"></a>
+
+#### `DoorAccess` — interface
+
+`src/entities/doorWork.ts:47`
+
+The scene's door hooks, as the entity contexts carry them.
+
+Optional throughout: a context that supplies neither leaves every door as
+permanent geometry, which is what both classes did before they were wired up
+and remains the correct behaviour for a caller that has no doors.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `isOperableDoor` *(opt)* | `(tileX: number, tileY: number) => boolean` | True when this tile holds a door staff may work — unlocked, and not a wall. |
+| `setDoorOpen` *(opt)* | `(tileX: number, tileY: number, open: boolean) => void` | Opens or closes a door being worked. |
+
+<a id="interface-doorwalker"></a>
+
+#### `DoorWalker` — interface
+
+`src/entities/doorWork.ts:30`
+
+The walker's own state. `heldDoor` is read and written by `workDoors`.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `x` | `number` | Pixel position. |
+| `y` | `number` |  |
+| `radiusTiles` | `number` | Body radius in tiles, so the probe clears the walker's own edge. |
+| `heldDoor` | `PathNode \| null` | The door this walker opened and has not yet shut, or null. |
+
 <a id="interface-encounterinteractresult"></a>
 
 #### `EncounterInteractResult<T>` — interface
@@ -2778,7 +2864,7 @@ is live, so it lives here rather than three times.
 
 #### `EnforcerContext` — interface
 
-`src/entities/Enforcer.ts:79`
+`src/entities/Enforcer.ts:80`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2799,14 +2885,14 @@ is live, so it lives here rather than three times.
 | `rationSpoof` *(opt)* | `boolean` | True while an opened ration buys tolerance from orderlies — see `OrderlyContext`. |
 | `playerVelocity` *(opt)* | `{ x: number; y: number }` | Player's current velocity (px/s), for smart search-point prediction. |
 | `coverTilesNear` *(opt)* | `(tileX: number, tileY: number, radiusTiles: number) => { x: number; y: number }[]` | Cover tiles (pixel centres) within `radiusTiles` of a tile position. |
-| `isGuardDoor` *(opt)* | `(tileX: number, tileY: number) => boolean` | True when this tile holds a door the guard may work itself — unlocked, and not a wall. Guards route through their own facility's doors rather than treating every one as permanent geometry: `main1`'s patrol beat crosses two of them, and without this the south half of the route is simply unreachable. |
+| `isOperableDoor` *(opt)* | `(tileX: number, tileY: number) => boolean` | True when this tile holds a door staff may work themselves — unlocked, and not a wall. Staff route through their own facility's doors rather than treating every one as permanent geometry: `main1`'s patrol beat crosses two of them, and without this the south half of the route is simply unreachable. Named for the door rather than for the guard because the orderlies read the same predicate off this same context — see `OrderlyContext.isOperableDoor`, which had the identical problem and went unnoticed for longer. |
 | `setDoorOpen` *(opt)* | `(tileX: number, tileY: number, open: boolean) => void` | Opens or closes a door the guard is working. |
 
 <a id="interface-enforcerfireresult"></a>
 
 #### `EnforcerFireResult` — interface
 
-`src/entities/Enforcer.ts:37`
+`src/entities/Enforcer.ts:38`
 
 A shot fired by a pursuing guard this frame — the scene applies its effects.
 
@@ -2836,7 +2922,7 @@ A shot fired by a pursuing guard this frame — the scene applies its effects.
 
 #### `GuardAnomaly` — interface
 
-`src/entities/Enforcer.ts:67`
+`src/entities/Enforcer.ts:68`
 
 An environmental anomaly a guard's vision cone can notice.
 
@@ -2914,7 +3000,7 @@ The tuning that actually differs between one guard's art and another's.
 
 #### `Investigation` — interface *(module-private)*
 
-`src/entities/Enforcer.ts:143`
+`src/entities/Enforcer.ts:148`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2929,7 +3015,7 @@ The tuning that actually differs between one guard's art and another's.
 
 #### `OrderlyContext` — interface
 
-`src/entities/Orderly.ts:31`
+`src/entities/Orderly.ts:32`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2940,6 +3026,8 @@ The tuning that actually differs between one guard's art and another's.
 | `playerCompliant` | `boolean` | True when the player reads as compliant staff — nothing to report. |
 | `lures` *(opt)* | `readonly DeployedLure[]` | Items left on the floor this frame; an orderly services the nearest it notices. |
 | `rationSpoof` *(opt)* | `boolean` | True when the player is holding an opened ration and no alarm is up: the orderly reads Rowan as an asset on a break and grants a grace window instead of reporting. Resolved by the scene, since the "before an alarm" half of it is global alert state the orderly has no other reason to know about. |
+| `isOperableDoor` *(opt)* | `(tileX: number, tileY: number) => boolean` | True when this tile holds a door the orderly may work itself. The same predicate the guards get, and for the same reason their own copy spells out: a facility's staff route *through* its doors rather than treating every one as permanent geometry. Without it `main1`'s orderly could not reach three of the four waypoints on its own authored round — it walked to the first, found a shut door, and loitered at spawn for the rest of the run. |
+| `setDoorOpen` *(opt)* | `(tileX: number, tileY: number, open: boolean) => void` | Opens or closes a door the orderly is working. |
 
 <a id="interface-pose"></a>
 
@@ -3089,7 +3177,7 @@ type EntitySpriteId = | "terminal" | "terminal-substation" | "security-camera" |
 
 #### `FollowResult` — type *(module-private)*
 
-`src/entities/Enforcer.ts:182`
+`src/entities/Enforcer.ts:183`
 
 What a single `Enforcer.followPath` step achieved.
 
@@ -3101,7 +3189,7 @@ type FollowResult = "moving" | "arrived" | "unreachable";
 
 #### `GuardState` — type
 
-`src/entities/Enforcer.ts:34`
+`src/entities/Enforcer.ts:35`
 
 A per-guard behaviour state, layered on top of the global `AlertState`
 phase (which stays the base-wide ALERT/EVASION/INFILTRATION authority for
@@ -3176,7 +3264,7 @@ type OrderlyAnimName = "idle" | "walk";
 
 #### `OrderlyState` — type *(module-private)*
 
-`src/entities/Orderly.ts:81`
+`src/entities/Orderly.ts:95`
 
 What an orderly is currently doing.
 
@@ -3216,7 +3304,7 @@ type OrderlyState = "WANDER" | "INSPECT" | "SANITATION" | "SURRENDERED" | "WITNE
 
 #### `PersonAnomalyKind` — type
 
-`src/entities/Enforcer.ts:59`
+`src/entities/Enforcer.ts:60`
 
 An anomaly that is a *person*, in a state no orderly ever puts themselves in:
 dropped by a dart, stapled to a wall, or standing with their hands up.
@@ -3351,7 +3439,7 @@ const GENERATED_LEVELS = ["vent_core", "roof_array"] as const;
 
 #### `EdplayLoader` — class
 
-`src/map/EdplayLoader.ts:109`
+`src/map/EdplayLoader.ts:110`
 
 Parses the raw edplay.json export into the engine's normalized `GameMap`.
 
@@ -3702,6 +3790,7 @@ Everything on a level that spawns rather than bakes.
 | `doors` | `GameTile[]` |  |
 | `terminals` | `GameTile[]` |  |
 | `chests` | `GameTile[]` |  |
+| `breakers` | `GameTile[]` | Power breakers — see `src/systems/PowerGrid.ts`. |
 | `claimed` | `Set<GameTile>` | Tiles claimed by one of the above; `bakeTileLayers` must skip them. |
 
 <a id="interface-gamelayer"></a>
@@ -3849,7 +3938,7 @@ One orderly's board: the round it walks and the stats it carries.
 
 #### `ParsedMap` — interface
 
-`src/map/EdplayLoader.ts:260`
+`src/map/EdplayLoader.ts:261`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -4118,7 +4207,7 @@ rather than death: the record simply shows that no subject was harmed.
 
 #### `GameScene` — class
 
-`src/scenes/GameScene.ts:238` · `extends Phaser.Scene`
+`src/scenes/GameScene.ts:291` · `extends Phaser.Scene`
 
 The playable scene. Renders one level's tile art in board z-order, builds the
 wall collision, spawns the player and guards, and drives the stealth systems
@@ -4131,7 +4220,7 @@ each frame.
 | `create` | `create(): void` |  |
 | `update` | `update(_time: number, delta: number): void` |  |
 
-*Plus 162 private members.*
+*Plus 169 private members.*
 
 <a id="class-noiseevents"></a>
 
@@ -4309,7 +4398,7 @@ reads them.
 
 #### `BuiltLevel` — interface
 
-`src/scenes/game/LevelBuilder.ts:44`
+`src/scenes/game/LevelBuilder.ts:47`
 
 The live contents of a level, handed back to the scene to drive.
 
@@ -4321,6 +4410,7 @@ The live contents of a level, handed back to the scene to drive.
 | `doors` | `Door[]` |  |
 | `terminals` | `Terminal[]` |  |
 | `sensors` | `Sensor[]` |  |
+| `breakers` | `Breaker[]` | Power breakers — see `src/systems/PowerGrid.ts`. |
 | `chests` | `Chest[]` |  |
 | `lasers` | `Laser[]` |  |
 | `coverTiles` | `Cover[]` | Cover tiles the map (or a generator) marks `Destructible` — the rest of the `cover` board stays baked art with no entity, exactly as before. |
@@ -4445,7 +4535,7 @@ three and no explicit reset method to keep in step with that.
 
 #### `GameSceneData` — interface *(module-private)*
 
-`src/scenes/GameScene.ts:158`
+`src/scenes/GameScene.ts:164`
 
 Data passed to `GameScene` when (re)starting for a level swap.
 
@@ -4490,6 +4580,36 @@ The live level state noise propagation reads. Held by reference.
 | `onOpen` *(opt)* | `() => void` | Extra work on the way in, after physics is paused. |
 | `onClose` *(opt)* | `() => void` | Extra work on the way out, before physics resumes. |
 
+<a id="interface-promptcandidates"></a>
+
+#### `PromptCandidates` — interface *(module-private)*
+
+`src/scenes/GameScene.ts:236`
+
+Everything in reach that E could act on, for the single nearest-wins prompt.
+
+An object rather than the positional list this used to be. It had grown to
+eleven parameters, six of them a thing paired with its distance, and the
+breaker would have made it thirteen — at which point a transposed pair of
+arguments is a bug the compiler cannot see, since half of them are `number`
+and the rest are optional.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `terminal` | `Terminal \| undefined` |  |
+| `terminalDist` | `number` |  |
+| `door` | `Door \| undefined` |  |
+| `doorDist` | `number` |  |
+| `breaker` | `Breaker \| undefined` |  |
+| `breakerDist` | `number` |  |
+| `chest` | `Chest \| undefined` |  |
+| `chestDist` | `number` |  |
+| `hatch` | `boolean` |  |
+| `vault` | `boolean` |  |
+| `ventLabel` *(opt)* | `string` |  |
+| `ventDist` *(opt)* | `number` |  |
+| `lockedLabel` *(opt)* | `string` | A transition the player is standing on that refuses to open, and why. |
+
 <a id="interface-qualialockdata"></a>
 
 #### `QualiaLockData` — interface *(module-private)*
@@ -4522,7 +4642,7 @@ The long-lived collaborators the context points at, fixed for a level.
 | `rationMultiplier` | `number` |  |
 | `pressMultiplier` | `number` | Below 1, unlike the two above: pressing *reduces* how fast you fill a meter. |
 | `coverTilesNear` | `(tileX: number, tileY: number, radiusTiles: number) => { x: number; y: number }[]` |  |
-| `isGuardDoor` | `(tileX: number, tileY: number) => boolean` |  |
+| `isOperableDoor` | `(tileX: number, tileY: number) => boolean` |  |
 | `setDoorOpen` | `(tileX: number, tileY: number, open: boolean) => void` |  |
 
 <a id="interface-witnessanchor"></a>
@@ -4571,7 +4691,7 @@ type OverlayId = "pause" | "codec" | "compliance" | "qualia";
 
 #### `Target` — type *(module-private)*
 
-`src/scenes/GameScene.ts:1492`
+`src/scenes/GameScene.ts:1577`
 
 ```ts
 type Target = { x: number; y: number; kind: "cover"; cover: Cover } | { x: number; y: number; kind: "orderly"; orderly: Orderly };
@@ -4913,7 +5033,7 @@ against the bottom-right budget without standing up a canvas.
 
 #### `Lighting` — class
 
-`src/ui/Lighting.ts:131`
+`src/ui/Lighting.ts:141`
 
 Visible dynamic lighting: fills the level with opaque darkness, punches bright
 pools out of it at each `light_source` (plus the player's flashlight cone), then
@@ -4950,8 +5070,9 @@ Two layers, deliberately kept apart because they change at different rates:
 | `destroy` | `destroy(): void` | Releases everything this overlay owns. Call on scene shutdown. The stamps are the reason this has to exist. They are built with `scene.make.image({ add: false })` — deliberately, because they are erase brushes stamped into a RenderTexture rather than things the camera should draw — but the cost of staying off the display list is that `Scene.shutdown` never sees them, and so never destroys them. Every level transition is a `scene.restart()` that constructs a fresh `Lighting`, so without this each swap orphaned one stamp per light source (49 of them on `main1`) plus the cone and the player's pool, for the life of the session. `rt` and `shadowGfx` *are* on the display list and would be collected anyway; destroying them here too keeps the ownership in one place rather than split between this class and Phaser's bookkeeping. |
 | `setPlane` | `setPlane(plane: number): void` | Which walk surface sight is cast against — see `src/map/planes.ts`. Changing it invalidates the polygon outright: the deck and the floor beneath it occlude completely differently, so there is nothing to reuse. |
 | `setEnabled` | `setEnabled(on: boolean): void` | Debug switch: hides the whole overlay so the level can be read at full brightness. Re-enabling rebuilds both layers, since they went stale while off. |
+| `setCircuit` | `setCircuit(ref: string, on: boolean): void` | Powers every fixture whose tile-def ref is `ref` on or off — a breaker throw. Matching on the ref is the whole mechanic: `light_overhead1` is one tile def placed fifty times across main1, so `main1`'s single breaker takes the deck's entire overhead lighting with it. See `src/systems/PowerGrid.ts`. Cheap despite the count. The stamps are erased in one batched call and the texture is only recomposited when `dirty`, so fifty lights going out is one rebuild of the list plus one redraw — not fifty of anything. |
 
-*Plus 33 private members.*
+*Plus 34 private members.*
 
 <a id="class-memorylayer"></a>
 
@@ -5352,7 +5473,7 @@ One frame of readout.
 
 #### `FlashlightBeam` — interface
 
-`src/ui/Lighting.ts:97`
+`src/ui/Lighting.ts:107`
 
 The player's flashlight beam, or null when it isn't emitting.
 
@@ -5375,6 +5496,8 @@ The player's flashlight beam, or null when it isn't emitting.
 | `radiusPx` | `number` |  |
 | `flicker` | `boolean` |  |
 | `phase` | `number` |  |
+| `ref` | `string` | The fixture's tile-def ref, which is what a breaker's `Target` names. Kept per light rather than resolved to a list of indices once, so that this and `DetectionSystem` — which has to make the identical cut — do not have to agree on an iteration order neither of them states. |
+| `powered` | `boolean` | False once a breaker has opened this light's circuit. See `Lighting.setCircuit`. |
 | `intensity` | `number` | Current brightness multiplier, 1 for a steady light and the flicker factor for a guttering one. Written by `Lighting.drawLights` where that factor is already being computed for the stamp, and read by `Lighting.sampleLight` so a shadow cast by a failing lamp gutters along with it. |
 | `stamp` | `Phaser.GameObjects.Image` | The stamp erased at this light. One per light so all of them batch together. |
 
@@ -5785,14 +5908,16 @@ GameScene.
 | [BootScene](#class-bootscene) | class | `src/main.ts:35` |
 | [BossCore](#class-bosscore) | class | `src/entities/BossCore.ts:64` |
 | [BossCoreHud](#class-bosscorehud) | class | `src/ui/BossCoreHud.ts:45` |
-| [BuiltLevel](#interface-builtlevel) | interface | `src/scenes/game/LevelBuilder.ts:44` |
+| [Breaker](#class-breaker) | class | `src/entities/Breaker.ts:41` |
+| [BreakerStats](#interface-breakerstats) | interface | `src/systems/EntityStats.ts:250` |
+| [BuiltLevel](#interface-builtlevel) | interface | `src/scenes/game/LevelBuilder.ts:47` |
 | [Cardinal4](#type-cardinal4) | type | `src/entities/directions.ts:69` |
 | [CARDINALS_4](#const-cardinals-4) | const | `src/entities/directions.ts:67` |
 | [CastingLight](#undefined) | interface | `src/render/lightSampling.ts:16` |
 | [CastRole](#interface-castrole) | interface | `src/entities/CastArt.ts:63` |
 | [Chest](#class-chest) | class | `src/entities/Chest.ts:16` |
-| [CHEST_DEFAULTS](#const-chest-defaults) | const | `src/systems/EntityStats.ts:259` |
-| [ChestStats](#interface-cheststats) | interface | `src/systems/EntityStats.ts:250` |
+| [CHEST_DEFAULTS](#const-chest-defaults) | const | `src/systems/EntityStats.ts:298` |
+| [ChestStats](#interface-cheststats) | interface | `src/systems/EntityStats.ts:289` |
 | [CodecContext](#interface-codeccontext) | interface | `src/ui/Codec.ts:28` |
 | [CodecData](#interface-codecdata) | interface | `src/scenes/CodecScene.ts:15` |
 | [CodecScene](#class-codecscene) | class | `src/scenes/CodecScene.ts:37` |
@@ -5810,8 +5935,8 @@ GameScene.
 | [ConductState](#class-conductstate) | class | `src/systems/Conduct.ts:112` |
 | [ConductView](#interface-conductview) | interface | `src/systems/Conduct.ts:246` |
 | [ConeStyle](#interface-conestyle) | interface | `src/ui/VisionCone.ts:29` |
-| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:655` |
-| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:694` |
+| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:694` |
+| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:733` |
 | [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:20` |
 | [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:35` |
 | [CountKind](#type-countkind) | type | `src/ui/NetworkPanel.ts:29` |
@@ -5826,13 +5951,15 @@ GameScene.
 | [DeployableKind](#type-deployablekind) | type | `src/systems/Deployables.ts:22` |
 | [DeployedItem](#class-deployeditem) | class | `src/entities/DeployedItem.ts:35` |
 | [DeployedLure](#interface-deployedlure) | interface | `src/systems/Deployables.ts:32` |
-| [DetectionSystem](#class-detectionsystem) | class | `src/systems/DetectionSystem.ts:34` |
+| [DetectionSystem](#class-detectionsystem) | class | `src/systems/DetectionSystem.ts:45` |
 | [DetectionWorld](#interface-detectionworld) | interface | `src/systems/Sensing.ts:76` |
 | [Dir8](#type-dir8) | type | `src/entities/directions.ts:31` |
 | [DIRS_8](#const-dirs-8) | const | `src/entities/directions.ts:20` |
 | [Door](#class-door) | class | `src/entities/Door.ts:28` |
 | [DOOR_DEFAULTS](#const-door-defaults) | const | `src/systems/EntityStats.ts:152` |
+| [DoorAccess](#interface-dooraccess) | interface | `src/entities/doorWork.ts:47` |
 | [DoorStats](#interface-doorstats) | interface | `src/systems/EntityStats.ts:143` |
+| [DoorWalker](#interface-doorwalker) | interface | `src/entities/doorWork.ts:30` |
 | [Drone](#class-drone) | class | `src/entities/Drone.ts:13` |
 | [EdAnimation](#interface-edanimation) | interface | `src/map/types.ts:48` |
 | [EdBoard](#interface-edboard) | interface | `src/map/types.ts:138` |
@@ -5845,7 +5972,7 @@ GameScene.
 | [EdKeyFrame](#interface-edkeyframe) | interface | `src/map/types.ts:27` |
 | [EdLevel](#interface-edlevel) | interface | `src/map/types.ts:161` |
 | [EdPlayFile](#interface-edplayfile) | interface | `src/map/types.ts:191` |
-| [EdplayLoader](#class-edplayloader) | class | `src/map/EdplayLoader.ts:109` |
+| [EdplayLoader](#class-edplayloader) | class | `src/map/EdplayLoader.ts:110` |
 | [EdSpriteRect](#interface-edspriterect) | interface | `src/map/types.ts:9` |
 | [EdSpriteSheet](#interface-edspritesheet) | interface | `src/map/types.ts:18` |
 | [EdTile](#interface-edtile) | interface | `src/map/types.ts:125` |
@@ -5857,9 +5984,9 @@ GameScene.
 | [EncounterInteractResult](#interface-encounterinteractresult) | interface | `src/entities/EncounterTypes.ts:11` |
 | [Encounters](#class-encounters) | class | `src/scenes/game/Encounters.ts:70` |
 | [EncountersCallbacks](#interface-encounterscallbacks) | interface | `src/scenes/game/Encounters.ts:50` |
-| [Enforcer](#class-enforcer) | class | `src/entities/Enforcer.ts:196` |
-| [EnforcerContext](#interface-enforcercontext) | interface | `src/entities/Enforcer.ts:79` |
-| [EnforcerFireResult](#interface-enforcerfireresult) | interface | `src/entities/Enforcer.ts:37` |
+| [Enforcer](#class-enforcer) | class | `src/entities/Enforcer.ts:197` |
+| [EnforcerContext](#interface-enforcercontext) | interface | `src/entities/Enforcer.ts:80` |
+| [EnforcerFireResult](#interface-enforcerfireresult) | interface | `src/entities/Enforcer.ts:38` |
 | [EnforcerStats](#interface-enforcerstats) | interface | `src/systems/EntityStats.ts:34` |
 | [ENTITY_SPRITES](#const-entity-sprites) | const | `src/entities/EntitySprites.ts:92` |
 | [EntityIndex](#interface-entityindex) | interface | `src/map/EntityIndex.ts:57` |
@@ -5870,29 +5997,29 @@ GameScene.
 | [ExploredState](#type-exploredstate) | type | `src/systems/Explored.ts:74` |
 | [Eye](#interface-eye) | interface | `src/systems/Sensing.ts:20` |
 | [Faded](#interface-faded) | interface | `src/ui/PlaneOverlay.ts:28` |
-| [FlashlightBeam](#interface-flashlightbeam) | interface | `src/ui/Lighting.ts:97` |
-| [FollowResult](#type-followresult) | type | `src/entities/Enforcer.ts:182` |
+| [FlashlightBeam](#interface-flashlightbeam) | interface | `src/ui/Lighting.ts:107` |
+| [FollowResult](#type-followresult) | type | `src/entities/Enforcer.ts:183` |
 | [GameLayer](#interface-gamelayer) | interface | `src/map/types.ts:279` |
 | [GameLevel](#interface-gamelevel) | interface | `src/map/types.ts:286` |
 | [GameMap](#interface-gamemap) | interface | `src/map/types.ts:301` |
 | [GameMode](#type-gamemode) | type | `src/systems/GameState.ts:20` |
 | [GameOverScene](#class-gameoverscene) | class | `src/scenes/GameOverScene.ts:13` |
-| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:238` |
-| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:158` |
+| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:291` |
+| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:164` |
 | [GameTile](#interface-gametile) | interface | `src/map/types.ts:230` |
 | [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:332` |
 | [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:173` |
-| [GuardAnomaly](#interface-guardanomaly) | interface | `src/entities/Enforcer.ts:67` |
+| [GuardAnomaly](#interface-guardanomaly) | interface | `src/entities/Enforcer.ts:68` |
 | [GuardRoute](#interface-guardroute) | interface | `src/map/EntityIndex.ts:39` |
 | [GuardSkin](#interface-guardskin) | interface | `src/entities/GuardSkin.ts:14` |
 | [GuardSkinSpec](#interface-guardskinspec) | interface | `src/entities/GuardSkin.ts:71` |
-| [GuardState](#type-guardstate) | type | `src/entities/Enforcer.ts:34` |
+| [GuardState](#type-guardstate) | type | `src/entities/Enforcer.ts:35` |
 | [HoldFixture](#class-holdfixture) | class | `src/entities/HoldFixture.ts:24` |
 | [HoldTarget](#class-holdtarget) | class | `src/entities/HoldTarget.ts:41` |
 | [Hud](#class-hud) | class | `src/ui/Hud.ts:37` |
 | [InputState](#interface-inputstate) | interface | `src/entities/Player.ts:504` |
 | [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:23` |
-| [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:143` |
+| [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:148` |
 | [ItemInfo](#interface-iteminfo) | interface | `src/systems/ItemCatalog.ts:48` |
 | [JournalEntry](#interface-journalentry) | interface | `src/systems/Journal.ts:43` |
 | [JournalEntryId](#type-journalentryid) | type | `src/systems/Journal.ts:23` |
@@ -5906,7 +6033,7 @@ GameScene.
 | [LexiconContext](#interface-lexiconcontext) | interface | `src/systems/Lexicon.ts:257` |
 | [LexiconEntry](#interface-lexiconentry) | interface | `src/systems/Lexicon.ts:30` |
 | [Light](#interface-light) | interface | `src/ui/Lighting.ts:79` |
-| [Lighting](#class-lighting) | class | `src/ui/Lighting.ts:131` |
+| [Lighting](#class-lighting) | class | `src/ui/Lighting.ts:141` |
 | [LightSample](#undefined) | interface | `src/render/lightSampling.ts:33` |
 | [LightSource](#interface-lightsource) | interface | `src/systems/DetectionSystem.ts:4` |
 | [LightStats](#interface-lightstats) | interface | `src/systems/EntityStats.ts:65` |
@@ -5933,17 +6060,17 @@ GameScene.
 | [ObjectiveLine](#interface-objectiveline) | interface | `src/systems/Objectives.ts:166` |
 | [ObjectiveState](#interface-objectivestate) | interface | `src/systems/Objectives.ts:20` |
 | [OpenablePredicate](#type-openablepredicate) | type | `src/systems/GridMotion.ts:41` |
-| [Orderly](#class-orderly) | class | `src/entities/Orderly.ts:136` |
+| [Orderly](#class-orderly) | class | `src/entities/Orderly.ts:150` |
 | [OrderlyAnimName](#type-orderlyanimname) | type | `src/entities/OrderlyAnimations.ts:11` |
-| [OrderlyContext](#interface-orderlycontext) | interface | `src/entities/Orderly.ts:31` |
+| [OrderlyContext](#interface-orderlycontext) | interface | `src/entities/Orderly.ts:32` |
 | [OrderlyRoute](#interface-orderlyroute) | interface | `src/map/EntityIndex.ts:49` |
-| [OrderlyState](#type-orderlystate) | type | `src/entities/Orderly.ts:81` |
+| [OrderlyState](#type-orderlystate) | type | `src/entities/Orderly.ts:95` |
 | [OverlayConfig](#interface-overlayconfig) | interface | `src/scenes/game/OverlayGate.ts:21` |
 | [OverlayGate](#class-overlaygate) | class | `src/scenes/game/OverlayGate.ts:32` |
 | [OverlayId](#type-overlayid) | type | `src/scenes/game/OverlayGate.ts:19` |
 | [Palette](#interface-palette) | interface | `src/ui/MiniMapCanvas.ts:18` |
 | [Pane](#interface-pane) | interface | `src/ui/PauseMenuView.ts:69` |
-| [ParsedMap](#interface-parsedmap) | interface | `src/map/EdplayLoader.ts:260` |
+| [ParsedMap](#interface-parsedmap) | interface | `src/map/EdplayLoader.ts:261` |
 | [PathNode](#interface-pathnode) | interface | `src/systems/Pathfinder.ts:22` |
 | [PathOptions](#interface-pathoptions) | interface | `src/systems/Pathfinder.ts:27` |
 | [PatrolRoute](#type-patrolroute) | type | `src/systems/PatrolRoute.ts:26` |
@@ -5952,19 +6079,21 @@ GameScene.
 | [PauseRequest](#type-pauserequest) | type | `src/systems/PauseState.ts:29` |
 | [PauseScene](#class-pausescene) | class | `src/scenes/PauseScene.ts:32` |
 | [PauseSnapshot](#interface-pausesnapshot) | interface | `src/ui/PauseMenuView.ts:39` |
-| [PersonAnomalyKind](#type-personanomalykind) | type | `src/entities/Enforcer.ts:59` |
+| [PersonAnomalyKind](#type-personanomalykind) | type | `src/entities/Enforcer.ts:60` |
 | [PlaneLink](#interface-planelink) | interface | `src/systems/PlaneLinks.ts:50` |
 | [PlaneLinkKind](#type-planelinkkind) | type | `src/systems/PlaneLinks.ts:47` |
 | [PlaneOverlay](#class-planeoverlay) | class | `src/ui/PlaneOverlay.ts:37` |
 | [Player](#class-player) | class | `src/entities/Player.ts:44` |
 | [PlayerAnimName](#type-playeranimname) | type | `src/entities/PlayerAnimations.ts:17` |
 | [PlayerParams](#interface-playerparams) | interface | `src/systems/QualiaLock.ts:34` |
-| [PlayerStats](#interface-playerstats) | interface | `src/systems/EntityStats.ts:282` |
+| [PlayerStats](#interface-playerstats) | interface | `src/systems/EntityStats.ts:321` |
 | [Pose](#interface-pose) | interface | `src/entities/CastArt.ts:53` |
+| [PowerGridState](#interface-powergridstate) | interface | `src/systems/PowerGrid.ts:27` |
 | [PressSide](#interface-pressside) | interface | `src/systems/WallPress.ts:50` |
 | [PressState](#interface-pressstate) | interface | `src/systems/WallPress.ts:65` |
 | [PressSurface](#interface-presssurface) | interface | `src/systems/WallPress.ts:30` |
 | [PressureSubStation](#class-pressuresubstation) | class | `src/entities/PressureSubStation.ts:43` |
+| [PromptCandidates](#interface-promptcandidates) | interface | `src/scenes/GameScene.ts:236` |
 | [PuzzleState](#interface-puzzlestate) | interface | `src/systems/Compliance.ts:50` |
 | [QualiaLockConfig](#interface-qualialockconfig) | interface | `src/systems/QualiaLock.ts:46` |
 | [QualiaLockData](#interface-qualialockdata) | interface | `src/scenes/QualiaLockScene.ts:8` |
@@ -5988,7 +6117,7 @@ GameScene.
 | [RelayMsg](#interface-relaymsg) | interface | `src/systems/RelayCore.ts:46` |
 | [RelaySnapshot](#interface-relaysnapshot) | interface | `src/systems/RelayCore.ts:40` |
 | [RelayState](#enum-relaystate) | enum | `src/systems/RelayCore.ts:18` |
-| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:918` |
+| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:957` |
 | [RelayTickResult](#interface-relaytickresult) | interface | `src/entities/RoofRelay.ts:57` |
 | [RelayTransition](#interface-relaytransition) | interface | `src/systems/RelayCore.ts:35` |
 | [RelayView](#interface-relayview) | interface | `src/systems/RelayCore.ts:55` |
@@ -6019,7 +6148,7 @@ GameScene.
 | [SmacMsg](#interface-smacmsg) | interface | `src/systems/SmacCore.ts:72` |
 | [SmacSnapshot](#interface-smacsnapshot) | interface | `src/systems/SmacCore.ts:63` |
 | [SmacState](#enum-smacstate) | enum | `src/systems/SmacCore.ts:38` |
-| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:846` |
+| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:885` |
 | [SmacTickResult](#interface-smactickresult) | interface | `src/entities/BossCore.ts:56` |
 | [SmacTransition](#interface-smactransition) | interface | `src/systems/SmacCore.ts:57` |
 | [SmacView](#interface-smacview) | interface | `src/systems/SmacCore.ts:94` |
@@ -6032,7 +6161,7 @@ GameScene.
 | [SurrenderAim](#class-surrenderaim) | class | `src/systems/Surrender.ts:187` |
 | [SurrenderResult](#interface-surrenderresult) | interface | `src/systems/Surrender.ts:61` |
 | [SurrenderWorld](#interface-surrenderworld) | interface | `src/systems/Surrender.ts:33` |
-| [Target](#type-target) | type | `src/scenes/GameScene.ts:1492` |
+| [Target](#type-target) | type | `src/scenes/GameScene.ts:1577` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:35` |
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:199` |
 | [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:190` |
@@ -6068,7 +6197,7 @@ GameScene.
 | [Vent4PhysicsSystem](#class-vent4physicssystem) | class | `src/systems/Vent4PhysicsSystem.ts:63` |
 | [Vent4Snapshot](#interface-vent4snapshot) | interface | `src/systems/Vent4Core.ts:34` |
 | [Vent4State](#enum-vent4state) | enum | `src/systems/Vent4Core.ts:17` |
-| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:722` |
+| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:761` |
 | [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:67` |
 | [Vent4Transition](#interface-vent4transition) | interface | `src/systems/Vent4Core.ts:28` |
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |

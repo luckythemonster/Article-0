@@ -229,13 +229,37 @@ export function ensureEntityAnim(
   label?: string,
   repeat = -1,
 ): string | undefined {
-  const key = entityAnimKey(id, tag, label);
+  return ensureEntityClip(
+    scene,
+    id,
+    entityAnimKey(id, tag, label),
+    clipFrames(id, tag, label),
+    repeat,
+  );
+}
+
+/**
+ * Registers an animation from an explicit frame list, under a caller-chosen key.
+ *
+ * For clips the source does not name as a single tag. The breaker's throw is the
+ * case that needs it: the cabinet opening, then four *chosen* digit frames, then
+ * the screen flipping and the cabinet shutting. Which digits depends on the code
+ * being punched in, so the sequence is assembled per throw and cannot be a tag.
+ *
+ * Frames are still found by label upstream — this only takes the result. Nothing
+ * here addresses a frame by position.
+ */
+export function ensureEntityClip(
+  scene: Phaser.Scene,
+  id: EntitySpriteId,
+  key: string,
+  frames: readonly number[],
+  repeat = -1,
+): string | undefined {
   if (scene.anims.exists(key)) return key;
 
   const textureKey = entitySpriteKey(id);
   if (!scene.textures.exists(textureKey)) return undefined;
-
-  const frames = clipFrames(id, tag, label);
   if (frames.length === 0) return undefined;
 
   const durations = SPRITES[id].durations;

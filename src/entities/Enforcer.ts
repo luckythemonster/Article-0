@@ -16,6 +16,7 @@ import { DIRS_8, nearestDirection, type Dir8 } from "./directions";
 import { ENFORCER_SKIN } from "./EnforcerAnimations";
 import { alertMarker } from "./markers";
 import { len, withinOrEqual } from "../systems/distance";
+import { workDoors } from "./doorWork";
 
 /**
  * A per-guard behaviour state, layered on top of the global {@link AlertState}
@@ -130,12 +131,16 @@ export interface EnforcerContext {
   /** Cover tiles (pixel centres) within `radiusTiles` of a tile position. */
   coverTilesNear?: (tileX: number, tileY: number, radiusTiles: number) => { x: number; y: number }[];
   /**
-   * True when this tile holds a door the guard may work itself — unlocked, and
-   * not a wall. Guards route through their own facility's doors rather than
+   * True when this tile holds a door staff may work themselves — unlocked, and
+   * not a wall. Staff route through their own facility's doors rather than
    * treating every one as permanent geometry: `main1`'s patrol beat crosses two
    * of them, and without this the south half of the route is simply unreachable.
+   *
+   * Named for the door rather than for the guard because the orderlies read the
+   * same predicate off this same context — see `OrderlyContext.isOperableDoor`,
+   * which had the identical problem and went unnoticed for longer.
    */
-  isGuardDoor?: (tileX: number, tileY: number) => boolean;
+  isOperableDoor?: (tileX: number, tileY: number) => boolean;
   /** Opens or closes a door the guard is working. */
   setDoorOpen?: (tileX: number, tileY: number, open: boolean) => void;
 }
@@ -171,10 +176,6 @@ const SEARCH_POINT_PAUSE = 1.2; // seconds spent checking each search point
 const REPATH_INTERVAL = 0.4;
 /** Consecutive fully-blocked steps before a guard assumes its path went stale. */
 const STUCK_STEPS_BEFORE_REPATH = 8;
-/** How far ahead of its own body a guard reaches to work a door, in tiles. */
-const DOOR_REACH_TILES = 0.9;
-/** Distance past a door at which the guard shuts it behind itself, in tiles. */
-const DOOR_CLOSE_TILES = 1.8;
 /** Half-width (radians) of the cone's idle sweep either side of the walk direction. */
 const SCAN_SWEEP_ARC = Phaser.Math.DegToRad(50);
 
@@ -221,7 +222,8 @@ export class Enforcer {
   /** Current cone offset from {@link moveDir}, swept back and forth on patrol. */
   private scanOffset = 0;
   private readonly skin: GuardSkin;
-  private readonly radiusTiles: number;
+  /** Body radius in tiles. Read by the shared {@link workDoors} — see `doorWork.ts`. */
+  readonly radiusTiles: number;
   /** Reused across frames — {@link canSense} only reads it. */
   private readonly eye: Eye;
 
@@ -260,7 +262,8 @@ export class Enforcer {
   private pathRevision = -1;
   private stuckSteps = 0;
   /** A door this guard opened to get through and still has to shut behind it. */
-  private heldDoor: PathNode | null = null;
+  /** Read and written by the shared {@link workDoors} — see `doorWork.ts`. */
+  heldDoor: PathNode | null = null;
 
   constructor(
     scene: Phaser.Scene,
@@ -784,7 +787,7 @@ export class Enforcer {
   private replan(ctx: EnforcerContext, goal: { x: number; y: number }): boolean {
     const { grid, tileSize } = ctx;
     const start = { x: Math.floor(this.x / tileSize), y: Math.floor(this.y / tileSize) };
-    const openable = ctx.isGuardDoor;
+    const openable = ctx.isOperableDoor;
     const tiles = findPath(grid, start, goal, { radiusTiles: this.radiusTiles, openable });
     this.repathTimer = REPATH_INTERVAL;
     this.pathRevision = grid.revision;
@@ -820,26 +823,13 @@ export class Enforcer {
    * not staff using one normally.
    */
   private workDoors(ctx: EnforcerContext, heading: number): void {
-    const { tileSize, grid } = ctx;
-    if (!ctx.isGuardDoor || !ctx.setDoorOpen) return;
-
-    if (this.heldDoor) {
-      const dx = this.heldDoor.x + 0.5 - this.x / tileSize;
-      const dy = this.heldDoor.y + 0.5 - this.y / tileSize;
-      if (!withinOrEqual(dx, dy, DOOR_CLOSE_TILES)) {
-        ctx.setDoorOpen(this.heldDoor.x, this.heldDoor.y, false);
-        this.heldDoor = null;
-      }
-      return;
-    }
-
-    // Probe just past the body's own edge, along the way it's walking.
-    const reach = this.radiusTiles + DOOR_REACH_TILES;
-    const tx = Math.floor(this.x / tileSize + Math.cos(heading) * reach);
-    const ty = Math.floor(this.y / tileSize + Math.sin(heading) * reach);
-    if (!grid.isBlocked(tx, ty) || !ctx.isGuardDoor(tx, ty)) return;
-    ctx.setDoorOpen(tx, ty, true);
-    this.heldDoor = { x: tx, y: ty };
+    workDoors(
+      this,
+      ctx,
+      ctx.grid,
+      ctx.tileSize,
+      heading,
+    );
   }
 
   /**

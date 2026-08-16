@@ -39,28 +39,34 @@ frames needs no code change.
 
 ---
 
-## Priority 0 — the breaker needs code, not art
+## Done — the breaker and the power grid
 
-**Status: art is done and building. Nothing draws it yet.**
+`Breaker.aseprite` is finished and wired. Tapping it cuts a named circuit and taps
+again to restore it; `src/entities/Breaker.ts` owns the throw and
+`src/systems/PowerGrid.ts` owns which circuits are live. Nothing left to draw here.
 
-`Breaker.aseprite` is finished — 24 frames at 16×16, and it already passes through
-`tools/sprites/build_sprites.py` into `public/assets/sprites/breaker.png` with its
-tags and cel labels in the manifest. It is listed in `ENTITY_SPRITES` and held to
-the scale rule. What it does not have is anything to attach to.
+**The `CONTROLS` layer is a four-LED binary keypad, not a spinning readout** — that
+was the open question, and the pixels answered it. Each of the four 2×2 lamps is one
+bit, lit `#ff0040` and unlit `#571c27`:
 
-Three gaps, in order:
+| digit | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| lit | — | TL | TR | TL·TR | BL | TL·BL | TR·BL | TL·TR·BL | BR | TL·BR |
 
-1. **There is no `Breaker` entity class.** The other three had one already; this
-   one would be new.
-2. **Nothing reads the `PowerGrid` component.** The map's `breaker_main1` tile
-   carries `Target: light_overhead1` and `State: CLOSED`, and no code in `src/`
-   mentions `PowerGrid` at all. That component is the whole design brief — a
-   breaker that switches a named light.
-3. **The counter's meaning is undecided.** The `CONTROLS` layer is annotated
-   `'1'`…`'9'`, `'0'` twice over, then `idle`. It reads as a readout spinning
-   while the cabinet is open rather than a count of anything, but nobody has said.
+so **top-left is worth 1** and bottom-right 8. Every digit is drawn twice, once
+against the green `POWER_ON` screen and once against the red `POWER_OFF` one, which
+is what lets a code be shown going in while cutting power *and* while restoring it.
 
-What the art gives you, once there is something to drive it:
+> ⚠️ **This is the opposite endianness to the HUD.** `docs/GUI_STYLE_GUIDE.md` §4
+> says the network panel's LED clusters read "leftmost worth 8"; this one reads
+> leftmost worth 1. Both are as-drawn and both are correct for their own art —
+> documented rather than reconciled, because renaming either would break a readout
+> that currently reads right. Do not "fix" one to match the other.
+
+A throw is composed per-press rather than played as a fixed range: the four digits
+are picked by `keypadCode` and looked up by label, so no two throws animate alike.
+Cutting power reads `[idle-green, open, d1..d4, open-red, idle-red]` and restoring is
+the mirror through the red digits.
 
 | clip | frames | reads as |
 |---|---|---|
@@ -69,11 +75,12 @@ What the art gives you, once there is something to drive it:
 | `POWER_OFF` | 12–23 | screen flips red, controls run, door shuts |
 | `IN_USE` | 1–21 | the whole open-cabinet stretch |
 
-Note `IDLE` appears **twice** and the two mean different things — powered and
-unpowered — so address it via the manifest's tag list rather than by name alone.
+`IDLE` appears **twice** and the two mean different things — powered and unpowered.
+They are told apart by intersecting the tag with the `SCREEN` layer's own cel label,
+which is the two-annotation contract doing exactly what it is for.
 
-It is authored at **½ tile** (`breaker_main1` is `RowSpan`/`ColSpan` 0.5), which
-is why the art is 16×16 and not 32.
+It is authored at **½ tile** (`breaker_main1` is `RowSpan`/`ColSpan` 0.5), which is
+why the art is 16×16 and not 32.
 
 ---
 
@@ -269,8 +276,9 @@ than shipping soft.
 - **The network panel** — finished, wired to live data, and every colour an
   exact EDG64 entry asserted by its build tool. See "Done" above.
 - **The terminal, substation and security camera** — hand-drawn, state-driven and
-  wired. See "Done — three world entities" above. The **breaker**'s art is done
-  too; what it is missing is code, not pixels.
+  wired. See "Done — three world entities" above.
+- **The breaker** — art, entity and power grid all done. See "Done — the breaker
+  and the power grid" above.
 - Everything listed under GUI_STYLE_GUIDE §7 "What not to draw" — light cones,
   radial light stamps, radar blips and sweep, the EKG trace, bars and gauges. All
   generated at runtime from live state.

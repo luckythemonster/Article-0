@@ -8,6 +8,17 @@ interface LightSource {
   /** Cached `radiusPx²`, so the reach test never takes a square root. */
   radiusPx2: number;
   multiplier: number;
+  /**
+   * The fixture's tile-def ref, which is what a breaker's `Target` names.
+   *
+   * Carried per light rather than resolved once into a list of indices, because
+   * `src/ui/Lighting.ts` has to make the identical cut and the two build their
+   * lists separately. Keying both on the ref means they cannot disagree about
+   * which lamps a circuit feeds.
+   */
+  ref: string;
+  /** False once a breaker has opened this light's circuit. */
+  powered: boolean;
 }
 
 /**
@@ -38,6 +49,14 @@ export class DetectionSystem {
    * bucket rather than test every light in the level.
    */
   private readonly lightBuckets = new Map<number, LightSource[]>();
+  /**
+   * Every light, flat, so {@link setCircuit} can find them by ref.
+   *
+   * The buckets hold the same objects — a light appears in each bucket its reach
+   * touches — so flipping `powered` here is seen by every bucket at once, and no
+   * re-indexing is needed.
+   */
+  private readonly lights: LightSource[] = [];
   private readonly bucketPx: number;
   /** tile key -> cover type ("low" | "high"). */
   private readonly cover = new Map<number, string>();
@@ -62,7 +81,10 @@ export class DetectionSystem {
           radiusPx,
           radiusPx2: radiusPx * radiusPx,
           multiplier: s.detectionMultiplier,
+          ref: t.ref,
+          powered: true,
         };
+        this.lights.push(light);
         this.indexLight(light);
       }
     }
@@ -111,6 +133,10 @@ export class DetectionSystem {
     const bucket = this.lightBuckets.get(bx * 73856093 + by * 19349663);
     if (!bucket) return mult;
     for (const l of bucket) {
+      // A lamp on a dead circuit lights nothing, so it makes nobody easier to
+      // see. This is the half of a blackout that guards can feel — the other
+      // half, the one the player can see, is in `src/ui/Lighting.ts`.
+      if (!l.powered) continue;
       const dx = px - l.x;
       const dy = py - l.y;
       const d2 = dx * dx + dy * dy;
@@ -121,6 +147,19 @@ export class DetectionSystem {
       mult *= 1 + (l.multiplier - 1) * falloff;
     }
     return mult;
+  }
+
+  /**
+   * Powers every fixture whose tile-def ref is `ref` on or off — a breaker throw.
+   *
+   * The mirror of `Lighting.setCircuit`, and the two must always be called
+   * together: this one decides whether a guard finds you easier to see, that one
+   * decides whether you can see anything. `src/entities/Breaker.ts` calls both.
+   */
+  setCircuit(ref: string, on: boolean): void {
+    for (const light of this.lights) {
+      if (light.ref === ref) light.powered = on;
+    }
   }
 
   /** Cover type at a pixel position, or undefined if the tile has no cover. */

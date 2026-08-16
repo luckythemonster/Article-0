@@ -129,7 +129,8 @@ read by name; the engine's own generators emit them.
 | `terminals` | Tiles **with** a `terminal` component become terminals. A `terminalN` tile here with *no* component is given the export's own `Terminal` defaults — see `InertTerminals.ts` — so anything else on this board should be named something else. | **`terminal` required** |
 | `items` | Tiles **with** a `chest` component become chests. | **`chest` required** |
 | `cover` | Detection dampening (0.4×) and crouch concealment. | `cover` |
-| `light_sources` | Light pools *and* the detection multiplier — the same data drives both. | `light_source` |
+| `light_sources` | Light pools *and* the detection multiplier — the same data drives both. Can be switched off at runtime by a breaker — see `power` below. | `light_source` |
+| `power` | Tiles **with** a `power_grid` component become breakers. Claimed per tile, not board-scoped: `main1` files a door on this board that stays art. | **`power_grid` required** |
 | `verticals` | Every way off the level — stairs, ladders, hatches. See the Transitions section. | `Vertical`, optional |
 | `elevator*` | An elevator car. Three or more levels sharing the car's coordinate is a shaft. | — |
 | `extraction` | Marks the level as the win condition's destination (§2). Any tile will do; nothing is drawn. | — |
@@ -429,7 +430,7 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
 | `door` | `key`, `state`, `OperationNoise` | `OpenSpeed` |
 | `glass` | `VisionBlock` | `type` (the sprite conveys it), `BreakNoise` (no breakage mechanic) |
 | `terminal` | `type`, `HackTime` | `password`; `AlertOnFail` is parsed into `TerminalStats` but unused — there is no hack-fail path for it to attach to |
-| `light_source` | `Radius`, `DetectionMultiplier`, `type` (`flicker` in the value → pulses) | `LightOn` — an "off" fixture still lights |
+| `light_source` | `Radius`, `DetectionMultiplier`, `type` (`flicker` in the value → pulses) | `LightOn` — a fixture authored "off" still lights; use a breaker if you want it switchable |
 | `cover` | `type` (`low` → crouch to hide, `high` → hides standing), `ThermalBleed`, `Destructible` | — |
 | `chest` | `InteractionTime`, `NoiseOnOpen`, `item1/2/3` | `state` |
 | `human` | `Job` (`SECURITY` → enforcer, `ORDERLY` → orderly) | `QScore`, `Class`, `Behavior` |
@@ -437,7 +438,8 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
 | `enemyspawn` | presence (→ a sentry) | `spawnTime`, `type` — there is no wave system |
 | `sensor` | presence (→ a camera) | every field, `facing` included: it is inferred from the surrounding walls |
 | `vertical` | presence (→ a way out, on a `verticals` board) | `direction`, `material` |
-| `hatch`, `audio_hazard`, `powergrid` | **nothing** | every field |
+| `power_grid` | `Target`, `state` | — |
+| `hatch`, `audio_hazard` | **nothing** | every field |
 
 ### TileDef and board fields
 
@@ -516,6 +518,17 @@ at 32×32, the same 2× reduction `security_node1` gets from the same source siz
   - anything else → a plain terminal whose hack releases doors within 6 tiles.
 - **`chest` item slots** left blank fall back to
   `["Medkit", "Battery", "Access Chit"]` (`CHEST_DEFAULTS`).
+- **`power_grid.Target` names a TileDef `ref`, not a tile.** Every placed fixture
+  sharing that ref goes out together, which is the whole point: the shipped
+  `breaker_main1` targets `light_overhead1`, and the map places fifty of those, so
+  one switch darkens the entire main deck. Target a ref used once and you get one
+  lamp. Nothing warns you if `Target` matches no ref at all — the breaker will throw
+  and switch nothing.
+  - `state` is the `circuitState` enum, and it reads the electrician's way round:
+    **`CLOSED` is on** (a closed circuit conducts) and `OPEN` is off. The art agrees —
+    the cabinet's screen is green while the circuit is closed.
+  - A thrown circuit persists across level changes, and the facility sends an orderly
+    to put it back. If no orderly can reach it, it stays thrown.
 
 ## 5. Gotchas
 

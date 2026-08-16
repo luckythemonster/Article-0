@@ -61,6 +61,8 @@ export interface EntityIndex {
   doors: GameTile[];
   terminals: GameTile[];
   chests: GameTile[];
+  /** Power breakers — see `src/systems/PowerGrid.ts`. */
+  breakers: GameTile[];
   /** Tiles claimed by one of the above; `bakeTileLayers` must skip them. */
   claimed: Set<GameTile>;
 }
@@ -130,6 +132,7 @@ export function indexEntities(level: GameLevel, legacyBoards: ReadonlySet<string
     doors: [],
     terminals: [],
     chests: [],
+    breakers: [],
     claimed: new Set<GameTile>(),
   };
 
@@ -224,4 +227,9 @@ export function indexFixtures(level: GameLevel, index: EntityIndex): void {
   take(board("doors"), "door", index.doors);
   take(board("terminals"), "terminal", index.terminals);
   take(board("items"), "chest", index.chests);
+  // `power` is the clearest mixed board on the map — main1 files a door that
+  // stays art beside the breaker that does not — which is why it is deliberately
+  // absent from GameScene's `ENTITY_LAYERS` and why claiming per tile matters:
+  // the breaker must not be baked into the level texture *and* drawn as a sprite.
+  take(board("power"), "power_grid", index.breakers);
 }

@@ -336,11 +336,38 @@ green `HoldTarget` has always tinted a finished hack — so `active` is the
 | Terminal | `idle` — dark screen, a 77ms yellow blip once a second | `alert` — amber/red at 100ms | `active` — teal screen, green lamp |
 | Substation | `idle` — black screen, cyan ring | `active` — readout churning, ring GOOD→WARNING→ERROR | `deactivated` — red cross, then a flatlined face |
 | Camera | — | — | `active` / `disabled`, per facing |
+| Breaker | `IDLE` — cabinet shut, green *or* red screen | `IN_USE` — cabinet open, keypad running | the other `IDLE` |
 
 The camera's two states are one pixel apart: the `#ff0040` status lamp, lit or
 dark, held 500ms. `active` is that pair looping; `disabled` is the dark frame
 held. `SensorStats.state` already carried the words `active` and `disabled`, so
 it maps onto the tag names with no translation table.
+
+### The breaker's keypad reads as binary
+
+The `CONTROLS` layer looks like a spinning readout and is not. Its alpha never
+changes across all 24 frames — only colour does — because it is **four 2×2 LEDs,
+one per bit**, lit `#ff0040` and unlit `#571c27`:
+
+| digit | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| lit | — | TL | TR | TL·TR | BL | TL·BL | TR·BL | TL·TR·BL | BR | TL·BR |
+
+**Top-left is worth 1**, bottom-right 8. Every digit appears twice, once against
+the green `POWER_ON` screen and once against the red `POWER_OFF` one, which is what
+lets `Breaker.ts` compose a *different* animation per throw: four digits from
+`keypadCode`, looked up by label, against whichever screen colour the throw starts
+on. Cutting power is `[idle-green, open, d1..d4, open-red, idle-red]`; restoring is
+the mirror.
+
+> ⚠️ **The opposite endianness to the HUD.** `docs/GUI_STYLE_GUIDE.md` §4 says the
+> network panel's clusters read "leftmost worth 8"; this one reads leftmost worth 1.
+> Both are as-drawn and each is right for its own art. Documented rather than
+> reconciled — renaming either would break a readout that currently reads correctly.
+
+The two `IDLE` tags are told apart by intersecting the tag with the `SCREEN`
+layer's cel label, which is the two-annotation contract earning its keep: neither
+the tag nor the label alone says "cabinet shut *and* unpowered".
 
 The substation's `locked` amber is still a tint rather than a clip. The source
 has no state for it, and inventing one would be wrong: locked is the boss

@@ -8,6 +8,9 @@ import { ENFORCER_SKIN } from "../../entities/EnforcerAnimations";
 import { Laser } from "../../entities/Laser";
 import { Orderly } from "../../entities/Orderly";
 import { Player } from "../../entities/Player";
+import { Breaker } from "../../entities/Breaker";
+import { breakerStatsFor } from "../../systems/EntityStats";
+import { isCircuitClosed, type PowerGridState } from "../../systems/PowerGrid";
 import { Sensor } from "../../entities/Sensor";
 import { Terminal } from "../../entities/Terminal";
 import { indexEntities, indexFixtures, type EntityIndex } from "../../map/EntityIndex";
@@ -49,6 +52,8 @@ export interface BuiltLevel {
   doors: Door[];
   terminals: Terminal[];
   sensors: Sensor[];
+  /** Power breakers — see `src/systems/PowerGrid.ts`. */
+  breakers: Breaker[];
   chests: Chest[];
   lasers: Laser[];
   /** Cover tiles the map (or a generator) marks `Destructible` — the rest of the
@@ -100,6 +105,7 @@ export function buildLevel(
   detection: DetectionSystem,
   arriveTile: { x: number; y: number } | undefined,
   entityLayers: ReadonlySet<string>,
+  powerGrid: PowerGridState,
 ): BuiltLevel {
   // Who lives here, decided before anything is drawn: the bake has to know which
   // individual tiles are about to become entities so it can leave them out.
@@ -124,6 +130,7 @@ export function buildLevel(
     terminals: [],
     sensors: [],
     chests: [],
+    breakers: [],
     lasers: [],
     coverTiles: [],
     wallBodies,
@@ -135,7 +142,7 @@ export function buildLevel(
   };
 
   spawnCast(scene, level, tileSize, index, built);
-  spawnInteractables(scene, level, tileSize, grid, index, built);
+  spawnInteractables(scene, level, tileSize, grid, index, built, powerGrid);
   spawnDestructibleCover(scene, level, tileSize, grid, detection, tileTexture, coverBodyEntries, built);
   return built;
 }
@@ -277,6 +284,7 @@ function spawnInteractables(
   grid: CollisionGrid,
   index: EntityIndex,
   out: BuiltLevel,
+  powerGrid: PowerGridState,
 ): void {
   const deck = deckCells(level, tileSize);
   const planeOf = (t: { x: number; y: number }): number => deckPlaneAt(deck, level, t.x, t.y);
@@ -288,6 +296,14 @@ function spawnInteractables(
   }
 
   for (const t of index.terminals) out.terminals.push(new Terminal(scene, t, tileSize));
+  for (const t of index.breakers) {
+    // The persisted override if the player has thrown this one before, and the
+    // map's authored `State` otherwise — so a deck they darkened is still dark
+    // when they come back down the duct.
+    const authored = breakerStatsFor(t.components);
+    const closed = isCircuitClosed(powerGrid, level.name, authored.target, authored.closed);
+    out.breakers.push(new Breaker(scene, t, tileSize, closed));
+  }
   for (const t of index.chests) out.chests.push(new Chest(scene, t, tileSize));
   for (const t of index.sensors) {
     out.sensors.push(new Sensor(scene, t, tileSize, grid, planeOf(t)));

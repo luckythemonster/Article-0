@@ -23,6 +23,12 @@ import { Orderly } from "../entities/Orderly";
 import { DeployedItem } from "../entities/DeployedItem";
 import { Door } from "../entities/Door";
 import { Terminal } from "../entities/Terminal";
+import { Breaker } from "../entities/Breaker";
+import {
+  initialPowerGrid,
+  setCircuitClosed,
+  type PowerGridState,
+} from "../systems/PowerGrid";
 import { Laser } from "../entities/Laser";
 import { Sensor } from "../entities/Sensor";
 import { Chest } from "../entities/Chest";
@@ -219,6 +225,32 @@ const ENTITY_LAYERS = new Set([
 const INTERACT_RANGE = 1.4;
 
 /**
+ * Everything in reach that E could act on, for the single nearest-wins prompt.
+ *
+ * An object rather than the positional list this used to be. It had grown to
+ * eleven parameters, six of them a thing paired with its distance, and the
+ * breaker would have made it thirteen — at which point a transposed pair of
+ * arguments is a bug the compiler cannot see, since half of them are `number`
+ * and the rest are optional.
+ */
+interface PromptCandidates {
+  terminal: Terminal | undefined;
+  terminalDist: number;
+  door: Door | undefined;
+  doorDist: number;
+  breaker: Breaker | undefined;
+  breakerDist: number;
+  chest: Chest | undefined;
+  chestDist: number;
+  hatch: boolean;
+  vault: boolean;
+  ventLabel?: string;
+  ventDist?: number;
+  /** A transition the player is standing on that refuses to open, and why. */
+  lockedLabel?: string;
+}
+
+/**
  * Cos of the half-angle of {@link WEAPON_ARC_DEGREES} — the forward arc a dart or a
  * staple can reach. Was the bare `0.5` written out at three call sites below.
  */
@@ -226,6 +258,27 @@ const WEAPON_ARC_COS = Math.cos((WEAPON_ARC_DEGREES * Math.PI) / 360);
 
 /** Radius (tiles) around a hacked terminal whose doors it releases. */
 const HACK_UNLOCK_RADIUS = 6;
+
+/**
+ * How far a breaker's clunk carries, in tiles.
+ *
+ * Wider than a door's, narrower than a shot. A cabinet being worked is a real
+ * noise and the deck going dark is conspicuous, but the point of the switch is
+ * that it buys darkness — one that called the whole level over would be a trap
+ * rather than a tool.
+ */
+const BREAKER_NOISE_TILES = 7;
+/** How close an orderly has to get before it can reset a breaker, in tiles. */
+const BREAKER_RESET_REACH_TILES = 0.8;
+/**
+ * Seconds before a breaker asks for somebody again.
+ *
+ * An orderly drops out of INSPECT on its own after a couple of seconds, so a
+ * reset that nobody completes has to be re-requested or the lights would stay
+ * off on a technicality. Long enough that it is not re-issuing orders every
+ * frame, short enough that the deck does not feel abandoned.
+ */
+const BREAKER_RESET_RETRY_SECONDS = 4;
 
 /** Seconds between knocks, so the action can't be mashed. */
 const KNOCK_COOLDOWN = 0.6;
@@ -257,6 +310,20 @@ export class GameScene extends Phaser.Scene {
   private lasers: Laser[] = [];
   private sensors: Sensor[] = [];
   private chests: Chest[] = [];
+  private breakers: Breaker[] = [];
+  /**
+   * Circuit state, held across level swaps in the registry.
+   *
+   * A blackout outlives the deck it happened on: leaving main1 rebuilds every
+   * entity on it, and without this the lights would be back on by the time the
+   * player came down the ladder.
+   */
+  private powerGrid: PowerGridState = initialPowerGrid();
+  /**
+   * Breakers waiting on an orderly, and who was sent. Keyed by the breaker, so a
+   * second throw while one reset is already pending replaces rather than stacks.
+   */
+  private readonly pendingResets = new Map<Breaker, { orderly: Orderly | null; retryAt: number }>();
   /** Destructible cover — the rest of the `cover` board is baked art with no entity. */
   private coverTiles: Cover[] = [];
   /** The vent-core/vault/roof set-piece encounters, and their mechanical wiring. */
@@ -484,6 +551,12 @@ export class GameScene extends Phaser.Scene {
     // hardcoded `["walls"]`, so cover and the roof's fence stop the player too.
     this.grid = new CollisionGrid(this.level, blockingLayerNames(this.level), this.tileSize);
     this.detection = new DetectionSystem(this.level, this.tileSize);
+    // Read before `buildLevel`, which needs each breaker's live state to build it
+    // in the right position. Same read-or-init-then-keep-the-reference pattern as
+    // `objectives` and `explored` below.
+    this.powerGrid =
+      (this.registry.get("powerGrid") as PowerGridState | undefined) ?? initialPowerGrid();
+    this.registry.set("powerGrid", this.powerGrid);
     this.sensing = this.buildSensingContext();
     // One object for the level rather than a literal per frame — the same reasoning
     // `SensingContext` exists for, on a much smaller scale.
@@ -497,6 +570,7 @@ export class GameScene extends Phaser.Scene {
       this.detection,
       this.arriveTile,
       ENTITY_LAYERS,
+      this.powerGrid,
     );
     this.player = built.player;
     this.guards = built.guards;
@@ -505,6 +579,7 @@ export class GameScene extends Phaser.Scene {
     this.terminals = built.terminals;
     this.sensors = built.sensors;
     this.chests = built.chests;
+    this.breakers = built.breakers;
     this.lasers = built.lasers;
     this.coverTiles = built.coverTiles;
     this.designateQualiaRack();
@@ -537,6 +612,12 @@ export class GameScene extends Phaser.Scene {
     // After the lighting, and reading from it: a shadow is thrown by the same fixtures
     // the darkness is carved out for, so walking under a lamp swings it around.
     this.entityShadows = new EntityShadows(this, this.lighting);
+    // Any circuit already thrown — on this visit or a previous one — has to be
+    // applied now that both consumers exist. `Lighting` is built after the level,
+    // so the breakers cannot do this for themselves at construction.
+    for (const breaker of this.breakers) {
+      if (!breaker.isClosed) this.setCircuit(breaker.stats.target, false);
+    }
 
     // VENT-4 lives only in the vent core. Its continuous audio layers are
     // scene-independent, so silence them on every entry and re-arm to match a
@@ -650,7 +731,7 @@ export class GameScene extends Phaser.Scene {
       rationMultiplier: OPENED_RATION_DETECTION_MULTIPLIER,
       pressMultiplier: WALL_PRESS_DETECTION_MULTIPLIER,
       coverTilesNear: (tx, ty, r) => this.coverTilesNear(tx, ty, r),
-      isGuardDoor: (tx, ty) => this.guardOperableDoorAt(tx, ty) !== null,
+      isOperableDoor: (tx, ty) => this.guardOperableDoorAt(tx, ty) !== null,
       // Silent on purpose: the operation-noise ping is there to give away the
       // player working a door, not staff using one on their own beat.
       setDoorOpen: (tx, ty, open) => void this.guardOperableDoorAt(tx, ty)?.setOpen(open),
@@ -759,6 +840,10 @@ export class GameScene extends Phaser.Scene {
     this.lasers = [];
     this.sensors = [];
     this.chests = [];
+    // The breakers themselves belong to the level and are rebuilt with it; the
+    // circuit *state* they read does not, and stays in the registry.
+    this.breakers = [];
+    this.pendingResets.clear();
     this.runFeatures = undefined;
     this.alert = new AlertState();
     this.noiseSpam = new NoiseSpamTracker();
@@ -1850,6 +1935,7 @@ export class GameScene extends Phaser.Scene {
     // the walk cycle animating through the whole death hold.
     if (this.dyingFor === null) this.updatePlayerFrame(dt, delta);
     this.updateInteractions(dt);
+    this.updateBreakerResets(this.time.now / 1000);
     this.updateSharedField(dt);
     this.updateActiveItems(dt);
     const fieldActive = this.sharedField.isActive;
@@ -2482,6 +2568,20 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // --- Breakers (tap E) ---
+    let nearestBreaker: Breaker | undefined;
+    let nearestBreakerDist = Infinity;
+    for (const breaker of this.breakers) {
+      // Mid-throw it is not a target: the sequence commits, and re-offering the
+      // prompt would invite a tap that `Breaker.toggle` is only going to refuse.
+      if (breaker.isThrowing) continue;
+      const d = len(breaker.x / ts - ptx, breaker.y / ts - pty);
+      if (d <= INTERACT_RANGE && d < nearestBreakerDist) {
+        nearestBreakerDist = d;
+        nearestBreaker = breaker;
+      }
+    }
+
     // --- Vaulting low cover (tap E) ---
     const vault = this.vaultTarget();
 
@@ -2493,7 +2593,12 @@ export class GameScene extends Phaser.Scene {
     let adjacentClaimedTap = false;
     if (!hacking && !encounterHold && interactJust) {
       const hatchDist = hatch ? 0.2 : Infinity;
-      if (nearestDoor && nearestDoorDist <= hatchDist) {
+      // A breaker outranks a door at the same reach: it is a thing you walk to
+      // deliberately, and main1 puts one on the same board as a door.
+      if (nearestBreaker && nearestBreakerDist <= Math.min(nearestDoorDist, hatchDist)) {
+        adjacentClaimedTap = true;
+        this.throwBreaker(nearestBreaker);
+      } else if (nearestDoor && nearestDoorDist <= hatchDist) {
         adjacentClaimedTap = true;
         if (nearestDoor.toggle()) {
           getAudio().door();
@@ -2545,21 +2650,23 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.showPrompt(
-      nearestTerminal,
-      nearestTerminalDist,
-      nearestDoor,
-      nearestDoorDist,
-      hatch !== undefined || (ladder !== undefined && this.planeArmed),
-      nearestChest,
-      nearestChestDist,
-      encounter.label,
-      encounter.dist,
+    this.showPrompt({
+      terminal: nearestTerminal,
+      terminalDist: nearestTerminalDist,
+      door: nearestDoor,
+      doorDist: nearestDoorDist,
+      breaker: nearestBreaker,
+      breakerDist: nearestBreakerDist,
+      chest: nearestChest,
+      chestDist: nearestChestDist,
+      hatch: hatch !== undefined || (ladder !== undefined && this.planeArmed),
+      vault: vault !== null,
+      ventLabel: encounter.label,
+      ventDist: encounter.dist,
       // Standing on a ladder that won't take you anywhere yet needs to say so, or it
       // reads as a bug rather than a lock.
-      roofLocked ? "[ROOF SEALED — ALIGNMENT CORE STILL ACTIVE]" : undefined,
-      vault !== null,
-    );
+      lockedLabel: roofLocked ? "[ROOF SEALED — ALIGNMENT CORE STILL ACTIVE]" : undefined,
+    });
     // Advertise the verb, but only into a slot nothing nearer wanted: a door in your
     // face outranks a hint about somebody across the room.
     if (!this.prompt.visible && this.holdUpCandidate) this.setPrompt("[Q] Hold up");
@@ -2602,48 +2709,43 @@ export class GameScene extends Phaser.Scene {
       .setVisible(true);
   }
 
-  private showPrompt(
-    terminal: Terminal | undefined,
-    terminalDist: number,
-    door: Door | undefined,
-    doorDist: number,
-    hatch: boolean,
-    chest: Chest | undefined,
-    chestDist: number,
-    ventLabel?: string,
-    ventDist = Infinity,
-    lockedLabel?: string,
-    vault = false,
-  ): void {
+  private showPrompt(c: PromptCandidates): void {
     let label: string | undefined;
     let best = Infinity;
-    if (terminal && terminalDist < best) {
-      best = terminalDist;
+    if (c.terminal && c.terminalDist < best) {
+      best = c.terminalDist;
       label = "[E] Hack";
     }
-    if (ventLabel && ventDist < best) {
-      best = ventDist;
-      label = ventLabel;
+    if (c.ventLabel && (c.ventDist ?? Infinity) < best) {
+      best = c.ventDist ?? Infinity;
+      label = c.ventLabel;
     }
-    if (chest && chestDist < best) {
-      best = chestDist;
+    if (c.chest && c.chestDist < best) {
+      best = c.chestDist;
       label = "[E] Search";
     }
-    if (door && doorDist < best) {
-      best = doorDist;
-      label = door.isOpen ? "[E] Close" : "[E] Open";
+    if (c.door && c.doorDist < best) {
+      best = c.doorDist;
+      label = c.door.isOpen ? "[E] Close" : "[E] Open";
     }
-    if (hatch && 0.2 < best) {
+    // Above the door, matching the tap order: same reach, and a breaker is a
+    // thing you crossed the deck for. The verb names the *outcome* rather than
+    // the switch, because "[E] Breaker" would not tell you which way it goes.
+    if (c.breaker && c.breakerDist < best) {
+      best = c.breakerDist;
+      label = c.breaker.isClosed ? "[E] Cut power" : "[E] Restore power";
+    }
+    if (c.hatch && 0.2 < best) {
       label = "[E] Use access";
     }
     // Lowest priority of the E verbs, matching the tap order above: a crate is
     // scenery Rowan happens to be facing, and it must not shout over a door.
-    if (vault && !label) {
+    if (c.vault && !label) {
       label = "[E] Vault";
     }
     // A gated transition wins outright: the player is standing on it, and telling them
     // why it won't open matters more than any verb they could reach from there.
-    if (lockedLabel) label = lockedLabel;
+    if (c.lockedLabel) label = c.lockedLabel;
 
     this.setPrompt(label);
   }
@@ -2651,9 +2753,9 @@ export class GameScene extends Phaser.Scene {
   /**
    * Puts a label in the contextual prompt over Rowan's head, or clears it.
    *
-   * Split out of {@link showPrompt} rather than taking an eleventh positional
-   * parameter: that signature is already ten long and the hold-up is not another
-   * nearest-wins candidate — it is a state that replaces the whole comparison.
+   * Split out of {@link showPrompt} rather than becoming another field on
+   * {@link PromptCandidates}: the hold-up is not a nearest-wins candidate at
+   * all — it is a state that replaces the whole comparison.
    */
   private setPrompt(label: string | undefined): void {
     if (!label) {
@@ -2670,6 +2772,98 @@ export class GameScene extends Phaser.Scene {
    * minigame — solving it recovers EIRA-7's logs — while every other terminal
    * fires its effect immediately as before.
    */
+  /**
+   * Powers a circuit on or off across both halves of what "lit" means.
+   *
+   * The visible half and the mechanical half are separate systems that happen to
+   * read the same `light_sources` board, and a blackout that moved only one of
+   * them would be a lie in one direction or the other — pitch dark but still
+   * easy to spot, or fully lit but unseeable. They move together, here, or not
+   * at all.
+   */
+  private setCircuit(target: string, closed: boolean): void {
+    this.lighting.setCircuit(target, closed);
+    this.detection.setCircuit(target, closed);
+  }
+
+  /**
+   * A tap on a breaker: throw it, wake the deck, and start the clock on a reset.
+   *
+   * Cutting the power is a two-sided move rather than a free win. It is heard
+   * (guards come to look at the noise), it is charged as a breach the same way
+   * working a terminal is, and the facility sends somebody to put it back.
+   */
+  private throwBreaker(breaker: Breaker): void {
+    const started = breaker.toggle((closed) => {
+      this.setCircuit(breaker.stats.target, closed);
+      setCircuitClosed(this.powerGrid, this.level.name, breaker.stats.target, closed);
+      if (closed) this.pendingResets.delete(breaker);
+      else this.pendingResets.set(breaker, { orderly: null, retryAt: 0 });
+    });
+    if (!started) return;
+
+    // A breaker cabinet is a panel he has no business at, exactly like a terminal.
+    this.conduct.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED);
+    getAudio().door();
+    this.noise.emitAt(breaker.x, breaker.y, BREAKER_NOISE_TILES * this.tileSize);
+  }
+
+  /**
+   * Sends somebody to put the lights back on, and restores them when they arrive.
+   *
+   * Uses the orderlies' existing {@link Orderly.distract} override, which is
+   * already "walk over and look at that" — and which already refuses an orderly
+   * who has witnessed the player, surrendered, or been stunned or pinned. That
+   * refusal is the mechanic, not an edge case: clear the deck of anyone able to
+   * walk and the dark is yours to keep.
+   */
+  private updateBreakerResets(now: number): void {
+    for (const [breaker, pending] of this.pendingResets) {
+      if (breaker.isClosed) {
+        this.pendingResets.delete(breaker);
+        continue;
+      }
+
+      // Arrived: the reset is the same interaction the player just made, so it
+      // goes through the breaker rather than around it.
+      const sent = pending.orderly;
+      if (sent) {
+        const reach = BREAKER_RESET_REACH_TILES * this.tileSize;
+        if (len(sent.x - breaker.x, sent.y - breaker.y) <= reach) {
+          this.throwBreaker(breaker);
+          continue;
+        }
+      }
+
+      if (now < pending.retryAt) continue;
+      // Nobody en route, or whoever was sent stopped coming — an orderly drops
+      // out of INSPECT on its own after a pause, and can be stunned or held up
+      // on the way. Ask again; if there is nobody left who will come, the deck
+      // simply stays dark.
+      pending.orderly = this.dispatchToBreaker(breaker);
+      pending.retryAt = now + BREAKER_RESET_RETRY_SECONDS;
+    }
+  }
+
+  /**
+   * Sends the nearest orderly who will actually go, or null if none will.
+   *
+   * Tries them nearest-first and takes the first one whose `distract` accepts,
+   * rather than filtering on the public getters — `distract` owns the rules for
+   * who can be diverted, and asking it is what keeps this from drifting when
+   * they change.
+   */
+  private dispatchToBreaker(breaker: Breaker): Orderly | null {
+    const byDistance = [...this.orderlies].sort(
+      (a, b) =>
+        len(a.x - breaker.x, a.y - breaker.y) - len(b.x - breaker.x, b.y - breaker.y),
+    );
+    for (const orderly of byDistance) {
+      if (orderly.distract(breaker.x, breaker.y)) return orderly;
+    }
+    return null;
+  }
+
   private onHackComplete(terminal: Terminal): void {
     if (isLogCacheType(terminal.stats.type)) {
       this.pendingCompliance = terminal;

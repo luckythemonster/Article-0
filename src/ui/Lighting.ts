@@ -83,6 +83,16 @@ interface Light {
   flicker: boolean;
   phase: number;
   /**
+   * The fixture's tile-def ref, which is what a breaker's `Target` names.
+   *
+   * Kept per light rather than resolved to a list of indices once, so that this
+   * and `DetectionSystem` — which has to make the identical cut — do not have to
+   * agree on an iteration order neither of them states.
+   */
+  ref: string;
+  /** False once a breaker has opened this light's circuit. See {@link Lighting.setCircuit}. */
+  powered: boolean;
+  /**
    * Current brightness multiplier, 1 for a steady light and the flicker factor for a
    * guttering one. Written by {@link Lighting.drawLights} where that factor is already
    * being computed for the stamp, and read by {@link Lighting.sampleLight} so a shadow
@@ -145,10 +155,18 @@ export class Lighting {
    * {@link lightCount} slots; the player's pool and the cone are appended per draw.
    */
   private readonly eraseList: Phaser.GameObjects.Image[] = [];
-  private readonly lightCount: number;
+  /**
+   * How many of {@link eraseList}'s leading slots are fixture stamps.
+   *
+   * Not `readonly`: {@link setCircuit} rebuilds the prefix from the lights that
+   * still have power, so a killed circuit costs nothing per frame rather than
+   * being skipped inside the batched erase — which it could not be anyway, since
+   * `erase` takes the list wholesale.
+   */
+  private lightCount: number;
   private readonly beamRangePx: number;
   private readonly lights: Light[] = [];
-  private readonly hasFlicker: boolean;
+  private hasFlicker: boolean;
   private readonly grid: CollisionGrid;
   private readonly tileSize: number;
   private readonly camera: Phaser.Cameras.Scene2D.Camera;
@@ -211,13 +229,15 @@ export class Lighting {
           phase: Math.random() * Math.PI * 2,
           // Steady until `drawLights` says otherwise, which it only does for flickers.
           intensity: 1,
+          ref: t.ref,
+          powered: true,
           stamp,
         });
-        this.eraseList.push(stamp);
       }
     }
-    this.hasFlicker = this.lights.some((l) => l.flicker);
-    this.lightCount = this.eraseList.length;
+    this.hasFlicker = false;
+    this.lightCount = 0;
+    this.refreshPoweredLights();
 
     // Apex-anchored so rotation pivots at the player and the cone opens forward.
     this.coneStamp = scene.make
@@ -415,13 +435,59 @@ export class Lighting {
     if (on) this.dirty = true;
   }
 
+  /**
+   * Powers every fixture whose tile-def ref is `ref` on or off — a breaker throw.
+   *
+   * Matching on the ref is the whole mechanic: `light_overhead1` is one tile def
+   * placed fifty times across main1, so `main1`'s single breaker takes the deck's
+   * entire overhead lighting with it. See `src/systems/PowerGrid.ts`.
+   *
+   * Cheap despite the count. The stamps are erased in one batched call and the
+   * texture is only recomposited when {@link dirty}, so fifty lights going out is
+   * one rebuild of the list plus one redraw — not fifty of anything.
+   */
+  setCircuit(ref: string, on: boolean): void {
+    let changed = false;
+    for (const light of this.lights) {
+      if (light.ref !== ref || light.powered === on) continue;
+      light.powered = on;
+      changed = true;
+    }
+    if (!changed) return;
+    this.refreshPoweredLights();
+    this.dirty = true;
+  }
+
+  /**
+   * Refills {@link eraseList}'s fixture prefix from the lights that have power.
+   *
+   * `hasFlicker` is recomputed here rather than at construction because a dead
+   * circuit should also stop forcing a recomposite every frame: the flicker
+   * lights on it are no longer guttering, they are off.
+   */
+  private refreshPoweredLights(): void {
+    this.eraseList.length = 0;
+    let flicker = false;
+    for (const light of this.lights) {
+      // Zero intensity is also what takes a dead light out of `sampleLight`, and
+      // with it out of every ground shadow — `sampleLightAt` drops a light whose
+      // contribution is <= 0. A lamp that is off must not still be casting.
+      light.intensity = light.powered ? 1 : 0;
+      if (!light.powered) continue;
+      this.eraseList.push(light.stamp);
+      if (light.flicker) flicker = true;
+    }
+    this.lightCount = this.eraseList.length;
+    this.hasFlicker = flicker;
+  }
+
   /** Recomposites the darkness and the light carved out of it. */
   private drawLights(viewer: { x: number; y: number }, beam: FlashlightBeam | null): void {
     this.rt.clear();
     this.rt.fill(DARK_COLOR, DARK_ALPHA);
 
     for (const l of this.lights) {
-      if (!l.flicker) continue;
+      if (!l.flicker || !l.powered) continue;
       // Gentle irregular pulse in both brightness and reach.
       const f =
         0.82 + 0.18 * Math.sin(this.time * 7 + l.phase) * Math.sin(this.time * 3.1 + l.phase);
