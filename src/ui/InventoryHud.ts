@@ -5,6 +5,7 @@ import { PANEL_INSET } from "./hudLayout";
 import { UI, UI_DEPTH, UI_PAD, UI_TEXT } from "./hudTheme";
 import { inventoryLines } from "./inventoryLines";
 import { placePanel, uiPanel } from "./NineSlicePanel";
+import { SCREEN_ON } from "./NetworkPanel";
 import { onResize } from "./resize";
 
 /**
@@ -28,8 +29,9 @@ export class InventoryHud {
     const pad = UI_PAD;
 
     // Created before the text so it sorts underneath at equal depth, though
-    // UI_DEPTH.PANEL already puts it there.
-    this.panel = uiPanel(scene, 0, 0, 1, 1);
+    // UI_DEPTH.PANEL already puts it there. Plain lit chrome — the indicator
+    // sheet belongs to the alert-network readout alone.
+    this.panel = uiPanel(scene, 0, 0, 1, 1, { frame: SCREEN_ON });
 
     this.text = scene.add
       .text(scene.scale.width - pad, scene.scale.height - pad, "", {
