@@ -14,6 +14,7 @@ import { coverTilesNear } from "../systems/CoverPoints";
 import { PowerControl } from "./game/PowerControl";
 import { ExploredTracker } from "./game/ExploredTracker";
 import { initialExplored, type ExploredState } from "../systems/Explored";
+import { TerminalHacks } from "./game/TerminalHacks";
 import { SpriteAtlas } from "../map/SpriteAtlas";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { DetectionSystem } from "../systems/DetectionSystem";
@@ -43,7 +44,6 @@ import { MemoryLayer } from "../ui/MemoryLayer";
 import { PlaneOverlay } from "../ui/PlaneOverlay";
 import { EntityShadows, type ShadowCaster } from "../ui/EntityShadows";
 import {
-  missionFeatures,
   resumeFromSave,
   setMode,
   SUSPENDED_KEY,
@@ -68,8 +68,6 @@ import {
   CERT_ITEM,
   CHAFF_PACK_ITEM,
   countConsumables,
-  LOG_ALPHA_ITEM,
-  LOG_BETA_ITEM,
   SMAC_DEFAULTS,
   FLASHLIGHT_DETECTION_MULTIPLIER,
   GAME_SPEED,
@@ -106,17 +104,10 @@ import {
   CHAFF_PACK_RADIUS_TILES,
   type ActiveItemsView,
 } from "../systems/ActiveItems";
-import { pickQualiaRackIndex, QUALIA_RACK_TERMINAL_TYPE } from "../systems/QualiaLock";
 import {
   canReachRoof,
   initialObjectives,
-  isLogCacheType,
   isRunWon,
-  LOG_CACHE_ALPHA_TYPE,
-  LOG_CACHE_BETA_TYPE,
-  LOG_CACHE_TYPE,
-  noteTerminalHacked,
-  type MissionFeatures,
   type ObjectiveState,
 } from "../systems/Objectives";
 import { Vent4State } from "../systems/Vent4Core";
@@ -210,8 +201,6 @@ const INTERACT_RANGE = 1.4;
  */
 const WEAPON_ARC_COS = Math.cos((WEAPON_ARC_DEGREES * Math.PI) / 360);
 
-/** Radius (tiles) around a hacked terminal whose doors it releases. */
-const HACK_UNLOCK_RADIUS = 6;
 
 
 /** Seconds between knocks, so the action can't be mashed. */
@@ -268,8 +257,6 @@ export class GameScene extends Phaser.Scene {
   private coverTiles: Cover[] = [];
   /** The vent-core/vault/roof set-piece encounters, and their mechanical wiring. */
   private encounters!: Encounters;
-  /** Lazily-resolved {@link features}; cleared per run so a fresh map re-reads it. */
-  private runFeatures?: MissionFeatures;
   /** Previous frame's player position, for the conduct system's distance metric. */
   private lastPlayerX = 0;
   private lastPlayerY = 0;
@@ -331,12 +318,19 @@ export class GameScene extends Phaser.Scene {
   private runToggled = false;
   /** Cooldown for the Rail-Stapler's general-purpose field mode (outside VENT-4). */
   private staplerFieldCooldown = 0;
-  /** The log-cache terminal whose breach launched the compliance puzzle. */
-  private pendingCompliance?: Terminal;
-  /** The silicate-rack terminal whose breach launched the qualia bypass. */
-  private pendingQualia?: Terminal;
-  /** The terminal promoted to a silicate server rack in the current level. */
-  private qualiaRack?: Terminal;
+  /** What a completed hold-to-hack does, and which terminals are special. */
+  private readonly hacks = new TerminalHacks({
+    tileSize: () => this.tileSize,
+    player: () => this.player,
+    terminals: () => this.terminals,
+    doors: () => this.doors,
+    noise: () => this.noise,
+    overlays: () => this.overlays,
+    objectives: () => this.objectives,
+    registry: () => this.registry,
+    note: (id) => this.note(id),
+    publishObjectives: () => this.registry.set("objectives", this.objectives),
+  });
   /** Mission progress (kept in the registry so it survives level swaps). */
   private objectives!: ObjectiveState;
   /** Rowan's journal — the run's counter-archive, also registry-backed. */
@@ -518,8 +512,8 @@ export class GameScene extends Phaser.Scene {
     this.breakers = built.breakers;
     this.lasers = built.lasers;
     this.coverTiles = built.coverTiles;
-    this.designateQualiaRack();
-    this.designateLogCacheNodes();
+    this.hacks.designateQualiaRack();
+    this.hacks.designateLogCacheNodes();
 
     this.vault = new VaultAndPress({
       tileSize: this.tileSize,
@@ -784,7 +778,6 @@ export class GameScene extends Phaser.Scene {
     // circuit *state* they read does not, and stays in the registry.
     this.breakers = [];
     this.power.reset();
-    this.runFeatures = undefined;
     this.alert = new AlertState();
     this.noiseSpam = new NoiseSpamTracker();
     this.sharedField = new SharedField();
@@ -808,9 +801,7 @@ export class GameScene extends Phaser.Scene {
     this.knockCooldown = 0;
     this.runToggled = false;
     this.staplerFieldCooldown = 0;
-    this.pendingCompliance = undefined;
-    this.pendingQualia = undefined;
-    this.qualiaRack = undefined;
+    this.hacks.reset();
     // Arm only after stepping off the arrival tile (see update()).
     this.transitionArmed = false;
     // A fresh gate starts with every overlay closed; republish that, so a
@@ -1091,14 +1082,7 @@ export class GameScene extends Phaser.Scene {
   private updateComplianceOverlay(): void {
     const result = this.overlays.pollResult("complianceSolved", "complianceClosed");
     if (!result) return;
-    const term = this.pendingCompliance;
-    this.pendingCompliance = undefined;
-    this.overlays.set("compliance", false);
-    if (result === "solved") {
-      if (term) this.applyHack(term);
-    } else {
-      term?.reopen();
-    }
+    this.hacks.settleOverlay("compliance", result);
   }
 
   /**
@@ -1109,14 +1093,7 @@ export class GameScene extends Phaser.Scene {
   private updateQualiaOverlay(): void {
     const result = this.overlays.pollResult("qualiaSolved", "qualiaClosed");
     if (!result) return;
-    const term = this.pendingQualia;
-    this.pendingQualia = undefined;
-    this.overlays.set("qualia", false);
-    if (result === "solved") {
-      if (term) this.applyHack(term);
-    } else {
-      term?.reopen();
-    }
+    this.hacks.settleOverlay("qualia", result);
   }
 
   /** Abandons the run from the pause overlay and returns to the title. */
@@ -1809,7 +1786,7 @@ export class GameScene extends Phaser.Scene {
     // End of run. EIRA-7 is through to the Lattice and Rowan is not going anywhere —
     // the transmission succeeding and the courier being taken are the same beat, so
     // there is one ending rather than a win screen and a loss screen.
-    if (isRunWon(this.objectives, this.level.name, this.features())) {
+    if (isRunWon(this.objectives, this.level.name, this.hacks.features())) {
       this.note("the-uplink");
       this.endRun("TRIBUNAL", "TribunalScene");
       return;
@@ -2163,7 +2140,7 @@ export class GameScene extends Phaser.Scene {
     // rather than by withholding the tile, so the ladder is visibly *there* — the player
     // should know where they are going before they are allowed to go.
     const roofLocked =
-      raw?.toLevel === ROOF_ARRAY_LEVEL && !canReachRoof(this.objectives, this.features());
+      raw?.toLevel === ROOF_ARRAY_LEVEL && !canReachRoof(this.objectives, this.hacks.features());
     const tr = roofLocked ? undefined : raw;
     if (!raw) this.transitionArmed = true;
     if (tr && tr.kind === "stairs" && this.transitionArmed) {
@@ -2243,7 +2220,7 @@ export class GameScene extends Phaser.Scene {
     // lasts (ConductState.violate takes the max), then starts its cooldown when you
     // let go — no separate "still hacking" bookkeeping needed.
     if (hacking) this.conduct.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED);
-    if (hacking && nearestTerminal!.hack(dt)) this.onHackComplete(nearestTerminal!);
+    if (hacking && nearestTerminal!.hack(dt)) this.hacks.onComplete(nearestTerminal!);
     for (const term of this.terminals) {
       if (term !== nearestTerminal || !interactDown) term.idle(dt);
     }
@@ -2383,119 +2360,6 @@ export class GameScene extends Phaser.Scene {
     // Advertise the verb, but only into a slot nothing nearer wanted: a door in your
     // face outranks a hint about somebody across the room.
     if (!this.prompts.visible && this.holdUpCandidate) this.prompts.set("[Q] Hold up", this.player);
-  }
-
-  private onHackComplete(terminal: Terminal): void {
-    if (isLogCacheType(terminal.stats.type)) {
-      this.pendingCompliance = terminal;
-      this.overlays.set("compliance", true);
-    } else if (this.isQualiaRack(terminal)) {
-      this.pendingQualia = terminal;
-      this.overlays.set("qualia", true);
-    } else {
-      this.applyHack(terminal);
-    }
-  }
-
-  /** A terminal is a silicate server rack if authored so, or promoted per level. */
-  private isQualiaRack(terminal: Terminal): boolean {
-    return terminal.stats.type === QUALIA_RACK_TERMINAL_TYPE || terminal === this.qualiaRack;
-  }
-
-  /**
-   * Promotes the terminal nearest the player's arrival point to a silicate server
-   * rack, so breaching it launches the Qualia Phase-Lock bypass. Prefers a plain
-   * terminal, but the shipped map types every terminal as a log-cache, so it will
-   * retype the nearest log-cache instead — never the last one, since the mission
-   * needs a log-cache to recover EIRA-7's logs. Skipped when the level already
-   * authors an explicit `qualia_rack` terminal or has no terminal to spare.
-   */
-  private designateQualiaRack(): void {
-    const idx = pickQualiaRackIndex(
-      this.terminals.map((t) => ({ type: t.stats.type, x: t.x, y: t.y })),
-      { x: this.player.x, y: this.player.y },
-      LOG_CACHE_TYPE,
-    );
-    if (idx < 0) return;
-    const rack = this.terminals[idx];
-    rack.stats.type = QUALIA_RACK_TERMINAL_TYPE;
-    this.qualiaRack = rack;
-  }
-
-  /**
-   * Designates one of this level's plain log-caches as node ALPHA.
-   *
-   * The shipped map types all thirteen of its terminals `LOG_CACHE` and puts every one
-   * of them on the start deck, so ALPHA cannot be authoring — it is picked here, the same
-   * way {@link designateQualiaRack} promotes a rack. BETA is not: it is a terminal the
-   * engine places in the crawlspace (`src/map/LogCacheBeta.ts`) carrying its type
-   * directly, because there is no terminal down there to promote.
-   *
-   * Runs after `designateQualiaRack` so it can never claim the terminal that one took.
-   */
-  private designateLogCacheNodes(): void {
-    if (this.terminals.some((t) => t.stats.type === LOG_CACHE_ALPHA_TYPE)) return;
-    // Nearest to the arrival point: ALPHA should be the first cache the player meets,
-    // and on this map that is whichever one they walk into.
-    let best: Terminal | undefined;
-    let bestDist = Infinity;
-    for (const t of this.terminals) {
-      if (t.stats.type !== LOG_CACHE_TYPE) continue;
-      const d = len(t.x - this.player.x, t.y - this.player.y);
-      if (d < bestDist) {
-        bestDist = d;
-        best = t;
-      }
-    }
-    if (best) best.stats.type = LOG_CACHE_ALPHA_TYPE;
-  }
-
-  /** A completed hack releases every door within {@link HACK_UNLOCK_RADIUS}. */
-  private applyHack(terminal: Terminal): void {
-    const tx = terminal.x / this.tileSize;
-    const ty = terminal.y / this.tileSize;
-    for (const door of this.doors) {
-      const d = len(door.tileX + 0.5 - tx, door.tileY + 0.5 - ty);
-      if (d <= HACK_UNLOCK_RADIUS && door.setOpen(true)) this.noise.doorOperated(door);
-    }
-    getAudio().hack();
-    // Breaching a log-cache terminal recovers EIRA-7's logs (mission objective).
-    const hadLogs = this.objectives.logsRecovered;
-    noteTerminalHacked(this.objectives, terminal.stats.type);
-    this.registry.set("objectives", this.objectives);
-    if (!hadLogs && this.objectives.logsRecovered) this.note("the-cache");
-
-    // A named node also hands over the half of her it holds. The item is what the
-    // player sees under KEY ITEMS — the objective flag is what the mission reads — and
-    // both matter, because the fiction's whole claim is that the cache *is* her rather
-    // than a record about her.
-    const item =
-      terminal.stats.type === LOG_CACHE_ALPHA_TYPE
-        ? LOG_ALPHA_ITEM
-        : terminal.stats.type === LOG_CACHE_BETA_TYPE
-          ? LOG_BETA_ITEM
-          : undefined;
-    if (item) {
-      const inv = (this.registry.get("inventory") as string[] | undefined) ?? [];
-      if (!inv.includes(item)) {
-        inv.push(item);
-        this.registry.set("inventory", inv);
-      }
-      this.note(item === LOG_ALPHA_ITEM ? "node-alpha" : "node-beta");
-    }
-  }
-
-  /**
-   * Which acts this map furnished — see `missionFeatures`.
-   *
-   * Resolved once per scene rather than per call. The four flags behind it are written
-   * by `BootScene` before the first frame and never change during a run, so reading
-   * them out of the registry every frame was five lookups and two allocations (the
-   * object, plus the closure inside `missionFeatures`) to re-derive a constant — on
-   * every level, including the ones with none of these acts on them.
-   */
-  private features(): MissionFeatures {
-    return (this.runFeatures ??= missionFeatures(this.registry));
   }
 
   /**
