@@ -7,6 +7,7 @@ import { buildLevel } from "./game/LevelBuilder";
 import { NoiseEvents } from "./game/NoiseEvents";
 import { OverlayGate } from "./game/OverlayGate";
 import { InteractPrompt } from "./game/InteractPrompt";
+import { SetPieceEvents } from "./game/SetPieceEvents";
 import { SpriteAtlas } from "../map/SpriteAtlas";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { DetectionSystem } from "../systems/DetectionSystem";
@@ -71,7 +72,6 @@ import {
   LOG_ALPHA_ITEM,
   LOG_BETA_ITEM,
   SMAC_DEFAULTS,
-  RELAY_DEFAULTS,
   FLASHLIGHT_DETECTION_MULTIPLIER,
   GAME_SPEED,
   isConsumable,
@@ -122,17 +122,11 @@ import {
   LOG_CACHE_ALPHA_TYPE,
   LOG_CACHE_BETA_TYPE,
   LOG_CACHE_TYPE,
-  noteCoreSilenced,
   noteTerminalHacked,
-  noteUplinkComplete,
-  noteVent4Defeated,
   type MissionFeatures,
   type ObjectiveState,
 } from "../systems/Objectives";
-import { Vent4State, type Vent4Transition } from "../systems/Vent4Core";
-import { SmacState, type SmacTransition } from "../systems/SmacCore";
-import { ENFORCER_SKIN } from "../entities/EnforcerAnimations";
-import { RelayState, type RelayTransition } from "../systems/RelayCore";
+import { Vent4State } from "../systems/Vent4Core";
 import { ROOF_ARRAY_LEVEL } from "../map/RoofArrayLevel";
 import { Encounters } from "./game/Encounters";
 import { blockingLayerNames, isInteractTransition } from "../map/types";
@@ -599,12 +593,21 @@ export class GameScene extends Phaser.Scene {
     // registry; resetRun clears it).
     getAudio().setSuction(false);
     getAudio().setPurge(false);
-    this.encounters = new Encounters(this, this.player, {
-      onVent4Transition: (tr) => this.onVent4Transition(tr),
-      onSmacTransition: (tr) => this.onSmacTransition(tr),
-      onRelayTransition: (tr) => this.onRelayTransition(tr),
-      onSiegeSpawn: (at) => this.onSiegeSpawn(at),
-    });
+    this.encounters = new Encounters(
+      this,
+      this.player,
+      new SetPieceEvents({
+        scene: this,
+        tileSize: this.tileSize,
+        player: () => this.player,
+        alert: () => this.alert,
+        objectives: () => this.objectives,
+        guards: () => this.guards,
+        lasers: () => this.lasers,
+        note: (id) => this.note(id),
+        publishObjectives: () => this.registry.set("objectives", this.objectives),
+      }),
+    );
     this.encounters.build(this.level, this.tileSize, this.grid, !!this.objectives?.coreSilenced);
     if (this.encounters.vent4State === Vent4State.PHASE_2_VACUUM) getAudio().setSuction(true);
     else if (this.encounters.vent4State === Vent4State.PHASE_3_PURGE) getAudio().setPurge(true);
@@ -2827,142 +2830,6 @@ export class GameScene extends Phaser.Scene {
    */
   private features(): MissionFeatures {
     return (this.runFeatures ??= missionFeatures(this.registry));
-  }
-
-  /**
-   * Dresses a VENT-4 state change: continuous audio layers, stingers, and (on
-   * defeat) the compliance cert + optional objective. Banners ride the `vent4`
-   * registry snapshot, and the mood keys off the alert phase as usual — the
-   * boss raises it through reportSighting like every other detector.
-   */
-  private onVent4Transition(tr: Vent4Transition): void {
-    const audio = getAudio();
-    switch (tr.to) {
-      case Vent4State.PHASE_1_SWEEP:
-        audio.setSuction(false);
-        audio.setPurge(false);
-        break;
-      case Vent4State.PHASE_2_VACUUM:
-        audio.setSuction(true);
-        audio.setPurge(false);
-        break;
-      case Vent4State.JAMMED:
-        audio.setSuction(false);
-        audio.jamClunk();
-        break;
-      case Vent4State.PHASE_3_PURGE:
-        audio.setSuction(false);
-        audio.setPurge(true);
-        audio.ping();
-        break;
-      case Vent4State.DEFEATED: {
-        audio.setSuction(false);
-        audio.setPurge(false);
-        audio.vent4Shutdown();
-        const inv = (this.registry.get("inventory") as string[] | undefined) ?? [];
-        if (!inv.includes(CERT_ITEM)) {
-          inv.push(CERT_ITEM);
-          this.registry.set("inventory", inv);
-        }
-        noteVent4Defeated(this.objectives);
-        this.registry.set("objectives", this.objectives);
-        this.note("vent4");
-        this.note("certified");
-        this.cameras.main.flash(400, 60, 200, 220);
-        break;
-      }
-    }
-  }
-
-  /**
-   * Dresses an NW-SMAC-01 state change.
-   *
-   * On defeat the vault opens: the objective flag is what un-seals the roof ladder (see
-   * `canReachRoof`), and clearing the registry snapshot is what stops the fight being
-   * restaged if the player walks back in.
-   */
-  private onSmacTransition(tr: SmacTransition): void {
-    const audio = getAudio();
-    switch (tr.to) {
-      case SmacState.CORRECTION:
-        audio.ping();
-        this.cameras.main.shake(120, 0.003);
-        break;
-      case SmacState.FALSE_SUMMARY:
-        // No sting. The card is pretending to be the end of the run, and a boss
-        // stinger under it would give the game away before the player has read a word.
-        break;
-      case SmacState.EXPOSED:
-        audio.jamClunk();
-        this.cameras.main.flash(240, 255, 90, 90);
-        break;
-      case SmacState.DEFEATED: {
-        audio.vent4Shutdown();
-        noteCoreSilenced(this.objectives);
-        this.registry.set("objectives", this.objectives);
-        this.registry.remove("smacState");
-        this.note("the-core");
-        this.cameras.main.flash(500, 150, 90, 255);
-        break;
-      }
-    }
-  }
-
-  /** Dresses a rooftop relay state change, and ends the run when Rowan is taken. */
-  private onRelayTransition(tr: RelayTransition): void {
-    const audio = getAudio();
-    switch (tr.to) {
-      case RelayState.ARMED:
-        audio.hack();
-        break;
-      case RelayState.UPLINK:
-        audio.ping();
-        this.note("the-relay");
-        break;
-      case RelayState.CAPTURE:
-        // The discharge: every spotlight and every hazard on the roof goes dark at once.
-        for (const laser of this.lasers) laser.emp(RELAY_DEFAULTS.captureSeconds + 2);
-        audio.setMood("alert");
-        this.cameras.main.flash(600, 255, 255, 255);
-        this.cameras.main.shake(900, 0.008);
-        break;
-      case RelayState.SEIZED:
-        // The run ends *here*, not on CAPTURE.
-        //
-        // `tickWorld` runs before the win check in the same frame, so setting this on the
-        // CAPTURE transition meant `endRun` fired that same frame and the authored
-        // capture beat — lights out, input locked, HUD collapsing into noise — never got
-        // a single frame on screen. `RelayCore` already holds CAPTURE for
-        // `captureSeconds`; this lets it.
-        audio.setMood("calm");
-        noteUplinkComplete(this.objectives);
-        this.registry.set("objectives", this.objectives);
-        break;
-    }
-  }
-
-  /**
-   * Dresses one siege Enforcer landing at a catwalk mouth — the wave itself and the cap
-   * on concurrent siege guards are decided inside `Encounters.tick` before this is ever
-   * called; this only ever creates the entity.
-   *
-   * They join `this.guards`, so they patrol, path, see and network exactly like every
-   * other guard in the game — the roof needs no bespoke combat AI, only somewhere for
-   * them to come from.
-   */
-  private onSiegeSpawn(at: { x: number; y: number }): void {
-    const px = (at.x + 0.5) * this.tileSize;
-    const py = (at.y + 0.5) * this.tileSize;
-    // A one-waypoint route: the guard walks its post and then hunts on contact, which
-    // is what an Enforcer dropped onto a roof to find someone would do.
-    const guard = new Enforcer(this, px, py, this.tileSize, [], ENFORCER_SKIN, [{ x: px, y: py }]);
-    this.guards.push(guard);
-    // They are not a surprise — the whole roof knows Rowan is there by now.
-    this.alert.reportSighting(
-      Math.floor(this.player.x / this.tileSize),
-      Math.floor(this.player.y / this.tileSize),
-    );
-    getAudio().ping();
   }
 
   /**
