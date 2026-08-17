@@ -272,8 +272,10 @@ src/map/            format types, loader, sprite atlas; generate.ts + the five
 src/scenes/         GameScene, UIScene, PauseScene, CodecScene, TitleScene,
                     TribunalScene, ComplianceScene, QualiaLockScene, GameOverScene
 src/scenes/game/    helpers extracted out of GameScene: LevelBuilder,
-                    SensingContext, Encounters, OverlayGate, NoiseEvents,
-                    DebugOverlay
+                    SensingContext, Encounters, SetPieceEvents, OverlayGate,
+                    NoiseEvents, DebugOverlay, InteractPrompt, VaultAndPress,
+                    PlaneTraversal, ExploredTracker, Anomalies, PowerControl,
+                    TerminalHacks, ItemActions
 src/entities/       Player, Enforcer, Drone, Orderly, Sensor, Door, Terminal,
                     Laser, Chest, Cover, DeployedItem, Vent4Boss, BossCore,
                     RoofRelay, GuardSkin, the four *Animations manifests, and

@@ -8,14 +8,14 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 
 | Area | Enums | Classes | Interfaces | Type aliases | Constants | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| [Systems](#systems) | 3 | 17 | 81 | 19 | 6 | 126 |
+| [Systems](#systems) | 3 | 17 | 82 | 19 | 6 | 127 |
 | [Entities](#entities) | 0 | 18 | 21 | 16 | 3 | 58 |
 | [Map](#map) | 0 | 4 | 36 | 3 | 1 | 44 |
-| [Scenes](#scenes) | 0 | 14 | 13 | 2 | 0 | 29 |
+| [Scenes](#scenes) | 0 | 23 | 24 | 2 | 0 | 49 |
 | [UI](#ui) | 0 | 22 | 26 | 3 | 5 | 56 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **77** | **180** | **43** | **15** | **318** |
+| **All** | **3** | **86** | **192** | **43** | **15** | **339** |
 
 ## Conventions
 
@@ -846,6 +846,19 @@ names *which* required flag it satisfies, so a puzzle can require several keys.
 | `replacementWord` | `string` | The compliant text that replaces the flagged block. |
 | `GrantsOverrideFlag` | `boolean` | True when applying this correction contributes an override-payload key. |
 | `overrideFlag` *(opt)* | `string` | The required flag this correction grants (only read when the above is true). |
+
+<a id="interface-coverboards"></a>
+
+#### `CoverBoards` — interface
+
+`src/systems/CoverPoints.ts:15`
+
+The two boards a cover query has to agree with.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `isBlocked` | `isBlocked(tx: number, ty: number): boolean` | Would this cell stop a standing man. |
+| `coverTypeAt` | `coverTypeAt(px: number, py: number): string \| undefined` | `"low"`, `"high"`, or undefined for anything that is not cover, at a pixel position. |
 
 <a id="interface-deployedlure"></a>
 
@@ -4094,6 +4107,19 @@ Phaser scenes and the per-scene helpers `GameScene` delegates to.
 
 ### Scenes — Classes
 
+<a id="class-anomalies"></a>
+
+#### `Anomalies` — class
+
+`src/scenes/game/Anomalies.ts:38`
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `constructor` | `constructor(private readonly w: AnomalyWorld)` |  |
+| `build` | `build(chaffZone: { x: number; y: number; radiusPx: number } \| null): GuardAnomaly[]` | Refills and returns the frame's anomaly list. Valid until the next call. |
+
+*Plus 3 private members.*
+
 <a id="class-codecscene"></a>
 
 #### `CodecScene` — class
@@ -4188,6 +4214,22 @@ whichever flag while the overlay is up and stops this scene.
 
 *Plus 5 private members.*
 
+<a id="class-exploredtracker"></a>
+
+#### `ExploredTracker` — class
+
+`src/scenes/game/ExploredTracker.ts:38`
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `constructor` | `constructor(private readonly w: ExploredWorld)` |  |
+| `reload` | `reload(): void` | Picks up the mask for whichever level is now current, and restarts the clock. |
+| `explored` | `get explored(): ExploredMap` | The live mask, for the pause-menu minimap and the memory layer's priming. |
+| `flush` | `flush(): void` | Folds this level's mask back into the registry-held per-level record. |
+| `mark` | `mark(dt: number): void` | Marks everything currently in the player's line of sight as seen. Throttled rather than run per frame: at walking pace a quarter-second of movement reveals no tile a full sweep wouldn't have. This casts *the same visibility polygon the darkness does* — `sightDistances` over the same ray fan — and then remembers every cell those rays crossed. It used to scan a 9-tile box and test each tile centre with the boolean `hasLineOfSight`, which is a different algorithm over a different shape: two answers that disagreed at every boundary, and a hard circular horizon. That was survivable while the mask only fed the pause menu's minimap. Now that remembered tiles are drawn *in the world*, any disagreement between the mask and the shadow fan is visible as a seam, so there is only one cast. A cast distance carries half a tile past the face it stopped at (`WALL_REVEAL_TILES`), so the walls of a room are remembered along with its floor — a room recalled without its walls is not a room. |
+
+*Plus 7 private members.*
+
 <a id="class-gameoverscene"></a>
 
 #### `GameOverScene` — class
@@ -4207,7 +4249,7 @@ rather than death: the record simply shows that no subject was harmed.
 
 #### `GameScene` — class
 
-`src/scenes/GameScene.ts:291` · `extends Phaser.Scene`
+`src/scenes/GameScene.ts:186` · `extends Phaser.Scene`
 
 The playable scene. Renders one level's tile art in board z-order, builds the
 wall collision, spawns the player and guards, and drives the stealth systems
@@ -4220,7 +4262,42 @@ each frame.
 | `create` | `create(): void` |  |
 | `update` | `update(_time: number, delta: number): void` |  |
 
-*Plus 169 private members.*
+*Plus 107 private members.*
+
+<a id="class-interactprompt"></a>
+
+#### `InteractPrompt` — class
+
+`src/scenes/game/InteractPrompt.ts:137`
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `constructor` | `constructor( scene: Phaser.Scene, private readonly tileSize: number, )` | @param tileSize fixed for the module's life. A level change restarts the   scene, which rebuilds this, so it cannot go stale underneath us. |
+| `visible` | `get visible(): boolean` | Whether a verb is currently on screen — the hold-up offer defers to it. |
+| `show` | `show(c: PromptCandidates, anchor: PromptAnchor): void` | Shows the winning verb from everything in reach, or clears the prompt. |
+| `clear` | `clear(): void` | Takes the verb off screen without needing somewhere to have put it. |
+| `set` | `set(label: string \| undefined, anchor: PromptAnchor): void` | Puts a label in the contextual prompt over Rowan's head, or clears it. Split out of `show` rather than becoming another field on `PromptCandidates`: the hold-up is not a nearest-wins candidate at all — it is a state that replaces the whole comparison. |
+| `showStatus` | `showStatus(anchor: PromptAnchor, concealed: boolean, compliant: boolean): void` | Floats a single status marker over the player: "HIDDEN" while concealed in cover, "PEEKING" while leaning past a corner, "PRESSED" while holding a face, otherwise "COMPLIANT" while Rowan reads as staff. One label rather than four so they can't stack on the same spot, ranked by how much each is protecting him right now — concealment first, being the strongest (it survives an active alert, which compliance does not). Pressing earns a label at all because it is the one state here with no other tell: concealment darkens the threat meter, compliance is why nobody reacts, and a peek visibly opens the darkness — but a man flat against a wall looks like a man standing next to one. |
+
+*Plus 2 private members.*
+
+<a id="class-itemactions"></a>
+
+#### `ItemActions` — class
+
+`src/scenes/game/ItemActions.ts:84`
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `constructor` | `constructor(private readonly w: ItemWorld)` |  |
+| `staplerFieldReady` | `get staplerFieldReady(): boolean` | Whether the stapler's field mode is off cooldown and has a charge left. |
+| `reset` | `reset(): void` | Zeroes the cooldown for a fresh run. |
+| `tickCooldowns` | `tickCooldowns(dt: number): void` | Runs down the stapler's cooldown. |
+| `update` | `update(dt: number): void` | Serves the HUD's item-use request, advances the active-item timers, and republishes what the HUD reads back. |
+| `staplerFieldCharges` | `staplerFieldCharges(): number` | Field-mode shots left this run — see `STAPLER_FIELD_MAX_CHARGES`. |
+| `fireStaplerField` | `fireStaplerField(): void` | The Rail-Stapler's general-purpose field mode: fires along Rowan's facing at the nearest of {destructible cover tile, orderly} within reach, forward cone and a clear line of sight — cover breaks, an orderly gets pinned to a wall for a stretch (same freeze/witness effect as a Stun Rounds dart, just a different weapon and a much shorter reach and hold). Single press, not hold; gated by its own cooldown so it can't be mashed, and by a fixed per-run charge pool spent on every attempt — whether or not it hits anything — the same way firing a Stun Rounds dart spends the item regardless of whether it connects. |
+
+*Plus 6 private members.*
 
 <a id="class-noiseevents"></a>
 
@@ -4285,6 +4362,45 @@ a slider the player is dragging.
 
 *Plus 4 private members.*
 
+<a id="class-planetraversal"></a>
+
+#### `PlaneTraversal` — class
+
+`src/scenes/game/PlaneTraversal.ts:52`
+
+Built as a field initializer, which preserves the existing behaviour that the
+surface survives a level transition — nothing in the scene ever reset it.
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `constructor` | `constructor(private readonly w: TraversalWorld)` |  |
+| `plane` | `get plane(): number` | Which surface he is on now. |
+| `climbing` | `get climbing(): boolean` | True while a climb is playing out. |
+| `armedForLink` | `get armedForLink(): boolean` | Whether a link under him may fire — false until he steps off one. |
+| `visualPlane` | `get visualPlane(): number` | The surface to draw the overlay against: the destination while climbing, so the roof stops fading him out before he has arrived under it. |
+| `arm` | `arm(): void` | Re-arms the link under him once he has stepped off it. |
+| `begin` | `begin(link: PlaneLink): void` | Moves the player between this level's walk surfaces. The body is moved *before* the collider swaps, or he starts the next frame overlapping the deck's edge bodies and gets ejected off the gantry. |
+| `tick` | `tick(dt: number): void` | One frame of a climb. The same trick `VaultAndPress.tick` uses: the ordinary player update still runs, driven by a synthetic input pointing the way he is going, so the facing and the walk cycle come out of the code that already knows how to do them. Only the velocity is scripted. **The rise is in the velocity, not the sprite.** Offsetting `sprite.y` to lift the art is a trap: Arcade's `Body.preUpdate` calls `updateFromGameObject()` every frame, so nudging the sprite drags the body with it — the same reason `Player.bodyCentre` explains the peek lean has no visual component. A half-sine added to the *velocity* integrates to zero over the crossing, so he arcs up-screen and lands exactly on the destination cell, with body and art never disagreeing and `eye` staying truthful to everything that senses him. |
+| `setColliders` | `setColliders(floor: boolean, deck: boolean): void` | Which set of static bodies pens the player in. On the deck the floor's walls are below him and its cover is furniture he is standing over; the deck's own edge is the only thing that stops him. Mid-climb both are off. |
+
+*Plus 9 private members.*
+
+<a id="class-powercontrol"></a>
+
+#### `PowerControl` — class
+
+`src/scenes/game/PowerControl.ts:58`
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `constructor` | `constructor(private readonly w: PowerWorld)` |  |
+| `reset` | `reset(): void` | Drops every outstanding reset — a fresh run owes nobody a callout. |
+| `setCircuit` | `setCircuit(target: string, closed: boolean): void` | Powers a circuit on or off across both halves of what "lit" means. The visible half and the mechanical half are separate systems that happen to read the same `light_sources` board, and a blackout that moved only one of them would be a lie in one direction or the other — pitch dark but still easy to spot, or fully lit but unseeable. They move together, here, or not at all. |
+| `throwBreaker` | `throwBreaker(breaker: Breaker): void` | A tap on a breaker: throw it, wake the deck, and start the clock on a reset. Cutting the power is a two-sided move rather than a free win. It is heard (guards come to look at the noise), it is charged as a breach the same way working a terminal is, and the facility sends somebody to put it back. |
+| `updateResets` | `updateResets(now: number): void` | Sends somebody to put the lights back on, and restores them when they arrive. Uses the orderlies' existing `Orderly.distract` override, which is already "walk over and look at that" — and which already refuses an orderly who has witnessed the player, surrendered, or been stunned or pinned. That refusal is the mechanic, not an edge case: clear the deck of anyone able to walk and the dark is yours to keep. |
+
+*Plus 2 private members.*
+
 <a id="class-qualialockscene"></a>
 
 #### `QualiaLockScene` — class
@@ -4330,6 +4446,39 @@ is up and stops this scene.
 | `current` | `get current(): EnforcerContext` | The context for this frame. Valid only until the next `set*` call. |
 
 *Plus 2 private members.*
+
+<a id="class-setpieceevents"></a>
+
+#### `SetPieceEvents` — class
+
+`src/scenes/game/SetPieceEvents.ts:67` · `implements EncountersCallbacks`
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `constructor` | `constructor(private readonly w: SetPieceWorld)` |  |
+| `onVent4Transition` | `onVent4Transition(tr: Vent4Transition): void` | Dresses a VENT-4 state change: continuous audio layers, stingers, and (on defeat) the compliance cert + optional objective. Banners ride the `vent4` registry snapshot, and the mood keys off the alert phase as usual — the boss raises it through reportSighting like every other detector. |
+| `onSmacTransition` | `onSmacTransition(tr: SmacTransition): void` | Dresses an NW-SMAC-01 state change. On defeat the vault opens: the objective flag is what un-seals the roof ladder (see `canReachRoof`), and clearing the registry snapshot is what stops the fight being restaged if the player walks back in. |
+| `onRelayTransition` | `onRelayTransition(tr: RelayTransition): void` | Dresses a rooftop relay state change, and ends the run when Rowan is taken. |
+| `onSiegeSpawn` | `onSiegeSpawn(at: { x: number; y: number }): void` | Dresses one siege Enforcer landing at a catwalk mouth — the wave itself and the cap on concurrent siege guards are decided inside `Encounters.tick` before this is ever called; this only ever creates the entity. They join the guard roster, so they patrol, path, see and network exactly like every other guard in the game — the roof needs no bespoke combat AI, only somewhere for them to come from. |
+
+<a id="class-terminalhacks"></a>
+
+#### `TerminalHacks` — class
+
+`src/scenes/game/TerminalHacks.ts:52`
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `constructor` | `constructor(private readonly w: HackWorld)` |  |
+| `reset` | `reset(): void` | Clears everything that belongs to a run rather than to a level. |
+| `features` | `features(): MissionFeatures` | Which acts this map furnished — see `missionFeatures`. Resolved once per scene rather than per call. The four flags behind it are written by `BootScene` before the first frame and never change during a run, so reading them out of the registry every frame was five lookups and two allocations (the object, plus the closure inside `missionFeatures`) to re-derive a constant — on every level, including the ones with none of these acts on them. |
+| `onComplete` | `onComplete(terminal: Terminal): void` | A completed hold-to-hack. A log-cache breach opens the Doctrinal Compliance minigame — solving it recovers EIRA-7's logs — and a rack opens the Qualia Phase-Lock bypass, while every other terminal fires its effect immediately. |
+| `isQualiaRack` | `isQualiaRack(terminal: Terminal): boolean` | A terminal is a silicate server rack if authored so, or promoted per level. |
+| `settleOverlay` | `settleOverlay(which: "compliance" \| "qualia", result: "solved" \| "closed"): void` | Settles a minigame overlay: applying the breach on a solve, and re-arming the terminal on an abort so the mission-critical log stays recoverable. Both overlays resolve identically — the only thing that differs is which pending terminal is claimed — so they share one path rather than two copies that could drift on the re-arm. |
+| `designateQualiaRack` | `designateQualiaRack(): void` | Promotes the terminal nearest the player's arrival point to a silicate server rack, so breaching it launches the Qualia Phase-Lock bypass. Prefers a plain terminal, but the shipped map types every terminal as a log-cache, so it will retype the nearest log-cache instead — never the last one, since the mission needs a log-cache to recover EIRA-7's logs. Skipped when the level already authors an explicit `qualia_rack` terminal or has no terminal to spare. |
+| `designateLogCacheNodes` | `designateLogCacheNodes(): void` | Designates one of this level's plain log-caches as node ALPHA. The shipped map types all thirteen of its terminals `LOG_CACHE` and puts every one of them on the start deck, so ALPHA cannot be authoring — it is picked here, the same way `designateQualiaRack` promotes a rack. BETA is not: it is a terminal the engine places in the crawlspace (`src/map/LogCacheBeta.ts`) carrying its type directly, because there is no terminal down there to promote. Runs after `designateQualiaRack` so it can never claim the terminal that one took. |
+
+*Plus 5 private members.*
 
 <a id="class-titlescene"></a>
 
@@ -4392,7 +4541,49 @@ reads them.
 
 *Plus 14 private members.*
 
+<a id="class-vaultandpress"></a>
+
+#### `VaultAndPress` — class
+
+`src/scenes/game/VaultAndPress.ts:96`
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `constructor` | `constructor(private readonly w: VaultWorld)` |  |
+| `vaulting` | `get vaulting(): boolean` |  |
+| `togglePress` | `togglePress(): void` | Flips the wall-press latch — X is a toggle, not a hold. |
+| `releasePress` | `releasePress(): void` | Drops the latch without a keypress, on death, transition or level reset. |
+| `pressSurface` | `pressSurface(): PressState \| null` | The wall face Rowan is holding this frame, or null. Resolved here rather than in `Player` because this is where the collision grid lives; what crosses the seam is plain geometry. The latch is dropped as soon as nothing is in reach, so walking away from a wall releases the press on its own and X never has to be tapped twice to get moving again. |
+| `target` | `target(): { x: number; y: number } \| null` | The tile a vault would land on, or null when there is nothing to go over. |
+| `begin` | `begin(target: { x: number; y: number }): void` | Commits to a vault: a straight, constant-speed crossing to the far side. |
+| `tick` | `tick(dt: number): void` | One frame of a vault. The ordinary player update still runs, driven by a synthetic input pointing the way he is going, so the facing and the walk cycle come out of the code that already knows how to do them. Only the velocity is overwritten — the crossing is scripted, the animation is not. |
+| `pressedCoverCentre` | `pressedCoverCentre(): { x: number; y: number }` | Pixel centre of the face Rowan is holding, or his own position when he is not pressed against anything. |
+| `pressedCoverType` | `pressedCoverType(): string \| undefined` | What the held face is made of — `"low"`, `"high"`, or undefined when Rowan is not pressed or is pressed against a plain wall. |
+| `inCover` | `inCover(): boolean` | True while Rowan is squeezed inside a cover tile, so there is no headroom to stand up into. Both halves are needed. The grid answers "would this stop a standing man", which is what makes the rule fire on `main2`'s solid server racks and *not* on the rooftop's cover, whose board was never marked solid and which has always been walked over standing. |
+
+*Plus 4 private members.*
+
 ### Scenes — Interfaces
+
+<a id="interface-anomalyworld"></a>
+
+#### `AnomalyWorld` — interface
+
+`src/scenes/game/Anomalies.ts:29`
+
+All getters, because this module is built as a field initializer — Phaser's
+`scene.restart()` re-runs `create()` on the same instance, so the pool
+deliberately outlives a level change and cannot capture anything `create()`
+sets, `tileSize` included.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `tileSize` | `tileSize(): number` |  |
+| `doors` | `doors(): readonly Door[]` |  |
+| `chests` | `chests(): readonly Chest[]` |  |
+| `lasers` | `lasers(): readonly Laser[]` |  |
+| `sensors` | `sensors(): readonly Sensor[]` |  |
+| `orderlies` | `orderlies(): readonly Orderly[]` |  |
 
 <a id="interface-builtlevel"></a>
 
@@ -4531,11 +4722,33 @@ three and no explicit reset method to keep in step with that.
 | `onRelayTransition` | `onRelayTransition(tr: RelayTransition): void` |  |
 | `onSiegeSpawn` | `onSiegeSpawn(at: { x: number; y: number }): void` | A siege Enforcer just landed at a catwalk mouth — dress it into the world (create the entity, push it onto the guard roster, alert, play the cue). The *whether* (the wave, the cap on concurrent siege guards) is decided inside `Encounters.tick` before this is ever called. |
 
+<a id="interface-exploredworld"></a>
+
+#### `ExploredWorld` — interface
+
+`src/scenes/game/ExploredTracker.ts:26`
+
+All getters. This is built as a field initializer so the ray fan and the
+distance buffer are allocated once and reused across levels — `scene.restart()`
+does not re-run field initialisers, and the sweep's cast is deliberately
+independent of `Lighting`'s. `reload` swaps in the new level's mask.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `tileSize` | `tileSize(): number` |  |
+| `grid` | `grid(): CollisionGrid` |  |
+| `levelName` | `levelName(): string` |  |
+| `levelSize` | `levelSize(): { width: number; height: number }` |  |
+| `eye` | `eye(): { x: number; y: number }` | Cast from here — the eye, not the body. |
+| `camera` | `camera(): Phaser.Cameras.Scene2D.Camera` |  |
+| `registry` | `registry(): Phaser.Data.DataManager` |  |
+| `memory` | `memory(): MemoryLayer` |  |
+
 <a id="interface-gamescenedata"></a>
 
 #### `GameSceneData` — interface *(module-private)*
 
-`src/scenes/GameScene.ts:164`
+`src/scenes/GameScene.ts:131`
 
 Data passed to `GameScene` when (re)starting for a level swap.
 
@@ -4544,6 +4757,54 @@ Data passed to `GameScene` when (re)starting for a level swap.
 | `level` *(opt)* | `string` |  |
 | `arriveX` *(opt)* | `number` |  |
 | `arriveY` *(opt)* | `number` |  |
+
+<a id="interface-hackworld"></a>
+
+#### `HackWorld` — interface
+
+`src/scenes/game/TerminalHacks.ts:38`
+
+Getters for everything `create()` rebinds per level.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `tileSize` | `tileSize(): number` |  |
+| `player` | `player(): Player` |  |
+| `terminals` | `terminals(): readonly Terminal[]` |  |
+| `doors` | `doors(): readonly Door[]` |  |
+| `noise` | `noise(): NoiseEvents` |  |
+| `overlays` | `overlays(): OverlayGate` |  |
+| `objectives` | `objectives(): ObjectiveState` |  |
+| `registry` | `registry(): Phaser.Data.DataManager` |  |
+| `note` | `note(id: JournalEntryId): void` |  |
+| `publishObjectives` | `publishObjectives(): void` | Republishes the objectives after a note lands. |
+
+<a id="interface-itemworld"></a>
+
+#### `ItemWorld` — interface
+
+`src/scenes/game/ItemActions.ts:60`
+
+Getters for everything `create()` rebinds per level.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `scene` | `Phaser.Scene` | The Phaser scene, for VFX and for parenting a deployed item. |
+| `tileSize` | `tileSize(): number` |  |
+| `player` | `player(): Player` |  |
+| `grid` | `grid(): CollisionGrid` |  |
+| `alert` | `alert(): AlertState` |  |
+| `conduct` | `conduct(): ConductState` |  |
+| `noise` | `noise(): NoiseEvents` |  |
+| `activeItems` | `activeItems(): ActiveItemState` |  |
+| `orderlies` | `orderlies(): readonly Orderly[]` |  |
+| `lasers` | `lasers(): readonly Laser[]` |  |
+| `coverTiles` | `coverTiles(): readonly Cover[]` |  |
+| `empGfx` | `empGfx(): Phaser.GameObjects.Graphics` | The EMP zone's graphics layer, drawn between guard cones and bodies. |
+| `deployables` | `deployables(): DeployedItem[]` | Items left on the floor — a deployed Sack Lunch joins this. |
+| `fireTracers` | `fireTracers(): { x1: number; y1: number; x2: number; y2: number; ttl: number }[]` | The brief tracer line(s) a stapler shot leaves. |
+| `registry` | `registry(): Phaser.Data.DataManager` |  |
+| `markDeviation` | `markDeviation(): void` | Records that Rowan spent something — a deviation under NW-SMAC-01's posture. |
 
 <a id="interface-noiseworld"></a>
 
@@ -4580,11 +4841,48 @@ The live level state noise propagation reads. Held by reference.
 | `onOpen` *(opt)* | `() => void` | Extra work on the way in, after physics is paused. |
 | `onClose` *(opt)* | `() => void` | Extra work on the way out, before physics resumes. |
 
+<a id="interface-powerworld"></a>
+
+#### `PowerWorld` — interface
+
+`src/scenes/game/PowerControl.ts:46`
+
+All getters: like the anomaly pool, this is built as a field initializer so
+the outstanding resets survive a level change, and an initializer cannot
+capture anything `create()` has not set yet.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `tileSize` | `tileSize(): number` |  |
+| `levelName` | `levelName(): string` |  |
+| `lighting` | `lighting(): Lighting` |  |
+| `detection` | `detection(): DetectionSystem` |  |
+| `orderlies` | `orderlies(): readonly Orderly[]` |  |
+| `noise` | `noise(): NoiseEvents` |  |
+| `powerGrid` | `powerGrid(): PowerGridState` |  |
+| `violateUnauthorized` | `violateUnauthorized(): void` | Charges the breach a breaker cabinet earns — the same one a terminal does. |
+
+<a id="interface-promptanchor"></a>
+
+#### `PromptAnchor` — interface
+
+`src/scenes/game/InteractPrompt.ts:53`
+
+What the label is pinned to. `Player` satisfies this structurally; naming the
+four fields it actually reads keeps the pure half testable with a literal.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `x` | `number` |  |
+| `y` | `number` |  |
+| `peeking` | `boolean` |  |
+| `pressed` | `boolean` |  |
+
 <a id="interface-promptcandidates"></a>
 
-#### `PromptCandidates` — interface *(module-private)*
+#### `PromptCandidates` — interface
 
-`src/scenes/GameScene.ts:236`
+`src/scenes/game/InteractPrompt.ts:32`
 
 Everything in reach that E could act on, for the single nearest-wins prompt.
 
@@ -4645,6 +4943,96 @@ The long-lived collaborators the context points at, fixed for a level.
 | `isOperableDoor` | `(tileX: number, tileY: number) => boolean` |  |
 | `setDoorOpen` | `(tileX: number, tileY: number, open: boolean) => void` |  |
 
+<a id="interface-setpieceworld"></a>
+
+#### `SetPieceWorld` — interface
+
+`src/scenes/game/SetPieceEvents.ts:50`
+
+Reached through getters rather than captured values, because the scene rebinds
+most of these after this module is built.
+
+`objectives` is the one that actually bites: `create()` constructs the
+encounters before `restoreRunState()` replaces the objective object with the
+one read back from the registry. A reference captured at construction would
+still be live, still typecheck, and still accept every `noteVent4Defeated`
+— into an object nothing reads again, so beating VENT-4 would silently fail
+to unseal the roof. The rest are getters for consistency and to keep the next
+reordering of `create()` from re-introducing the same class of bug.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `scene` | `Phaser.Scene` | The Phaser scene, for the camera and for parenting a spawned Enforcer. |
+| `player` | `player(): Player` |  |
+| `alert` | `alert(): AlertState` |  |
+| `tileSize` | `number` |  |
+| `objectives` | `objectives(): ObjectiveState` |  |
+| `guards` | `guards(): Enforcer[]` | The live guard roster — siege Enforcers join it and are driven like any other. |
+| `lasers` | `lasers(): readonly Laser[]` | The level's emitters, EMP'd wholesale by the relay's discharge. |
+| `note` | `note(id: JournalEntryId): void` | Adds a journal entry, if it isn't already recorded. |
+| `publishObjectives` | `publishObjectives(): void` | Republishes the objectives to the registry after a note lands. |
+
+<a id="interface-surfacecolliders"></a>
+
+#### `SurfaceColliders` — interface
+
+`src/scenes/game/PlaneTraversal.ts:31`
+
+The four colliders a surface change switches between.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `wall` *(opt)* | `Phaser.Physics.Arcade.Collider` |  |
+| `door` *(opt)* | `Phaser.Physics.Arcade.Collider` |  |
+| `deckEdge` *(opt)* | `Phaser.Physics.Arcade.Collider` |  |
+| `cover` *(opt)* | `Phaser.Physics.Arcade.Collider` |  |
+
+<a id="interface-traversalworld"></a>
+
+#### `TraversalWorld` — interface
+
+`src/scenes/game/PlaneTraversal.ts:39`
+
+Getters for what `create()` rebinds per level.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `tileSize` | `tileSize(): number` |  |
+| `player` | `player(): Player` |  |
+| `lighting` | `lighting(): Lighting` |  |
+| `colliders` | `colliders(): SurfaceColliders` |  |
+| `releasePress` | `releasePress(): void` | Dropped when a climb starts — he cannot hold a wall on the way up. |
+
+<a id="interface-vaultquery"></a>
+
+#### `VaultQuery` — interface
+
+`src/scenes/game/VaultAndPress.ts:31`
+
+The two boards a vault has to agree with, narrowed for the pure core.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `isBlocked` | `isBlocked(tx: number, ty: number): boolean` | Would this cell stop a standing man — walls and cover both. |
+| `coverTypeAt` | `coverTypeAt(px: number, py: number): string \| undefined` | `"low"`, `"high"`, or undefined for a plain wall, at a pixel position. |
+
+<a id="interface-vaultworld"></a>
+
+#### `VaultWorld` — interface
+
+`src/scenes/game/VaultAndPress.ts:87`
+
+Getters rather than captured values: `create()` rebinds the player and the
+per-level boards, and a module built before that would hold the wrong ones.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `tileSize` | `number` |  |
+| `grid` | `grid(): CollisionGrid` |  |
+| `detection` | `detection(): DetectionSystem` |  |
+| `player` | `player(): Player` |  |
+| `heldUp` | `heldUp(): boolean` | A weapon on somebody claims Rowan's hands — he cannot vault while holding up. |
+
 <a id="interface-witnessanchor"></a>
 
 #### `WitnessAnchor` — interface
@@ -4691,10 +5079,10 @@ type OverlayId = "pause" | "codec" | "compliance" | "qualia";
 
 #### `Target` — type *(module-private)*
 
-`src/scenes/GameScene.ts:1577`
+`src/scenes/game/ItemActions.ts:303`
 
 ```ts
-type Target = { x: number; y: number; kind: "cover"; cover: Cover } | { x: number; y: number; kind: "orderly"; orderly: Orderly };
+type Target = | { x: number; y: number; kind: "cover"; cover: Cover } | { x: number; y: number; kind: "orderly"; orderly: Orderly };
 ```
 
 ---
@@ -5897,6 +6285,8 @@ GameScene.
 | [AlertNetworkSnapshot](#interface-alertnetworksnapshot) | interface | `src/systems/AlertNetwork.ts:11` |
 | [AlertPhase](#type-alertphase) | type | `src/systems/AlertState.ts:13` |
 | [AlertState](#class-alertstate) | class | `src/systems/AlertState.ts:21` |
+| [Anomalies](#class-anomalies) | class | `src/scenes/game/Anomalies.ts:38` |
+| [AnomalyWorld](#interface-anomalyworld) | interface | `src/scenes/game/Anomalies.ts:29` |
 | [AppliedCorrections](#type-appliedcorrections) | type | `src/systems/Compliance.ts:64` |
 | [AudioDirector](#class-audiodirector) | class | `src/systems/AudioDirector.ts:26` |
 | [BadgeState](#type-badgestate) | type | `src/ui/NetworkPanel.ts:103` |
@@ -5941,6 +6331,7 @@ GameScene.
 | [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:35` |
 | [CountKind](#type-countkind) | type | `src/ui/NetworkPanel.ts:29` |
 | [Cover](#class-cover) | class | `src/entities/Cover.ts:18` |
+| [CoverBoards](#interface-coverboards) | interface | `src/systems/CoverPoints.ts:15` |
 | [CoverBody](#interface-coverbody) | interface | `src/map/TileBake.ts:429` |
 | [DebugHost](#interface-debughost) | interface | `src/scenes/game/DebugOverlay.ts:67` |
 | [DebugHud](#class-debughud) | class | `src/ui/DebugHud.ts:65` |
@@ -5995,6 +6386,8 @@ GameScene.
 | [EntitySpriteSpec](#interface-entityspritespec) | interface | `src/entities/EntitySprites.ts:58` |
 | [ExploredMap](#class-exploredmap) | class | `src/systems/Explored.ts:16` |
 | [ExploredState](#type-exploredstate) | type | `src/systems/Explored.ts:74` |
+| [ExploredTracker](#class-exploredtracker) | class | `src/scenes/game/ExploredTracker.ts:38` |
+| [ExploredWorld](#interface-exploredworld) | interface | `src/scenes/game/ExploredTracker.ts:26` |
 | [Eye](#interface-eye) | interface | `src/systems/Sensing.ts:20` |
 | [Faded](#interface-faded) | interface | `src/ui/PlaneOverlay.ts:28` |
 | [FlashlightBeam](#interface-flashlightbeam) | interface | `src/ui/Lighting.ts:107` |
@@ -6004,8 +6397,8 @@ GameScene.
 | [GameMap](#interface-gamemap) | interface | `src/map/types.ts:301` |
 | [GameMode](#type-gamemode) | type | `src/systems/GameState.ts:20` |
 | [GameOverScene](#class-gameoverscene) | class | `src/scenes/GameOverScene.ts:13` |
-| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:291` |
-| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:164` |
+| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:186` |
+| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:131` |
 | [GameTile](#interface-gametile) | interface | `src/map/types.ts:230` |
 | [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:332` |
 | [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:173` |
@@ -6014,13 +6407,17 @@ GameScene.
 | [GuardSkin](#interface-guardskin) | interface | `src/entities/GuardSkin.ts:14` |
 | [GuardSkinSpec](#interface-guardskinspec) | interface | `src/entities/GuardSkin.ts:71` |
 | [GuardState](#type-guardstate) | type | `src/entities/Enforcer.ts:35` |
+| [HackWorld](#interface-hackworld) | interface | `src/scenes/game/TerminalHacks.ts:38` |
 | [HoldFixture](#class-holdfixture) | class | `src/entities/HoldFixture.ts:24` |
 | [HoldTarget](#class-holdtarget) | class | `src/entities/HoldTarget.ts:41` |
 | [Hud](#class-hud) | class | `src/ui/Hud.ts:37` |
 | [InputState](#interface-inputstate) | interface | `src/entities/Player.ts:504` |
+| [InteractPrompt](#class-interactprompt) | class | `src/scenes/game/InteractPrompt.ts:137` |
 | [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:23` |
 | [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:148` |
+| [ItemActions](#class-itemactions) | class | `src/scenes/game/ItemActions.ts:84` |
 | [ItemInfo](#interface-iteminfo) | interface | `src/systems/ItemCatalog.ts:48` |
+| [ItemWorld](#interface-itemworld) | interface | `src/scenes/game/ItemActions.ts:60` |
 | [JournalEntry](#interface-journalentry) | interface | `src/systems/Journal.ts:43` |
 | [JournalEntryId](#type-journalentryid) | type | `src/systems/Journal.ts:23` |
 | [JournalState](#interface-journalstate) | interface | `src/systems/Journal.ts:360` |
@@ -6083,17 +6480,21 @@ GameScene.
 | [PlaneLink](#interface-planelink) | interface | `src/systems/PlaneLinks.ts:50` |
 | [PlaneLinkKind](#type-planelinkkind) | type | `src/systems/PlaneLinks.ts:47` |
 | [PlaneOverlay](#class-planeoverlay) | class | `src/ui/PlaneOverlay.ts:37` |
+| [PlaneTraversal](#class-planetraversal) | class | `src/scenes/game/PlaneTraversal.ts:52` |
 | [Player](#class-player) | class | `src/entities/Player.ts:44` |
 | [PlayerAnimName](#type-playeranimname) | type | `src/entities/PlayerAnimations.ts:17` |
 | [PlayerParams](#interface-playerparams) | interface | `src/systems/QualiaLock.ts:34` |
 | [PlayerStats](#interface-playerstats) | interface | `src/systems/EntityStats.ts:321` |
 | [Pose](#interface-pose) | interface | `src/entities/CastArt.ts:53` |
+| [PowerControl](#class-powercontrol) | class | `src/scenes/game/PowerControl.ts:58` |
 | [PowerGridState](#interface-powergridstate) | interface | `src/systems/PowerGrid.ts:27` |
+| [PowerWorld](#interface-powerworld) | interface | `src/scenes/game/PowerControl.ts:46` |
 | [PressSide](#interface-pressside) | interface | `src/systems/WallPress.ts:50` |
 | [PressState](#interface-pressstate) | interface | `src/systems/WallPress.ts:65` |
 | [PressSurface](#interface-presssurface) | interface | `src/systems/WallPress.ts:30` |
 | [PressureSubStation](#class-pressuresubstation) | class | `src/entities/PressureSubStation.ts:43` |
-| [PromptCandidates](#interface-promptcandidates) | interface | `src/scenes/GameScene.ts:236` |
+| [PromptAnchor](#interface-promptanchor) | interface | `src/scenes/game/InteractPrompt.ts:53` |
+| [PromptCandidates](#interface-promptcandidates) | interface | `src/scenes/game/InteractPrompt.ts:32` |
 | [PuzzleState](#interface-puzzlestate) | interface | `src/systems/Compliance.ts:50` |
 | [QualiaLockConfig](#interface-qualialockconfig) | interface | `src/systems/QualiaLock.ts:46` |
 | [QualiaLockData](#interface-qualialockdata) | interface | `src/scenes/QualiaLockScene.ts:8` |
@@ -6134,6 +6535,8 @@ GameScene.
 | [SensingWorld](#interface-sensingworld) | interface | `src/systems/Sensing.ts:60` |
 | [Sensor](#class-sensor) | class | `src/entities/Sensor.ts:36` |
 | [SensorStats](#interface-sensorstats) | interface | `src/systems/EntityStats.ts:211` |
+| [SetPieceEvents](#class-setpieceevents) | class | `src/scenes/game/SetPieceEvents.ts:67` |
+| [SetPieceWorld](#interface-setpieceworld) | interface | `src/scenes/game/SetPieceEvents.ts:50` |
 | [Settings](#interface-settings) | interface | `src/systems/Settings.ts:13` |
 | [ShadowCaster](#interface-shadowcaster) | interface | `src/ui/EntityShadows.ts:86` |
 | [ShadowShape](#undefined) | interface | `src/render/shadowShape.ts:13` |
@@ -6157,13 +6560,15 @@ GameScene.
 | [SpriteFrame](#interface-spriteframe) | interface | `src/map/types.ts:212` |
 | [Stance](#type-stance) | type | `src/entities/Player.ts:42` |
 | [SteamJet](#interface-steamjet) | interface | `src/entities/Vent4Boss.ts:80` |
+| [SurfaceColliders](#interface-surfacecolliders) | interface | `src/scenes/game/PlaneTraversal.ts:31` |
 | [Surrenderable](#interface-surrenderable) | interface | `src/systems/Surrender.ts:53` |
 | [SurrenderAim](#class-surrenderaim) | class | `src/systems/Surrender.ts:187` |
 | [SurrenderResult](#interface-surrenderresult) | interface | `src/systems/Surrender.ts:61` |
 | [SurrenderWorld](#interface-surrenderworld) | interface | `src/systems/Surrender.ts:33` |
-| [Target](#type-target) | type | `src/scenes/GameScene.ts:1577` |
+| [Target](#type-target) | type | `src/scenes/game/ItemActions.ts:303` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:35` |
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:199` |
+| [TerminalHacks](#class-terminalhacks) | class | `src/scenes/game/TerminalHacks.ts:52` |
 | [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:190` |
 | [TilePos](#interface-tilepos) | interface | `src/map/generate.ts:118` |
 | [TileRect](#interface-tilerect) | interface | `src/map/TileBake.ts:423` |
@@ -6174,6 +6579,7 @@ GameScene.
 | [TransitionClass](#type-transitionclass) | type | `src/systems/TransitionGraph.ts:63` |
 | [TransitionGraph](#class-transitiongraph) | class | `src/systems/TransitionGraph.ts:147` |
 | [TransitionKind](#type-transitionkind) | type | `src/map/types.ts:447` |
+| [TraversalWorld](#interface-traversalworld) | interface | `src/scenes/game/PlaneTraversal.ts:39` |
 | [TribunalCallbacks](#interface-tribunalcallbacks) | interface | `src/ui/TribunalScreen.ts:46` |
 | [TribunalScene](#class-tribunalscene) | class | `src/scenes/TribunalScene.ts:19` |
 | [TribunalScreen](#class-tribunalscreen) | class | `src/ui/TribunalScreen.ts:51` |
@@ -6185,7 +6591,10 @@ GameScene.
 | [UIScene](#class-uiscene) | class | `src/scenes/UIScene.ts:34` |
 | [UiSheetSpec](#interface-uisheetspec) | interface | `src/ui/UiTextures.ts:61` |
 | [UiTextureSpec](#interface-uitexturespec) | interface | `src/ui/UiTextures.ts:25` |
+| [VaultAndPress](#class-vaultandpress) | class | `src/scenes/game/VaultAndPress.ts:96` |
 | [VaultLayout](#interface-vaultlayout) | interface | `src/map/AlignmentVault.ts:81` |
+| [VaultQuery](#interface-vaultquery) | interface | `src/scenes/game/VaultAndPress.ts:31` |
+| [VaultWorld](#interface-vaultworld) | interface | `src/scenes/game/VaultAndPress.ts:87` |
 | [Vec2](#interface-vec2) | interface | `src/systems/Vent4PhysicsSystem.ts:15` |
 | [Vent4Boss](#class-vent4boss) | class | `src/entities/Vent4Boss.ts:100` |
 | [Vent4Core](#class-vent4core) | class | `src/systems/Vent4Core.ts:67` |
