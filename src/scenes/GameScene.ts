@@ -8,6 +8,7 @@ import { NoiseEvents } from "./game/NoiseEvents";
 import { OverlayGate } from "./game/OverlayGate";
 import { InteractPrompt } from "./game/InteractPrompt";
 import { SetPieceEvents } from "./game/SetPieceEvents";
+import { VaultAndPress } from "./game/VaultAndPress";
 import { SpriteAtlas } from "../map/SpriteAtlas";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { DetectionSystem } from "../systems/DetectionSystem";
@@ -82,8 +83,6 @@ import {
   OPENED_RATION_DETECTION_MULTIPLIER,
   OPENED_RATION_NOISE,
   PLAYER_DEFAULTS,
-  PRESS_LEAN_TILES,
-  PRESS_REACH_TILES,
   RATION_HEAL,
   RATION_PACK_ITEM,
   SACK_LUNCH_ITEM,
@@ -99,13 +98,9 @@ import {
   STUN_ROUND_REACH_TILES,
   STUN_ROUNDS_ITEM,
   THERMAL_GEL_ITEM,
-  VAULT_NOISE,
-  VAULT_REACH_TILES,
-  VAULT_SECONDS,
   WALL_PRESS_DETECTION_MULTIPLIER,
   WEAPON_ARC_DEGREES,
 } from "../systems/EntityStats";
-import { resolvePress, type PressState } from "../systems/WallPress";
 import { CAMERA_ZOOM } from "../render/pixelScale";
 import {
   ActiveItemState,
@@ -447,13 +442,8 @@ export class GameScene extends Phaser.Scene {
    * `CollisionGrid` keeps cover solid throughout, so guards still can't follow.
    */
   private coverCollider?: Phaser.Physics.Arcade.Collider;
-  /** Latched by X: true while Rowan is holding a wall face. See `pressSurface`. */
-  private pressToggled = false;
-  /** Seconds left in a vault over low cover, or 0 when not vaulting. */
-  private vaultLeft = 0;
-  /** Velocity (px/sec) the current vault is carrying him at, held constant for its run. */
-  private vaultVx = 0;
-  private vaultVy = 0;
+  /** Going over furniture, and flattening against it — they share a latch. */
+  private vault!: VaultAndPress;
 
   private keys!: {
     up: Phaser.Input.Keyboard.Key;
@@ -552,6 +542,14 @@ export class GameScene extends Phaser.Scene {
     this.coverTiles = built.coverTiles;
     this.designateQualiaRack();
     this.designateLogCacheNodes();
+
+    this.vault = new VaultAndPress({
+      tileSize: this.tileSize,
+      grid: () => this.grid,
+      detection: () => this.detection,
+      player: () => this.player,
+      heldUp: () => this.holdUp.target !== null,
+    });
 
     // Holds the arrays by reference, so it always sees this level's cast.
     this.noise = new NoiseEvents({
@@ -959,7 +957,7 @@ export class GameScene extends Phaser.Scene {
     this.rampVx = (this.rampToX - this.player.x) / RAMP_SECONDS;
     this.rampVy = (this.rampToY - this.player.y) / RAMP_SECONDS;
     this.planeArmed = false;
-    this.pressToggled = false;
+    this.vault.releasePress();
 
     // He belongs to neither surface while he is on the slope between them, so
     // nothing collides for the duration — which is also what lets the rise
@@ -1655,7 +1653,7 @@ export class GameScene extends Phaser.Scene {
     // The discharge on the roof: Rowan stops being able to act before the tribunal
     // takes the screen, so the last seconds are watched rather than played.
     if (this.encounters.inputLocked) {
-      this.pressToggled = false;
+      this.vault.releasePress();
       return {
         up: false,
         down: false,
@@ -1677,155 +1675,14 @@ export class GameScene extends Phaser.Scene {
       right: correction?.invertX ? left : right,
       sneak: k.sneak.isDown,
       run: this.runToggled,
-      press: this.pressSurface(),
-      canStand: !this.inCover(),
+      press: this.vault.pressSurface(),
+      canStand: !this.vault.inCover(),
       // Marching a hostage slows Rowan and rules out a sprint. It lands here rather
       // than in `Player` for the reason the doc above gives, and it deliberately does
       // *not* touch the direction: the whole march is steered by walking normally,
       // and the axes are still inverted underneath it if NW-SMAC-01 is doing that.
       escorting: this.holdUp.target !== null,
     };
-  }
-
-  /**
-   * The wall face Rowan is holding this frame, or null.
-   *
-   * Resolved here rather than in `Player` because this is where the collision
-   * grid lives; what crosses the seam is plain geometry. The latch is dropped as
-   * soon as nothing is in reach, so walking away from a wall releases the press
-   * on its own and X never has to be tapped twice to get moving again.
-   */
-  private pressSurface(): PressState | null {
-    if (!this.pressToggled || this.vaultLeft > 0) return null;
-    const body = this.player.sprite.body as Phaser.Physics.Arcade.Body;
-    const ts = this.tileSize;
-    const found = resolvePress(
-      this.grid,
-      body.center.x / ts,
-      body.center.y / ts,
-      { halfW: body.halfWidth / ts, halfH: body.halfHeight / ts },
-      PRESS_REACH_TILES,
-      this.player.facing,
-      PRESS_LEAN_TILES,
-    );
-    if (!found) this.pressToggled = false;
-    return found;
-  }
-
-  /**
-   * The tile a vault would land on, or null when there is nothing to go over.
-   *
-   * A vault is a cardinal hop across exactly one cell, so the facing is reduced
-   * to its dominant axis rather than projected by distance — a diagonal approach
-   * to a crate should still put Rowan squarely on the far side of it.
-   *
-   * Only **low** cover qualifies. That is what finally gives the map's authored
-   * `Cover.Height` split some teeth: crates and desks are things you get over,
-   * server racks are things you get *into* (crouched) or hide behind, and the two
-   * verbs stay distinct instead of both being "cross this tile".
-   */
-  private vaultTarget(): { x: number; y: number } | null {
-    if (this.player.crouched || this.player.pressed || this.holdUp.target) return null;
-    const ts = this.tileSize;
-    const fx = Math.cos(this.player.facing);
-    const fy = Math.sin(this.player.facing);
-    const stepX = Math.abs(fx) >= Math.abs(fy) ? Math.sign(fx) : 0;
-    const stepY = stepX === 0 ? Math.sign(fy) : 0;
-    if (stepX === 0 && stepY === 0) return null;
-
-    const cx = Math.floor(this.player.x / ts);
-    const cy = Math.floor(this.player.y / ts);
-    const ox = cx + stepX;
-    const oy = cy + stepY;
-    // Close enough to actually reach it, measured to the obstacle's centre.
-    const reach = len(ox + 0.5 - this.player.x / ts, oy + 0.5 - this.player.y / ts);
-    if (reach > VAULT_REACH_TILES) return null;
-    // Solid *and* low cover: the grid answers the first, the cover board the second.
-    if (!this.grid.isBlocked(ox, oy)) return null;
-    if (this.detection.coverTypeAt((ox + 0.5) * ts, (oy + 0.5) * ts) !== "low") return null;
-    // Somewhere to come down. Cover reads as blocked here too, so this also stops
-    // a vault that would land him on top of the next crate along.
-    const lx = cx + stepX * 2;
-    const ly = cy + stepY * 2;
-    if (this.grid.isBlocked(lx, ly)) return null;
-    return { x: lx, y: ly };
-  }
-
-  /** Commits to a vault: a straight, constant-speed crossing to the far side. */
-  private beginVault(target: { x: number; y: number }): void {
-    const ts = this.tileSize;
-    this.vaultLeft = VAULT_SECONDS;
-    this.vaultVx = ((target.x + 0.5) * ts - this.player.x) / VAULT_SECONDS;
-    this.vaultVy = ((target.y + 0.5) * ts - this.player.y) / VAULT_SECONDS;
-    this.pressToggled = false;
-    getAudio().door();
-  }
-
-  /**
-   * One frame of a vault.
-   *
-   * The ordinary player update still runs, driven by a synthetic input pointing
-   * the way he is going, so the facing and the walk cycle come out of the code
-   * that already knows how to do them. Only the velocity is overwritten — the
-   * crossing is scripted, the animation is not.
-   */
-  private tickVault(dt: number): void {
-    this.vaultLeft = Math.max(0, this.vaultLeft - dt);
-    this.player.update(
-      {
-        up: this.vaultVy < 0,
-        down: this.vaultVy > 0,
-        left: this.vaultVx < 0,
-        right: this.vaultVx > 0,
-        sneak: false,
-        run: false,
-        escorting: false,
-        press: null,
-        canStand: true,
-      },
-      dt,
-    );
-    this.player.sprite.setVelocity(this.vaultVx, this.vaultVy);
-    this.player.noise = VAULT_NOISE;
-  }
-
-  /**
-   * True while Rowan is squeezed inside a cover tile, so there is no headroom to
-   * stand up into.
-   *
-   * Both halves are needed. The grid answers "would this stop a standing man",
-   * which is what makes the rule fire on `main2`'s solid server racks and *not*
-   * on the rooftop's cover, whose board was never marked solid and which has
-   * always been walked over standing.
-   */
-  /**
-   * Pixel centre of the face Rowan is holding, or his own position when he is
-   * not pressed against anything.
-   */
-  private pressedCoverCentre(): { x: number; y: number } {
-    const held = this.player.pressedSurface;
-    if (!held) return { x: this.player.x, y: this.player.y };
-    const ts = this.tileSize;
-    return { x: (held.surface.wallX + 0.5) * ts, y: (held.surface.wallY + 0.5) * ts };
-  }
-
-  /**
-   * What the held face is made of — `"low"`, `"high"`, or undefined when Rowan
-   * is not pressed or is pressed against a plain wall.
-   */
-  private pressedCoverType(): string | undefined {
-    if (!this.player.pressedSurface) return undefined;
-    const c = this.pressedCoverCentre();
-    return this.detection.coverTypeAt(c.x, c.y);
-  }
-
-  private inCover(): boolean {
-    const tx = Math.floor(this.player.x / this.tileSize);
-    const ty = Math.floor(this.player.y / this.tileSize);
-    return (
-      this.grid.isBlocked(tx, ty) &&
-      this.detection.coverTypeAt(this.player.x, this.player.y) !== undefined
-    );
   }
 
   update(_time: number, delta: number): void {
@@ -1913,7 +1770,7 @@ export class GameScene extends Phaser.Scene {
       alertPhase: this.alert.phase,
       // Hurdling the furniture reads exactly as un-staff-like as a sprint, so it
       // rides the same continuous breach rather than earning a sixth reason code.
-      running: this.player.running || this.vaultLeft > 0,
+      running: this.player.running || this.vault.vaulting,
       // Flattening yourself against a wall is furtive in the same way crouching
       // is — the rule this file's `Conduct` doc calls "sneaking is a tell".
       sneaking: this.player.crouched || this.player.pressed,
@@ -1959,7 +1816,7 @@ export class GameScene extends Phaser.Scene {
     // its cover board was never marked solid, so it is walked over rather than
     // squeezed into, and `inCover` is false there.
     const cover = this.detection.coverTypeAt(this.player.x, this.player.y);
-    const pressedCover = this.pressedCoverType();
+    const pressedCover = this.vault.pressedCoverType();
     const coverConceal =
       cover === "high" ||
       (cover === "low" && this.player.crouched) ||
@@ -1970,7 +1827,7 @@ export class GameScene extends Phaser.Scene {
     // all blocks heat, so concealment normally hides from thermal too.
     // Read at the cover that is actually doing the hiding — the tile underfoot
     // when squeezed into it, the tile being held when pressed against it.
-    const concealingTile = pressedCover !== undefined ? this.pressedCoverCentre() : this.player;
+    const concealingTile = pressedCover !== undefined ? this.vault.pressedCoverCentre() : this.player;
     const thermalConcealed =
       fieldActive ||
       (coverConceal && !this.detection.thermalBleedAt(concealingTile.x, concealingTile.y));
@@ -2141,10 +1998,10 @@ export class GameScene extends Phaser.Scene {
     // X latches onto the nearest face; tapping it again lets go. `pressSurface`
     // drops the latch by itself when there is nothing left to hold.
     if (Phaser.Input.Keyboard.JustDown(this.keys.press)) {
-      this.pressToggled = !this.pressToggled;
+      this.vault.togglePress();
     }
     if (this.rampLeft > 0) this.tickPlaneTraversal(dt);
-    else if (this.vaultLeft > 0) this.tickVault(dt);
+    else if (this.vault.vaulting) this.vault.tick(dt);
     else this.player.update(this.readInput(), dt);
     // Cover yields to a crouch and to nothing else. Re-asserted every frame
     // rather than toggled on the stance change, so it cannot be left inverted by
@@ -2152,7 +2009,7 @@ export class GameScene extends Phaser.Scene {
     if (this.coverCollider && !this.debug?.noClip) {
       this.coverCollider.active =
         !this.player.crouched &&
-        this.vaultLeft <= 0 &&
+        !this.vault.vaulting &&
         this.rampLeft <= 0 &&
         this.plane === PLANE_FLOOR;
     }
@@ -2535,7 +2392,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     // --- Vaulting low cover (tap E) ---
-    const vault = this.vaultTarget();
+    const vaultTo = this.vault.target();
 
     // A tap not consumed by a hack opens/closes a door, uses a hatch, or goes
     // over the crate in front of you — whichever is nearer (a hatch you're
@@ -2565,9 +2422,9 @@ export class GameScene extends Phaser.Scene {
         // other surface where the link comes out.
         this.beginPlaneTraversal(ladder);
         return;
-      } else if (vault) {
+      } else if (vaultTo) {
         adjacentClaimedTap = true;
-        this.beginVault(vault);
+        this.vault.begin(vaultTo);
         // Hurdling the furniture is not what staff do — charged to the same
         // continuous breach a sprint is, in `updateWorld`.
         return;
@@ -2613,7 +2470,7 @@ export class GameScene extends Phaser.Scene {
         chest: nearestChest,
         chestDist: nearestChestDist,
         hatch: hatch !== undefined || (ladder !== undefined && this.planeArmed),
-        vault: vault !== null,
+        vault: vaultTo !== null,
         ventLabel: encounter.label,
         ventDist: encounter.dist,
         // Standing on a ladder that won't take you anywhere yet needs to say so, or it
