@@ -135,37 +135,37 @@ export const ENTITY_SPRITES: readonly EntitySpriteSpec[] = [
     sourceSize: 16,
     displayTiles: [0.5],
   },
-  // East-west doors' tiles are a plain 1x1 — the doorway's extra length runs
-  // the other way, so this footprint stays square unlike its north-south sibling.
+  // East-west doors' tiles are 1x1.5 — the extra half-tile is the swing
+  // clearance that orientation needs. See DisplayFootprint.
   {
     id: "door-single-east-west",
     key: "entity-door-single-east-west",
     path: "assets/sprites/door-single-east-west.png",
     sourceSize: 32,
-    displayTiles: [1],
+    displayTiles: [{ col: 1, row: 1.5 }],
   },
-  // North-south doors' tiles are 1x1.5 — the extra half-tile is the swing
-  // clearance the horizontal orientation doesn't need. See DisplayFootprint.
+  // North-south doors' tiles are a plain 1x1 — the doorway's extra length
+  // runs the other way, so this footprint stays square unlike its east-west sibling.
   {
     id: "door-single-north-south",
     key: "entity-door-single-north-south",
     path: "assets/sprites/door-single-north-south.png",
     sourceSize: 32,
-    displayTiles: [{ col: 1, row: 1.5 }],
+    displayTiles: [1],
   },
   {
     id: "door-glass-east-west",
     key: "entity-door-glass-east-west",
     path: "assets/sprites/door-glass-east-west.png",
     sourceSize: 32,
-    displayTiles: [1],
+    displayTiles: [{ col: 1, row: 1.5 }],
   },
   {
     id: "door-glass-north-south",
     key: "entity-door-glass-north-south",
     path: "assets/sprites/door-glass-north-south.png",
     sourceSize: 32,
-    displayTiles: [{ col: 1, row: 1.5 }],
+    displayTiles: [1],
   },
 ] as const;
 

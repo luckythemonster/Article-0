@@ -116,7 +116,7 @@ describe("the hand-drawn entity sprites", () => {
    * the one that shows why 16px isn't a house standard — its map tile is the
    * same whole-tile/half-tile pair as the terminal's, but it is still 32px
    * art, so a redraw of one doesn't force a redraw of the other. The doors are
-   * the one place a footprint isn't square at all: a north-south door's tile
+   * the one place a footprint isn't square at all: an east-west door's tile
    * is 1×1.5, so its two axes are checked — and can be pixel-perfect —
    * independently.
    */
@@ -174,14 +174,14 @@ describe("the hand-drawn entity sprites", () => {
     expect(ratios("security-camera")).toEqual([4]);
     // 16px art at the half tile `breaker_main1` is authored at.
     expect(ratios("breaker")).toEqual([2]);
-    // East-west doors are a plain 1×1 tile of 32px art: 2 screen pixels per
-    // source pixel, same as the substation's whole-tile footprint.
-    expect(ratios("door-single-east-west")).toEqual([2]);
-    expect(ratios("door-glass-east-west")).toEqual([2]);
-    // North-south doors are 1×1.5: 2 wide, 3 tall. Different whole numbers on
+    // East-west doors are 1×1.5: 2 wide, 3 tall. Different whole numbers on
     // each axis — an anisotropic stretch, not a resample.
-    expect(ratios("door-single-north-south")).toEqual([2, 3]);
-    expect(ratios("door-glass-north-south")).toEqual([2, 3]);
+    expect(ratios("door-single-east-west")).toEqual([2, 3]);
+    expect(ratios("door-glass-east-west")).toEqual([2, 3]);
+    // North-south doors are a plain 1×1 tile of 32px art: 2 screen pixels per
+    // source pixel, same as the substation's whole-tile footprint.
+    expect(ratios("door-single-north-south")).toEqual([2]);
+    expect(ratios("door-glass-north-south")).toEqual([2]);
   });
 });
 

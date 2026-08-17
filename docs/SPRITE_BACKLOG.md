@@ -123,10 +123,10 @@ identical closed door — plus a one-shot `OPENING`/`CLOSING` swing and a restin
 `OPEN` blink neither state had before.
 
 Two silhouettes (plain, glass) × two orientations (east-west, north-south),
-32×32 each. East-west doors are a plain 1×1 map tile; north-south doors are
-1×1.5 — the extra half-tile is swing clearance the other orientation doesn't
-need — so their art stretches to two *different* whole numbers per axis (2
-screen pixels per source pixel wide, 3 tall) rather than one uniform scale.
+32×32 each. East-west doors are 1×1.5 map tiles — the extra half-tile is
+swing clearance that orientation needs; north-south doors are a plain 1×1 —
+so their art stretches to two *different* whole numbers per axis (2 screen
+pixels per source pixel wide, 3 tall) rather than one uniform scale.
 Still pixel-perfect, just checked per axis: see `EntitySprites.ts`'s
 `DisplayFootprint` type.
 

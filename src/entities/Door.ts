@@ -39,9 +39,9 @@ import {
  * `OPENING`/`CLOSING` swing — where the map's own tile art has always carried
  * only two (`closed`/`open`). Picking `EntitySpriteId` is two independent
  * choices: {@link isGlass} for the material, and whether the tile's footprint
- * runs long in the row axis (`rowSpan > colSpan`) for the orientation — a
- * north-south door's swing clearance is what makes it 1×1.5 instead of the
- * east-west door's plain 1×1, so the footprint itself says which art to ask
+ * runs long in the row axis (`rowSpan > colSpan`) for the orientation — an
+ * east-west door's swing clearance is what makes it 1×1.5 instead of the
+ * north-south door's plain 1×1, so the footprint itself says which art to ask
  * for. `LOCKED`/`OPENING`/`CLOSING` read the *same* casing on all four
  * sources; the plain "door, nothing else going on" tag does not — it's `IDLE`
  * on the east-west pair and `idle` on the north-south pair, an artist
@@ -94,16 +94,22 @@ export class Door {
     this.seeThrough = isGlass(tile.components) && !glassStatsFor(tile.components).visionBlock;
     this.open = this.stats.state === "open";
 
-    const northSouth = tile.rowSpan > tile.colSpan;
+    // A door's own footprint says which way it opens: one that's taller than
+    // it is wide (colSpan 1 x rowSpan 1.5) is set into a wall running
+    // north-south and lets the player walk *east-west* through it — the
+    // extra half-tile is the swing clearance that orientation needs. A plain
+    // 1x1 door is the other way: north-south passage.
+    const eastWest = tile.rowSpan > tile.colSpan;
     const glass = isGlass(tile.components);
     this.art = glass
-      ? northSouth
-        ? "door-glass-north-south"
-        : "door-glass-east-west"
-      : northSouth
-        ? "door-single-north-south"
-        : "door-single-east-west";
-    this.idleTag = northSouth ? "idle" : "IDLE";
+      ? eastWest
+        ? "door-glass-east-west"
+        : "door-glass-north-south"
+      : eastWest
+        ? "door-single-east-west"
+        : "door-single-north-south";
+    // Spelled differently between the two orientations' own source files.
+    this.idleTag = this.art.endsWith("east-west") ? "IDLE" : "idle";
 
     this.closedFrame = tile.stateFrames?.closed ?? tile.frame;
     this.openFrame = tile.stateFrames?.open ?? this.closedFrame;

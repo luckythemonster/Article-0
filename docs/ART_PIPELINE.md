@@ -293,10 +293,10 @@ never had to express.
 | Substation | `terminal_substation.aseprite` | 32×32 | 11 | 1 tile / ½ tile | 2 / 1 |
 | Security camera | `security_camera.aseprite` | 16×16 | 8 | 1 tile | 4 |
 | Breaker | `Breaker.aseprite` | 16×16 | 24 | ½ tile | 2 |
-| Door, single, east-west | `door_single_east-west.aseprite` | 32×32 | 13 | 1×1 tile | 2 |
-| Door, single, north-south | `door_single_north-south.aseprite` | 32×32 | 14 | 1×1.5 tile | 2 / 3 |
-| Door, glass, east-west | `door_glass_single_east-west.aseprite` | 32×32 | 13 | 1×1 tile | 2 |
-| Door, glass, north-south | `door_glass_single_north-south.aseprite` | 32×32 | 14 | 1×1.5 tile | 2 / 3 |
+| Door, single, east-west | `door_single_east-west.aseprite` | 32×32 | 13 | 1×1.5 tile | 2 / 3 |
+| Door, single, north-south | `door_single_north-south.aseprite` | 32×32 | 14 | 1×1 tile | 2 |
+| Door, glass, east-west | `door_glass_single_east-west.aseprite` | 32×32 | 13 | 1×1.5 tile | 2 / 3 |
+| Door, glass, north-south | `door_glass_single_north-south.aseprite` | 32×32 | 14 | 1×1 tile | 2 |
 
 **Display size comes off the map tile, not the art.** Each object is drawn at its
 own tile's `RowSpan`/`ColSpan` so the sprite lands exactly where the one it
@@ -309,9 +309,9 @@ pixels per source pixel (doubled again by the camera) and a half tile is half
 that, which is why the terminal and substation can sit at different sizes and
 both still land on a whole number.
 
-**The doors are the one footprint that isn't square.** A north-south door's
+**The doors are the one footprint that isn't square.** An east-west door's
 tile is 1 tile wide and 1.5 tall — the extra half-tile is swing clearance the
-east-west orientation doesn't need — so its 32px art is stretched to a
+north-south orientation doesn't need — so its 32px art is stretched to a
 different whole number on each axis (2 screen pixels per source pixel wide, 3
 tall) rather than one uniform scale. Neither axis is resampled on its own, so
 the rule still holds; it just has to be checked per axis instead of once. See

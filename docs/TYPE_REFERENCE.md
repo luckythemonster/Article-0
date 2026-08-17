@@ -2447,9 +2447,9 @@ two-frame blinking indicator-light loops, plus a resting `OPEN` loop and an
 `OPENING`/`CLOSING` swing — where the map's own tile art has always carried
 only two (`closed`/`open`). Picking `EntitySpriteId` is two independent
 choices: `isGlass` for the material, and whether the tile's footprint
-runs long in the row axis (`rowSpan > colSpan`) for the orientation — a
-north-south door's swing clearance is what makes it 1×1.5 instead of the
-east-west door's plain 1×1, so the footprint itself says which art to ask
+runs long in the row axis (`rowSpan > colSpan`) for the orientation — an
+east-west door's swing clearance is what makes it 1×1.5 instead of the
+north-south door's plain 1×1, so the footprint itself says which art to ask
 for. `LOCKED`/`OPENING`/`CLOSING` read the *same* casing on all four
 sources; the plain "door, nothing else going on" tag does not — it's `IDLE`
 on the east-west pair and `idle` on the north-south pair, an artist
