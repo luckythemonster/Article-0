@@ -12,6 +12,8 @@ import { VaultAndPress } from "./game/VaultAndPress";
 import { Anomalies } from "./game/Anomalies";
 import { coverTilesNear } from "../systems/CoverPoints";
 import { PowerControl } from "./game/PowerControl";
+import { ExploredTracker } from "./game/ExploredTracker";
+import { initialExplored, type ExploredState } from "../systems/Explored";
 import { SpriteAtlas } from "../map/SpriteAtlas";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { DetectionSystem } from "../systems/DetectionSystem";
@@ -40,7 +42,6 @@ import { Lighting } from "../ui/Lighting";
 import { MemoryLayer } from "../ui/MemoryLayer";
 import { PlaneOverlay } from "../ui/PlaneOverlay";
 import { EntityShadows, type ShadowCaster } from "../ui/EntityShadows";
-import { rayDirections, sightDistances, walkRayCells, SIGHT_RAYS } from "../systems/Visibility";
 import {
   missionFeatures,
   resumeFromSave,
@@ -55,7 +56,6 @@ import {
   type JournalEntryId,
   type JournalState,
 } from "../systems/Journal";
-import { ExploredMap, initialExplored, type ExploredState } from "../systems/Explored";
 import {
   MAP_SNAPSHOT_KEY,
   PAUSE_REQUEST_KEY,
@@ -153,13 +153,6 @@ interface GameSceneData {
   arriveX?: number;
   arriveY?: number;
 }
-
-/**
- * Explored-tile sweep cadence. A quarter second at walking pace reveals nothing
- * a full sweep would have missed. The *reach* is no longer a constant — it comes
- * off the camera, see `GameScene.exploreReachTiles`.
- */
-const EXPLORE_INTERVAL = 0.25;
 
 /** Screen-fade duration for a level transition, in ms. */
 const FADE_MS = 320;
@@ -349,9 +342,17 @@ export class GameScene extends Phaser.Scene {
   /** Rowan's journal — the run's counter-archive, also registry-backed. */
   private journal!: JournalState;
   /** Seen-tile mask for *this* level; the other levels' stay in the registry. */
-  private explored!: ExploredMap;
-  /** Seconds until the next explored-tile sweep (they're throttled, not per-frame). */
-  private exploredCooldown = 0;
+  /** What Rowan has had a sightline to, and the throttled sweep that finds out. */
+  private readonly tracker = new ExploredTracker({
+    tileSize: () => this.tileSize,
+    grid: () => this.grid,
+    levelName: () => this.level.name,
+    levelSize: () => this.level,
+    eye: () => this.player.eye,
+    camera: () => this.cameras.main,
+    registry: () => this.registry,
+    memory: () => this.memory,
+  });
   /** Remembered geometry, drawn where the player can no longer see it. */
   private memory!: MemoryLayer;
   /** Fades whichever surface is over the player's head — roof, or gantry. */
@@ -371,19 +372,6 @@ export class GameScene extends Phaser.Scene {
   private rampToPlane = 0;
   private rampToX = 0;
   private rampToY = 0;
-  /**
-   * The explored sweep's own ray fan and distance buffer.
-   *
-   * Cast separately from `Lighting`'s rather than borrowing its result. Four
-   * sweeps a second against sixty frames is a rounding error, and buying the
-   * independence is worth it: the sweep keeps working with the darkness toggled
-   * off (debug `O`), and it does not inherit the overlay's own recast cadence.
-   * Reused across levels — a `scene.restart()` does not re-run field initialisers.
-   */
-  private readonly exploreDirs = rayDirections(SIGHT_RAYS);
-  private readonly exploreDist = new Float64Array(SIGHT_RAYS);
-  /** Cells first seen this sweep, as `y * width + x`, handed to {@link memory}. */
-  private readonly freshlyExplored: number[] = [];
   /** Milliseconds of play in this run, for the pause menu's STATUS clock. */
   private playTimeMs = 0;
   /** The Shared Field (WX-9) charge / active state. */
@@ -652,7 +640,7 @@ export class GameScene extends Phaser.Scene {
       built.claimedTiles,
     );
     this.memory.clipTo(this.lighting.shadowGeometry);
-    this.memory.prime(this.explored);
+    this.memory.prime(this.tracker.explored);
     this.planeOverlay = new PlaneOverlay(this.level, this.tileSize, built.planes);
     this.planeLinks = planeLinksFor(this.level, this.tileSize);
     if (built.deckEdgeBodies.length > 0) {
@@ -764,7 +752,7 @@ export class GameScene extends Phaser.Scene {
     this.journal = (this.registry.get("journal") as JournalState | undefined) ?? initialJournal();
     this.registry.set("journal", this.journal);
     this.playTimeMs = (this.registry.get("playTimeMs") as number | undefined) ?? 0;
-    this.explored = this.loadExplored();
+    this.tracker.reload();
 
     this.note("orders");
     const arrival = journalIdForLevel(this.level.name);
@@ -815,7 +803,7 @@ export class GameScene extends Phaser.Scene {
       this.registry.get("activeItems") as ActiveItemsView | undefined,
     );
     this.transitioning = false;
-    this.exploredCooldown = 0;
+
     this.captureProgress = 0;
     this.knockCooldown = 0;
     this.runToggled = false;
@@ -845,95 +833,6 @@ export class GameScene extends Phaser.Scene {
     if (!noteJournal(this.journal, id)) return;
     this.registry.set("journal", this.journal);
     getAudio().pickup();
-  }
-
-  /** This level's seen-tile mask, restored from the registry if we've been here. */
-  private loadExplored(): ExploredMap {
-    const state = (this.registry.get("explored") as ExploredState | undefined) ?? initialExplored();
-    this.registry.set("explored", state);
-    const stored = state[this.level.name];
-    const { width, height } = this.level;
-    return stored ? ExploredMap.fromBase64(stored, width, height) : new ExploredMap(width, height);
-  }
-
-  /** Folds this level's mask back into the registry-held per-level record. */
-  private flushExplored(): void {
-    const state = (this.registry.get("explored") as ExploredState | undefined) ?? initialExplored();
-    state[this.level.name] = this.explored.toBase64();
-    this.registry.set("explored", state);
-  }
-
-  /**
-   * Marks everything currently in the player's line of sight as seen.
-   *
-   * Throttled rather than run per frame: at walking pace a quarter-second of
-   * movement reveals no tile a full sweep wouldn't have.
-   *
-   * This casts *the same visibility polygon the darkness does* — `sightDistances`
-   * over the same ray fan — and then remembers every cell those rays crossed.
-   * It used to scan a 9-tile box and test each tile centre with the boolean
-   * `hasLineOfSight`, which is a different algorithm over a different shape: two
-   * answers that disagreed at every boundary, and a hard circular horizon. That
-   * was survivable while the mask only fed the pause menu's minimap. Now that
-   * remembered tiles are drawn *in the world*, any disagreement between the mask
-   * and the shadow fan is visible as a seam, so there is only one cast.
-   *
-   * A cast distance carries half a tile past the face it stopped at
-   * (`WALL_REVEAL_TILES`), so the walls of a room are remembered along with its
-   * floor — a room recalled without its walls is not a room.
-   */
-  private markExplored(dt: number): void {
-    this.exploredCooldown -= dt;
-    if (this.exploredCooldown > 0) return;
-    this.exploredCooldown = EXPLORE_INTERVAL;
-
-    // Cast from the eye, not the body, so a peek round a corner fills in the map
-    // it just looked at — the same reason the darkness is cast from there. The
-    // explored mask is meant to show what Rowan has had a sightline to.
-    const eye = this.player.eye;
-    const px = eye.x / this.tileSize;
-    const py = eye.y / this.tileSize;
-    sightDistances(
-      this.grid,
-      px,
-      py,
-      this.exploreReachTiles(eye.x, eye.y),
-      this.exploreDirs,
-      this.exploreDist,
-    );
-
-    const fresh = this.freshlyExplored;
-    fresh.length = 0;
-    const { width, height } = this.level;
-    // One closure for the sweep rather than one per ray.
-    const visit = (tx: number, ty: number): void => {
-      if (tx < 0 || ty < 0 || tx >= width || ty >= height) return;
-      if (this.explored.has(tx, ty)) return;
-      this.explored.mark(tx, ty);
-      fresh.push(ty * width + tx);
-    };
-
-    const { cos, sin } = this.exploreDirs;
-    for (let i = 0; i < cos.length; i++) {
-      walkRayCells(px, py, cos[i], sin[i], this.exploreDist[i], visit);
-    }
-
-    if (fresh.length > 0) this.memory.remember(fresh);
-  }
-
-  /**
-   * How far the explored sweep casts, in tiles: to the furthest corner of what
-   * the camera is showing, plus a tile of slack.
-   *
-   * The same reach `Lighting.viewReach` uses, and for the same reason — there is
-   * no point remembering ground the player could not have been shown, and no
-   * point stopping short of the screen edge either.
-   */
-  private exploreReachTiles(viewX: number, viewY: number): number {
-    const v = this.cameras.main.worldView;
-    const dx = Math.max(Math.abs(viewX - v.x), Math.abs(v.right - viewX));
-    const dy = Math.max(Math.abs(viewY - v.y), Math.abs(v.bottom - viewY));
-    return (len(dx, dy) + this.tileSize) / this.tileSize;
   }
 
   /**
@@ -1044,7 +943,7 @@ export class GameScene extends Phaser.Scene {
 
   /** Hands the pause menu everything its MAP tab needs to draw this level. */
   private publishMapSnapshot(): void {
-    this.flushExplored();
+    this.tracker.flush();
     const { width, height } = this.level;
     const walls = new Uint8Array(width * height);
     for (let ty = 0; ty < height; ty++) {
@@ -1057,7 +956,7 @@ export class GameScene extends Phaser.Scene {
       width,
       height,
       walls,
-      explored: this.explored,
+      explored: this.tracker.explored,
       player: {
         tx: Math.floor(this.player.x / this.tileSize),
         ty: Math.floor(this.player.y / this.tileSize),
@@ -1285,7 +1184,7 @@ export class GameScene extends Phaser.Scene {
    * the file itself.
    */
   private writeSave(slot: SlotId): void {
-    this.flushExplored();
+    this.tracker.flush();
     saveGame(slot, {
       level: this.level.name,
       tileX: Math.floor(this.player.x / this.tileSize),
@@ -2048,7 +1947,7 @@ export class GameScene extends Phaser.Scene {
     );
     this.playTimeMs += delta;
     this.registry.set("playTimeMs", this.playTimeMs);
-    this.markExplored(dt);
+    this.tracker.mark(dt);
     // The destination surface while a climb is running, so the deck and canopy
     // crossfade as he walks rather than popping when he arrives.
     this.planeOverlay.update(
