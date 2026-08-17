@@ -15,6 +15,7 @@ import { PowerControl } from "./game/PowerControl";
 import { ExploredTracker } from "./game/ExploredTracker";
 import { initialExplored, type ExploredState } from "../systems/Explored";
 import { TerminalHacks } from "./game/TerminalHacks";
+import { PlaneTraversal } from "./game/PlaneTraversal";
 import { SpriteAtlas } from "../map/SpriteAtlas";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { DetectionSystem } from "../systems/DetectionSystem";
@@ -115,7 +116,7 @@ import { ROOF_ARRAY_LEVEL } from "../map/RoofArrayLevel";
 import { Encounters } from "./game/Encounters";
 import { blockingLayerNames, isInteractTransition } from "../map/types";
 import { linkAt, movingToward, planeLinksFor, type PlaneLink } from "../systems/PlaneLinks";
-import { PLANE_FLOOR, PLANE_UPPER } from "../map/planes";
+import { PLANE_FLOOR } from "../map/planes";
 import { planFor, type MapPlan } from "../map/MapPlan";
 import { getAudio } from "../systems/AudioDirector";
 import { saveGame, clearSave, loadGame, type SlotId } from "../systems/SaveGame";
@@ -147,17 +148,6 @@ interface GameSceneData {
 
 /** Screen-fade duration for a level transition, in ms. */
 const FADE_MS = 320;
-
-/**
- * How long it takes to walk between a level's two surfaces, and how far the
- * sprite arcs up-screen on the way.
- *
- * Short enough that it never reads as a cutscene — this is a step up a slope,
- * not a set piece — and long enough for the walk cycle to show. The rise is in
- * world px, so at `CAMERA_ZOOM` 2 it is twice this on screen.
- */
-const RAMP_SECONDS = 0.35;
-const RAMP_RISE_PX = 7;
 
 /**
  * Layers that hold entities/markers rather than paintable tile art.
@@ -351,21 +341,23 @@ export class GameScene extends Phaser.Scene {
   private memory!: MemoryLayer;
   /** Fades whichever surface is over the player's head — roof, or gantry. */
   private planeOverlay!: PlaneOverlay;
-  /** Which walk surface the player is on; 0 everywhere but the two deck levels. */
-  private plane = 0;
+  /** Walking between a level's two surfaces, and which one he is on. */
+  private readonly traversal = new PlaneTraversal({
+    tileSize: () => this.tileSize,
+    player: () => this.player,
+    lighting: () => this.lighting,
+    releasePress: () => this.vault.releasePress(),
+    colliders: () => ({
+      wall: this.wallCollider,
+      door: this.doorCollider,
+      deckEdge: this.deckEdgeCollider,
+      cover: this.coverCollider,
+    }),
+  });
   /** The ways between this level's surfaces — empty on a single-plane level. */
   private planeLinks: PlaneLink[] = [];
   /** Bodies penning the player onto the deck, enabled only while he is on it. */
   private deckEdgeCollider?: Phaser.Physics.Arcade.Collider;
-  /** Cleared when he steps off a link, so a switch never bounces straight back. */
-  private planeArmed = true;
-  /** Seconds left climbing between surfaces, or 0 when not on a slope. */
-  private rampLeft = 0;
-  private rampVx = 0;
-  private rampVy = 0;
-  private rampToPlane = 0;
-  private rampToX = 0;
-  private rampToY = 0;
   /** Milliseconds of play in this run, for the pause menu's STATUS clock. */
   private playTimeMs = 0;
   /** The Shared Field (WX-9) charge / active state. */
@@ -824,112 +816,6 @@ export class GameScene extends Phaser.Scene {
     if (!noteJournal(this.journal, id)) return;
     this.registry.set("journal", this.journal);
     getAudio().pickup();
-  }
-
-  /**
-   * Moves the player between this level's walk surfaces.
-   *
-   * Not a level transition: no scene restart, nothing rebuilt. What changes is
-   * which grid everything asks, which Arcade bodies pen him in, and where he is
-   * standing — the link's far end, so he arrives on the surface rather than
-   * hanging off its edge.
-   *
-   * The body is moved *before* the collider swaps, or he starts the next frame
-   * overlapping the deck's edge bodies and gets ejected off the gantry.
-   */
-  private beginPlaneTraversal(link: PlaneLink): void {
-    const goingUp = this.plane === PLANE_FLOOR;
-    const to = goingUp ? { x: link.toX, y: link.toY } : { x: link.x, y: link.y };
-    const half = this.tileSize / 2;
-
-    this.rampLeft = RAMP_SECONDS;
-    this.rampToPlane = goingUp ? PLANE_UPPER : PLANE_FLOOR;
-    this.rampToX = to.x * this.tileSize + half;
-    this.rampToY = to.y * this.tileSize + half;
-    this.rampVx = (this.rampToX - this.player.x) / RAMP_SECONDS;
-    this.rampVy = (this.rampToY - this.player.y) / RAMP_SECONDS;
-    this.planeArmed = false;
-    this.vault.releasePress();
-
-    // He belongs to neither surface while he is on the slope between them, so
-    // nothing collides for the duration — which is also what lets the rise
-    // below arc him off the straight line without catching on anything.
-    this.setSurfaceColliders(false, false);
-    getAudio().door();
-  }
-
-  /**
-   * One frame of a climb.
-   *
-   * The same trick `tickVault` uses: the ordinary player update still runs,
-   * driven by a synthetic input pointing the way he is going, so the facing and
-   * the walk cycle come out of the code that already knows how to do them. Only
-   * the velocity is scripted.
-   *
-   * **The rise is in the velocity, not the sprite.** Offsetting `sprite.y` to
-   * lift the art is a trap: Arcade's `Body.preUpdate` calls
-   * `updateFromGameObject()` every frame, so nudging the sprite drags the body
-   * with it — the same reason {@link Player.bodyCentre} explains the peek lean
-   * has no visual component. A half-sine added to the *velocity* integrates to
-   * zero over the crossing, so he arcs up-screen and lands exactly on the
-   * destination cell, with body and art never disagreeing and `eye` staying
-   * truthful to everything that senses him.
-   */
-  private tickPlaneTraversal(dt: number): void {
-    const before = this.rampLeft;
-    this.rampLeft = Math.max(0, this.rampLeft - dt);
-    // Phase through the crossing, 0 → 1, sampled at the middle of this frame so
-    // the arc integrates cleanly rather than drifting with the frame rate.
-    const t = 1 - (before + this.rampLeft) / 2 / RAMP_SECONDS;
-    // Displacement is `-RISE * sin(pi * t)`, so the velocity that produces it is
-    // its derivative. Over the whole crossing that integrates to zero, which is
-    // what puts him back on the line at the far end.
-    const rise = -RAMP_RISE_PX * (Math.PI / RAMP_SECONDS) * Math.cos(Math.PI * t);
-
-    this.player.update(
-      {
-        up: this.rampVy < 0,
-        down: this.rampVy > 0,
-        left: this.rampVx < 0,
-        right: this.rampVx > 0,
-        sneak: false,
-        run: false,
-        escorting: false,
-        press: null,
-        canStand: true,
-      },
-      dt,
-    );
-    this.player.sprite.setVelocity(this.rampVx, this.rampVy + rise);
-
-    if (this.rampLeft <= 0) this.finishPlaneTraversal();
-  }
-
-  /** Commits the surface change once the climb has played out. */
-  private finishPlaneTraversal(): void {
-    // Land exactly on the cell rather than wherever the arc's rounding left him.
-    this.player.moveTo(this.rampToX, this.rampToY);
-    this.plane = this.rampToPlane;
-    this.setSurfaceColliders(this.plane === PLANE_FLOOR, this.plane === PLANE_UPPER);
-    // Sight is cast against the surface he is on, so the darkness has to recast
-    // from scratch rather than reuse the polygon it built downstairs.
-    this.lighting.setPlane(this.plane);
-  }
-
-  /**
-   * Which set of static bodies pens the player in.
-   *
-   * On the deck the floor's walls are below him and its cover is furniture he is
-   * standing over; the deck's own edge is the only thing that stops him. Mid-climb
-   * both are off.
-   */
-  private setSurfaceColliders(floor: boolean, deck: boolean): void {
-    if (this.wallCollider) this.wallCollider.active = floor;
-    if (this.doorCollider) this.doorCollider.active = floor;
-    if (this.deckEdgeCollider) this.deckEdgeCollider.active = deck;
-    // Cover is re-asserted every frame in `updateWorld` against the crouch, so
-    // only the mid-climb suppression needs saying here.
-    if (this.coverCollider) this.coverCollider.active = floor;
   }
 
   /** Hands the pause menu everything its MAP tab needs to draw this level. */
@@ -1824,7 +1710,7 @@ export class GameScene extends Phaser.Scene {
     );
     this.sensing.setPlayer(this.player.x, this.player.y, noise, body.velocity.x, body.velocity.y);
     this.sensing.setConcealment(concealed, compliant, thermalConcealed);
-    this.sensing.setPlane(this.plane);
+    this.sensing.setPlane(this.traversal.plane);
     // Opened doors/chests, EMP'd devices and stunned orderlies, for anomaly scanning.
     this.sensing.setAnomalies(this.anomalies.build(this.sensing.chaffZone));
     this.sensing.setDeployables(this.deployables);
@@ -1878,7 +1764,7 @@ export class GameScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.keys.press)) {
       this.vault.togglePress();
     }
-    if (this.rampLeft > 0) this.tickPlaneTraversal(dt);
+    if (this.traversal.climbing) this.traversal.tick(dt);
     else if (this.vault.vaulting) this.vault.tick(dt);
     else this.player.update(this.readInput(), dt);
     // Cover yields to a crouch and to nothing else. Re-asserted every frame
@@ -1888,8 +1774,8 @@ export class GameScene extends Phaser.Scene {
       this.coverCollider.active =
         !this.player.crouched &&
         !this.vault.vaulting &&
-        this.rampLeft <= 0 &&
-        this.plane === PLANE_FLOOR;
+        !this.traversal.climbing &&
+        this.traversal.plane === PLANE_FLOOR;
     }
     // Flashlight: L toggles the beam; feed its state to the lighting cone.
     if (Phaser.Input.Keyboard.JustDown(this.keys.flashlight)) {
@@ -1931,7 +1817,7 @@ export class GameScene extends Phaser.Scene {
       dt,
       this.player.x,
       this.player.y,
-      this.rampLeft > 0 ? this.rampToPlane : this.plane,
+      this.traversal.visualPlane,
       this.tileSize,
     );
   }
@@ -2151,19 +2037,19 @@ export class GameScene extends Phaser.Scene {
 
     // --- Plane links: the ladders and ramps between this level's two surfaces ---
     // Read before the E press is consumed below, so the prompt can offer it.
-    const link = linkAt(this.planeLinks, this.plane, Math.floor(ptx), Math.floor(pty));
-    if (!link) this.planeArmed = true;
+    const link = linkAt(this.planeLinks, this.traversal.plane, Math.floor(ptx), Math.floor(pty));
+    if (!link) this.traversal.arm();
 
     // A ramp is walked up, so it fires on contact — but only when he is actually
     // heading into it. Every link head on this map is a cell you walk *through*
     // (roof_array's (23,7) sits mid-gantry), so "standing on it" would tip him
     // off the deck every time he walked that column. See `movingToward`.
-    if (link && link.kind === "ramp" && this.planeArmed && this.rampLeft <= 0) {
-      const far = this.plane === PLANE_FLOOR ? { x: link.toX, y: link.toY } : link;
+    if (link && link.kind === "ramp" && this.traversal.armedForLink && !this.traversal.climbing) {
+      const far = this.traversal.plane === PLANE_FLOOR ? { x: link.toX, y: link.toY } : link;
       const body = this.player.sprite.body as Phaser.Physics.Arcade.Body | null;
       const here = { x: Math.floor(ptx), y: Math.floor(pty) };
       if (body && movingToward(body.velocity.x, body.velocity.y, here.x, here.y, far.x, far.y)) {
-        this.beginPlaneTraversal(link);
+        this.traversal.begin(link);
         return;
       }
     }
@@ -2294,11 +2180,11 @@ export class GameScene extends Phaser.Scene {
       } else if (hatch) {
         this.beginTransition(hatch);
         return;
-      } else if (ladder && this.planeArmed) {
+      } else if (ladder && this.traversal.armedForLink) {
         // A way between this level's own surfaces. Unlike a level transition it
         // is not a scene restart — nothing is rebuilt, he just walks up onto the
         // other surface where the link comes out.
-        this.beginPlaneTraversal(ladder);
+        this.traversal.begin(ladder);
         return;
       } else if (vaultTo) {
         adjacentClaimedTap = true;
@@ -2347,7 +2233,7 @@ export class GameScene extends Phaser.Scene {
         breakerDist: nearestBreakerDist,
         chest: nearestChest,
         chestDist: nearestChestDist,
-        hatch: hatch !== undefined || (ladder !== undefined && this.planeArmed),
+        hatch: hatch !== undefined || (ladder !== undefined && this.traversal.armedForLink),
         vault: vaultTo !== null,
         ventLabel: encounter.label,
         ventDist: encounter.dist,
