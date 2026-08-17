@@ -16,3 +16,15 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+
+      # docs/TYPE_REFERENCE.md is generated, and AGENTS.md makes regenerating it
+      # after a declaration change an invariant. Nothing enforced that, so it had
+      # already drifted. Regenerate and fail if the tree moved.
+      - name: docs/TYPE_REFERENCE.md is up to date
+        run: |
+          npm run docs:types
+          if ! git diff --quiet -- docs/TYPE_REFERENCE.md; then
+            echo "::error file=docs/TYPE_REFERENCE.md::Out of date. Run 'npm run docs:types' and commit the result."
+            git diff --stat -- docs/TYPE_REFERENCE.md
+            exit 1
+          fi

@@ -3,9 +3,6 @@ dist/
 *.log
 .DS_Store
 .vite/
-# Resume checkpoint written by tools/pixellab/generate-player.ts — holds
-# generated character IDs and expiring frame URLs, not source.
-.pixellab-*.json
 
 # Python bytecode from the asset build tools under tools/.
 __pycache__/

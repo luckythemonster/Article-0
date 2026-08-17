@@ -270,7 +270,10 @@ src/map/            format types, loader, sprite atlas; generate.ts + the five
                     generators (VentCoreLevel, LogCacheBeta, AlignmentVault,
                     RoofArrayLevel, DestructibleCover)
 src/scenes/         GameScene, UIScene, PauseScene, CodecScene, TitleScene,
-                    TribunalScene
+                    TribunalScene, ComplianceScene, QualiaLockScene, GameOverScene
+src/scenes/game/    helpers extracted out of GameScene: LevelBuilder,
+                    SensingContext, Encounters, OverlayGate, NoiseEvents,
+                    DebugOverlay
 src/entities/       Player, Enforcer, Drone, Orderly, Sensor, Door, Terminal,
                     Laser, Chest, Cover, DeployedItem, Vent4Boss, BossCore,
                     RoofRelay, GuardSkin, the four *Animations manifests, and
@@ -283,7 +286,13 @@ src/ui/             Hud, Radar, InventoryHud, AlertNetworkHud, Lighting, Codec,
 src/ui/fonts/       Share Tech + Share Tech Mono woff2 + OFL licence
 src/testing/        test-only helpers (an in-memory localStorage)
 tools/font/         build_symbols.py — regenerates the symbol woff2
-tools/typeref/      generates docs/TYPE_REFERENCE.md
+tools/panel/        build_panel.py — cuts ui-panel.aseprite into the PNG +
+                    src/ui/networkIndicatorFrames.json
+tools/sprites/      build_sprites.py — cuts the entity .aseprite files into
+                    PNGs + src/entities/entitySpriteFrames.json
+tools/aseprite/     reader.py — the .aseprite parser both cutters share
+tools/typeref/      generates docs/TYPE_REFERENCE.md (text.ts holds the pure
+                    helpers, unit-tested by text.test.ts)
 ```
 
 `motion` is listed in `dependencies` but never imported directly — it is a
@@ -305,5 +314,7 @@ required `peerDependency` of `@arwes/frames`. Removing it breaks the install.
   but have nothing to attach to. They would need new authoring.
 - Two VFX packs in `public/assets/vfx/` are staged but unused: `explosion` and
   `electricity` are 512×512, and no display height rescues them without an 8x reduction.
-  They need redrawing at size (`npm run gen:rescale`) before they can be wired up — see
+  They need redrawing at target size before they can be wired up (there is no
+  rescale script — downsampling by 8x is the pixel destruction the rule exists to
+  prevent) — see
   [`docs/ART_PIPELINE.md`](docs/ART_PIPELINE.md#one-shot-effects).

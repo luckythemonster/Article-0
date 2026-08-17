@@ -6,6 +6,9 @@ two more levels in code at boot, and runs a four-act stealth game on top.
 
 ## Commands
 
+**npm is the package manager** — `package-lock.json` is the only lockfile, and CI
+runs `npm ci` against it. Don't add a second one.
+
 ```bash
 npm install
 npm run dev             # vite dev server
@@ -14,7 +17,17 @@ npm test                # vitest, covers the pure systems
 npm run docs:types      # regenerate docs/TYPE_REFERENCE.md
 ```
 
-CI (`.github/workflows/ci.yml`) runs `npm run build` and `npm test` on every push.
+Before you push, run the gate yourself:
+
+```bash
+npx tsc --noEmit && npx vitest run
+```
+
+The suite is fast (~9s) and currently **815 tests across 63 files, all passing**.
+A drop in that count means you broke something rather than that the suite shrank.
+
+CI (`.github/workflows/ci.yml`) runs `npm run build`, `npm test`, and a check that
+`docs/TYPE_REFERENCE.md` is up to date on every push.
 
 ## Where to look
 
@@ -29,6 +42,33 @@ CI (`.github/workflows/ci.yml`) runs `npm run build` and `npm test` on every pus
 
 `.jules/` holds dated per-agent lesson logs (performance, security, accessibility). Add
 to the matching file when you learn something that would have saved you an hour.
+
+## Decoding the names
+
+The fiction supplies the vocabulary, so a lot of filenames name a thing in the
+*Architecture of Suffering* setting rather than an engineering role. Every one of
+these files opens with a header comment that explains itself — but you have to
+open it first to find that out, so:
+
+| File | What it actually is |
+| --- | --- |
+| `systems/Vent4Core.ts` | Act II boss: state machine + "Compliance Index" economy |
+| `systems/SmacCore.ts` | Act III boss (NW-SMAC-01, the Alignment Core): state machine |
+| `systems/RelayCore.ts` | Act IV rooftop relay: state machine |
+| `systems/Conduct.ts` | Whether Rowan currently reads to the facility as staff |
+| `systems/Compliance.ts` | The Doctrinal Compliance minigame (a log-pruning word puzzle) |
+| `systems/QualiaLock.ts` | The Qualia Phase-Lock minigame (a waveform-matching puzzle) |
+| `systems/SharedField.ts` | The WX-9 merge — the undetectable window (**F**) |
+| `systems/Surrender.ts` | The hold-up: aiming at an orderly rather than firing (**Q**) |
+| `systems/Lexicon.ts` | In-game glossary shown in the pause menu's index |
+| `systems/Journal.ts` | In-game journal entries |
+| `systems/Explored.ts` | Fog of war for the pause menu's map |
+
+**The `*Core` suffix is a convention, not decoration.** All three bosses use the
+same split: a pure, Phaser-free state machine in `src/systems/<X>Core.ts` that
+unit-tests directly, and a Phaser shell in `src/entities/` that draws it. If you
+are changing boss *rules*, you want the `Core`; if you are changing how it
+*looks*, you want the entity.
 
 ## Invariants
 
@@ -59,5 +99,16 @@ These are the ones that bite. Each has burned someone already.
   `src/render/pixelScale.ts` and its test.
 - **`motion` is an unimported but required peer dependency** of `@arwes/frames`. Removing
   it from `package.json` breaks the install.
+- **`@arwes/frames` is pinned to a prerelease (`1.0.0-next.*`) and ships an `eval`.**
+  The build warns about it every time; the warning is expected, not a regression you
+  introduced. Accepted deliberately: the game is client-side and single-player, with
+  no server, no auth and no user-supplied data reaching that code path, so the `eval`
+  is not reachable by an attacker. It is used by `src/ui/frame.ts`,
+  `src/ui/PauseMenuView.ts` and `src/scenes/CodecScene.ts`. Revisit if the project ever
+  renders untrusted content.
+- **Never put a raw control character in a source file.** A literal NUL as a key
+  separator once made `git` diff two files as binary and made `grep` skip them
+  *silently* — searches came back clean because the files were never read. Write the
+  escape (`\u0000`) instead; the runtime value is identical.
 - **Systems under `src/systems/` are headless** — no Phaser, no DOM. That is what lets the
   unit tests drive them directly; keep it that way.

@@ -11,6 +11,7 @@
 import * as ts from "typescript";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { collapse, truncate } from "./text";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const SRC = path.join(ROOT, "src");
@@ -143,12 +144,6 @@ function signature(node: ts.Node, sf: ts.SourceFile): string {
       text = text.slice(0, node.initializer.getStart(sf) - node.getStart(sf)) + "…";
   }
   return collapse(text).replace(/;$/, "");
-}
-
-const collapse = (s: string) => s.replace(/\s*\n\s*/g, " ").replace(/\s{2,}/g, " ").trim();
-
-function truncate(s: string, max: number): string {
-  return s.length <= max ? s : s.slice(0, max - 1).trimEnd() + "…";
 }
 
 function parse(file: string): Decl[] {
