@@ -23,7 +23,7 @@ Before you push, run the gate yourself:
 npx tsc --noEmit && npx vitest run
 ```
 
-The suite is fast (~9s) and currently **815 tests across 63 files, all passing**.
+The suite is fast (~9s) and currently **853 tests across 67 files, all passing**.
 A drop in that count means you broke something rather than that the suite shrank.
 
 CI (`.github/workflows/ci.yml`) runs `npm run build`, `npm test`, and a check that
@@ -69,6 +69,33 @@ same split: a pure, Phaser-free state machine in `src/systems/<X>Core.ts` that
 unit-tests directly, and a Phaser shell in `src/entities/` that draws it. If you
 are changing boss *rules*, you want the `Core`; if you are changing how it
 *looks*, you want the entity.
+
+## Finding things in `GameScene`
+
+`GameScene.ts` drives one frame of the game and delegates most of what happens in
+it to `src/scenes/game/`. Start there rather than grepping the scene:
+
+| Looking for | File |
+| --- | --- |
+| Turning a parsed level into live objects | `LevelBuilder.ts` |
+| What guards and cameras can sense this frame | `SensingContext.ts` |
+| Doors, chests, knocks, the alert-network rally | `NoiseEvents.ts` |
+| The VENT-4 / vault / roof encounters | `Encounters.ts` (rules) + `SetPieceEvents.ts` (cues) |
+| Pause, codec and the two minigame overlays | `OverlayGate.ts` |
+| The `[E]` verb and the status marker | `InteractPrompt.ts` |
+| Vaulting furniture, holding a wall | `VaultAndPress.ts` |
+| Ladders and ramps between a level's surfaces | `PlaneTraversal.ts` |
+| The seen-tile mask and its sweep | `ExploredTracker.ts` |
+| What a guard could notice as out of place | `Anomalies.ts` |
+| Breakers, blackouts, and the orderly sent to fix them | `PowerControl.ts` |
+| Completed hacks, and which terminals are special | `TerminalHacks.ts` |
+| What each item does when used | `ItemActions.ts` |
+| Debug hotkeys and overlays | `DebugOverlay.ts` |
+
+What deliberately stays in the scene is the frame's **ordering** — `updateWorld`
+— and the E-press claim chain in `updateInteractions`, where the sequence is the
+design: each step `&&`-guards on the ones above it, so a verb can never be
+consumed twice. Splitting that chain would undo the thing it exists to do.
 
 ## Invariants
 
