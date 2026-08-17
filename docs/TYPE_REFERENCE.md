@@ -2750,7 +2750,7 @@ per-frame data, and reuses the same thermal short-range sense.
 
 #### `Terminal` — class
 
-`src/entities/Terminal.ts:35`
+`src/entities/Terminal.ts:38`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -6566,7 +6566,7 @@ GameScene.
 | [SurrenderResult](#interface-surrenderresult) | interface | `src/systems/Surrender.ts:61` |
 | [SurrenderWorld](#interface-surrenderworld) | interface | `src/systems/Surrender.ts:33` |
 | [Target](#type-target) | type | `src/scenes/game/ItemActions.ts:303` |
-| [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:35` |
+| [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:38` |
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:199` |
 | [TerminalHacks](#class-terminalhacks) | class | `src/scenes/game/TerminalHacks.ts:52` |
 | [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:190` |
