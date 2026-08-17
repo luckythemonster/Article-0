@@ -205,8 +205,9 @@ They obey the same scale rule as the characters, and the test covers them. Two
 packs in `public/assets/vfx/` are **staged but unused**: `explosion` and
 `electricity` are 512×512, sixteen tiles across, and no display height rescues
 them without an 8x reduction — the exact pixel destruction the rule exists to
-prevent. They need redrawing at size (`gen:rescale` can do it) before they can be
-wired up.
+prevent. They need **redrawing at target size** before they can be wired up —
+there is no rescale script, and there deliberately isn't one: downsampling 512×512
+art by 8x is what would destroy the pixels in the first place.
 
 ---
 

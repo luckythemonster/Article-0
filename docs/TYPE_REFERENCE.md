@@ -200,7 +200,7 @@ const MANUAL_SLOTS = ["1", "2", "3"] as const;
 Registry keys scoped to a single infiltration; cleared when a new one begins.
 
 ```ts
-const RUN_KEYS = [ "inventory", "selectedConsumable", "staplerFieldCharges", "objectives", "journal", "explored", "playTimeMs", "detection", "alertPhase", "radar", "alertNetwork", "playerHp", "sharedField", "activeItems", "vent4", "vent4State", "vent4Transmit", "smac", "smacState", "relay", "relayState", "conductMetrics", "pauseRequest", "mapSnapshot", SUSPENDED_KEY, ] as const;
+const RUN_KEYS = [ "inventory", "selectedConsumable", "staplerFieldCharges", "objectives", "journal", "explored", "playTimeMs", "detection", "alertPhase", "radar", "alertNetwork", "playerHp", "sharedField", "activeItems", "vent4", "vent4State", "vent4Transmit", "smac", "smacState", "relay", "relayState", "conductMetrics", "pauseRequest", "mapSnapshot", "powerGrid", SUSPENDED_KEY, ] as const;
 ```
 
 <a id="const-terminal-defaults"></a>
@@ -2012,7 +2012,7 @@ type ComplianceBand = "LAMINAR" | "TURBULENT" | "CRITICAL";
 Why compliance is currently withheld. Drives the HUD readout.
 
 ```ts
-type ConductBreach = | "ALERT" /** * Guards are sweeping for you. Blocking unless Rowan carries the Q0 compliance * cert — with papers in hand he can stand the search down and pass as staff again. */ | "EVASION" | "RUNNING" | "SNEAKING" /** Working a terminal or a silicate rack. */ | "UNAUTHORIZED" /** Searching a container, rapping on walls. */ | "TAMPERING" /** Stun round, chaff burst. */ | "HOSTILE" /** Clean again, but still standing down from something. */ | "SETTLING";
+type ConductBreach = | "ALERT" | "EVASION" | "RUNNING" | "SNEAKING" | "UNAUTHORIZED" | "TAMPERING" | "HOSTILE" | "SETTLING";
 ```
 
 <a id="type-deployablekind"></a>
@@ -2266,7 +2266,7 @@ so art redrawn at a size that no longer divides fails the build rather than
 shipping soft.
 
 ```ts
-const ENTITY_SPRITES = [ { id: "terminal", key: "entity-terminal", path: "assets/sprites/terminal.png", sourceSize: 32, displayTiles: [1, 0.5], }, { id: "terminal-substation", key: "entity-terminal-substation", path: "assets/sprites/terminal-substation.png", sourceSize: 32, displayTiles: [1, 0.5], }, // The `security_camera_mounted_*` tile defs are a whole tile, both of them. { id: "security-camera", key: "entity-security-camera", path: "assets/sprites/security-camera.png", sourceSize: 16, displayTiles: [1], }, // `breaker_main1` is authored at half a tile, which is why this is 16px art. { id: "breaker", key: "enti… as const;
+const ENTITY_SPRITES = [ { id: "terminal", key: "entity-terminal", path: "assets/sprites/terminal.png", sourceSize: 32, displayTiles: [1, 0.5], }, { id: "terminal-substation", key: "entity-terminal-substation", path: "assets/sprites/terminal-substation.png", sourceSize: 32, displayTiles: [1, 0.5], }, { id: "security-camera", key: "entity-security-camera", path: "assets/sprites/security-camera.png", sourceSize: 16, displayTiles: [1], }, { id: "breaker", key: "entity-breaker", path: "assets/sprites/breaker.png", sourceSize: 16, displayTiles: [0.5], }, ] as const;
 ```
 
 ### Entities — Classes
@@ -2523,7 +2523,7 @@ them to share names they shouldn't.
 | --- | --- | --- |
 | `x` | `readonly x: number` | Pixel centre, from the tile the fixture stands on. |
 | `y` | `readonly y: number` |  |
-| `constructor` | `constructor( scene: Phaser.Scene, tile: GameTile, tileSize: number, /** Position in its owner's board order — the index its core counts by. */ readonly index: number, holdTime: number, barColor: numb…` |  |
+| `constructor` | `constructor( scene: Phaser.Scene, tile: GameTile, tileSize: number, readonly index: number, holdTime: number, barColor: number = HOLD_BAR_CYAN, private readonly settleColor: number = HOLD_SETTLED_GRE…` |  |
 | `isDone` | `get isDone(): boolean` |  |
 | `advance` | `advance(dt: number): boolean` | Advances the hold. True on the **exact completion frame** only, so the caller's core counts it once however long the key stays down. |
 | `idle` | `idle(dt: number): void` | Not being worked this frame: drain partial progress. |
@@ -3404,7 +3404,7 @@ type Vent4InteractResult = EncounterInteractResult<Vent4Transition>;
 Where an effect's frames come from.
 
 ```ts
-type VfxSource = | { kind: "frames"; frame(index: number): string } /** A uniform grid in a single image. */ | { kind: "sheet"; path: string; frameSize: number };
+type VfxSource = | { kind: "frames"; frame(index: number): string } | { kind: "sheet"; path: string; frameSize: number };
 ```
 
 ---
@@ -4805,7 +4805,7 @@ widget picks a role rather than a number.
 `src/ui/UiTextures.ts:70`
 
 ```ts
-const UI_TEXTURES = [ /** * The generic HUD panel: border, corners and fill, stretched to any size. * * Three frames, all just casing and screen: dark, lit, and the red alert * flash. The alert-network readout uses the dark one to mean "no data yet" * and strikes the flash once on the way into ALERT; everything else takes the * lit frame and never changes it. * * Deliberately carries *none* of the source art's indicator layers, so a * widget adopting a panel doesn't inherit three meaningless LED labels — see * `tools/panel/build_panel.py`, which cuts them into a separate sheet. */ { key: "ui-panel", path: "asset… as const;
+const UI_TEXTURES = [ { key: "ui-panel", path: "assets/ui/panel/ui-panel.png", size: 48, slice: 12, sheet: { margin: 0, spacing: 0, count: SCREEN_FRAME_COUNT }, }, { key: "ui-network-indicators", path: "assets/ui/panel/network-indicators.png", size: INDICATOR_SIZE, sheet: { margin: 0, spacing: 0, count: INDICATOR_FRAME_COUNT }, }, { key: "ui-radar-bezel", path: "assets/ui/radar/bezel.png", size: 96 }, ] as const;
 ```
 
 ### UI — Classes
