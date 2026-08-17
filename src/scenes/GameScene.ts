@@ -16,6 +16,7 @@ import { ExploredTracker } from "./game/ExploredTracker";
 import { initialExplored, type ExploredState } from "../systems/Explored";
 import { TerminalHacks } from "./game/TerminalHacks";
 import { PlaneTraversal } from "./game/PlaneTraversal";
+import { ItemActions } from "./game/ItemActions";
 import { SpriteAtlas } from "../map/SpriteAtlas";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { DetectionSystem } from "../systems/DetectionSystem";
@@ -38,7 +39,6 @@ import { Laser } from "../entities/Laser";
 import { Sensor } from "../entities/Sensor";
 import { Chest } from "../entities/Chest";
 import { Cover } from "../entities/Cover";
-import { playVfx, EMP_BLAST, ELECTRONICS_SPARK, IMPACT } from "../entities/Vfx";
 import { buildAlertNetworkSnapshot, NoiseSpamTracker } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
 import { MemoryLayer } from "../ui/MemoryLayer";
@@ -67,7 +67,6 @@ import {
 import {
   BATTERY_ITEM,
   CERT_ITEM,
-  CHAFF_PACK_ITEM,
   countConsumables,
   SMAC_DEFAULTS,
   FLASHLIGHT_DETECTION_MULTIPLIER,
@@ -82,26 +81,15 @@ import {
   PLAYER_DEFAULTS,
   RATION_HEAL,
   RATION_PACK_ITEM,
-  SACK_LUNCH_ITEM,
-  STAPLER_FIELD_COOLDOWN,
   STAPLER_FIELD_MAX_CHARGES,
-  STAPLER_FIELD_NOISE,
-  STAPLER_FIELD_RANGE_TILES,
   STAPLER_ITEM,
-  STAPLER_PIN_DURATION,
   STARTING_INVENTORY,
   STUN_ROUND_DURATION,
-  STUN_ROUND_NOISE,
-  STUN_ROUND_REACH_TILES,
-  STUN_ROUNDS_ITEM,
-  THERMAL_GEL_ITEM,
   WALL_PRESS_DETECTION_MULTIPLIER,
-  WEAPON_ARC_DEGREES,
 } from "../systems/EntityStats";
 import { CAMERA_ZOOM } from "../render/pixelScale";
 import {
   ActiveItemState,
-  CHAFF_PACK_DURATION,
   CHAFF_PACK_RADIUS_TILES,
   type ActiveItemsView,
 } from "../systems/ActiveItems";
@@ -184,12 +172,6 @@ const ENTITY_LAYERS = new Set([
 
 /** How close (in tiles) the player must be to interact with a door/terminal. */
 const INTERACT_RANGE = 1.4;
-
-/**
- * Cos of the half-angle of {@link WEAPON_ARC_DEGREES} — the forward arc a dart or a
- * staple can reach. Was the bare `0.5` written out at three call sites below.
- */
-const WEAPON_ARC_COS = Math.cos((WEAPON_ARC_DEGREES * Math.PI) / 360);
 
 
 
@@ -306,8 +288,27 @@ export class GameScene extends Phaser.Scene {
    * keys for a diagonal sprint asks a keyboard for 3 simultaneous keys, which some
    * keyboards fail to report (N-key rollover/ghosting) and no code can work around. */
   private runToggled = false;
-  /** Cooldown for the Rail-Stapler's general-purpose field mode (outside VENT-4). */
-  private staplerFieldCooldown = 0;
+  /** What each item does when Rowan uses it, and the two weapons that are not items. */
+  private readonly items = new ItemActions({
+    scene: this,
+    tileSize: () => this.tileSize,
+    player: () => this.player,
+    grid: () => this.grid,
+    alert: () => this.alert,
+    conduct: () => this.conduct,
+    noise: () => this.noise,
+    activeItems: () => this.activeItems,
+    orderlies: () => this.orderlies,
+    lasers: () => this.lasers,
+    coverTiles: () => this.coverTiles,
+    empGfx: () => this.empGfx,
+    deployables: () => this.deployables,
+    fireTracers: () => this.fireTracers,
+    registry: () => this.registry,
+    markDeviation: () => {
+      this.deviatedThisFrame = true;
+    },
+  });
   /** What a completed hold-to-hack does, and which terminals are special. */
   private readonly hacks = new TerminalHacks({
     tileSize: () => this.tileSize,
@@ -792,7 +793,7 @@ export class GameScene extends Phaser.Scene {
     this.captureProgress = 0;
     this.knockCooldown = 0;
     this.runToggled = false;
-    this.staplerFieldCooldown = 0;
+    this.items.reset();
     this.hacks.reset();
     // Arm only after stepping off the arrival tile (see update()).
     this.transitionArmed = false;
@@ -1107,231 +1108,6 @@ export class GameScene extends Phaser.Scene {
    * request/consume pattern as the compliance/qualia overlays), validates
    * possession, spends the item, and ticks both item timers.
    */
-  private updateActiveItems(dt: number): void {
-    const request = this.registry.get("itemUseRequest") as string | undefined;
-    if (request) {
-      this.registry.remove("itemUseRequest");
-      const inv = (this.registry.get("inventory") as string[] | undefined) ?? [];
-      const idx = inv.indexOf(request);
-      // The item is spent *after* its effect resolves, and only if the effect says
-      // so — a Sack Lunch's first press opens it in the hand and keeps it. Every
-      // other consumable answers "yes" and behaves exactly as it always did.
-      if (idx !== -1 && this.applyConsumable(request)) {
-        inv.splice(idx, 1);
-        this.registry.set("inventory", inv);
-        // Spending anything counts as deviating from the posture NW-SMAC-01 holds
-        // Rowan in; the charge is applied where the rest of the conduct tick happens.
-        this.deviatedThisFrame = true;
-      }
-    }
-    this.activeItems.update(dt);
-    this.registry.set("activeItems", {
-      chaffRemaining: this.activeItems.chaffRemaining,
-      thermalRemaining: this.activeItems.thermalRemaining,
-      flashlightOwned: this.activeItems.flashlightOwned,
-      flashlightOn: this.activeItems.flashlightOn,
-      flashlightCharge: this.activeItems.flashlightCharge,
-      sackLunchOpened: this.activeItems.sackLunchOpened,
-    } satisfies ActiveItemsView);
-    this.drawChaffZone();
-  }
-
-  /**
-   * Applies a consumable's effect. Returns whether the item should be spent from
-   * the inventory — false for a use that only changes the item's state in hand.
-   */
-  private applyConsumable(item: string): boolean {
-    switch (item) {
-      case CHAFF_PACK_ITEM:
-        this.fireChaffBurst();
-        return true;
-      case THERMAL_GEL_ITEM:
-        this.activeItems.activateThermalGel();
-        return true;
-      case RATION_PACK_ITEM:
-        this.player.heal(RATION_HEAL);
-        getAudio().pickup();
-        return true;
-      case BATTERY_ITEM:
-        this.activeItems.rechargeFlashlight();
-        getAudio().pickup();
-        return true;
-      case STUN_ROUNDS_ITEM:
-        this.fireStunDart();
-        return true;
-      case SACK_LUNCH_ITEM:
-        return this.useSackLunch();
-      default:
-        return true;
-    }
-  }
-
-  /**
-   * The Sack Lunch's two presses: open it, then put it down.
-   *
-   * SEALED → OPENED keeps the item — Rowan is now visibly eating, which costs him
-   * detection and buys him tolerance from orderlies at the same time. OPENED →
-   * DEPLOYED spends it and leaves it on the floor as a work order for whoever
-   * finds it.
-   *
-   * Neither half flags his conduct. Leaving a ration lying around is the single
-   * most staff-like thing available in this building, and marking it as tampering
-   * would have the item breaking its own disguise.
-   */
-  private useSackLunch(): boolean {
-    if (!this.activeItems.sackLunchOpened) {
-      this.activeItems.openSackLunch();
-      getAudio().pickup();
-      return false;
-    }
-    this.deployables.push(
-      new DeployedItem(this, "sackLunch", this.player.x, this.player.y, this.tileSize),
-    );
-    this.activeItems.resealSackLunch();
-    getAudio().pickup();
-    return true;
-  }
-
-  /**
-   * An instant EMP burst centred on the player: blinds guards and cameras (via
-   * the chaff zone), suppresses lasers within reach, and breaks any active
-   * pursuit into a search — jamming the alert network / clearing alarms.
-   */
-  private fireChaffBurst(): void {
-    this.activeItems.activateChaff(this.player.x, this.player.y);
-    this.conduct.violate("HOSTILE", FLAG_HOSTILE);
-    this.alert.forceEvasion();
-    const radiusPx = CHAFF_PACK_RADIUS_TILES * this.tileSize;
-    for (const laser of this.lasers) {
-      if (withinOrEqual(laser.x - this.player.x, laser.y - this.player.y, radiusPx)) {
-        laser.emp(CHAFF_PACK_DURATION);
-        // Each emitter it knocks out sparks where it stands, so the burst's
-        // reach is legible rather than implied by the flash alone.
-        playVfx(this, ELECTRONICS_SPARK, laser.x, laser.y, this.tileSize);
-      }
-    }
-    playVfx(this, EMP_BLAST, this.player.x, this.player.y, this.tileSize);
-    this.cameras.main.flash(200, 120, 200, 255);
-  }
-
-  /**
-   * Fires a short stun dart along Rowan's facing: the nearest orderly within
-   * reach and roughly ahead is frozen (can't witness), and independently the
-   * nearest destructible cover tile ahead is broken — a stun round has no real
-   * raycast today (see the orderly loop below), so both effects can land off
-   * the same shot rather than fighting over which one the dart "really" hit.
-   * Firing makes a small noise.
-   */
-  private fireStunDart(): void {
-    const reachPx = STUN_ROUND_REACH_TILES * this.tileSize;
-    const fx = Math.cos(this.player.facing);
-    const fy = Math.sin(this.player.facing);
-    let target: Orderly | undefined;
-    let bestDist = Infinity;
-    for (const orderly of this.orderlies) {
-      const p = orderly;
-      const dx = p.x - this.player.x;
-      const dy = p.y - this.player.y;
-      const dist = len(dx, dy);
-      if (dist > reachPx || dist === 0) continue;
-      // Only orderlies roughly in front of Rowan — see WEAPON_ARC_DEGREES.
-      if ((dx * fx + dy * fy) / dist < WEAPON_ARC_COS) continue;
-      if (dist < bestDist) {
-        bestDist = dist;
-        target = orderly;
-      }
-    }
-    target?.stun(STUN_ROUND_DURATION);
-    if (target) playVfx(this, IMPACT, target.x, target.y, this.tileSize);
-
-    let cover: Cover | undefined;
-    let bestCoverDist = Infinity;
-    for (const c of this.coverTiles) {
-      if (c.isBroken) continue;
-      const cx = (c.tileX + 0.5) * this.tileSize;
-      const cy = (c.tileY + 0.5) * this.tileSize;
-      const dx = cx - this.player.x;
-      const dy = cy - this.player.y;
-      const dist = len(dx, dy);
-      if (dist > reachPx || dist === 0) continue;
-      if ((dx * fx + dy * fy) / dist < WEAPON_ARC_COS) continue;
-      if (dist < bestCoverDist) {
-        bestCoverDist = dist;
-        cover = c;
-      }
-    }
-    cover?.destroy();
-
-    this.conduct.violate("HOSTILE", FLAG_HOSTILE);
-    this.noise.emitAt(this.player.x, this.player.y, STUN_ROUND_NOISE * this.tileSize);
-  }
-
-  /** Field-mode shots left this run — see {@link STAPLER_FIELD_MAX_CHARGES}. */
-  private staplerFieldCharges(): number {
-    return (this.registry.get("staplerFieldCharges") as number | undefined) ?? STAPLER_FIELD_MAX_CHARGES;
-  }
-
-  /**
-   * The Rail-Stapler's general-purpose field mode: fires along Rowan's facing
-   * at the nearest of {destructible cover tile, orderly} within reach, forward
-   * cone and a clear line of sight — cover breaks, an orderly gets pinned to a
-   * wall for a stretch (same freeze/witness effect as a Stun Rounds dart, just
-   * a different weapon and a much shorter reach and hold). Single press, not
-   * hold; gated by its own cooldown so it can't be mashed, and by a fixed
-   * per-run charge pool spent on every attempt — whether or not it hits
-   * anything — the same way firing a Stun Rounds dart spends the item
-   * regardless of whether it connects.
-   */
-  private fireStaplerField(): void {
-    const ts = this.tileSize;
-    const reachPx = STAPLER_FIELD_RANGE_TILES * ts;
-    const fx = Math.cos(this.player.facing);
-    const fy = Math.sin(this.player.facing);
-
-    type Target = { x: number; y: number; kind: "cover"; cover: Cover } | { x: number; y: number; kind: "orderly"; orderly: Orderly };
-    let best: Target | undefined;
-    let bestDist = Infinity;
-
-    const consider = (x: number, y: number, candidate: Target): void => {
-      const dx = x - this.player.x;
-      const dy = y - this.player.y;
-      const dist = len(dx, dy);
-      if (dist > reachPx || dist === 0) return;
-      if ((dx * fx + dy * fy) / dist < WEAPON_ARC_COS) return;
-      if (!this.grid.hasLineOfSight(this.player.x / ts, this.player.y / ts, x / ts, y / ts)) return;
-      if (dist < bestDist) {
-        bestDist = dist;
-        best = candidate;
-      }
-    };
-
-    for (const c of this.coverTiles) {
-      if (c.isBroken) continue;
-      const cx = (c.tileX + 0.5) * ts;
-      const cy = (c.tileY + 0.5) * ts;
-      consider(cx, cy, { x: cx, y: cy, kind: "cover", cover: c });
-    }
-    for (const o of this.orderlies) {
-      if (o.isImmobilized) continue;
-      consider(o.x, o.y, { x: o.x, y: o.y, kind: "orderly", orderly: o });
-    }
-
-    this.staplerFieldCooldown = STAPLER_FIELD_COOLDOWN;
-    this.registry.set("staplerFieldCharges", Math.max(0, this.staplerFieldCharges() - 1));
-    if (best) {
-      // Cover fires its own effect from `destroy()`; a pinned man does not.
-      if (best.kind === "cover") best.cover.destroy();
-      else {
-        best.orderly.pin(STAPLER_PIN_DURATION);
-        playVfx(this, IMPACT, best.orderly.x, best.orderly.y, this.tileSize);
-      }
-      this.fireTracers.push({ x1: this.player.x, y1: this.player.y, x2: best.x, y2: best.y, ttl: 0.08 });
-      getAudio().railStapler();
-    }
-    this.conduct.violate("HOSTILE", FLAG_HOSTILE);
-    this.noise.emitAt(this.player.x, this.player.y, STAPLER_FIELD_NOISE * ts);
-  }
-
   /**
    * The **hold-up**: pointing a weapon at a person instead of firing it, and walking
    * him ahead of you while you do.
@@ -1382,19 +1158,6 @@ export class GameScene extends Phaser.Scene {
       this.note("hands-up");
       getAudio().select();
     }
-  }
-
-  /** Draws the EMP Grenade's EMP zone while it's live. */
-  private drawChaffZone(): void {
-    const g = this.empGfx;
-    g.clear();
-    if (!this.activeItems.chaffActive || !this.activeItems.chaffOrigin) return;
-    const { x, y } = this.activeItems.chaffOrigin;
-    const radiusPx = CHAFF_PACK_RADIUS_TILES * this.tileSize;
-    g.fillStyle(0x7fd8ff, 0.12);
-    g.fillCircle(x, y, radiusPx);
-    g.lineStyle(2, 0xbdf0ff, 0.6);
-    g.strokeCircle(x, y, radiusPx);
   }
 
   /**
@@ -1510,7 +1273,7 @@ export class GameScene extends Phaser.Scene {
     this.updateInteractions(dt);
     this.power.updateResets(this.time.now / 1000);
     this.updateSharedField(dt);
-    this.updateActiveItems(dt);
+    this.items.update(dt);
     const fieldActive = this.sharedField.isActive;
 
     // Conduct: ticked after updateInteractions so this frame's violations (a terminal
@@ -2017,7 +1780,7 @@ export class GameScene extends Phaser.Scene {
     const ts = this.tileSize;
     const ptx = this.player.x / ts;
     const pty = this.player.y / ts;
-    this.staplerFieldCooldown = Math.max(0, this.staplerFieldCooldown - dt);
+    this.items.tickCooldowns(dt);
 
     // --- Transitions ---
     const raw = this.transitions.at(this.level.name, Math.floor(ptx), Math.floor(pty));
@@ -2209,11 +1972,10 @@ export class GameScene extends Phaser.Scene {
       !adjacentClaimedTap &&
       !Number.isFinite(encounter.dist) &&
       interactJust &&
-      this.staplerFieldCooldown <= 0 &&
-      this.staplerFieldCharges() > 0 &&
+      this.items.staplerFieldReady &&
       (((this.registry.get("inventory") as string[] | undefined) ?? []).includes(STAPLER_ITEM))
     ) {
-      this.fireStaplerField();
+      this.items.fireStaplerField();
     }
 
     // A weapon on somebody outranks every verb in the chain above, because it is the
