@@ -6,6 +6,7 @@ import { DebugOverlay, WARP_SLOTS, type DebugWorld } from "./game/DebugOverlay";
 import { buildLevel } from "./game/LevelBuilder";
 import { NoiseEvents } from "./game/NoiseEvents";
 import { OverlayGate } from "./game/OverlayGate";
+import { InteractPrompt } from "./game/InteractPrompt";
 import { SpriteAtlas } from "../map/SpriteAtlas";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { DetectionSystem } from "../systems/DetectionSystem";
@@ -156,7 +157,6 @@ import {
   type ConductView,
 } from "../systems/Conduct";
 import { DEBUG_ALLOWED } from "../systems/DebugFlag";
-import { FONT_MONO } from "../ui/fonts";
 import { len, withinOrEqual } from "../systems/distance";
 import { UI } from "../ui/hudTheme";
 
@@ -223,32 +223,6 @@ const ENTITY_LAYERS = new Set([
 
 /** How close (in tiles) the player must be to interact with a door/terminal. */
 const INTERACT_RANGE = 1.4;
-
-/**
- * Everything in reach that E could act on, for the single nearest-wins prompt.
- *
- * An object rather than the positional list this used to be. It had grown to
- * eleven parameters, six of them a thing paired with its distance, and the
- * breaker would have made it thirteen — at which point a transposed pair of
- * arguments is a bug the compiler cannot see, since half of them are `number`
- * and the rest are optional.
- */
-interface PromptCandidates {
-  terminal: Terminal | undefined;
-  terminalDist: number;
-  door: Door | undefined;
-  doorDist: number;
-  breaker: Breaker | undefined;
-  breakerDist: number;
-  chest: Chest | undefined;
-  chestDist: number;
-  hatch: boolean;
-  vault: boolean;
-  ventLabel?: string;
-  ventDist?: number;
-  /** A transition the player is standing on that refuses to open, and why. */
-  lockedLabel?: string;
-}
 
 /**
  * Cos of the half-angle of {@link WEAPON_ARC_DEGREES} — the forward arc a dart or a
@@ -461,8 +435,8 @@ export class GameScene extends Phaser.Scene {
    * transition tile since arriving — otherwise you'd bounce straight back.
    */
   private transitionArmed = false;
-  private prompt!: Phaser.GameObjects.Text;
-  private hidden!: Phaser.GameObjects.Text;
+  /** The `[E]` verb and the status marker floating over Rowan's head. */
+  private prompts!: InteractPrompt;
 
   /**
    * Developer debug mode — hotkeys, cheats, the world overlay. Present only
@@ -752,32 +726,7 @@ export class GameScene extends Phaser.Scene {
     // Guard-fire tracers: above bodies, additive so they read as a hot streak.
     this.fireTracerGfx = this.add.graphics().setDepth(600).setBlendMode(Phaser.BlendModes.ADD);
 
-    // Interact prompt for hatches and ladders.
-    this.prompt = this.add
-      .text(0, 0, "[E] Use access", {
-        fontFamily: FONT_MONO,
-        fontSize: "11px",
-        color: "#cfe8ff",
-        backgroundColor: "#0a0f16cc",
-        padding: { x: 4, y: 2 },
-      })
-      .setOrigin(0.5, 1)
-      .setDepth(1000)
-      .setVisible(false);
-
-    // "HIDDEN" marker shown over the player while concealed in cover.
-    this.hidden = this.add
-      .text(0, 0, "HIDDEN", {
-        fontFamily: FONT_MONO,
-        fontSize: "10px",
-        color: UI.greenSoft,
-        fontStyle: "bold",
-        backgroundColor: `${UI.bgPanel}cc`,
-        padding: { x: 3, y: 1 },
-      })
-      .setOrigin(0.5, 1)
-      .setDepth(1000)
-      .setVisible(false);
+    this.prompts = new InteractPrompt(this, this.tileSize);
   }
 
   /**
@@ -2022,7 +1971,7 @@ export class GameScene extends Phaser.Scene {
     const thermalConcealed =
       fieldActive ||
       (coverConceal && !this.detection.thermalBleedAt(concealingTile.x, concealingTile.y));
-    this.updateStatusMarker(concealed, compliant);
+    this.prompts.showStatus(this.player, concealed, compliant);
 
     const phaseBefore = this.alert.phase;
     // Debug freeze-world holds every AI, hazard and timer still while leaving
@@ -2646,132 +2595,35 @@ export class GameScene extends Phaser.Scene {
     // A weapon on somebody outranks every verb in the chain above, because it is the
     // only thing E cannot currently do.
     if (heldUp) {
-      this.setPrompt("[Q] HOLDING");
+      this.prompts.set("[Q] HOLDING", this.player);
       return;
     }
 
-    this.showPrompt({
-      terminal: nearestTerminal,
-      terminalDist: nearestTerminalDist,
-      door: nearestDoor,
-      doorDist: nearestDoorDist,
-      breaker: nearestBreaker,
-      breakerDist: nearestBreakerDist,
-      chest: nearestChest,
-      chestDist: nearestChestDist,
-      hatch: hatch !== undefined || (ladder !== undefined && this.planeArmed),
-      vault: vault !== null,
-      ventLabel: encounter.label,
-      ventDist: encounter.dist,
-      // Standing on a ladder that won't take you anywhere yet needs to say so, or it
-      // reads as a bug rather than a lock.
-      lockedLabel: roofLocked ? "[ROOF SEALED — ALIGNMENT CORE STILL ACTIVE]" : undefined,
-    });
+    this.prompts.show(
+      {
+        terminal: nearestTerminal,
+        terminalDist: nearestTerminalDist,
+        door: nearestDoor,
+        doorDist: nearestDoorDist,
+        breaker: nearestBreaker,
+        breakerDist: nearestBreakerDist,
+        chest: nearestChest,
+        chestDist: nearestChestDist,
+        hatch: hatch !== undefined || (ladder !== undefined && this.planeArmed),
+        vault: vault !== null,
+        ventLabel: encounter.label,
+        ventDist: encounter.dist,
+        // Standing on a ladder that won't take you anywhere yet needs to say so, or it
+        // reads as a bug rather than a lock.
+        lockedLabel: roofLocked ? "[ROOF SEALED — ALIGNMENT CORE STILL ACTIVE]" : undefined,
+      },
+      this.player,
+    );
     // Advertise the verb, but only into a slot nothing nearer wanted: a door in your
     // face outranks a hint about somebody across the room.
-    if (!this.prompt.visible && this.holdUpCandidate) this.setPrompt("[Q] Hold up");
+    if (!this.prompts.visible && this.holdUpCandidate) this.prompts.set("[Q] Hold up", this.player);
   }
 
-  /**
-   * Floats a single status marker over the player: "HIDDEN" while concealed in cover,
-   * "PEEKING" while leaning past a corner, "PRESSED" while holding a face, otherwise
-   * "COMPLIANT" while Rowan reads as staff. One label rather than four so they can't
-   * stack on the same spot, ranked by how much each is protecting him right now —
-   * concealment first, being the strongest (it survives an active alert, which
-   * compliance does not).
-   *
-   * Pressing earns a label at all because it is the one state here with no other
-   * tell: concealment darkens the threat meter, compliance is why nobody reacts, and
-   * a peek visibly opens the darkness — but a man flat against a wall looks like a
-   * man standing next to one.
-   */
-  private updateStatusMarker(concealed: boolean, compliant: boolean): void {
-    const label = concealed
-      ? "HIDDEN"
-      : this.player.peeking
-        ? "PEEKING"
-        : this.player.pressed
-          ? "PRESSED"
-          : compliant
-            ? "COMPLIANT"
-            : null;
-    if (!label) {
-      this.hidden.setVisible(false);
-      return;
-    }
-    this.hidden
-      .setText(label)
-      // Concealed reads as the Shared Field's green, passing-as-staff as the soft
-      // blue, and anything else as amber — the caution the style guide reserves
-      // for flagged conduct.
-      .setColor(concealed ? UI.greenSoft : label === "COMPLIANT" ? UI.blueSoft : UI.amber)
-      .setPosition(this.player.x, this.player.y - this.tileSize * 0.9)
-      .setVisible(true);
-  }
-
-  private showPrompt(c: PromptCandidates): void {
-    let label: string | undefined;
-    let best = Infinity;
-    if (c.terminal && c.terminalDist < best) {
-      best = c.terminalDist;
-      label = "[E] Hack";
-    }
-    if (c.ventLabel && (c.ventDist ?? Infinity) < best) {
-      best = c.ventDist ?? Infinity;
-      label = c.ventLabel;
-    }
-    if (c.chest && c.chestDist < best) {
-      best = c.chestDist;
-      label = "[E] Search";
-    }
-    if (c.door && c.doorDist < best) {
-      best = c.doorDist;
-      label = c.door.isOpen ? "[E] Close" : "[E] Open";
-    }
-    // Above the door, matching the tap order: same reach, and a breaker is a
-    // thing you crossed the deck for. The verb names the *outcome* rather than
-    // the switch, because "[E] Breaker" would not tell you which way it goes.
-    if (c.breaker && c.breakerDist < best) {
-      best = c.breakerDist;
-      label = c.breaker.isClosed ? "[E] Cut power" : "[E] Restore power";
-    }
-    if (c.hatch && 0.2 < best) {
-      label = "[E] Use access";
-    }
-    // Lowest priority of the E verbs, matching the tap order above: a crate is
-    // scenery Rowan happens to be facing, and it must not shout over a door.
-    if (c.vault && !label) {
-      label = "[E] Vault";
-    }
-    // A gated transition wins outright: the player is standing on it, and telling them
-    // why it won't open matters more than any verb they could reach from there.
-    if (c.lockedLabel) label = c.lockedLabel;
-
-    this.setPrompt(label);
-  }
-
-  /**
-   * Puts a label in the contextual prompt over Rowan's head, or clears it.
-   *
-   * Split out of {@link showPrompt} rather than becoming another field on
-   * {@link PromptCandidates}: the hold-up is not a nearest-wins candidate at
-   * all — it is a state that replaces the whole comparison.
-   */
-  private setPrompt(label: string | undefined): void {
-    if (!label) {
-      this.prompt.setVisible(false);
-      return;
-    }
-    this.prompt.setText(label);
-    this.prompt.setPosition(this.player.x, this.player.y - this.tileSize * 0.9);
-    this.prompt.setVisible(true);
-  }
-
-  /**
-   * A completed hold-to-hack. A log-cache breach opens the Doctrinal Compliance
-   * minigame — solving it recovers EIRA-7's logs — while every other terminal
-   * fires its effect immediately as before.
-   */
   /**
    * Powers a circuit on or off across both halves of what "lit" means.
    *
@@ -3407,7 +3259,7 @@ export class GameScene extends Phaser.Scene {
 
   private beginTransition(tr: Transition): void {
     this.transitioning = true;
-    this.prompt.setVisible(false);
+    this.prompts.clear();
     this.player.sprite.setVelocity(0, 0);
     this.cameras.main.fadeOut(FADE_MS, 5, 7, 10);
     this.cameras.main.once(
