@@ -114,39 +114,47 @@ across two revisions with nothing in `src/` changing. `docs/GUI_STYLE_GUIDE.md`
 
 `door_single_east-west.aseprite`, `door_single_north-south.aseprite`,
 `door_glass_single_east-west.aseprite` and `door_glass_single_north-south.aseprite`
-in `public/assets/sprites/` are finished and wired. `Door.ts` used to read only
-two of a door tile's four authored map states (`closed`/`open`); the map format
-has named `locked`/`unlocked` keyframes for every door all along, just never
-drawn for. The new art finally gives those two states a look — a blinking
-red-ish indicator light for locked, green-ish for unlocked, over an otherwise
-identical closed door — plus a one-shot `OPENING`/`CLOSING` swing and a resting
-`OPEN` blink neither state had before.
+in `public/assets/sprites/` are finished and wired. Two silhouettes (plain,
+glass) × two orientations, 19 frames each.
 
-Two silhouettes (plain, glass) × two orientations (east-west, north-south),
-32×32 each. East-west doors are 1×1.5 map tiles — the extra half-tile is
-swing clearance that orientation needs; north-south doors are a plain 1×1 —
-so their art stretches to two *different* whole numbers per axis (2 screen
-pixels per source pixel wide, 3 tall) rather than one uniform scale.
-Still pixel-perfect, just checked per axis: see `EntitySprites.ts`'s
-`DisplayFootprint` type.
+**Sizes differ by orientation, and that is the point.** East-west doors are
+**32×48**, drawn to the shape of the 1×1.5 tile opening they bridge;
+north-south doors are **32×32** on a plain 1×1 tile. Both come out a uniform 2
+screen pixels per source pixel. An earlier pass drew all four at 32×32 and let
+the east-west pair stretch to fill 1.5 tiles — legal under the scale rule, but
+the door visibly failed to reach the top of its own doorway, which is why they
+were redrawn.
 
-**The open/closed transition is cosmetic only.** Collision and passability
-still flip the instant `setOpen` is called, exactly as before this art
-existed — guard door-work timing, the noise system and pathing costs all
-assume that. The swing plays over it, so a door can look mid-swing for a few
-frames after it is already fully walkable.
+Each source is one continuous sequence and the tags name its beats in order:
 
-`UNLOCKED` is wired but currently unreachable: a keyed door is `locked` for
-its whole lifetime today (there is no unlock verb, and the Access Chit item is
-still not wired to anything — same gap `docs/MAP_AUTHORING.md`'s door gotchas
-already flag). Same treatment as the terminal's unwired `DESTROYED`: correct
-lookup, no game state that reaches it yet.
+| tag | frames | door panel | reads as |
+|---|---|---|---|
+| `IDLE` | 0–1 | closed | at rest |
+| `SCAN` | 2–4 | closed | reading whoever walked up |
+| `LOCKED` | 5–6 | closed | denied |
+| `UNLOCKED` | 7–9 | closed | granted — lead-in to the slide |
+| `OPENING`/`CLOSING` | 10–15 | sliding | the travel |
+| `MOTION_DETECTION` | 16–18 | **open** | held open, counting what passes |
 
-`door_glass_single_east-west.aseprite` carries 141 off-palette colours (a
+> ⚠️ **Two tags do not mean what they say, and the `door` layer's cel labels are
+> what prove it.** `MOTION_DETECTION` is the resting-**open** loop — its frames
+> are the only ones labelled `OPEN` — not an approach cue; there is no `OPEN`
+> tag any more. And `UNLOCKED` is the lead-in the indicator holds straight
+> through the slide, so opening plays `UNLOCKED`+`OPENING` as one clip. Read the
+> pixels, not the names, before changing either.
+
+The closed states are proximity-driven: `GameScene` feeds every door the
+player's position each frame, and a door shows `SCAN` or `LOCKED` when someone
+is within `DOOR_SENSE_TILES`, `IDLE` otherwise. **Opening and closing stay
+cosmetic** — collision and passability flip the instant `setOpen` is called, as
+they always did, because guard door-work timing, the noise system and pathing
+costs all assume it.
+
+`door_glass_single_east-west.aseprite` carries 208 off-palette colours (a
 glass-tint gradient its north-south sibling doesn't share) — reported, not
 fatal, same as the terminal and substation. `docs/ART_PIPELINE.md` §"Entity
-art" has the full contract, including why `CLOSING` is built from `OPENING`'s
-frames reversed rather than read as its own tag.
+art" has the full contract, including why `CLOSING` is built by reversing
+`OPENING` rather than read as its own tag.
 
 ---
 

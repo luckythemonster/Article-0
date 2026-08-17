@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build the world entities' sprite sheets from the `.aseprite` sources.
 
-The four files under `public/assets/sprites/` are the shipped source; the PNGs
-beside them are build output, the same arrangement `tools/panel/build_panel.py`
+The `.aseprite` files under `public/assets/sprites/` are the shipped source;
+the PNGs beside them are build output, the same arrangement `tools/panel/build_panel.py`
 uses for the HUD panel. Nothing is hand-exported, so the frame geometry cannot
 be misread off a re-export.
 
@@ -25,7 +25,7 @@ established and it applies here unchanged: an artist may reorder or insert
 frames freely, and re-running this tool is the whole migration. What must not
 change is what a name *means*.
 
-These four annotate in two different ways and both are the contract:
+They annotate in two different ways and both are the contract:
 
 - **Tags** are ranges — `POWER_ON` is frames 0-11 of `Breaker.aseprite`, a clip
   to play.
@@ -50,7 +50,7 @@ Run by hand; the output is committed. Same arrangement as `tools/panel/` and
 
 `--strict` turns an off-ENDESGA-64 colour into a build failure rather than a
 warning. The panel's own tool always fails on one, because that art was authored
-against the assertion; these four were drawn before it existed, so the default
+against the assertion; this art was drawn before it existed, so the default
 here is to report and continue.
 """
 
@@ -77,32 +77,51 @@ OUT_MANIFEST = os.path.join(ROOT, "src", "entities", "entitySpriteFrames.json")
 class Spec:
     """One sprite: its source file, its id, and the canvas it must be drawn on.
 
-    `size` is asserted rather than read so that a resize in Aseprite fails here
-    instead of silently shipping a strip whose frames no longer line up with
-    `sourceSize` in `src/entities/EntitySprites.ts`. The two have to agree —
-    that pairing is what `src/render/pixelScale.ts` checks.
+    The canvas is asserted rather than read so that a resize in Aseprite fails
+    here instead of silently shipping a strip whose frames no longer line up
+    with `sourceWidth`/`sourceHeight` in `src/entities/EntitySprites.ts`. The
+    two have to agree — that pairing is what `src/render/pixelScale.ts` checks.
+
+    Width and height are separate because a canvas need not be square: an
+    east-west door is 32x48, drawn over the 1x1.5 tile opening it has to
+    bridge. Everything else here happens to be square, and says so by
+    repeating the number.
     """
 
     id: str
     source: str
-    size: int
+    width: int
+    height: int
 
 
 #: Every sprite that ships. `id` is the texture key stem and the PNG's basename;
 #: it is deliberately kebab-case and independent of the source filename, which
 #: is whatever the artist happened to save.
 SPRITES: tuple[Spec, ...] = (
-    Spec(id="terminal", source="terminal.aseprite", size=16),
-    Spec(id="terminal-substation", source="terminal_substation.aseprite", size=32),
-    Spec(id="security-camera", source="security_camera.aseprite", size=16),
-    Spec(id="breaker", source="Breaker.aseprite", size=16),
-    Spec(id="door-single-east-west", source="door_single_east-west.aseprite", size=32),
-    Spec(id="door-single-north-south", source="door_single_north-south.aseprite", size=32),
-    Spec(id="door-glass-east-west", source="door_glass_single_east-west.aseprite", size=32),
+    Spec(id="terminal", source="terminal.aseprite", width=16, height=16),
+    Spec(id="terminal-substation", source="terminal_substation.aseprite", width=32, height=32),
+    Spec(id="security-camera", source="security_camera.aseprite", width=16, height=16),
+    Spec(id="breaker", source="Breaker.aseprite", width=16, height=16),
+    # The east-west doors are the one non-square canvas: 48px of art over the
+    # 1.5-tile opening they bridge, rather than a 32px square stretched to fill it.
+    Spec(id="door-single-east-west", source="door_single_east-west.aseprite", width=32, height=48),
+    Spec(
+        id="door-single-north-south",
+        source="door_single_north-south.aseprite",
+        width=32,
+        height=32,
+    ),
+    Spec(
+        id="door-glass-east-west",
+        source="door_glass_single_east-west.aseprite",
+        width=32,
+        height=48,
+    ),
     Spec(
         id="door-glass-north-south",
         source="door_glass_single_north-south.aseprite",
-        size=32,
+        width=32,
+        height=32,
     ),
 )
 
@@ -116,19 +135,21 @@ def build(strict: bool = False) -> None:
 
     for spec in SPRITES:
         src = os.path.join(SPRITE_DIR, spec.source)
-        doc = read(src, expect_size=(spec.size, spec.size))
+        doc = read(src, expect_size=(spec.width, spec.height))
         layers = doc.visible_layers()
         hidden = [layer.name for layer in doc.layers if not layer.visible]
 
         print(f"{os.path.relpath(src, ROOT)}: {doc.frame_count} frames, "
-              f"{spec.size}x{spec.size}")
+              f"{spec.width}x{spec.height}")
         print(f"  layers   {[doc.layers[i].name for i in layers]}"
               + (f"  (hidden, dropped: {hidden})" if hidden else ""))
 
         # --- the strip -----------------------------------------------------
-        strip = Image.new("RGBA", (spec.size * doc.frame_count, spec.size), (0, 0, 0, 0))
+        strip = Image.new(
+            "RGBA", (spec.width * doc.frame_count, spec.height), (0, 0, 0, 0)
+        )
         for frame in range(doc.frame_count):
-            strip.paste(doc.composite(frame, layers), (frame * spec.size, 0))
+            strip.paste(doc.composite(frame, layers), (frame * spec.width, 0))
         out_png = os.path.join(SPRITE_DIR, f"{spec.id}.png")
         strip.save(out_png)
 
@@ -164,7 +185,8 @@ def build(strict: bool = False) -> None:
             )
 
         manifest["sprites"][spec.id] = {
-            "size": spec.size,
+            "width": spec.width,
+            "height": spec.height,
             "frameCount": doc.frame_count,
             "durations": doc.durations,
             "tags": tags,

@@ -2269,17 +2269,18 @@ const DIRS_8 = [ "south", "south-east", "east", "north-east", "north", "north-we
 
 #### `ENTITY_SPRITES` — const
 
-`src/entities/EntitySprites.ts:121`
+`src/entities/EntitySprites.ts:131`
 
 Every entity sprite that ships.
 
 Every pairing comes out whole — 4 and 2 for the terminal's 16px art, 2 and 1
-for the substation's 32px art, 2 for the camera, 2 for the breaker — and
-`src/render/pixelScale.test.ts` asserts all of them, so art redrawn at a
-size that no longer divides fails the build rather than shipping soft.
+for the substation's 32px art, 2 for the camera, 2 for the breaker, 2 on both
+axes for every door — and `src/render/pixelScale.test.ts` asserts all of
+them, so art redrawn at a size that no longer divides fails the build rather
+than shipping soft.
 
 ```ts
-const ENTITY_SPRITES = [ { id: "terminal", key: "entity-terminal", path: "assets/sprites/terminal.png", sourceSize: 16, displayTiles: [1, 0.5], }, { id: "terminal-substation", key: "entity-terminal-substation", path: "assets/sprites/terminal-substation.png", sourceSize: 32, displayTiles: [1, 0.5], }, { id: "security-camera", key: "entity-security-camera", path: "assets/sprites/security-camera.png", sourceSize: 16, displayTiles: [CAMERA_DISPLAY_TILES], }, { id: "breaker", key: "entity-breaker", path: "assets/sprites/breaker.png", sourceSize: 16, displayTiles: [0.5], }, { id: "door-single-east-west", key: "entity-doo… as const;
+const ENTITY_SPRITES = [ { id: "terminal", key: "entity-terminal", path: "assets/sprites/terminal.png", sourceWidth: 16, sourceHeight: 16, displayTiles: [1, 0.5], }, { id: "terminal-substation", key: "entity-terminal-substation", path: "assets/sprites/terminal-substation.png", sourceWidth: 32, sourceHeight: 32, displayTiles: [1, 0.5], }, { id: "security-camera", key: "entity-security-camera", path: "assets/sprites/security-camera.png", sourceWidth: 16, sourceHeight: 16, displayTiles: [CAMERA_DISPLAY_TILES], }, { id: "breaker", key: "entity-breaker", path: "assets/sprites/breaker.png", sourceWidth: 16, sourceHeight:… as const;
 ```
 
 ### Entities — Classes
@@ -2419,7 +2420,7 @@ actor — a spill an Orderly has a reason to walk over and deal with.
 
 #### `Door` — class
 
-`src/entities/Door.ts:67`
+`src/entities/Door.ts:84`
 
 An interactive door, sized and placed from the map's authoring data.
 
@@ -2442,35 +2443,43 @@ window — you can be spotted across it, and you can scout the room beyond befor
 committing to opening it.
 
 **Hand-drawn art, when it's on disk.** `public/assets/sprites/door_*.aseprite`
-gives every door four *authored* states — `IDLE`/`LOCKED`/`UNLOCKED`, all
-two-frame blinking indicator-light loops, plus a resting `OPEN` loop and an
-`OPENING`/`CLOSING` swing — where the map's own tile art has always carried
-only two (`closed`/`open`). Picking `EntitySpriteId` is two independent
-choices: `isGlass` for the material, and whether the tile's footprint
-runs long in the row axis (`rowSpan > colSpan`) for the orientation — an
-east-west door's swing clearance is what makes it 1×1.5 instead of the
-north-south door's plain 1×1, so the footprint itself says which art to ask
-for. `LOCKED`/`OPENING`/`CLOSING` read the *same* casing on all four
-sources; the plain "door, nothing else going on" tag does not — it's `IDLE`
-on the east-west pair and `idle` on the north-south pair, an artist
-inconsistency between the two orientations that's read around rather than
-"fixed" (the same call the breaker keypad's endianness note makes).
+carries one continuous 19-frame sequence, and the tags name its beats in the
+order they happen:
 
-The **open/closed transition is cosmetic only.** `setOpen` still flips the
-collision grid and the Arcade body the instant it's called, exactly as
+| tag | frames | door | reads as |
+|---|---|---|---|
+| `IDLE` | 0-1 | closed | at rest, nobody about |
+| `SCAN` | 2-4 | closed | reading whoever just walked up |
+| `LOCKED` | 5-6 | closed | denied |
+| `UNLOCKED` | 7-9 | closed | granted — the lead-in to the slide |
+| `OPENING`/`CLOSING` | 10-15 | sliding | the travel itself |
+| `MOTION_DETECTION` | 16-18 | **open** | held open, counting what goes through |
+
+Two of those are easy to misread from the tag name alone, so both were read
+off the `door` layer's own cel labels rather than guessed. `MOTION_DETECTION`
+is the **resting-open** loop — its three frames are the only ones the door
+layer labels `OPEN` — not a proximity cue. And `UNLOCKED` is the granted beat
+the indicator holds unbroken through `OPENING`, so opening plays
+`UNLOCKED`+`OPENING` as one run rather than starting cold at the slide.
+
+That is also what makes `UNLOCKED` reachable at last. It sat unplayable while
+the only thing that could have selected it was a lock state no code ever
+clears; as the opening lead-in it belongs to an event that happens constantly.
+
+Picking `EntitySpriteId` is two independent choices: `isGlass` for the
+material, and whether the tile's footprint runs long in the row axis
+(`rowSpan > colSpan`) for the orientation — an east-west door's clearance is
+what makes it 1x1.5 instead of the north-south door's plain 1x1, so the
+footprint itself says which art to ask for. The east-west sources are drawn
+32x48 to cover that taller opening at 1:1; see `EntitySprites.ts`.
+
+**The open/closed transition is cosmetic only.** `setOpen` still flips the
+collision grid and the Arcade body the instant it is called, exactly as
 before art existed — a guard's `doorWork.ts` timing, the noise system, and
-every pathing cost all assume that. The `OPENING`/`CLOSING` swing just plays
-over it, so for a few frames the sprite can be mid-swing while the tile is
-already fully passable. Gating passability on the animation instead would
-ripple into all three systems, which is well past "mount the sprites."
-
-`UNLOCKED` is wired but **currently unreachable**: `locked` below is `true`
-whenever a door has any `key` at all, and it never changes after
-construction (there is no unlock verb — the Access Chit item is real but not
-wired to anything, same gap `docs/MAP_AUTHORING.md` already documents). So a
-keyed door is always `LOCKED`, never `UNLOCKED`, until a terminal hack forces
-it open directly. Same treatment as the terminal's unwired `DESTROYED` tag:
-ship the art, wire what current game logic can reach, leave the rest inert.
+every pathing cost all assume that. The slide just plays over it, so for a
+few frames the sprite can be mid-travel while the tile is already fully
+passable. Gating passability on the animation instead would ripple into all
+three systems, which is well past "mount the sprites".
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -2486,8 +2495,9 @@ ship the art, wire what current game logic can reach, leave the rest inert.
 | `covers` | `covers(tileX: number, tileY: number): boolean` | True when this door's footprint covers the given tile. |
 | `setOpen` | `setOpen(open: boolean): boolean` | Opens/closes the door. Returns true if it changed state. |
 | `toggle` | `toggle(): boolean` |  |
+| `senseProximity` | `senseProximity(playerTileX: number, playerTileY: number): void` | Tells the door where the player is, so its indicator can react. Driven per frame from `GameScene.tickWorld` over *every* door, not the scene's `nearestDoor` — that one is filtered to `isManual`, which excludes exactly the locked doors whose denial light is the most worth showing. Only the flag changing does any work, so this is a comparison and an early return on all but the two frames a crossing actually happens on. |
 
-*Plus 16 private members.*
+*Plus 18 private members.*
 
 <a id="class-drone"></a>
 
@@ -2952,15 +2962,16 @@ A shot fired by a pursuing guard this frame — the scene applies its effects.
 
 #### `EntitySpriteSpec` — interface
 
-`src/entities/EntitySprites.ts:63`
+`src/entities/EntitySprites.ts:64`
 
 | Field | Type | Notes |
 | --- | --- | --- |
 | `id` | `EntitySpriteId` |  |
 | `key` | `string` | Phaser texture key. Prefixed so it cannot collide with a map sheet's key. |
 | `path` | `string` | Path under `public/`. |
-| `sourceSize` | `number` | One frame's authored pixel size (square), mirrored by the build tool's `Spec`. |
-| `displayTiles` | `readonly DisplayFootprint[]` | **Every** footprint the map draws this object at, in tiles. A list rather than a number because display size is not this module's to choose: each object is drawn at its own map tile's `RowSpan`/`ColSpan`, so the art lands exactly where the sprite it replaces did, and the map does not agree with itself. The shipped `TileDefs` give `terminal1`…`terminal9` half a tile and `terminal11`/`terminal12` a whole one, and the VENT-4 substations clone whichever terminal prototype was to hand. So the art has to survive all of them, and `pixelScale.test.ts` checks every entry rather than a nominal one. 32px art happens to oblige — a whole tile is 2 screen pixels per source pixel and a half tile is 1 — which is the reason the terminal could be drawn at one size at all. A bare number is a **square** footprint (`col === row`), true of every sprite here except the doors: a north-south door's tile is 1 tile wide and 1.5 tall, so its footprint is `{ col, row }` and both axes are checked independently. `pixelScale.ts`'s rule only asks that *each* axis land on a whole number — it does not require the same whole number, so a door can be pixel-perfect at 2 screen pixels per source pixel wide and 3 tall at once. |
+| `sourceWidth` | `number` | One frame's authored pixel size, mirrored by the build tool's `Spec`. Two numbers rather than one because a canvas need not be square: the east-west doors are 32x48, drawn over the 1x1.5 tile opening they bridge. Everything else here is square and says so by repeating the number. |
+| `sourceHeight` | `number` |  |
+| `displayTiles` | `readonly DisplayFootprint[]` | **Every** footprint the map draws this object at, in tiles. A list rather than a number because display size is not this module's to choose: each object is drawn at its own map tile's `RowSpan`/`ColSpan`, so the art lands exactly where the sprite it replaces did, and the map does not agree with itself. The shipped `TileDefs` give `terminal1`…`terminal9` half a tile and `terminal11`/`terminal12` a whole one, and the VENT-4 substations clone whichever terminal prototype was to hand. So the art has to survive all of them, and `pixelScale.test.ts` checks every entry rather than a nominal one. 32px art happens to oblige — a whole tile is 2 screen pixels per source pixel and a half tile is 1 — which is the reason the terminal could be drawn at one size at all. A bare number is a **square** footprint (`col === row`), true of every sprite here except the east-west doors, whose tile is 1 wide and 1.5 tall and so needs `{ col, row }`. Both axes are checked either way, since a square footprint over a non-square canvas still gives two ratios. `pixelScale.ts` only asks that each axis land on a whole number, not the same one — though as drawn every door now comes out a uniform 2, because the 32x48 art matches the shape of the opening it covers. |
 
 <a id="interface-guardanomaly"></a>
 
@@ -3132,7 +3143,8 @@ A character's silhouette box, in unscaled source pixels.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `size` | `number` |  |
+| `width` | `number` |  |
+| `height` | `number` |  |
 | `frameCount` | `number` |  |
 | `durations` | `number[]` | Authored hold time per frame, in ms. The timing is part of the drawing. |
 | `tags` | `{ name: string; from: number; to: number }[]` | Ordered as the source stores them, **names repeated**. `security-camera` has four `active`s, one per facing; `breaker` has two `IDLE`s. |
@@ -3209,7 +3221,7 @@ type Dir8 = (typeof DIRS_8)[number];
 
 #### `DisplayFootprint` — type
 
-`src/entities/EntitySprites.ts:97`
+`src/entities/EntitySprites.ts:106`
 
 One footprint entry — see `EntitySpriteSpec.displayTiles`.
 
@@ -6389,8 +6401,8 @@ GameScene.
 | [DetectionWorld](#interface-detectionworld) | interface | `src/systems/Sensing.ts:76` |
 | [Dir8](#type-dir8) | type | `src/entities/directions.ts:31` |
 | [DIRS_8](#const-dirs-8) | const | `src/entities/directions.ts:20` |
-| [DisplayFootprint](#type-displayfootprint) | type | `src/entities/EntitySprites.ts:97` |
-| [Door](#class-door) | class | `src/entities/Door.ts:67` |
+| [DisplayFootprint](#type-displayfootprint) | type | `src/entities/EntitySprites.ts:106` |
+| [Door](#class-door) | class | `src/entities/Door.ts:84` |
 | [DOOR_DEFAULTS](#const-door-defaults) | const | `src/systems/EntityStats.ts:152` |
 | [DoorAccess](#interface-dooraccess) | interface | `src/entities/doorWork.ts:47` |
 | [DoorStats](#interface-doorstats) | interface | `src/systems/EntityStats.ts:143` |
@@ -6423,11 +6435,11 @@ GameScene.
 | [EnforcerContext](#interface-enforcercontext) | interface | `src/entities/Enforcer.ts:80` |
 | [EnforcerFireResult](#interface-enforcerfireresult) | interface | `src/entities/Enforcer.ts:38` |
 | [EnforcerStats](#interface-enforcerstats) | interface | `src/systems/EntityStats.ts:34` |
-| [ENTITY_SPRITES](#const-entity-sprites) | const | `src/entities/EntitySprites.ts:121` |
+| [ENTITY_SPRITES](#const-entity-sprites) | const | `src/entities/EntitySprites.ts:131` |
 | [EntityIndex](#interface-entityindex) | interface | `src/map/EntityIndex.ts:57` |
 | [EntityShadows](#class-entityshadows) | class | `src/ui/EntityShadows.ts:92` |
 | [EntitySpriteId](#type-entityspriteid) | type | `src/entities/EntitySprites.ts:37` |
-| [EntitySpriteSpec](#interface-entityspritespec) | interface | `src/entities/EntitySprites.ts:63` |
+| [EntitySpriteSpec](#interface-entityspritespec) | interface | `src/entities/EntitySprites.ts:64` |
 | [ExploredMap](#class-exploredmap) | class | `src/systems/Explored.ts:16` |
 | [ExploredState](#type-exploredstate) | type | `src/systems/Explored.ts:74` |
 | [ExploredTracker](#class-exploredtracker) | class | `src/scenes/game/ExploredTracker.ts:38` |

@@ -116,9 +116,10 @@ describe("the hand-drawn entity sprites", () => {
    * the one that shows why 16px isn't a house standard — its map tile is the
    * same whole-tile/half-tile pair as the terminal's, but it is still 32px
    * art, so a redraw of one doesn't force a redraw of the other. The doors are
-   * the one place a footprint isn't square at all: an east-west door's tile
-   * is 1×1.5, so its two axes are checked — and can be pixel-perfect —
-   * independently.
+   * the one place neither the footprint nor the canvas is square: an east-west
+   * door is 32×48 art on a 1×1.5 tile, so its two axes are checked
+   * independently — and, because the canvas matches the opening, both land on
+   * the same whole number.
    */
   it("resamples nothing", () => {
     expect(assertEntitySpriteScales()).toEqual([]);
@@ -139,52 +140,52 @@ describe("the hand-drawn entity sprites", () => {
   });
 
   it("agrees with the build tool about every frame size", () => {
-    // `sourceSize` here and `Spec.size` in tools/sprites/build_sprites.py are
-    // two hand-written copies of one number, in two languages. A redraw at a
-    // new canvas moves one and not the other, and everything downstream — the
-    // loader's frameWidth, the strip's geometry, the rule above — assumes they
-    // match.
+    // `sourceWidth`/`sourceHeight` here and `Spec.width`/`Spec.height` in
+    // tools/sprites/build_sprites.py are two hand-written copies of one pair,
+    // in two languages. A redraw at a new canvas moves one and not the other,
+    // and everything downstream — the loader's frame size, the strip's
+    // geometry, the rule above — assumes they match.
     expect(assertEntitySpriteSizes()).toEqual([]);
   });
 
   it("pairs each sprite to a whole number of screen pixels at every footprint", () => {
     const byId = new Map(entitySpriteScales().map((s) => [s.id, s]));
-    // A square footprint (a bare number) contributes one ratio; a door's
-    // `{ col, row }` footprint contributes two, since the two axes can — and
-    // for the north-south doors do — land on different whole numbers.
+    // Each axis against its own source dimension — col pairs with width, row
+    // with height. A square footprint still yields two entries, because the
+    // canvas underneath it need not be square.
     const ratios = (id: string): number[] => {
       const s = byId.get(id);
       if (!s) throw new Error(`no entity sprite ${id}`);
-      return s.displayTiles.flatMap((t) =>
-        typeof t === "number"
-          ? [screenPixelsPerSourcePixel(t, s.sourceSize)]
-          : [
-              screenPixelsPerSourcePixel(t.col, s.sourceSize),
-              screenPixelsPerSourcePixel(t.row, s.sourceSize),
-            ],
-      );
+      return s.displayTiles.flatMap((t) => {
+        const col = typeof t === "number" ? t : t.col;
+        const row = typeof t === "number" ? t : t.row;
+        return [
+          screenPixelsPerSourcePixel(col, s.sourceWidth),
+          screenPixelsPerSourcePixel(row, s.sourceHeight),
+        ];
+      });
     };
     // The map gives terminals both a whole tile and a half one. The substation
     // is still 32px art and survives both at 2 screen pixels per source pixel,
     // and 1; the terminal was redrawn at 16px and survives both at 4, and 2.
-    expect(ratios("terminal")).toEqual([4, 2]);
-    expect(ratios("terminal-substation")).toEqual([2, 1]);
+    expect(ratios("terminal")).toEqual([4, 4, 2, 2]);
+    expect(ratios("terminal-substation")).toEqual([2, 2, 1, 1]);
     // 16px art at the half tile the housing is mounted in. Unlike the others
     // this footprint is a decision rather than a description — nothing in the
     // map sizes a camera, so `Sensor` draws at the same `CAMERA_DISPLAY_TILES`
     // this entry declares. It read 1 tile (a 4x magnification) until the
     // housing was noticed rendering character-sized.
-    expect(ratios("security-camera")).toEqual([2]);
+    expect(ratios("security-camera")).toEqual([2, 2]);
     // 16px art at the half tile `breaker_main1` is authored at.
-    expect(ratios("breaker")).toEqual([2]);
-    // East-west doors are 1×1.5: 2 wide, 3 tall. Different whole numbers on
-    // each axis — an anisotropic stretch, not a resample.
-    expect(ratios("door-single-east-west")).toEqual([2, 3]);
-    expect(ratios("door-glass-east-west")).toEqual([2, 3]);
-    // North-south doors are a plain 1×1 tile of 32px art: 2 screen pixels per
-    // source pixel, same as the substation's whole-tile footprint.
-    expect(ratios("door-single-north-south")).toEqual([2]);
-    expect(ratios("door-glass-north-south")).toEqual([2]);
+    expect(ratios("breaker")).toEqual([2, 2]);
+    // East-west doors are 1×1.5 tiles of 32×48 art — the canvas is the shape of
+    // the opening, so both axes land on the same 2 rather than the 2-wide/3-tall
+    // stretch a square canvas gave before the redraw.
+    expect(ratios("door-single-east-west")).toEqual([2, 2]);
+    expect(ratios("door-glass-east-west")).toEqual([2, 2]);
+    // North-south doors are a plain 1×1 tile of 32×32 art.
+    expect(ratios("door-single-north-south")).toEqual([2, 2]);
+    expect(ratios("door-glass-north-south")).toEqual([2, 2]);
   });
 });
 

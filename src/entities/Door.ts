@@ -13,6 +13,15 @@ import {
 } from "./EntitySprites";
 
 /**
+ * How close the player gets before a door notices, in tiles.
+ *
+ * Wider than `GameScene`'s `INTERACT_RANGE` of 1.4 on purpose: the indicator is
+ * a sensor reacting to someone walking up, so it should light before you are
+ * close enough to touch the door, not at the same instant the prompt appears.
+ */
+const DOOR_SENSE_TILES = 2.5;
+
+/**
  * An interactive door, sized and placed from the map's authoring data.
  *
  * The door art is drawn pre-squished into a 32px cell but describes a larger
@@ -34,35 +43,43 @@ import {
  * committing to opening it.
  *
  * **Hand-drawn art, when it's on disk.** `public/assets/sprites/door_*.aseprite`
- * gives every door four *authored* states — `IDLE`/`LOCKED`/`UNLOCKED`, all
- * two-frame blinking indicator-light loops, plus a resting `OPEN` loop and an
- * `OPENING`/`CLOSING` swing — where the map's own tile art has always carried
- * only two (`closed`/`open`). Picking `EntitySpriteId` is two independent
- * choices: {@link isGlass} for the material, and whether the tile's footprint
- * runs long in the row axis (`rowSpan > colSpan`) for the orientation — an
- * east-west door's swing clearance is what makes it 1×1.5 instead of the
- * north-south door's plain 1×1, so the footprint itself says which art to ask
- * for. `LOCKED`/`OPENING`/`CLOSING` read the *same* casing on all four
- * sources; the plain "door, nothing else going on" tag does not — it's `IDLE`
- * on the east-west pair and `idle` on the north-south pair, an artist
- * inconsistency between the two orientations that's read around rather than
- * "fixed" (the same call the breaker keypad's endianness note makes).
+ * carries one continuous 19-frame sequence, and the tags name its beats in the
+ * order they happen:
  *
- * The **open/closed transition is cosmetic only.** `setOpen` still flips the
- * collision grid and the Arcade body the instant it's called, exactly as
+ * | tag | frames | door | reads as |
+ * |---|---|---|---|
+ * | `IDLE` | 0-1 | closed | at rest, nobody about |
+ * | `SCAN` | 2-4 | closed | reading whoever just walked up |
+ * | `LOCKED` | 5-6 | closed | denied |
+ * | `UNLOCKED` | 7-9 | closed | granted — the lead-in to the slide |
+ * | `OPENING`/`CLOSING` | 10-15 | sliding | the travel itself |
+ * | `MOTION_DETECTION` | 16-18 | **open** | held open, counting what goes through |
+ *
+ * Two of those are easy to misread from the tag name alone, so both were read
+ * off the `door` layer's own cel labels rather than guessed. `MOTION_DETECTION`
+ * is the **resting-open** loop — its three frames are the only ones the door
+ * layer labels `OPEN` — not a proximity cue. And `UNLOCKED` is the granted beat
+ * the indicator holds unbroken through `OPENING`, so opening plays
+ * `UNLOCKED`+`OPENING` as one run rather than starting cold at the slide.
+ *
+ * That is also what makes `UNLOCKED` reachable at last. It sat unplayable while
+ * the only thing that could have selected it was a lock state no code ever
+ * clears; as the opening lead-in it belongs to an event that happens constantly.
+ *
+ * Picking `EntitySpriteId` is two independent choices: {@link isGlass} for the
+ * material, and whether the tile's footprint runs long in the row axis
+ * (`rowSpan > colSpan`) for the orientation — an east-west door's clearance is
+ * what makes it 1x1.5 instead of the north-south door's plain 1x1, so the
+ * footprint itself says which art to ask for. The east-west sources are drawn
+ * 32x48 to cover that taller opening at 1:1; see `EntitySprites.ts`.
+ *
+ * **The open/closed transition is cosmetic only.** `setOpen` still flips the
+ * collision grid and the Arcade body the instant it is called, exactly as
  * before art existed — a guard's `doorWork.ts` timing, the noise system, and
- * every pathing cost all assume that. The `OPENING`/`CLOSING` swing just plays
- * over it, so for a few frames the sprite can be mid-swing while the tile is
- * already fully passable. Gating passability on the animation instead would
- * ripple into all three systems, which is well past "mount the sprites."
- *
- * `UNLOCKED` is wired but **currently unreachable**: `locked` below is `true`
- * whenever a door has any `key` at all, and it never changes after
- * construction (there is no unlock verb — the Access Chit item is real but not
- * wired to anything, same gap `docs/MAP_AUTHORING.md` already documents). So a
- * keyed door is always `LOCKED`, never `UNLOCKED`, until a terminal hack forces
- * it open directly. Same treatment as the terminal's unwired `DESTROYED` tag:
- * ship the art, wire what current game logic can reach, leave the rest inert.
+ * every pathing cost all assume that. The slide just plays over it, so for a
+ * few frames the sprite can be mid-travel while the tile is already fully
+ * passable. Gating passability on the animation instead would ripple into all
+ * three systems, which is well past "mount the sprites".
  */
 export class Door {
   readonly tileX: number;
@@ -82,8 +99,10 @@ export class Door {
   private readonly displayH: number;
   /** Which of the four door strips this tile's footprint/material calls for. */
   private readonly art: EntitySpriteId;
-  /** `"IDLE"` on east-west sources, `"idle"` on north-south ones — see class doc. */
-  private readonly idleTag: string;
+  /** Set while a slide is playing, so proximity never stomps it mid-travel. */
+  private sliding = false;
+  /** Whether the player is within {@link DOOR_SENSE_TILES} of this door. */
+  private playerNear = false;
 
   constructor(scene: Phaser.Scene, tile: GameTile, tileSize: number, grid: CollisionGrid) {
     this.tileX = tile.x;
@@ -108,8 +127,6 @@ export class Door {
       : eastWest
         ? "door-single-east-west"
         : "door-single-north-south";
-    // Spelled differently between the two orientations' own source files.
-    this.idleTag = this.art.endsWith("east-west") ? "IDLE" : "idle";
 
     this.closedFrame = tile.stateFrames?.closed ?? tile.frame;
     this.openFrame = tile.stateFrames?.open ?? this.closedFrame;
@@ -165,7 +182,7 @@ export class Door {
   setOpen(open: boolean): boolean {
     if (this.open === open) return false;
     this.open = open;
-    this.applyState(open ? "OPENING" : "CLOSING");
+    this.applyState(true);
     return true;
   }
 
@@ -174,11 +191,31 @@ export class Door {
   }
 
   /**
-   * `transition` is only given on a real state *change* — construction calls
-   * this with none, so a door that boots already open just appears that way,
-   * with no swing played for a change that never happened.
+   * Tells the door where the player is, so its indicator can react.
+   *
+   * Driven per frame from `GameScene.tickWorld` over *every* door, not the
+   * scene's `nearestDoor` — that one is filtered to `isManual`, which excludes
+   * exactly the locked doors whose denial light is the most worth showing.
+   *
+   * Only the flag changing does any work, so this is a comparison and an early
+   * return on all but the two frames a crossing actually happens on.
    */
-  private applyState(transition?: "OPENING" | "CLOSING"): void {
+  senseProximity(playerTileX: number, playerTileY: number): void {
+    const dx = this.tileX + 0.5 - playerTileX;
+    const dy = this.tileY + 0.5 - playerTileY;
+    const near = dx * dx + dy * dy <= DOOR_SENSE_TILES * DOOR_SENSE_TILES;
+    if (near === this.playerNear) return;
+    this.playerNear = near;
+    // Mid-slide the sprite is busy, and `refreshClip` on completion will pick
+    // up whatever the flag says by then.
+    if (!this.sliding) this.refreshClip();
+  }
+
+  /**
+   * `changed` is false at construction, so a door that boots already open just
+   * appears that way — no slide played for a change that never happened.
+   */
+  private applyState(changed = false): void {
     // Grid: closed doors block their whole footprint; open doors clear it. Glazed doors
     // stay transparent to sight the whole time, closed or not.
     for (const c of this.cells) this.grid.setBlocked(c.x, c.y, !this.open, this.seeThrough);
@@ -187,7 +224,8 @@ export class Door {
     body.enable = !this.open;
 
     if (hasEntitySprite(this.image.scene, this.art)) {
-      this.playArt(transition);
+      if (changed) this.playSlide();
+      else this.refreshClip();
       return;
     }
 
@@ -199,56 +237,99 @@ export class Door {
     }
   }
 
-  /** Which closed-door indicator loops: dark/idle, or lit red for locked. */
-  private get closedIndicatorTag(): string {
-    // key === 0 with no lock authored: no card reader on this door at all —
-    // the plain idle lamp, not "unlocked" (there was never anything to unlock).
-    if (this.stats.key === 0 && !this.locked) return this.idleTag;
-    return this.locked ? "LOCKED" : "UNLOCKED";
+  /**
+   * The looping clip for wherever the door has settled.
+   *
+   * `MOTION_DETECTION` is the resting-*open* loop rather than anything to do
+   * with approach — see the class doc; its frames are the ones the door layer
+   * labels `OPEN`. Closed, the door shows what it would do about the player:
+   * scanning them, refusing them, or nothing at all because no one is there.
+   */
+  private closedTag(): string {
+    if (this.playerNear) return this.locked ? "LOCKED" : "SCAN";
+    return "IDLE";
   }
 
-  private playArt(transition?: "OPENING" | "CLOSING"): void {
-    const sprite = this.image;
-    const key = transition === "CLOSING" ? this.closingClipKey() : this.openingClipKey(transition);
-    if (key !== undefined) {
-      // Clears any listener from an interrupted transition — otherwise it would
-      // still fire on *this* clip's completion and could double-chain into the
-      // loop, or race a still-later transition that superseded this one.
-      sprite.off("animationcomplete");
-      sprite.play(key);
-      sprite.once("animationcomplete", (anim: Phaser.Animations.Animation) => {
-        if (anim.key === key) this.playLoop();
-      });
-      return;
-    }
-    this.playLoop();
-  }
-
-  /** `OPENING` is a named tag — straightforward, but only when actually opening. */
-  private openingClipKey(transition?: "OPENING" | "CLOSING"): string | undefined {
-    if (transition !== "OPENING") return undefined;
-    return ensureEntityAnim(this.image.scene, this.art, "OPENING", undefined, 0);
+  /** Plays the settled loop for the current state. Idempotent. */
+  private refreshClip(): void {
+    const tag = this.open ? "MOTION_DETECTION" : this.closedTag();
+    const key = ensureEntityAnim(this.image.scene, this.art, tag);
+    if (key) this.playClip(key, true);
   }
 
   /**
-   * `CLOSING` isn't its own tag on any of the four sources — it names the same
-   * frame range as `OPENING` (the door swinging through the same poses either
-   * way), so closing is that range player in reverse. Built once per sprite,
-   * under a key of its own, from `OPENING`'s frames read backwards.
+   * Plays a clip and re-asserts the footprint.
+   *
+   * `setDisplaySize` stores a *scale*, worked out against whatever frame the
+   * sprite happened to hold at the time — and in the constructor that is the
+   * map tile's own frame, not the art. The two are not the same shape: an
+   * east-west door's tile frame is 32x32 where its art is 32x48, so the scale
+   * derived from the tile (1 x 1.5) applied to the art gave a door half a tile
+   * too tall. Re-asserting it here, once the art frame is in place, is what
+   * keeps the drawn size the footprint the map actually authored.
+   */
+  private playClip(key: string, ignoreIfPlaying = false): void {
+    this.image.play(key, ignoreIfPlaying);
+    this.image.setDisplaySize(this.displayW, this.displayH);
+  }
+
+  /**
+   * Plays the one-shot travel, then settles into the loop for wherever it
+   * landed — re-resolved on completion rather than captured up front, since the
+   * player can walk out of range while the door is still moving.
+   */
+  private playSlide(): void {
+    const sprite = this.image;
+    const key = this.open ? this.openingClipKey() : this.closingClipKey();
+    if (key === undefined) {
+      this.refreshClip();
+      return;
+    }
+    // Clears any listener from an interrupted slide — otherwise it would still
+    // fire on *this* clip's completion and race the one that superseded it.
+    sprite.off("animationcomplete");
+    this.sliding = true;
+    this.playClip(key);
+    sprite.once("animationcomplete", (anim: Phaser.Animations.Animation) => {
+      if (anim.key !== key) return;
+      this.sliding = false;
+      this.refreshClip();
+    });
+  }
+
+  /**
+   * Opening runs `UNLOCKED` straight into `OPENING` as one clip.
+   *
+   * The indicator holds `UNLOCKED` unbroken from frame 7 through the whole
+   * slide, so the granted beat is the authored lead-in to it, not a separate
+   * state — starting at `OPENING` would drop three frames the artist drew as
+   * part of the same motion. Assembled here because no single tag spans both.
+   */
+  private openingClipKey(): string | undefined {
+    const scene = this.image.scene;
+    const key = entityAnimKey(this.art, "OPEN_SEQUENCE");
+    if (scene.anims.exists(key)) return key;
+    const frames = [...clipFrames(this.art, "UNLOCKED"), ...clipFrames(this.art, "OPENING")];
+    if (frames.length === 0) return undefined;
+    return ensureEntityClip(scene, this.art, key, frames, 0);
+  }
+
+  /**
+   * Closing is `OPENING`'s frames read backwards.
+   *
+   * Every source *does* tag a `CLOSING`, but over the identical range as
+   * `OPENING` — the artist marked "this is also the travel" rather than drawing
+   * a second, reversed clip, so playing that tag would slide the door open
+   * again. The reversal is built once per sprite under its own key. The
+   * `UNLOCKED` lead-in is deliberately not mirrored: a door closing has nothing
+   * left to grant.
    */
   private closingClipKey(): string | undefined {
     const scene = this.image.scene;
-    const key = entityAnimKey(this.art, "CLOSING");
+    const key = entityAnimKey(this.art, "CLOSE_SEQUENCE");
     if (scene.anims.exists(key)) return key;
     const opening = clipFrames(this.art, "OPENING");
     if (opening.length === 0) return undefined;
     return ensureEntityClip(scene, this.art, key, [...opening].reverse(), 0);
-  }
-
-  /** The looping clip for wherever the door has settled: open, or closed-and-X. */
-  private playLoop(): void {
-    const tag = this.open ? "OPEN" : this.closedIndicatorTag;
-    const key = ensureEntityAnim(this.image.scene, this.art, tag);
-    if (key) this.image.play(key, true);
   }
 }
