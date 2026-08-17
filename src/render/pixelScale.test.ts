@@ -81,11 +81,13 @@ describe("the one-shot effects", () => {
   /**
    * Effects are held to the same rule as the characters.
    *
-   * They are easier to get wrong: the frames come from third-party packs at
-   * whatever size the artist drew them, so the display height has to be picked
-   * to suit each one rather than a house standard. Two more packs sit unused in
-   * `public/assets/vfx/` at 512px — sixteen tiles across — precisely because no
-   * sane display height rescues them without a redraw.
+   * They are easier to get wrong: the frames come from third-party packs (or,
+   * for `electricity`, a hand-drawn `.aseprite` source — see
+   * `tools/vfx/build_vfx.py`) at whatever size the artist drew them, so the
+   * display height has to be picked to suit each one rather than a house
+   * standard. One more pack sits unused in `public/assets/vfx/` at 512px —
+   * sixteen tiles across — precisely because no sane display height rescues
+   * it without a redraw.
    */
   it("resamples nothing", () => {
     expect(assertVfxScales()).toEqual([]);
@@ -94,6 +96,7 @@ describe("the one-shot effects", () => {
   it("covers every effect that ships", () => {
     // Guards against the check above passing because the list is empty.
     expect(vfxScales().map((v) => v.id).sort()).toEqual([
+      "electricity",
       "electronics-spark",
       "emp-blast",
       "impact",
