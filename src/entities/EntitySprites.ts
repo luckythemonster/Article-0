@@ -84,17 +84,17 @@ export interface EntitySpriteSpec {
 /**
  * Every entity sprite that ships.
  *
- * Every pairing comes out whole — 2 and 1 for the 32px art, 4 for the camera,
- * 2 for the breaker — and `src/render/pixelScale.test.ts` asserts all of them,
- * so art redrawn at a size that no longer divides fails the build rather than
- * shipping soft.
+ * Every pairing comes out whole — 4 and 2 for the terminal's 16px art, 2 and 1
+ * for the substation's 32px art, 4 for the camera, 2 for the breaker — and
+ * `src/render/pixelScale.test.ts` asserts all of them, so art redrawn at a
+ * size that no longer divides fails the build rather than shipping soft.
  */
 export const ENTITY_SPRITES: readonly EntitySpriteSpec[] = [
   {
     id: "terminal",
     key: "entity-terminal",
     path: "assets/sprites/terminal.png",
-    sourceSize: 32,
+    sourceSize: 16,
     displayTiles: [1, 0.5],
   },
   {

@@ -12,12 +12,12 @@ different canvas sizes, so the reader moved here and grew the three things the
 panel never used:
 
 - **Frame tags** (`0x2018`). The panel annotates every cel and uses no tags at
-  all; `Terminal.aseprite` is the exact opposite — three tags and not one cel
-  label. Both are the contract, so both are read.
-- **Layer visibility.** `Terminal.aseprite` carries a hidden `Reference Layer 1`
-  the artist traced over. Compositing it would bake the reference into the
-  shipped sheet, so {@link Document.visible_layers} exists and the sprite
-  builder uses it.
+  all; `Breaker.aseprite` uses both — tag ranges for clips to play, cel labels
+  for single frames a clip has to intersect against. Both are the contract, so
+  both are read.
+- **Layer visibility.** An artist may keep a traced-over reference layer with
+  the eye off; compositing it would bake the reference into the shipped sheet,
+  so {@link Document.visible_layers} exists and the sprite builder uses it.
 - **A colour-depth check.** Cels are handed to `Image.frombytes("RGBA", ...)`,
   which is only true at 32bpp. An indexed or greyscale re-save would otherwise
   produce garbage pixels rather than an error.

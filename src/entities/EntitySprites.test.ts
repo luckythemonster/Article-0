@@ -16,10 +16,12 @@ import { clipFrames, entityAnimKey, framesLabelled } from "./EntitySprites";
  */
 describe("clipFrames", () => {
   it("finds a clip that appears once by name alone", () => {
-    // Terminal is the simple case: three tags, no repeats, no cel labels.
-    expect(clipFrames("terminal", "idle").length).toBeGreaterThan(0);
-    expect(clipFrames("terminal", "alert").length).toBeGreaterThan(0);
-    expect(clipFrames("terminal", "active").length).toBeGreaterThan(0);
+    // Terminal is the simple case for tags: three, no repeats. It also carries
+    // cel labels (screen, status_light) that clipFrames doesn't need here —
+    // the tag alone resolves each of these three.
+    expect(clipFrames("terminal", "IDLE").length).toBeGreaterThan(0);
+    expect(clipFrames("terminal", "IN_USE").length).toBeGreaterThan(0);
+    expect(clipFrames("terminal", "DESTROYED").length).toBeGreaterThan(0);
   });
 
   it("tells the camera's four identically-named clips apart by facing", () => {

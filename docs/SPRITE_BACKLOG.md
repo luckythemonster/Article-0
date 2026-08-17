@@ -18,13 +18,18 @@ icons specifically.
 
 ## Done — three world entities
 
-`Terminal.aseprite`, `terminal_substation.aseprite` and `security_camera.aseprite`
-in `public/assets/sprites/` are finished and wired. The terminal shows a standby
-blip when idle, flashes amber and red while it is being breached, and settles on
-a teal screen with a green lamp once it is. The substation runs its readout while
-being patched and ends on a flatlined face. The camera blinks a red status lamp
-once a second, faces whichever of four cardinals it is mounted toward, and goes
-dark when its `Sensor` component says `disabled`.
+`terminal.aseprite`, `terminal_substation.aseprite` and `security_camera.aseprite`
+in `public/assets/sprites/` are finished and wired. The terminal sits dark and
+idle, then its screen and status light step through the breach — READY, WORKING,
+RUN — settling on that same running frame under a green tint once it's hacked.
+The substation runs its readout while being patched and ends on a flatlined face.
+The camera blinks a red status lamp once a second, faces whichever of four
+cardinals it is mounted toward, and goes dark when its `Sensor` component says
+`disabled`.
+
+`terminal.aseprite` also carries a `DESTROYED` tag — not wired to anything yet,
+reserved for a terminal-disabled mechanic (EMP, sabotage) that doesn't exist in
+code. Don't be surprised it doesn't animate; nothing calls for it.
 
 Same arrangement as the panel: **the `.aseprite` is the source and the PNG strip
 is build output.** `python3 tools/sprites/build_sprites.py` composites the visible

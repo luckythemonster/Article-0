@@ -28,7 +28,7 @@ change is what a name *means*.
 These four annotate in two different ways and both are the contract:
 
 - **Tags** are ranges — `POWER_ON` is frames 0-11 of `Breaker.aseprite`, a clip
-  to play. `Terminal.aseprite` uses tags and nothing else.
+  to play.
 - **Cel labels** are per-layer, per-frame notes — `terminal_substation`'s
   status ring is labelled `GOOD`/`WARNING`/`ERROR` frame by frame. They say what
   a single frame *is* rather than what to play.
@@ -38,9 +38,9 @@ These four annotate in two different ways and both are the contract:
 `security_camera.aseprite` has four `active`/`disabled` pairs, one per facing.
 A name->range dict would silently keep whichever came last.
 
-**Hidden layers are dropped.** `Terminal.aseprite` carries a `Reference Layer 1`
-with the eye off — art the artist traced over. Compositing it would bake the
-reference into the shipped sheet.
+**Hidden layers are dropped.** An artist may keep a traced-over reference layer
+with the eye off; compositing it would bake the reference into the shipped
+sheet, so hidden layers are read but never drawn.
 
 Run by hand; the output is committed. Same arrangement as `tools/panel/` and
 `tools/font/`.
@@ -92,7 +92,7 @@ class Spec:
 #: it is deliberately kebab-case and independent of the source filename, which
 #: is whatever the artist happened to save.
 SPRITES: tuple[Spec, ...] = (
-    Spec(id="terminal", source="Terminal.aseprite", size=32),
+    Spec(id="terminal", source="terminal.aseprite", size=16),
     Spec(id="terminal-substation", source="terminal_substation.aseprite", size=32),
     Spec(id="security-camera", source="security_camera.aseprite", size=16),
     Spec(id="breaker", source="Breaker.aseprite", size=16),

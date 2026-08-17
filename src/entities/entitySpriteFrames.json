@@ -215,33 +215,58 @@
       ]
     },
     "terminal": {
-      "cels": {},
+      "cels": {
+        "screen": {
+          "0": "OFF",
+          "1": "OFF",
+          "2": "ACTIVE",
+          "3": "ON",
+          "4": "ON",
+          "5": "ON",
+          "6": "ON",
+          "7": "ON",
+          "8": "ON"
+        },
+        "status_light": {
+          "0": "OFF",
+          "1": "INACTIVE",
+          "2": "READY",
+          "3": "WORKING",
+          "4": "RUN",
+          "5": "RUN",
+          "6": "OFF",
+          "7": "ERROR",
+          "8": "OFF"
+        }
+      },
       "durations": [
-        100,
-        100,
-        100,
-        100,
-        100,
         1000,
-        77
+        36,
+        100,
+        100,
+        100,
+        100,
+        500,
+        42,
+        333
       ],
-      "frameCount": 7,
-      "size": 32,
+      "frameCount": 9,
+      "size": 16,
       "tags": [
         {
           "from": 0,
-          "name": "alert",
-          "to": 3
+          "name": "IDLE",
+          "to": 1
         },
         {
-          "from": 4,
-          "name": "active",
-          "to": 4
+          "from": 2,
+          "name": "IN_USE",
+          "to": 5
         },
         {
-          "from": 5,
-          "name": "idle",
-          "to": 6
+          "from": 6,
+          "name": "DESTROYED",
+          "to": 8
         }
       ]
     },
