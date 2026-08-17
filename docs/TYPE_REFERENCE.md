@@ -2269,17 +2269,17 @@ const DIRS_8 = [ "south", "south-east", "east", "north-east", "north", "north-we
 
 #### `ENTITY_SPRITES` — const
 
-`src/entities/EntitySprites.ts:107`
+`src/entities/EntitySprites.ts:121`
 
 Every entity sprite that ships.
 
 Every pairing comes out whole — 4 and 2 for the terminal's 16px art, 2 and 1
-for the substation's 32px art, 4 for the camera, 2 for the breaker — and
+for the substation's 32px art, 2 for the camera, 2 for the breaker — and
 `src/render/pixelScale.test.ts` asserts all of them, so art redrawn at a
 size that no longer divides fails the build rather than shipping soft.
 
 ```ts
-const ENTITY_SPRITES = [ { id: "terminal", key: "entity-terminal", path: "assets/sprites/terminal.png", sourceSize: 16, displayTiles: [1, 0.5], }, { id: "terminal-substation", key: "entity-terminal-substation", path: "assets/sprites/terminal-substation.png", sourceSize: 32, displayTiles: [1, 0.5], }, { id: "security-camera", key: "entity-security-camera", path: "assets/sprites/security-camera.png", sourceSize: 16, displayTiles: [1], }, { id: "breaker", key: "entity-breaker", path: "assets/sprites/breaker.png", sourceSize: 16, displayTiles: [0.5], }, { id: "door-single-east-west", key: "entity-door-single-east-west"… as const;
+const ENTITY_SPRITES = [ { id: "terminal", key: "entity-terminal", path: "assets/sprites/terminal.png", sourceSize: 16, displayTiles: [1, 0.5], }, { id: "terminal-substation", key: "entity-terminal-substation", path: "assets/sprites/terminal-substation.png", sourceSize: 32, displayTiles: [1, 0.5], }, { id: "security-camera", key: "entity-security-camera", path: "assets/sprites/security-camera.png", sourceSize: 16, displayTiles: [CAMERA_DISPLAY_TILES], }, { id: "breaker", key: "entity-breaker", path: "assets/sprites/breaker.png", sourceSize: 16, displayTiles: [0.5], }, { id: "door-single-east-west", key: "entity-doo… as const;
 ```
 
 ### Entities — Classes
@@ -2752,7 +2752,7 @@ frightened.
 
 #### `Sensor` — class
 
-`src/entities/Sensor.ts:36`
+`src/entities/Sensor.ts:37`
 
 A fixed optical security camera — the `security` board's stationary answer to
 a patrolling guard. It never moves: the cone sweeps back and forth around a
@@ -6423,7 +6423,7 @@ GameScene.
 | [EnforcerContext](#interface-enforcercontext) | interface | `src/entities/Enforcer.ts:80` |
 | [EnforcerFireResult](#interface-enforcerfireresult) | interface | `src/entities/Enforcer.ts:38` |
 | [EnforcerStats](#interface-enforcerstats) | interface | `src/systems/EntityStats.ts:34` |
-| [ENTITY_SPRITES](#const-entity-sprites) | const | `src/entities/EntitySprites.ts:107` |
+| [ENTITY_SPRITES](#const-entity-sprites) | const | `src/entities/EntitySprites.ts:121` |
 | [EntityIndex](#interface-entityindex) | interface | `src/map/EntityIndex.ts:57` |
 | [EntityShadows](#class-entityshadows) | class | `src/ui/EntityShadows.ts:92` |
 | [EntitySpriteId](#type-entityspriteid) | type | `src/entities/EntitySprites.ts:37` |
@@ -6577,7 +6577,7 @@ GameScene.
 | [SensingContext](#class-sensingcontext) | class | `src/scenes/game/SensingContext.ts:48` |
 | [SensingDeps](#interface-sensingdeps) | interface | `src/scenes/game/SensingContext.ts:25` |
 | [SensingWorld](#interface-sensingworld) | interface | `src/systems/Sensing.ts:60` |
-| [Sensor](#class-sensor) | class | `src/entities/Sensor.ts:36` |
+| [Sensor](#class-sensor) | class | `src/entities/Sensor.ts:37` |
 | [SensorStats](#interface-sensorstats) | interface | `src/systems/EntityStats.ts:211` |
 | [SetPieceEvents](#class-setpieceevents) | class | `src/scenes/game/SetPieceEvents.ts:67` |
 | [SetPieceWorld](#interface-setpieceworld) | interface | `src/scenes/game/SetPieceEvents.ts:50` |

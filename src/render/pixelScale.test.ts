@@ -169,9 +169,12 @@ describe("the hand-drawn entity sprites", () => {
     // and 1; the terminal was redrawn at 16px and survives both at 4, and 2.
     expect(ratios("terminal")).toEqual([4, 2]);
     expect(ratios("terminal-substation")).toEqual([2, 1]);
-    // 16px art across a whole tile — the chunkiest thing in the world, but a
-    // whole number, so still reproduced rather than resampled.
-    expect(ratios("security-camera")).toEqual([4]);
+    // 16px art at the half tile the housing is mounted in. Unlike the others
+    // this footprint is a decision rather than a description — nothing in the
+    // map sizes a camera, so `Sensor` draws at the same `CAMERA_DISPLAY_TILES`
+    // this entry declares. It read 1 tile (a 4x magnification) until the
+    // housing was noticed rendering character-sized.
+    expect(ratios("security-camera")).toEqual([2]);
     // 16px art at the half tile `breaker_main1` is authored at.
     expect(ratios("breaker")).toEqual([2]);
     // East-west doors are 1×1.5: 2 wide, 3 tall. Different whole numbers on
