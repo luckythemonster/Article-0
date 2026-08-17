@@ -4268,7 +4268,7 @@ each frame.
 
 #### `InteractPrompt` — class
 
-`src/scenes/game/InteractPrompt.ts:137`
+`src/scenes/game/InteractPrompt.ts:147`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -6412,7 +6412,7 @@ GameScene.
 | [HoldTarget](#class-holdtarget) | class | `src/entities/HoldTarget.ts:41` |
 | [Hud](#class-hud) | class | `src/ui/Hud.ts:37` |
 | [InputState](#interface-inputstate) | interface | `src/entities/Player.ts:504` |
-| [InteractPrompt](#class-interactprompt) | class | `src/scenes/game/InteractPrompt.ts:137` |
+| [InteractPrompt](#class-interactprompt) | class | `src/scenes/game/InteractPrompt.ts:147` |
 | [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:23` |
 | [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:148` |
 | [ItemActions](#class-itemactions) | class | `src/scenes/game/ItemActions.ts:84` |

@@ -80,16 +80,26 @@ export function promptLabelFor(c: PromptCandidates): string | undefined {
     best = c.chestDist;
     label = "[E] Search";
   }
-  if (c.door && c.doorDist < best) {
-    best = c.doorDist;
-    label = c.door.isOpen ? "[E] Close" : "[E] Open";
-  }
-  // Above the door, matching the tap order: same reach, and a breaker is a
-  // thing you crossed the deck for. The verb names the *outcome* rather than
-  // the switch, because "[E] Breaker" would not tell you which way it goes.
+  // Above the door *and evaluated above it*, matching the tap order: a breaker
+  // outranks a door at the same reach, because it is a thing you crossed the
+  // deck for and main1 puts one on the same board as a door. The verb names the
+  // *outcome* rather than the switch, because "[E] Breaker" would not tell you
+  // which way it goes.
+  //
+  // The ordering is what carries the tie, not the comparison. Going first means
+  // a tie with the door (or with a hatch at its 0.2) leaves the later `<` false,
+  // so the breaker keeps the slot — exactly as `updateInteractions` resolves it
+  // with `breakerDist <= Math.min(doorDist, hatchDist)`. Loosening this test to
+  // `<=` instead would have let the breaker take ties from the terminal, vent and
+  // chest above as well, and those are *holds*: nothing in the tap order says
+  // they should lose one.
   if (c.breaker && c.breakerDist < best) {
     best = c.breakerDist;
     label = c.breaker.isClosed ? "[E] Cut power" : "[E] Restore power";
+  }
+  if (c.door && c.doorDist < best) {
+    best = c.doorDist;
+    label = c.door.isOpen ? "[E] Close" : "[E] Open";
   }
   if (c.hatch && 0.2 < best) {
     label = "[E] Use access";

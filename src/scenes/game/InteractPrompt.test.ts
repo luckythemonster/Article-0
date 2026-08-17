@@ -68,20 +68,14 @@ describe("promptLabelFor", () => {
   });
 
   /**
-   * Pins current behaviour, which does *not* match the comparison's own comment.
+   * The tie the label used to get wrong.
    *
-   * The comment says the breaker sits "above the door, matching the tap order:
-   * same reach". The tap order in `updateInteractions` breaks the tie with `<=`
-   * (`nearestBreakerDist <= Math.min(nearestDoorDist, hatchDist)`), so at an
-   * exact tie the tap throws the breaker — but this comparison uses `<`, so the
-   * prompt advertises the door. At that one distance the label lies about what
-   * the key will do.
-   *
-   * Left as-is rather than fixed here: this predates the extraction, and
-   * changing a gameplay tie-break inside a move is how a refactor stops being
-   * reviewable. Flagged for its own change.
+   * `updateInteractions` claims the tap with
+   * `nearestBreakerDist <= Math.min(nearestDoorDist, hatchDist)`, so at an exact
+   * tie the breaker wins. The prompt compared with `<` *after* the door, so it
+   * advertised "[E] Open" while the key cut the power.
    */
-  it("gives an exact tie to the door, unlike the tap order", () => {
+  it("gives an exact door tie to the breaker, matching the tap order", () => {
     const label = promptLabelFor({
       ...nothing(),
       door: shutDoor,
@@ -89,7 +83,32 @@ describe("promptLabelFor", () => {
       breaker: liveBreaker,
       breakerDist: 1,
     });
-    expect(label).toBe("[E] Open");
+    expect(label).toBe("[E] Cut power");
+  });
+
+  it("gives an exact hatch tie to the breaker, matching the tap order", () => {
+    // hatchDist is the literal 0.2 both sides use.
+    expect(promptLabelFor({ ...nothing(), hatch: true, breaker: liveBreaker, breakerDist: 0.2 })).toBe(
+      "[E] Cut power",
+    );
+  });
+
+  it("still loses a tie to the holds above it, which the tap order does not claim", () => {
+    // Terminals and chests are held, not tapped, so nothing in updateInteractions
+    // says a breaker should take a tie from them. Fixing the door tie with `<=`
+    // instead of by ordering would have changed these too.
+    expect(
+      promptLabelFor({ ...nothing(), chest: someChest, chestDist: 1, breaker: liveBreaker, breakerDist: 1 }),
+    ).toBe("[E] Search");
+    expect(
+      promptLabelFor({
+        ...nothing(),
+        terminal: someTerminal,
+        terminalDist: 1,
+        breaker: liveBreaker,
+        breakerDist: 1,
+      }),
+    ).toBe("[E] Hack");
   });
 
   it("never lets a vault steal the slot from a door or a hatch", () => {
