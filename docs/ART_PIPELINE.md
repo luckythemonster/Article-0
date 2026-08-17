@@ -274,11 +274,12 @@ pure function of the clock rather than a timer stepping through a clip.
 
 ## Entity art
 
-Four things in the world are hand-drawn rather than generated: the hackable
-terminal, the VENT-4 pressure substation, the mounted security camera and the
-power breaker. Sources live in `public/assets/sprites/`, the strips beside them
-are build output, and `python3 tools/sprites/build_sprites.py` is what turns one
-into the other.
+Eight things in the world are hand-drawn rather than generated: the hackable
+terminal, the VENT-4 pressure substation, the mounted security camera, the
+power breaker, and the four doors (single/glass × east-west/north-south).
+Sources live in `public/assets/sprites/`, the strips beside them are build
+output, and `python3 tools/sprites/build_sprites.py` is what turns one into
+the other.
 
 Everything the panel established applies here — `.aseprite` is the source, the
 PNG is generated, the run is by hand and the output is committed. What is new is
@@ -292,6 +293,10 @@ never had to express.
 | Substation | `terminal_substation.aseprite` | 32×32 | 11 | 1 tile / ½ tile | 2 / 1 |
 | Security camera | `security_camera.aseprite` | 16×16 | 8 | 1 tile | 4 |
 | Breaker | `Breaker.aseprite` | 16×16 | 24 | ½ tile | 2 |
+| Door, single, east-west | `door_single_east-west.aseprite` | 32×32 | 13 | 1×1.5 tile | 2 / 3 |
+| Door, single, north-south | `door_single_north-south.aseprite` | 32×32 | 14 | 1×1 tile | 2 |
+| Door, glass, east-west | `door_glass_single_east-west.aseprite` | 32×32 | 13 | 1×1.5 tile | 2 / 3 |
+| Door, glass, north-south | `door_glass_single_north-south.aseprite` | 32×32 | 14 | 1×1 tile | 2 |
 
 **Display size comes off the map tile, not the art.** Each object is drawn at its
 own tile's `RowSpan`/`ColSpan` so the sprite lands exactly where the one it
@@ -303,6 +308,15 @@ canvas that divides the tile grid obliges — a whole tile is `32/size` screen
 pixels per source pixel (doubled again by the camera) and a half tile is half
 that, which is why the terminal and substation can sit at different sizes and
 both still land on a whole number.
+
+**The doors are the one footprint that isn't square.** An east-west door's
+tile is 1 tile wide and 1.5 tall — the extra half-tile is swing clearance the
+north-south orientation doesn't need — so its 32px art is stretched to a
+different whole number on each axis (2 screen pixels per source pixel wide, 3
+tall) rather than one uniform scale. Neither axis is resampled on its own, so
+the rule still holds; it just has to be checked per axis instead of once. See
+`EntitySprites.ts`'s `DisplayFootprint` type and `pixelScale.test.ts`'s door
+cases.
 
 ### Two kinds of annotation, and both are the contract
 
@@ -324,8 +338,8 @@ would silently keep whichever came last, and every camera in the level would
 point the same way.
 
 **Hidden layers are dropped.** An artist may keep a traced-over reference layer
-with the eye off — art none of the four current sources still carry, but a
-future redraw might. Compositing it would bake the reference into the shipped
+with the eye off — all four doors do (`Reference Layer 1`, same as the
+terminal used to). Compositing it would bake the reference into the shipped
 sheet, so it never is.
 
 ### What each clip means
@@ -343,11 +357,55 @@ to ERROR) is unwired; nothing in the game triggers it yet.
 | Substation | `idle` — black screen, cyan ring | `active` — readout churning, ring GOOD→WARNING→ERROR | `deactivated` — red cross, then a flatlined face |
 | Camera | — | — | `active` / `disabled`, per facing |
 | Breaker | `IDLE` — cabinet shut, green *or* red screen | `IN_USE` — cabinet open, keypad running | the other `IDLE` |
+| Door | `IDLE`/`idle`, `LOCKED` or `UNLOCKED` — closed, indicator blinking | `OPENING`/`CLOSING` — the swing, one-shot | `OPEN` — resting open, indicator blinking |
 
 The camera's two states are one pixel apart: the `#ff0040` status lamp, lit or
 dark, held 500ms. `active` is that pair looping; `disabled` is the dark frame
 held. `SensorStats.state` already carried the words `active` and `disabled`, so
 it maps onto the tag names with no translation table.
+
+### The doors carry four states the map format always had
+
+`Door.ts` used to read only two of a door tile's four authored keyframes —
+`closed` and `open` — because that was all the baked map art gave it to work
+with. The map format has named `locked` and `unlocked` keyframes for every
+door all along; nothing read them. The four hand-drawn sources finally give
+those two states art of their own (`LOCKED`/`UNLOCKED`, each a two-frame
+indicator-light blink over an otherwise-identical closed door), so mounting
+them was completing a wire that was half-run rather than adding a mechanic.
+
+Four states in the doc-comment sense, but each closed/open pose is itself a
+**looping blink** — `IDLE`/`idle`, `LOCKED`, `UNLOCKED` and `OPEN` are all
+two-frame clips, the indicator light alternating with a `FLASH` cel while the
+door layer underneath holds still. `OPENING`/`CLOSING` are the one exception:
+a one-shot swing, `repeat: 0`.
+
+**No source names a `CLOSING` tag with its own frames.** All four *do* tag
+something called `CLOSING` — but over the identical range as `OPENING`, the
+same swing drawn once. Playing that tag for a close would open the door again.
+`Door.playArt`'s `closingClipKey` ignores the tag entirely and builds its own
+clip from `OPENING`'s frames read backwards, registered once per sprite under
+its own key via `ensureEntityClip` — the same "frames the source doesn't name
+as one tag" escape hatch the breaker's per-throw digit sequence uses.
+
+**The plain closed tag is spelled two different ways.** `IDLE` on the
+east-west pair, `idle` on the north-south pair — an inconsistency between the
+two orientations' files, not an error in either one. `Door.ts`'s `idleTag`
+picks the right casing off the tile's own footprint (`rowSpan > colSpan` is
+the same test that picks the sprite id in the first place), the same call the
+breaker keypad's endianness note makes: documented, not "fixed."
+
+**The open/closed transition is cosmetic only.** `setOpen` still flips the
+collision grid and the Arcade body instantly, exactly as it did with no art at
+all — guard door timing, the noise system and every pathing cost all assume
+that. The swing just plays over it, so a door can be visually mid-swing for a
+few frames after it's already fully passable.
+
+`UNLOCKED` is wired but unreachable today: a keyed door is `locked` the moment
+it's built and nothing ever clears that flag (the Access Chit item exists but
+isn't wired to anything — see `docs/MAP_AUTHORING.md`'s door gotchas). Same
+treatment as the terminal's unwired `DESTROYED`: the lookup is correct, there
+is just no game state that reaches it yet.
 
 ### The breaker's keypad reads as binary
 
@@ -396,9 +454,11 @@ base — `frameRate: 0` falls back to 24fps — so `EntitySprites.ts` runs the b
 Each strip is probed for before boot and used only if it is there, the same way
 `UiTextures.ts` treats the HUD chrome and for the same reason: every one of these
 entities already draws something. Without the art the terminal and substation
-render their map tile's frame through `HoldTarget` and the camera falls back to
-`Sensor.drawHousing`'s `Graphics`, exactly as before. Deleting the four PNGs is a
-supported state, not a broken one.
+render their map tile's frame through `HoldTarget`, the camera falls back to
+`Sensor.drawHousing`'s `Graphics`, and a door falls back to its map tile's own
+`closed`/`open` keyframes exactly as `Door.ts` always drew them — losing
+`locked`/`unlocked`/the swing, not the door. Deleting any of the eight PNGs is
+a supported state, not a broken one.
 
 ### The shared reader
 
@@ -413,13 +473,16 @@ composite differently than a plain `alpha_composite` does.
 ### Palette
 
 `sack_lunch`-style strictness is not enforced here. The panel's tool fails on an
-off-ENDESGA-64 colour because that art was authored against the assertion; these
-four were drawn before it existed, so `build_sprites.py` reports and continues,
-with `--strict` to make it fatal. As it stands the camera and breaker are exactly
-on palette; the terminal carries 8 off-palette colours and the substation 37.
-Neither is noise — the terminal's include `#5effa0` and `#ffb03b`, the game's own
-hacked-green and locked-amber, and the substation's are a hand-drawn purple-to-red
-gradient across its screen.
+off-ENDESGA-64 colour because that art was authored against the assertion; this
+art was drawn before it existed, so `build_sprites.py` reports and continues,
+with `--strict` to make it fatal. As it stands the camera, breaker and three of
+the four doors are exactly on palette; `door-glass-east-west` carries 141
+off-palette colours (its glass-tint gradient — `door-glass-north-south` doesn't
+share it, an inconsistency between the two orientations rather than a shared
+choice), the terminal carries 35, and the substation 37. None of it is noise —
+the terminal's off-palette set includes `#5effa0` and `#ffb03b`, the game's own
+hacked-green and locked-amber, and the substation's is a hand-drawn
+purple-to-red gradient across its screen.
 
 ---
 

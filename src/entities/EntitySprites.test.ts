@@ -146,6 +146,61 @@ describe("the breaker keypad", () => {
   });
 });
 
+/**
+ * The four doors, the second-most demanding thing the manifest carries after
+ * the breaker. `Door.ts` reads `CLOSING` off `OPENING`'s own frames run
+ * backwards (no source names a `CLOSING` tag), and the plain "nothing going
+ * on" tag is spelled two different ways depending on orientation — both are
+ * artist inconsistencies the code has to route around rather than paper over.
+ */
+describe("the door sprites", () => {
+  const DOOR_IDS = [
+    "door-single-east-west",
+    "door-single-north-south",
+    "door-glass-east-west",
+    "door-glass-north-south",
+  ] as const;
+
+  it("names its plain closed state IDLE on east-west sources and idle on north-south ones", () => {
+    // Same fact `Door.ts`'s `idleTag` branches on — an artist inconsistency
+    // between the two orientations, not something either file got wrong.
+    for (const id of ["door-single-east-west", "door-glass-east-west"] as const) {
+      expect(clipFrames(id, "IDLE").length, id).toBeGreaterThan(0);
+    }
+    for (const id of ["door-single-north-south", "door-glass-north-south"] as const) {
+      expect(clipFrames(id, "idle").length, id).toBeGreaterThan(0);
+    }
+  });
+
+  it("gives every door a two-frame LOCKED and UNLOCKED blink", () => {
+    for (const id of DOOR_IDS) {
+      expect(clipFrames(id, "LOCKED").length, id).toBe(2);
+      expect(clipFrames(id, "UNLOCKED").length, id).toBe(2);
+    }
+  });
+
+  it("gives every door a two-frame resting-OPEN blink", () => {
+    for (const id of DOOR_IDS) {
+      expect(clipFrames(id, "OPEN").length, id).toBe(2);
+    }
+  });
+
+  it("tags CLOSING over the same frames as OPENING, not reversed", () => {
+    // The reason `Door.ts` never reads the `CLOSING` tag: every source names
+    // it, but over the *identical* range as `OPENING` — the artist marked
+    // "this is also the swing" rather than drawing a second, reversed clip.
+    // Playing that tag for a close would swing the door open-wards again.
+    // `Door.ts`'s `closingClipKey` builds its own clip from `OPENING`'s frames
+    // read backwards instead, which only needs `OPENING` to be real.
+    for (const id of DOOR_IDS) {
+      const opening = clipFrames(id, "OPENING");
+      const closing = clipFrames(id, "CLOSING");
+      expect(opening.length, id).toBeGreaterThan(1);
+      expect(new Set(closing), id).toEqual(new Set(opening));
+    }
+  });
+});
+
 describe("entityAnimKey", () => {
   it("keeps a facing-qualified clip distinct from a bare one", () => {
     // Both exist for the camera. One key for both would mean the first facing

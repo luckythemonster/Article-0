@@ -110,6 +110,46 @@ across two revisions with nothing in `src/` changing. `docs/GUI_STYLE_GUIDE.md`
 
 ---
 
+## Done — the four doors
+
+`door_single_east-west.aseprite`, `door_single_north-south.aseprite`,
+`door_glass_single_east-west.aseprite` and `door_glass_single_north-south.aseprite`
+in `public/assets/sprites/` are finished and wired. `Door.ts` used to read only
+two of a door tile's four authored map states (`closed`/`open`); the map format
+has named `locked`/`unlocked` keyframes for every door all along, just never
+drawn for. The new art finally gives those two states a look — a blinking
+red-ish indicator light for locked, green-ish for unlocked, over an otherwise
+identical closed door — plus a one-shot `OPENING`/`CLOSING` swing and a resting
+`OPEN` blink neither state had before.
+
+Two silhouettes (plain, glass) × two orientations (east-west, north-south),
+32×32 each. East-west doors are 1×1.5 map tiles — the extra half-tile is
+swing clearance that orientation needs; north-south doors are a plain 1×1 —
+so their art stretches to two *different* whole numbers per axis (2 screen
+pixels per source pixel wide, 3 tall) rather than one uniform scale.
+Still pixel-perfect, just checked per axis: see `EntitySprites.ts`'s
+`DisplayFootprint` type.
+
+**The open/closed transition is cosmetic only.** Collision and passability
+still flip the instant `setOpen` is called, exactly as before this art
+existed — guard door-work timing, the noise system and pathing costs all
+assume that. The swing plays over it, so a door can look mid-swing for a few
+frames after it is already fully walkable.
+
+`UNLOCKED` is wired but currently unreachable: a keyed door is `locked` for
+its whole lifetime today (there is no unlock verb, and the Access Chit item is
+still not wired to anything — same gap `docs/MAP_AUTHORING.md`'s door gotchas
+already flag). Same treatment as the terminal's unwired `DESTROYED`: correct
+lookup, no game state that reaches it yet.
+
+`door_glass_single_east-west.aseprite` carries 141 off-palette colours (a
+glass-tint gradient its north-south sibling doesn't share) — reported, not
+fatal, same as the terminal and substation. `docs/ART_PIPELINE.md` §"Entity
+art" has the full contract, including why `CLOSING` is built from `OPENING`'s
+frames reversed rather than read as its own tag.
+
+---
+
 ## Priority 1 — item icons
 
 **Status: seam is live. Art only — no code needed.**
@@ -299,6 +339,8 @@ than shipping soft.
   wired. See "Done — three world entities" above.
 - **The breaker** — art, entity and power grid all done. See "Done — the breaker
   and the power grid" above.
+- **The four doors** — all hand-drawn, wired into `Door.ts`, and covered by a
+  test. See "Done — the four doors" above.
 - Everything listed under GUI_STYLE_GUIDE §7 "What not to draw" — light cones,
   radial light stamps, radar blips and sweep, the EKG trace, bars and gauges. All
   generated at runtime from live state.
