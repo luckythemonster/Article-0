@@ -9,11 +9,12 @@ import { isPixelPerfect } from "../render/pixelScale";
  * blend — so this is the only sprite-based effect path, and the only thing that
  * plays an animation somewhere and then disposes of it.
  *
- * The frames come from pixel-VFX packs staged in `public/assets/vfx/`. Two more
- * sit there unused: `explosion` and `electricity` are 512x512, sixteen tiles
- * across, and getting them to game scale means an 8x nearest-neighbour
+ * The frames come from pixel-VFX packs staged in `public/assets/vfx/`. One more
+ * sits there unused: `explosion` is still the third-party 512x512, sixteen
+ * tiles across, and getting it to game scale means an 8x nearest-neighbour
  * reduction — the exact pixel destruction `src/render/pixelScale.ts` exists to
- * prevent. They need redrawing at size before they can be wired up.
+ * prevent. It needs redrawing at size before it can be wired up, the way
+ * `electricity` now has been — see `tools/vfx/build_vfx.py`.
  */
 
 /** Where an effect's frames come from. */
@@ -127,7 +128,32 @@ export const SMOKE_PLUME: VfxSpec = {
   depth: VFX_DEPTH,
 };
 
-export const ALL_VFX: readonly VfxSpec[] = [EMP_BLAST, ELECTRONICS_SPARK, IMPACT, SMOKE_PLUME];
+/**
+ * A hand-drawn electrical arc. Redrawn from a 512x512 third-party pack (see
+ * `tools/vfx/build_vfx.py`) at native size, on ENDESGA-64.
+ *
+ * **Not fired anywhere yet.** Nothing in the game calls `playVfx(scene,
+ * ELECTRICITY, …)` — it's here so the art and the scale rule are both
+ * checked, but a call site is still an open decision.
+ */
+export const ELECTRICITY: VfxSpec = {
+  id: "electricity",
+  source: { kind: "sheet", path: "assets/vfx/electricity/spritesheet.png", frameSize: 128 },
+  frameCount: 14,
+  // The source's own per-frame hold: 14 frames at a flat 100ms each.
+  frameRate: 10,
+  frameSize: 128,
+  displayTiles: 2,
+  depth: VFX_DEPTH,
+};
+
+export const ALL_VFX: readonly VfxSpec[] = [
+  EMP_BLAST,
+  ELECTRONICS_SPARK,
+  IMPACT,
+  SMOKE_PLUME,
+  ELECTRICITY,
+];
 
 /** Texture key for a spec, and for one frame of a loose-frame spec. */
 function textureKey(spec: VfxSpec, index = 0): string {

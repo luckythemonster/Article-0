@@ -3140,7 +3140,7 @@ What happened inside the boss this frame, for the scene to apply/dress.
 
 #### `VfxSpec` — interface
 
-`src/entities/Vfx.ts:26`
+`src/entities/Vfx.ts:27`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3412,7 +3412,7 @@ type Vent4InteractResult = EncounterInteractResult<Vent4Transition>;
 
 #### `VfxSource` — type
 
-`src/entities/Vfx.ts:20`
+`src/entities/Vfx.ts:21`
 
 Where an effect's frames come from.
 
@@ -6610,8 +6610,8 @@ GameScene.
 | [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:67` |
 | [Vent4Transition](#interface-vent4transition) | interface | `src/systems/Vent4Core.ts:28` |
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |
-| [VfxSource](#type-vfxsource) | type | `src/entities/Vfx.ts:20` |
-| [VfxSpec](#interface-vfxspec) | interface | `src/entities/Vfx.ts:26` |
+| [VfxSource](#type-vfxsource) | type | `src/entities/Vfx.ts:21` |
+| [VfxSpec](#interface-vfxspec) | interface | `src/entities/Vfx.ts:27` |
 | [WallBuffer](#class-wallbuffer) | class | `src/systems/CollisionGrid.ts:24` |
 | [WallRect](#interface-wallrect) | interface | `src/map/TileBake.ts:48` |
 | [WaveParams](#interface-waveparams) | interface | `src/systems/QualiaLock.ts:27` |

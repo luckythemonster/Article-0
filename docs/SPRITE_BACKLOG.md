@@ -202,22 +202,37 @@ ring hides them rather than sitting behind them.
 
 ---
 
-## Priority 3 — the two staged VFX packs
+## Priority 3 — the staged VFX packs
+
+### Done — electricity
+
+`public/assets/vfx/electricity/electricity.aseprite` is a hand-drawn 128×128,
+14-frame arc, redrawn at size from the old 512×512 third-party pack (now
+deleted). `tools/vfx/build_vfx.py` composites it to `spritesheet.png`, the same
+source→build arrangement the entity sprites and panel use. `ELECTRICITY` in
+`src/entities/Vfx.ts` is wired into `ALL_VFX` and covered by
+`pixelScale.test.ts` — 2 tiles, a clean 1:1.
+
+**Still needs a call site.** Nothing fires it yet — no code anywhere calls
+`playVfx(scene, ELECTRICITY, …)`. Worth deciding what should trigger it (the
+breaker throwing, a substation being patched, a guard hit by something
+electrical) before that gets guessed at.
+
+### Outstanding — explosion
 
 **Status: on disk, unusable, not wired.**
 
-`public/assets/vfx/explosion/` and `public/assets/vfx/electricity/` are third-party
-packs at **512×512 per frame** — sixteen tiles across. No display height rescues
-them: getting to game scale means an 8x nearest-neighbour reduction, the exact
-pixel destruction the scale rule exists to prevent. They need redrawing at size
-before they can be wired up.
+`public/assets/vfx/explosion/` is still the third-party pack at **512×512 per
+frame** — sixteen tiles across. No display height rescues it: getting to game
+scale means an 8x nearest-neighbour reduction, the exact pixel destruction the
+scale rule exists to prevent. It needs redrawing at size before it can be
+wired up.
 
 | pack | frames | currently | draw at | shown as |
 |---|---|---|---|---|
 | `explosion` | 12 | 512×512 | **192×192** | 3 tiles |
-| `electricity` | 7 | 512×512 | **128×128** | 2 tiles |
 
-Those targets both give a clean 1:1 — one source pixel to one screen pixel. The
+That target gives a clean 1:1 — one source pixel to one screen pixel. The
 arithmetic, if you want a different footprint:
 
 ```
@@ -229,11 +244,11 @@ source size = 64 × (tiles across you want it to cover)
 
 For comparison, the effects already in the game: the EMP blast is 64px at 2 tiles,
 the electronics spark 128px at 2 tiles, impact 32px at 1 tile, smoke plume 32px at
-2 tiles.
+2 tiles, electricity 128px at 2 tiles.
 
-> These need code to wire up — a `VfxSpec` in `src/entities/Vfx.ts` plus a call
-> site that fires them. Worth deciding what actually triggers an explosion before
-> the art time goes in; nothing in the game currently does.
+> This needs code to wire up too — a `VfxSpec` plus a call site. Worth deciding
+> what actually triggers an explosion before the art time goes in; nothing in
+> the game currently does.
 
 ---
 
