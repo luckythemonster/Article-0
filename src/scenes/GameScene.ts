@@ -9,6 +9,8 @@ import { OverlayGate } from "./game/OverlayGate";
 import { InteractPrompt } from "./game/InteractPrompt";
 import { SetPieceEvents } from "./game/SetPieceEvents";
 import { VaultAndPress } from "./game/VaultAndPress";
+import { Anomalies } from "./game/Anomalies";
+import { coverTilesNear } from "../systems/CoverPoints";
 import { SpriteAtlas } from "../map/SpriteAtlas";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { DetectionSystem } from "../systems/DetectionSystem";
@@ -20,7 +22,6 @@ import {
   Enforcer,
   type EnforcerContext,
   type EnforcerFireResult,
-  type GuardAnomaly,
 } from "../entities/Enforcer";
 import { Orderly } from "../entities/Orderly";
 import { DeployedItem } from "../entities/DeployedItem";
@@ -305,8 +306,14 @@ export class GameScene extends Phaser.Scene {
   /** The pause / codec / minigame overlays and the sim freeze behind them. */
   private overlays!: OverlayGate;
   /** This frame's anomaly list, and the entry objects it recycles. */
-  private readonly anomalyBuf: GuardAnomaly[] = [];
-  private readonly anomalyPool: GuardAnomaly[] = [];
+  private readonly anomalies = new Anomalies({
+    tileSize: () => this.tileSize,
+    doors: () => this.doors,
+    chests: () => this.chests,
+    lasers: () => this.lasers,
+    sensors: () => this.sensors,
+    orderlies: () => this.orderlies,
+  });
   /** Refilled each frame and republished; see {@link RadarSnapshot}. */
   private readonly radarSnapshot = emptyRadarSnapshot();
   private lighting!: Lighting;
@@ -705,7 +712,19 @@ export class GameScene extends Phaser.Scene {
       flashlightMultiplier: FLASHLIGHT_DETECTION_MULTIPLIER,
       rationMultiplier: OPENED_RATION_DETECTION_MULTIPLIER,
       pressMultiplier: WALL_PRESS_DETECTION_MULTIPLIER,
-      coverTilesNear: (tx, ty, r) => this.coverTilesNear(tx, ty, r),
+      coverTilesNear: (tx, ty, r) =>
+        coverTilesNear(
+          {
+            isBlocked: (bx, by) => this.grid.isBlocked(bx, by),
+            coverTypeAt: (px, py) => this.detection.coverTypeAt(px, py),
+          },
+          this.level.width,
+          this.level.height,
+          this.tileSize,
+          tx,
+          ty,
+          r,
+        ),
       isOperableDoor: (tx, ty) => this.guardOperableDoorAt(tx, ty) !== null,
       // Silent on purpose: the operation-noise ping is there to give away the
       // player working a door, not staff using one on their own beat.
@@ -1948,7 +1967,7 @@ export class GameScene extends Phaser.Scene {
     this.sensing.setConcealment(concealed, compliant, thermalConcealed);
     this.sensing.setPlane(this.plane);
     // Opened doors/chests, EMP'd devices and stunned orderlies, for anomaly scanning.
-    this.sensing.setAnomalies(this.buildAnomalies(this.sensing.chaffZone));
+    this.sensing.setAnomalies(this.anomalies.build(this.sensing.chaffZone));
     this.sensing.setDeployables(this.deployables);
     // The Ration Compliance Spoof holds only until an alarm is actually up — an
     // orderly with guards already running does not stop to cite mess-deck policy.
@@ -2753,157 +2772,6 @@ export class GameScene extends Phaser.Scene {
    */
   private guardOperableDoorAt(tileX: number, tileY: number): Door | null {
     return this.doors.find((d) => d.isManual && d.covers(tileX, tileY)) ?? null;
-  }
-
-  /**
-   * Everything a guard's cone could notice as out of place this frame.
-   *
-   * Fills a pooled array rather than building one: this runs every frame, and
-   * each entry used to be a fresh object carrying a freshly interpolated `key`
-   * string. Entries are recycled in place and only their fields rewritten, so
-   * the steady state allocates nothing. The list is borrowed by the sensing
-   * context for the frame and must not be retained past it — guards copy the
-   * `key` and the coordinates they care about, which is what makes that safe.
-   */
-  private buildAnomalies(chaffZone: { x: number; y: number; radiusPx: number } | null): GuardAnomaly[] {
-    const anomalies = this.anomalyBuf;
-    anomalies.length = 0;
-
-    const ts = this.tileSize;
-
-    for (const door of this.doors) {
-      if (!door.isOpen) continue;
-      this.pushAnomaly(
-        (door.tileX + 0.5) * ts,
-        (door.tileY + 0.5) * ts,
-        door.tileX,
-        door.tileY,
-        "door",
-        "door",
-      );
-    }
-
-    for (const chest of this.chests) {
-      if (!chest.isOpen) continue;
-      this.pushAnomaly(chest.x, chest.y, chest.tileX, chest.tileY, "chest", "chest");
-    }
-
-    for (const laser of this.lasers) {
-      if (!laser.isEmped) continue;
-      this.pushAnomaly(
-        laser.x,
-        laser.y,
-        Math.floor(laser.x / ts),
-        Math.floor(laser.y / ts),
-        "device",
-        "device:laser",
-      );
-    }
-
-    if (chaffZone) {
-      const r2 = chaffZone.radiusPx * chaffZone.radiusPx;
-      for (const sensor of this.sensors) {
-        const dx = sensor.x - chaffZone.x;
-        const dy = sensor.y - chaffZone.y;
-        if (dx * dx + dy * dy > r2) continue;
-        this.pushAnomaly(
-          sensor.x,
-          sensor.y,
-          Math.floor(sensor.x / ts),
-          Math.floor(sensor.y / ts),
-          "device",
-          "device:camera",
-        );
-      }
-    }
-
-    for (const orderly of this.orderlies) {
-      if (orderly.isStunned) {
-        this.pushAnomaly(
-          orderly.x,
-          orderly.y,
-          Math.floor(orderly.x / ts),
-          Math.floor(orderly.y / ts),
-          "stunnedOrderly",
-          "orderly",
-        );
-      } else if (orderly.isPinned) {
-        this.pushAnomaly(
-          orderly.x,
-          orderly.y,
-          Math.floor(orderly.x / ts),
-          Math.floor(orderly.y / ts),
-          "pinnedOrderly",
-          "orderly",
-        );
-      } else if (orderly.isSurrendered) {
-        // Last, so a man surrendered and then darted reports as darted: the dart is
-        // the longer-lasting and harder evidence, and it is what a patrol should be
-        // reacting to once both are true.
-        this.pushAnomaly(
-          orderly.x,
-          orderly.y,
-          Math.floor(orderly.x / ts),
-          Math.floor(orderly.y / ts),
-          "surrenderedOrderly",
-          "orderly",
-        );
-      }
-    }
-
-    return anomalies;
-  }
-
-  /**
-   * Appends one anomaly, recycling the pool entry at that index when there is
-   * one. The `key` is `<prefix>:<tx>:<ty>` and only re-interpolated when the
-   * tile it names actually moves — a door never does, so a level's worth of
-   * open doors costs no string building after the first frame.
-   */
-  private pushAnomaly(
-    x: number,
-    y: number,
-    tx: number,
-    ty: number,
-    kind: GuardAnomaly["kind"],
-    keyPrefix: string,
-  ): void {
-    const i = this.anomalyBuf.length;
-    const slot = this.anomalyPool[i];
-    if (!slot) {
-      this.anomalyPool[i] = { x, y, tx, ty, kind, key: `${keyPrefix}:${tx}:${ty}` };
-      this.anomalyBuf.push(this.anomalyPool[i]);
-      return;
-    }
-    if (slot.tx !== tx || slot.ty !== ty || slot.kind !== kind) {
-      slot.key = `${keyPrefix}:${tx}:${ty}`;
-    }
-    slot.x = x;
-    slot.y = y;
-    slot.tx = tx;
-    slot.ty = ty;
-    slot.kind = kind;
-    this.anomalyBuf.push(slot);
-  }
-
-  /** Cover tile centers (pixels) within `radiusTiles` of a tile position — used for smart search points. */
-  private coverTilesNear(tileX: number, tileY: number, radiusTiles: number): { x: number; y: number }[] {
-    const out: { x: number; y: number }[] = [];
-    const minX = Math.max(0, Math.floor(tileX - radiusTiles));
-    const maxX = Math.min(this.level.width - 1, Math.ceil(tileX + radiusTiles));
-    const minY = Math.max(0, Math.floor(tileY - radiusTiles));
-    const maxY = Math.min(this.level.height - 1, Math.ceil(tileY + radiusTiles));
-    for (let ty = minY; ty <= maxY; ty++) {
-      for (let tx = minX; tx <= maxX; tx++) {
-        if (!withinOrEqual(tx - tileX, ty - tileY, radiusTiles)) continue;
-        if (this.grid.isBlocked(tx, ty)) continue;
-        const px = (tx + 0.5) * this.tileSize;
-        const py = (ty + 0.5) * this.tileSize;
-        if (this.detection.coverTypeAt(px, py) === undefined) continue;
-        out.push({ x: px, y: py });
-      }
-    }
-    return out;
   }
 
   /**
