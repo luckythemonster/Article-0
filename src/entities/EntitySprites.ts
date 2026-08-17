@@ -97,10 +97,24 @@ export interface EntitySpriteSpec {
 export type DisplayFootprint = number | { col: number; row: number };
 
 /**
+ * How much of its cell the camera housing covers — see the `security-camera`
+ * entry below.
+ *
+ * Exported because `src/entities/Sensor.ts` draws with it. That is the whole
+ * point of it being a constant: the camera is the one sprite whose drawn size
+ * is not read off a map tile, so without a shared value the size `Sensor`
+ * passes to `setDisplaySize` and the footprint the scale rule checks would be
+ * two hand-written numbers free to drift apart — and they did, at 1 tile
+ * against 16px art, which magnified the housing 4x and read as a character
+ * rather than a fixture.
+ */
+export const CAMERA_DISPLAY_TILES = 0.5;
+
+/**
  * Every entity sprite that ships.
  *
  * Every pairing comes out whole — 4 and 2 for the terminal's 16px art, 2 and 1
- * for the substation's 32px art, 4 for the camera, 2 for the breaker — and
+ * for the substation's 32px art, 2 for the camera, 2 for the breaker — and
  * `src/render/pixelScale.test.ts` asserts all of them, so art redrawn at a
  * size that no longer divides fails the build rather than shipping soft.
  */
@@ -119,13 +133,18 @@ export const ENTITY_SPRITES: readonly EntitySpriteSpec[] = [
     sourceSize: 32,
     displayTiles: [1, 0.5],
   },
-  // The `security_camera_mounted_*` tile defs are a whole tile, both of them.
+  // The odd one out: every other sprite here takes its drawn size from its map
+  // tile, so this list only *describes* what the map already chose. The camera
+  // does not — `Sensor` has no tile footprint to read, because the housing is a
+  // fixture mounted *in* its 1x1 cell rather than something filling it. So this
+  // entry is the size, not a description of one, and `Sensor` draws at the same
+  // constant. See CAMERA_DISPLAY_TILES.
   {
     id: "security-camera",
     key: "entity-security-camera",
     path: "assets/sprites/security-camera.png",
     sourceSize: 16,
-    displayTiles: [1],
+    displayTiles: [CAMERA_DISPLAY_TILES],
   },
   // `breaker_main1` is authored at half a tile, which is why this is 16px art.
   {

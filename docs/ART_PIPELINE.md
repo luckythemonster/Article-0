@@ -291,7 +291,7 @@ never had to express.
 | --- | --- | --- | --- | --- | --- |
 | Terminal | `terminal.aseprite` | 16×16 | 9 | 1 tile / ½ tile | 4 / 2 |
 | Substation | `terminal_substation.aseprite` | 32×32 | 11 | 1 tile / ½ tile | 2 / 1 |
-| Security camera | `security_camera.aseprite` | 16×16 | 8 | 1 tile | 4 |
+| Security camera | `security_camera.aseprite` | 16×16 | 8 | ½ tile | 2 |
 | Breaker | `Breaker.aseprite` | 16×16 | 24 | ½ tile | 2 |
 | Door, single, east-west | `door_single_east-west.aseprite` | 32×32 | 13 | 1×1.5 tile | 2 / 3 |
 | Door, single, north-south | `door_single_north-south.aseprite` | 32×32 | 14 | 1×1 tile | 2 |
@@ -308,6 +308,17 @@ canvas that divides the tile grid obliges — a whole tile is `32/size` screen
 pixels per source pixel (doubled again by the camera) and a half tile is half
 that, which is why the terminal and substation can sit at different sizes and
 both still land on a whole number.
+
+**The camera is the one exception to that.** A mounted camera has no authored
+footprint to read: its tile def is a plain 1×1 cell the housing is *mounted
+in*, not filled by, and `Sensor` never looks at `RowSpan`/`ColSpan` at all. So
+its entry in `EntitySprites.ts` is a decision rather than a description, and
+`Sensor` draws from the same `CAMERA_DISPLAY_TILES` constant the entry uses —
+otherwise the drawn size and the checked footprint are two hand-written
+numbers free to disagree. They did: the entry claimed a whole tile while 16px
+art was being magnified 4×, which made the housing read as a character rather
+than a fixture. Half a tile is 2 screen pixels per source pixel, and matches
+the ~18px housing `Sensor.drawHousing` falls back to when the art is absent.
 
 **The doors are the one footprint that isn't square.** An east-west door's
 tile is 1 tile wide and 1.5 tall — the extra half-tile is swing clearance the

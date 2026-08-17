@@ -6,6 +6,7 @@ import { accrueDetection, canSense, type Eye } from "../systems/Sensing";
 import { CAMERA_CONE, drawVisionCone } from "../ui/VisionCone";
 import { nearestCardinal } from "./directions";
 import {
+  CAMERA_DISPLAY_TILES,
   ensureEntityAnim,
   entitySpriteKey,
   hasEntitySprite,
@@ -143,11 +144,19 @@ export class Sensor {
    *
    * Nothing keeps the sprite: a camera's `state` comes off its map component
    * and no code changes it, so the clip picked here is the clip for the level.
+   *
+   * The size comes from {@link CAMERA_DISPLAY_TILES} rather than from the tile,
+   * because unlike the terminal or a door this housing has no authored
+   * footprint to read — its tile def is a plain 1x1 cell that the camera is
+   * *mounted in*, not filled by. Sharing the constant with `EntitySprites` is
+   * what keeps the size drawn here and the footprint the scale rule checks from
+   * being two numbers that disagree.
    */
   private addHousingSprite(scene: Phaser.Scene, tileSize: number): void {
+    const size = tileSize * CAMERA_DISPLAY_TILES;
     const sprite = scene.add
       .sprite(this.x, this.y, entitySpriteKey(CAMERA_ART))
-      .setDisplaySize(tileSize, tileSize)
+      .setDisplaySize(size, size)
       .setDepth(455);
     const tag = this.stats.state === "disabled" ? "disabled" : "active";
     const key = ensureEntityAnim(
