@@ -107,14 +107,18 @@ describe("the one-shot effects", () => {
 
 describe("the hand-drawn entity sprites", () => {
   /**
-   * The terminal, substation, camera and breaker are held to the cast's rule.
+   * The terminal, substation, camera, breaker and the four doors are held to
+   * the cast's rule.
    *
-   * These are the easiest of the three groups to get wrong, because their
-   * display size is not a free choice: it is the footprint the map already
-   * gives the object, so the *art* has to be drawn to divide into it. The
-   * substation is the one that shows why 16px isn't a house standard — its
-   * map tile is the same whole-tile/half-tile pair as the terminal's, but it
-   * is still 32px art, so a redraw of one doesn't force a redraw of the other.
+   * These are the easiest of the groups to get wrong, because their display
+   * size is not a free choice: it is the footprint the map already gives the
+   * object, so the *art* has to be drawn to divide into it. The substation is
+   * the one that shows why 16px isn't a house standard — its map tile is the
+   * same whole-tile/half-tile pair as the terminal's, but it is still 32px
+   * art, so a redraw of one doesn't force a redraw of the other. The doors are
+   * the one place a footprint isn't square at all: a north-south door's tile
+   * is 1×1.5, so its two axes are checked — and can be pixel-perfect —
+   * independently.
    */
   it("resamples nothing", () => {
     expect(assertEntitySpriteScales()).toEqual([]);
@@ -124,6 +128,10 @@ describe("the hand-drawn entity sprites", () => {
     // Guards against the check above passing because the list is empty.
     expect(entitySpriteScales().map((s) => s.id).sort()).toEqual([
       "breaker",
+      "door-glass-east-west",
+      "door-glass-north-south",
+      "door-single-east-west",
+      "door-single-north-south",
       "security-camera",
       "terminal",
       "terminal-substation",
@@ -141,10 +149,20 @@ describe("the hand-drawn entity sprites", () => {
 
   it("pairs each sprite to a whole number of screen pixels at every footprint", () => {
     const byId = new Map(entitySpriteScales().map((s) => [s.id, s]));
+    // A square footprint (a bare number) contributes one ratio; a door's
+    // `{ col, row }` footprint contributes two, since the two axes can — and
+    // for the north-south doors do — land on different whole numbers.
     const ratios = (id: string): number[] => {
       const s = byId.get(id);
       if (!s) throw new Error(`no entity sprite ${id}`);
-      return s.displayTiles.map((t) => screenPixelsPerSourcePixel(t, s.sourceSize));
+      return s.displayTiles.flatMap((t) =>
+        typeof t === "number"
+          ? [screenPixelsPerSourcePixel(t, s.sourceSize)]
+          : [
+              screenPixelsPerSourcePixel(t.col, s.sourceSize),
+              screenPixelsPerSourcePixel(t.row, s.sourceSize),
+            ],
+      );
     };
     // The map gives terminals both a whole tile and a half one. The substation
     // is still 32px art and survives both at 2 screen pixels per source pixel,
@@ -156,6 +174,14 @@ describe("the hand-drawn entity sprites", () => {
     expect(ratios("security-camera")).toEqual([4]);
     // 16px art at the half tile `breaker_main1` is authored at.
     expect(ratios("breaker")).toEqual([2]);
+    // East-west doors are a plain 1×1 tile of 32px art: 2 screen pixels per
+    // source pixel, same as the substation's whole-tile footprint.
+    expect(ratios("door-single-east-west")).toEqual([2]);
+    expect(ratios("door-glass-east-west")).toEqual([2]);
+    // North-south doors are 1×1.5: 2 wide, 3 tall. Different whole numbers on
+    // each axis — an anisotropic stretch, not a resample.
+    expect(ratios("door-single-north-south")).toEqual([2, 3]);
+    expect(ratios("door-glass-north-south")).toEqual([2, 3]);
   });
 });
 

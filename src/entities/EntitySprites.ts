@@ -5,13 +5,14 @@ import MANIFEST from "./entitySpriteFrames.json";
 /**
  * The world's hand-drawn entity art, and how game state picks a clip.
  *
- * Four objects in the world are drawn rather than generated: the hackable
- * terminal, the VENT-4 pressure substation, the mounted security camera and the
- * power breaker. Their sources are the `.aseprite` files under
- * `public/assets/sprites/`; `tools/sprites/build_sprites.py` composites each one
- * into a horizontal strip and emits {@link ./entitySpriteFrames.json} beside it.
- * This module is the other half of that contract — the same arrangement
- * `src/ui/NetworkPanel.ts` has with `tools/panel/build_panel.py`.
+ * Eight objects in the world are drawn rather than generated: the hackable
+ * terminal, the VENT-4 pressure substation, the mounted security camera, the
+ * power breaker, and the four doors (single/glass × east-west/north-south).
+ * Their sources are the `.aseprite` files under `public/assets/sprites/`;
+ * `tools/sprites/build_sprites.py` composites each one into a horizontal strip
+ * and emits {@link ./entitySpriteFrames.json} beside it. This module is the
+ * other half of that contract — the same arrangement `src/ui/NetworkPanel.ts`
+ * has with `tools/panel/build_panel.py`.
  *
  * **Frames are addressed by what the artist called them, never by position.**
  * The sources annotate in two ways and both are read:
@@ -37,7 +38,11 @@ export type EntitySpriteId =
   | "terminal"
   | "terminal-substation"
   | "security-camera"
-  | "breaker";
+  | "breaker"
+  | "door-single-east-west"
+  | "door-single-north-south"
+  | "door-glass-east-west"
+  | "door-glass-north-south";
 
 interface SpriteEntry {
   size: number;
@@ -77,9 +82,19 @@ export interface EntitySpriteSpec {
    * every entry rather than a nominal one. 32px art happens to oblige — a whole
    * tile is 2 screen pixels per source pixel and a half tile is 1 — which is
    * the reason the terminal could be drawn at one size at all.
+   *
+   * A bare number is a **square** footprint (`col === row`), true of every
+   * sprite here except the doors: a north-south door's tile is 1 tile wide and
+   * 1.5 tall, so its footprint is `{ col, row }` and both axes are checked
+   * independently. `pixelScale.ts`'s rule only asks that *each* axis land on a
+   * whole number — it does not require the same whole number, so a door can be
+   * pixel-perfect at 2 screen pixels per source pixel wide and 3 tall at once.
    */
-  displayTiles: readonly number[];
+  displayTiles: readonly DisplayFootprint[];
 }
+
+/** One footprint entry — see {@link EntitySpriteSpec.displayTiles}. */
+export type DisplayFootprint = number | { col: number; row: number };
 
 /**
  * Every entity sprite that ships.
@@ -119,6 +134,38 @@ export const ENTITY_SPRITES: readonly EntitySpriteSpec[] = [
     path: "assets/sprites/breaker.png",
     sourceSize: 16,
     displayTiles: [0.5],
+  },
+  // East-west doors' tiles are a plain 1x1 — the doorway's extra length runs
+  // the other way, so this footprint stays square unlike its north-south sibling.
+  {
+    id: "door-single-east-west",
+    key: "entity-door-single-east-west",
+    path: "assets/sprites/door-single-east-west.png",
+    sourceSize: 32,
+    displayTiles: [1],
+  },
+  // North-south doors' tiles are 1x1.5 — the extra half-tile is the swing
+  // clearance the horizontal orientation doesn't need. See DisplayFootprint.
+  {
+    id: "door-single-north-south",
+    key: "entity-door-single-north-south",
+    path: "assets/sprites/door-single-north-south.png",
+    sourceSize: 32,
+    displayTiles: [{ col: 1, row: 1.5 }],
+  },
+  {
+    id: "door-glass-east-west",
+    key: "entity-door-glass-east-west",
+    path: "assets/sprites/door-glass-east-west.png",
+    sourceSize: 32,
+    displayTiles: [1],
+  },
+  {
+    id: "door-glass-north-south",
+    key: "entity-door-glass-north-south",
+    path: "assets/sprites/door-glass-north-south.png",
+    sourceSize: 32,
+    displayTiles: [{ col: 1, row: 1.5 }],
   },
 ] as const;
 
@@ -331,7 +378,7 @@ export function hasEntitySprite(scene: Phaser.Scene, id: EntitySpriteId): boolea
  */
 export function entitySpriteScales(): {
   id: string;
-  displayTiles: readonly number[];
+  displayTiles: readonly DisplayFootprint[];
   sourceSize: number;
 }[] {
   return ENTITY_SPRITES.map((s) => ({
@@ -346,13 +393,20 @@ export function entitySpriteScales(): {
  *
  * Named per footprint rather than per sprite because a sprite can be fine at
  * one of its sizes and wrong at another, and "terminal is broken" would not say
- * which of the map's two terminal footprints to look at.
+ * which of the map's two terminal footprints to look at. A non-square
+ * `{ col, row }` footprint is two independent pairings, named `@colN`/`@rowN`
+ * so a failure says which axis is off rather than just "the door."
  */
 export function assertEntitySpriteScales(): string[] {
   const bad: string[] = [];
   for (const spec of ENTITY_SPRITES) {
     for (const tiles of spec.displayTiles) {
-      if (!isPixelPerfect(tiles, spec.sourceSize)) bad.push(`${spec.id}@${tiles}`);
+      if (typeof tiles === "number") {
+        if (!isPixelPerfect(tiles, spec.sourceSize)) bad.push(`${spec.id}@${tiles}`);
+      } else {
+        if (!isPixelPerfect(tiles.col, spec.sourceSize)) bad.push(`${spec.id}@col${tiles.col}`);
+        if (!isPixelPerfect(tiles.row, spec.sourceSize)) bad.push(`${spec.id}@row${tiles.row}`);
+      }
     }
   }
   return bad;

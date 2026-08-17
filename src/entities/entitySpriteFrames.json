@@ -136,6 +136,360 @@
         }
       ]
     },
+    "door-glass-east-west": {
+      "cels": {
+        "door": {
+          "0": "CLOSED",
+          "1": "CLOSED",
+          "10": "OPENING",
+          "11": "OPENING",
+          "12": "OPENING",
+          "2": "CLOSED",
+          "3": "CLOSED",
+          "4": "CLOSED",
+          "5": "CLOSED",
+          "6": "OPENING",
+          "7": "OPENING",
+          "8": "OPENING",
+          "9": "OPENING"
+        },
+        "indicator_lights": {
+          "0": "IDLE",
+          "1": "FLASH",
+          "10": "UNLOCKED",
+          "11": "DOOR_OPEN",
+          "12": "FLASH",
+          "2": "LOCKED",
+          "3": "FLASH",
+          "4": "UNLOCKED",
+          "5": "FLASH",
+          "6": "UNLOCKED",
+          "7": "UNLOCKED",
+          "8": "UNLOCKED",
+          "9": "UNLOCKED"
+        }
+      },
+      "durations": [
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100
+      ],
+      "frameCount": 13,
+      "size": 32,
+      "tags": [
+        {
+          "from": 0,
+          "name": "IDLE",
+          "to": 1
+        },
+        {
+          "from": 0,
+          "name": "CLOSED",
+          "to": 5
+        },
+        {
+          "from": 2,
+          "name": "LOCKED",
+          "to": 3
+        },
+        {
+          "from": 4,
+          "name": "UNLOCKED",
+          "to": 5
+        },
+        {
+          "from": 6,
+          "name": "CLOSING",
+          "to": 10
+        },
+        {
+          "from": 6,
+          "name": "OPENING",
+          "to": 10
+        },
+        {
+          "from": 11,
+          "name": "OPEN",
+          "to": 12
+        }
+      ]
+    },
+    "door-glass-north-south": {
+      "cels": {
+        "GLASS_DOOR": {
+          "0": "closed",
+          "1": "closed",
+          "10": "OPENING",
+          "11": "OPENING",
+          "12": "OPEN",
+          "13": "OPEN",
+          "2": "closed",
+          "3": "closed",
+          "4": "closed",
+          "5": "closed",
+          "6": "OPENING",
+          "7": "OPENING",
+          "8": "OPENING",
+          "9": "OPENING"
+        },
+        "indicator_light": {
+          "0": "idle",
+          "1": "FLASH",
+          "10": "UNLOCKED",
+          "11": "UNLOCKED",
+          "12": "FLASH",
+          "13": "DOOR_OPEN",
+          "2": "LOCKED",
+          "3": "FLASH",
+          "4": "UNLOCKED",
+          "5": "BLINK",
+          "6": "UNLOCKED",
+          "7": "UNLOCKED",
+          "8": "UNLOCKED",
+          "9": "UNLOCKED"
+        },
+        "top_frame": {
+          "5": "FLASH"
+        }
+      },
+      "durations": [
+        250,
+        36,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100
+      ],
+      "frameCount": 14,
+      "size": 32,
+      "tags": [
+        {
+          "from": 0,
+          "name": "idle",
+          "to": 1
+        },
+        {
+          "from": 2,
+          "name": "LOCKED",
+          "to": 3
+        },
+        {
+          "from": 4,
+          "name": "UNLOCKED",
+          "to": 5
+        },
+        {
+          "from": 6,
+          "name": "OPENING",
+          "to": 11
+        },
+        {
+          "from": 6,
+          "name": "CLOSING",
+          "to": 11
+        },
+        {
+          "from": 12,
+          "name": "OPEN",
+          "to": 13
+        }
+      ]
+    },
+    "door-single-east-west": {
+      "cels": {
+        "door": {
+          "0": "CLOSED",
+          "1": "CLOSED",
+          "10": "OPENING",
+          "11": "OPENING",
+          "12": "OPENING",
+          "2": "CLOSED",
+          "3": "CLOSED",
+          "4": "CLOSED",
+          "5": "CLOSED",
+          "6": "OPENING",
+          "7": "OPENING",
+          "8": "OPENING",
+          "9": "OPENING"
+        },
+        "indicator_lights": {
+          "0": "IDLE",
+          "1": "FLASH",
+          "10": "UNLOCKED",
+          "11": "DOOR_OPEN",
+          "12": "FLASH",
+          "2": "LOCKED",
+          "3": "FLASH",
+          "4": "UNLOCKED",
+          "5": "FLASH",
+          "6": "UNLOCKED",
+          "7": "UNLOCKED",
+          "8": "UNLOCKED",
+          "9": "UNLOCKED"
+        }
+      },
+      "durations": [
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100
+      ],
+      "frameCount": 13,
+      "size": 32,
+      "tags": [
+        {
+          "from": 0,
+          "name": "IDLE",
+          "to": 1
+        },
+        {
+          "from": 0,
+          "name": "CLOSED",
+          "to": 5
+        },
+        {
+          "from": 2,
+          "name": "LOCKED",
+          "to": 3
+        },
+        {
+          "from": 4,
+          "name": "UNLOCKED",
+          "to": 5
+        },
+        {
+          "from": 6,
+          "name": "OPENING",
+          "to": 10
+        },
+        {
+          "from": 6,
+          "name": "CLOSING",
+          "to": 10
+        },
+        {
+          "from": 11,
+          "name": "OPEN",
+          "to": 12
+        }
+      ]
+    },
+    "door-single-north-south": {
+      "cels": {
+        "door": {
+          "0": "closed",
+          "1": "closed",
+          "10": "OPENING",
+          "11": "OPENING",
+          "12": "OPEN",
+          "13": "OPEN",
+          "2": "closed",
+          "3": "closed",
+          "4": "closed",
+          "5": "closed",
+          "6": "OPENING",
+          "7": "OPENING",
+          "8": "OPENING",
+          "9": "OPENING"
+        },
+        "indicator_light": {
+          "0": "idle",
+          "1": "FLASH",
+          "10": "UNLOCKED",
+          "11": "UNLOCKED",
+          "12": "FLASH",
+          "13": "DOOR_OPEN",
+          "2": "LOCKED",
+          "3": "FLASH",
+          "4": "UNLOCKED",
+          "5": "BLINK",
+          "6": "UNLOCKED",
+          "7": "UNLOCKED",
+          "8": "UNLOCKED",
+          "9": "UNLOCKED"
+        },
+        "top_frame": {
+          "5": "FLASH"
+        }
+      },
+      "durations": [
+        250,
+        36,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100
+      ],
+      "frameCount": 14,
+      "size": 32,
+      "tags": [
+        {
+          "from": 0,
+          "name": "idle",
+          "to": 1
+        },
+        {
+          "from": 2,
+          "name": "LOCKED",
+          "to": 3
+        },
+        {
+          "from": 4,
+          "name": "UNLOCKED",
+          "to": 5
+        },
+        {
+          "from": 6,
+          "name": "CLOSING",
+          "to": 11
+        },
+        {
+          "from": 6,
+          "name": "OPENING",
+          "to": 11
+        },
+        {
+          "from": 12,
+          "name": "OPEN",
+          "to": 13
+        }
+      ]
+    },
     "security-camera": {
       "cels": {
         "Layer 1": {

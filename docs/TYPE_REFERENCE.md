@@ -9,13 +9,13 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 | Area | Enums | Classes | Interfaces | Type aliases | Constants | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | [Systems](#systems) | 3 | 17 | 82 | 19 | 6 | 127 |
-| [Entities](#entities) | 0 | 18 | 21 | 16 | 3 | 58 |
+| [Entities](#entities) | 0 | 18 | 21 | 17 | 3 | 59 |
 | [Map](#map) | 0 | 4 | 36 | 3 | 1 | 44 |
 | [Scenes](#scenes) | 0 | 23 | 24 | 2 | 0 | 49 |
 | [UI](#ui) | 0 | 22 | 26 | 3 | 5 | 56 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **86** | **192** | **43** | **15** | **339** |
+| **All** | **3** | **86** | **192** | **44** | **15** | **340** |
 
 ## Conventions
 
@@ -2269,7 +2269,7 @@ const DIRS_8 = [ "south", "south-east", "east", "north-east", "north", "north-we
 
 #### `ENTITY_SPRITES` — const
 
-`src/entities/EntitySprites.ts:92`
+`src/entities/EntitySprites.ts:107`
 
 Every entity sprite that ships.
 
@@ -2279,7 +2279,7 @@ for the substation's 32px art, 4 for the camera, 2 for the breaker — and
 size that no longer divides fails the build rather than shipping soft.
 
 ```ts
-const ENTITY_SPRITES = [ { id: "terminal", key: "entity-terminal", path: "assets/sprites/terminal.png", sourceSize: 16, displayTiles: [1, 0.5], }, { id: "terminal-substation", key: "entity-terminal-substation", path: "assets/sprites/terminal-substation.png", sourceSize: 32, displayTiles: [1, 0.5], }, { id: "security-camera", key: "entity-security-camera", path: "assets/sprites/security-camera.png", sourceSize: 16, displayTiles: [1], }, { id: "breaker", key: "entity-breaker", path: "assets/sprites/breaker.png", sourceSize: 16, displayTiles: [0.5], }, ] as const;
+const ENTITY_SPRITES = [ { id: "terminal", key: "entity-terminal", path: "assets/sprites/terminal.png", sourceSize: 16, displayTiles: [1, 0.5], }, { id: "terminal-substation", key: "entity-terminal-substation", path: "assets/sprites/terminal-substation.png", sourceSize: 32, displayTiles: [1, 0.5], }, { id: "security-camera", key: "entity-security-camera", path: "assets/sprites/security-camera.png", sourceSize: 16, displayTiles: [1], }, { id: "breaker", key: "entity-breaker", path: "assets/sprites/breaker.png", sourceSize: 16, displayTiles: [0.5], }, { id: "door-single-east-west", key: "entity-door-single-east-west"… as const;
 ```
 
 ### Entities — Classes
@@ -2419,7 +2419,7 @@ actor — a spill an Orderly has a reason to walk over and deal with.
 
 #### `Door` — class
 
-`src/entities/Door.ts:28`
+`src/entities/Door.ts:67`
 
 An interactive door, sized and placed from the map's authoring data.
 
@@ -2441,6 +2441,37 @@ through without stopping you (or a guard) looking through. So a closed glass doo
 window — you can be spotted across it, and you can scout the room beyond before
 committing to opening it.
 
+**Hand-drawn art, when it's on disk.** `public/assets/sprites/door_*.aseprite`
+gives every door four *authored* states — `IDLE`/`LOCKED`/`UNLOCKED`, all
+two-frame blinking indicator-light loops, plus a resting `OPEN` loop and an
+`OPENING`/`CLOSING` swing — where the map's own tile art has always carried
+only two (`closed`/`open`). Picking `EntitySpriteId` is two independent
+choices: `isGlass` for the material, and whether the tile's footprint
+runs long in the row axis (`rowSpan > colSpan`) for the orientation — a
+north-south door's swing clearance is what makes it 1×1.5 instead of the
+east-west door's plain 1×1, so the footprint itself says which art to ask
+for. `LOCKED`/`OPENING`/`CLOSING` read the *same* casing on all four
+sources; the plain "door, nothing else going on" tag does not — it's `IDLE`
+on the east-west pair and `idle` on the north-south pair, an artist
+inconsistency between the two orientations that's read around rather than
+"fixed" (the same call the breaker keypad's endianness note makes).
+
+The **open/closed transition is cosmetic only.** `setOpen` still flips the
+collision grid and the Arcade body the instant it's called, exactly as
+before art existed — a guard's `doorWork.ts` timing, the noise system, and
+every pathing cost all assume that. The `OPENING`/`CLOSING` swing just plays
+over it, so for a few frames the sprite can be mid-swing while the tile is
+already fully passable. Gating passability on the animation instead would
+ripple into all three systems, which is well past "mount the sprites."
+
+`UNLOCKED` is wired but **currently unreachable**: `locked` below is `true`
+whenever a door has any `key` at all, and it never changes after
+construction (there is no unlock verb — the Access Chit item is real but not
+wired to anything, same gap `docs/MAP_AUTHORING.md` already documents). So a
+keyed door is always `LOCKED`, never `UNLOCKED`, until a terminal hack forces
+it open directly. Same treatment as the terminal's unwired `DESTROYED` tag:
+ship the art, wire what current game logic can reach, leave the rest inert.
+
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `tileX` | `readonly tileX: number` |  |
@@ -2449,14 +2480,14 @@ committing to opening it.
 | `locked` | `readonly locked: boolean` |  |
 | `seeThrough` | `readonly seeThrough: boolean` | Clear glazing: blocks movement while closed, but never line of sight. |
 | `constructor` | `constructor(scene: Phaser.Scene, tile: GameTile, tileSize: number, grid: CollisionGrid)` |  |
-| `body` | `get body(): Phaser.Physics.Arcade.Image` | The Arcade body used for player collision. |
+| `body` | `get body(): Phaser.Types.Physics.Arcade.SpriteWithStaticBody` | The Arcade body used for player collision. |
 | `isOpen` | `get isOpen(): boolean` |  |
 | `isManual` | `get isManual(): boolean` | Whether the player may open this by hand (adjacent tap). |
 | `covers` | `covers(tileX: number, tileY: number): boolean` | True when this door's footprint covers the given tile. |
 | `setOpen` | `setOpen(open: boolean): boolean` | Opens/closes the door. Returns true if it changed state. |
 | `toggle` | `toggle(): boolean` |  |
 
-*Plus 9 private members.*
+*Plus 16 private members.*
 
 <a id="class-drone"></a>
 
@@ -2921,7 +2952,7 @@ A shot fired by a pursuing guard this frame — the scene applies its effects.
 
 #### `EntitySpriteSpec` — interface
 
-`src/entities/EntitySprites.ts:58`
+`src/entities/EntitySprites.ts:63`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2929,7 +2960,7 @@ A shot fired by a pursuing guard this frame — the scene applies its effects.
 | `key` | `string` | Phaser texture key. Prefixed so it cannot collide with a map sheet's key. |
 | `path` | `string` | Path under `public/`. |
 | `sourceSize` | `number` | One frame's authored pixel size (square), mirrored by the build tool's `Spec`. |
-| `displayTiles` | `readonly number[]` | **Every** footprint the map draws this object at, in tiles. A list rather than a number because display size is not this module's to choose: each object is drawn at its own map tile's `RowSpan`/`ColSpan`, so the art lands exactly where the sprite it replaces did, and the map does not agree with itself. The shipped `TileDefs` give `terminal1`…`terminal9` half a tile and `terminal11`/`terminal12` a whole one, and the VENT-4 substations clone whichever terminal prototype was to hand. So the art has to survive all of them, and `pixelScale.test.ts` checks every entry rather than a nominal one. 32px art happens to oblige — a whole tile is 2 screen pixels per source pixel and a half tile is 1 — which is the reason the terminal could be drawn at one size at all. |
+| `displayTiles` | `readonly DisplayFootprint[]` | **Every** footprint the map draws this object at, in tiles. A list rather than a number because display size is not this module's to choose: each object is drawn at its own map tile's `RowSpan`/`ColSpan`, so the art lands exactly where the sprite it replaces did, and the map does not agree with itself. The shipped `TileDefs` give `terminal1`…`terminal9` half a tile and `terminal11`/`terminal12` a whole one, and the VENT-4 substations clone whichever terminal prototype was to hand. So the art has to survive all of them, and `pixelScale.test.ts` checks every entry rather than a nominal one. 32px art happens to oblige — a whole tile is 2 screen pixels per source pixel and a half tile is 1 — which is the reason the terminal could be drawn at one size at all. A bare number is a **square** footprint (`col === row`), true of every sprite here except the doors: a north-south door's tile is 1 tile wide and 1.5 tall, so its footprint is `{ col, row }` and both axes are checked independently. `pixelScale.ts`'s rule only asks that *each* axis land on a whole number — it does not require the same whole number, so a door can be pixel-perfect at 2 screen pixels per source pixel wide and 3 tall at once. |
 
 <a id="interface-guardanomaly"></a>
 
@@ -3097,7 +3128,7 @@ A character's silhouette box, in unscaled source pixels.
 
 #### `SpriteEntry` — interface *(module-private)*
 
-`src/entities/EntitySprites.ts:42`
+`src/entities/EntitySprites.ts:47`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3174,16 +3205,28 @@ type Cardinal4 = (typeof CARDINALS_4)[number];
 type Dir8 = (typeof DIRS_8)[number];
 ```
 
+<a id="type-displayfootprint"></a>
+
+#### `DisplayFootprint` — type
+
+`src/entities/EntitySprites.ts:97`
+
+One footprint entry — see `EntitySpriteSpec.displayTiles`.
+
+```ts
+type DisplayFootprint = number | { col: number; row: number };
+```
+
 <a id="type-entityspriteid"></a>
 
 #### `EntitySpriteId` — type
 
-`src/entities/EntitySprites.ts:36`
+`src/entities/EntitySprites.ts:37`
 
 The manifest's own ids, which are the PNG basenames and the texture-key stems.
 
 ```ts
-type EntitySpriteId = | "terminal" | "terminal-substation" | "security-camera" | "breaker";
+type EntitySpriteId = | "terminal" | "terminal-substation" | "security-camera" | "breaker" | "door-single-east-west" | "door-single-north-south" | "door-glass-east-west" | "door-glass-north-south";
 ```
 
 <a id="type-followresult"></a>
@@ -6346,7 +6389,8 @@ GameScene.
 | [DetectionWorld](#interface-detectionworld) | interface | `src/systems/Sensing.ts:76` |
 | [Dir8](#type-dir8) | type | `src/entities/directions.ts:31` |
 | [DIRS_8](#const-dirs-8) | const | `src/entities/directions.ts:20` |
-| [Door](#class-door) | class | `src/entities/Door.ts:28` |
+| [DisplayFootprint](#type-displayfootprint) | type | `src/entities/EntitySprites.ts:97` |
+| [Door](#class-door) | class | `src/entities/Door.ts:67` |
 | [DOOR_DEFAULTS](#const-door-defaults) | const | `src/systems/EntityStats.ts:152` |
 | [DoorAccess](#interface-dooraccess) | interface | `src/entities/doorWork.ts:47` |
 | [DoorStats](#interface-doorstats) | interface | `src/systems/EntityStats.ts:143` |
@@ -6379,11 +6423,11 @@ GameScene.
 | [EnforcerContext](#interface-enforcercontext) | interface | `src/entities/Enforcer.ts:80` |
 | [EnforcerFireResult](#interface-enforcerfireresult) | interface | `src/entities/Enforcer.ts:38` |
 | [EnforcerStats](#interface-enforcerstats) | interface | `src/systems/EntityStats.ts:34` |
-| [ENTITY_SPRITES](#const-entity-sprites) | const | `src/entities/EntitySprites.ts:92` |
+| [ENTITY_SPRITES](#const-entity-sprites) | const | `src/entities/EntitySprites.ts:107` |
 | [EntityIndex](#interface-entityindex) | interface | `src/map/EntityIndex.ts:57` |
 | [EntityShadows](#class-entityshadows) | class | `src/ui/EntityShadows.ts:92` |
-| [EntitySpriteId](#type-entityspriteid) | type | `src/entities/EntitySprites.ts:36` |
-| [EntitySpriteSpec](#interface-entityspritespec) | interface | `src/entities/EntitySprites.ts:58` |
+| [EntitySpriteId](#type-entityspriteid) | type | `src/entities/EntitySprites.ts:37` |
+| [EntitySpriteSpec](#interface-entityspritespec) | interface | `src/entities/EntitySprites.ts:63` |
 | [ExploredMap](#class-exploredmap) | class | `src/systems/Explored.ts:16` |
 | [ExploredState](#type-exploredstate) | type | `src/systems/Explored.ts:74` |
 | [ExploredTracker](#class-exploredtracker) | class | `src/scenes/game/ExploredTracker.ts:38` |
@@ -6556,7 +6600,7 @@ GameScene.
 | [SmacTransition](#interface-smactransition) | interface | `src/systems/SmacCore.ts:57` |
 | [SmacView](#interface-smacview) | interface | `src/systems/SmacCore.ts:94` |
 | [SpriteAtlas](#class-spriteatlas) | class | `src/map/SpriteAtlas.ts:12` |
-| [SpriteEntry](#interface-spriteentry) | interface | `src/entities/EntitySprites.ts:42` |
+| [SpriteEntry](#interface-spriteentry) | interface | `src/entities/EntitySprites.ts:47` |
 | [SpriteFrame](#interface-spriteframe) | interface | `src/map/types.ts:212` |
 | [Stance](#type-stance) | type | `src/entities/Player.ts:42` |
 | [SteamJet](#interface-steamjet) | interface | `src/entities/Vent4Boss.ts:80` |

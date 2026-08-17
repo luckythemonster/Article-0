@@ -96,6 +96,14 @@ SPRITES: tuple[Spec, ...] = (
     Spec(id="terminal-substation", source="terminal_substation.aseprite", size=32),
     Spec(id="security-camera", source="security_camera.aseprite", size=16),
     Spec(id="breaker", source="Breaker.aseprite", size=16),
+    Spec(id="door-single-east-west", source="door_single_east-west.aseprite", size=32),
+    Spec(id="door-single-north-south", source="door_single_north-south.aseprite", size=32),
+    Spec(id="door-glass-east-west", source="door_glass_single_east-west.aseprite", size=32),
+    Spec(
+        id="door-glass-north-south",
+        source="door_glass_single_north-south.aseprite",
+        size=32,
+    ),
 )
 
 
