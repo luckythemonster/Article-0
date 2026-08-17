@@ -2273,13 +2273,13 @@ const DIRS_8 = [ "south", "south-east", "east", "north-east", "north", "north-we
 
 Every entity sprite that ships.
 
-Every pairing comes out whole — 2 and 1 for the 32px art, 4 for the camera,
-2 for the breaker — and `src/render/pixelScale.test.ts` asserts all of them,
-so art redrawn at a size that no longer divides fails the build rather than
-shipping soft.
+Every pairing comes out whole — 4 and 2 for the terminal's 16px art, 2 and 1
+for the substation's 32px art, 4 for the camera, 2 for the breaker — and
+`src/render/pixelScale.test.ts` asserts all of them, so art redrawn at a
+size that no longer divides fails the build rather than shipping soft.
 
 ```ts
-const ENTITY_SPRITES = [ { id: "terminal", key: "entity-terminal", path: "assets/sprites/terminal.png", sourceSize: 32, displayTiles: [1, 0.5], }, { id: "terminal-substation", key: "entity-terminal-substation", path: "assets/sprites/terminal-substation.png", sourceSize: 32, displayTiles: [1, 0.5], }, { id: "security-camera", key: "entity-security-camera", path: "assets/sprites/security-camera.png", sourceSize: 16, displayTiles: [1], }, { id: "breaker", key: "entity-breaker", path: "assets/sprites/breaker.png", sourceSize: 16, displayTiles: [0.5], }, ] as const;
+const ENTITY_SPRITES = [ { id: "terminal", key: "entity-terminal", path: "assets/sprites/terminal.png", sourceSize: 16, displayTiles: [1, 0.5], }, { id: "terminal-substation", key: "entity-terminal-substation", path: "assets/sprites/terminal-substation.png", sourceSize: 32, displayTiles: [1, 0.5], }, { id: "security-camera", key: "entity-security-camera", path: "assets/sprites/security-camera.png", sourceSize: 16, displayTiles: [1], }, { id: "breaker", key: "entity-breaker", path: "assets/sprites/breaker.png", sourceSize: 16, displayTiles: [0.5], }, ] as const;
 ```
 
 ### Entities — Classes

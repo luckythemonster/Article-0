@@ -109,9 +109,9 @@ describe("the hand-drawn entity sprites", () => {
    * These are the easiest of the three groups to get wrong, because their
    * display size is not a free choice: it is the footprint the map already
    * gives the object, so the *art* has to be drawn to divide into it. The
-   * breaker is the one that shows why — its map tile is authored at half a
-   * tile, so 16px art is right and the 32px that suits the terminal would be
-   * a 1:1 downscale.
+   * substation is the one that shows why 16px isn't a house standard — its
+   * map tile is the same whole-tile/half-tile pair as the terminal's, but it
+   * is still 32px art, so a redraw of one doesn't force a redraw of the other.
    */
   it("resamples nothing", () => {
     expect(assertEntitySpriteScales()).toEqual([]);
@@ -143,9 +143,10 @@ describe("the hand-drawn entity sprites", () => {
       if (!s) throw new Error(`no entity sprite ${id}`);
       return s.displayTiles.map((t) => screenPixelsPerSourcePixel(t, s.sourceSize));
     };
-    // The map gives terminals both a whole tile and a half one, so 32px art has
-    // to survive both. It does: 2 screen pixels per source pixel, and 1.
-    expect(ratios("terminal")).toEqual([2, 1]);
+    // The map gives terminals both a whole tile and a half one. The substation
+    // is still 32px art and survives both at 2 screen pixels per source pixel,
+    // and 1; the terminal was redrawn at 16px and survives both at 4, and 2.
+    expect(ratios("terminal")).toEqual([4, 2]);
     expect(ratios("terminal-substation")).toEqual([2, 1]);
     // 16px art across a whole tile — the chunkiest thing in the world, but a
     // whole number, so still reproduced rather than resampled.

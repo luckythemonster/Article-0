@@ -288,7 +288,7 @@ never had to express.
 
 | sprite | source | canvas | frames | drawn at | ratio |
 | --- | --- | --- | --- | --- | --- |
-| Terminal | `Terminal.aseprite` | 32×32 | 7 | 1 tile / ½ tile | 2 / 1 |
+| Terminal | `terminal.aseprite` | 16×16 | 9 | 1 tile / ½ tile | 4 / 2 |
 | Substation | `terminal_substation.aseprite` | 32×32 | 11 | 1 tile / ½ tile | 2 / 1 |
 | Security camera | `security_camera.aseprite` | 16×16 | 8 | 1 tile | 4 |
 | Breaker | `Breaker.aseprite` | 16×16 | 24 | ½ tile | 2 |
@@ -298,16 +298,18 @@ own tile's `RowSpan`/`ColSpan` so the sprite lands exactly where the one it
 replaces did — and the shipped map does not agree with itself: `terminal1`…`terminal9`
 are half a tile and `terminal11`/`terminal12` a whole one. So the art has to
 survive *both*, which is why `EntitySprites.ts` lists every footprint per sprite
-and `pixelScale.test.ts` checks each one rather than a nominal size. 32px art
-obliges — a whole tile is 2 screen pixels per source pixel and a half tile is 1.
+and `pixelScale.test.ts` checks each one rather than a nominal size. Any square
+canvas that divides the tile grid obliges — a whole tile is `32/size` screen
+pixels per source pixel (doubled again by the camera) and a half tile is half
+that, which is why the terminal and substation can sit at different sizes and
+both still land on a whole number.
 
 ### Two kinds of annotation, and both are the contract
 
 The panel's rule was "label your cels". These four need one more idea, because
 some of what they say is about a *range* of frames rather than a single one:
 
-- **Tags** name a clip. `POWER_ON` is frames 0–11 of the breaker; the terminal
-  uses tags and nothing else.
+- **Tags** name a clip. `POWER_ON` is frames 0–11 of the breaker.
 - **Cel labels** name one frame on one layer. The substation's status ring is
   annotated `GOOD`/`WARNING`/`ERROR` frame by frame.
 
@@ -321,20 +323,23 @@ camera has four `active`/`disabled` pairs, one per facing. A name→range dict
 would silently keep whichever came last, and every camera in the level would
 point the same way.
 
-**Hidden layers are dropped.** `Terminal.aseprite` carries a `Reference Layer 1`
-with the eye off, at 128 opacity — art the artist traced over. Compositing it
-would bake the reference into the shipped sheet.
+**Hidden layers are dropped.** An artist may keep a traced-over reference layer
+with the eye off — art none of the four current sources still carry, but a
+future redraw might. Compositing it would bake the reference into the shipped
+sheet, so it never is.
 
 ### What each clip means
 
-Read off the art rather than assigned to it. The terminal is the instructive one:
-its `active` frame is a teal screen with a `#5effa0` lamp, which is the exact
-green `HoldTarget` has always tinted a finished hack — so `active` is the
-*breached* terminal, not one being worked on.
+Read off the art rather than assigned to it. `Terminal.ts` only wires two of
+`terminal.aseprite`'s three tags: `IN_USE` covers both the hack in progress
+(`status_light` steps READY→WORKING→RUN) and the finished breach, which settles
+on that same RUN frame under the green tint `HoldTarget` has always used for a
+completed hack — no separate "finished" clip. `DESTROYED` (`status_light` runs
+to ERROR) is unwired; nothing in the game triggers it yet.
 
 | | idle | in progress | finished |
 | --- | --- | --- | --- |
-| Terminal | `idle` — dark screen, a 77ms yellow blip once a second | `alert` — amber/red at 100ms | `active` — teal screen, green lamp |
+| Terminal | `IDLE` — screen and status light off | `IN_USE` — screen on, status light READY→WORKING→RUN | `IN_USE`, green-tinted (no separate clip) |
 | Substation | `idle` — black screen, cyan ring | `active` — readout churning, ring GOOD→WARNING→ERROR | `deactivated` — red cross, then a flatlined face |
 | Camera | — | — | `active` / `disabled`, per facing |
 | Breaker | `IDLE` — cabinet shut, green *or* red screen | `IN_USE` — cabinet open, keypad running | the other `IDLE` |

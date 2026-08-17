@@ -13,24 +13,27 @@ import { HoldTarget, HOLD_BAR_CYAN } from "./HoldTarget";
  * GameScene's ENTITY_LAYERS so the static renderer skips it). The sprite, bar
  * and hold timer are a {@link HoldTarget}.
  *
- * When `public/assets/sprites/terminal.png` is present the HoldTarget draws that
- * instead, and the three states below become its three clips. The mapping is
- * read off the art rather than guessed at: the source's `active` frame is a
- * teal screen with a `#5effa0` lamp — the exact green this class has always
- * tinted a finished hack — so `active` is the *breached* terminal, not one
- * being worked on. `idle` is a dark screen with a 77ms yellow blip once a
- * second, and `alert` flashes amber and red at 100ms, which is what a machine
- * does while it is being broken into.
+ * When `public/assets/sprites/terminal.png` is present the HoldTarget draws
+ * that instead. The source has three tags — `IDLE`, `IN_USE`, `DESTROYED` —
+ * and only the first two are wired here. `IDLE` is the untouched machine;
+ * `IN_USE` (its `status_light` cels step READY → WORKING → RUN, then loop) is
+ * the only art for a machine being worked. There is no dedicated "finished"
+ * clip, so a completed hack does **not** pass `IN_USE` to {@link HoldTarget.settle}
+ * — that would let `settle` find the clip already playing and skip the tint
+ * (`play` succeeding is exactly what `settle` treats as "the art already shows
+ * done, don't tint"), leaving a breached terminal looking identical to one still
+ * being worked. Passing no clip name forces the {@link HACKED_GREEN} fallback tint
+ * instead, over whichever `IN_USE` frame is showing — the same marker an object
+ * with no art at all gets. `DESTROYED` (`status_light` runs to ERROR) is a
+ * separate mechanic with no game logic behind it yet, so it is left unplayed.
  */
 
-/** Untouched: dark screen, one yellow standby blip a second. */
-const CLIP_IDLE = "idle";
-/** Mid-hack: the screen flashing amber and red while the breach runs. */
-const CLIP_HACKING = "alert";
-/** Breached: teal screen and the green lamp, matching {@link HACKED_GREEN}. */
-const CLIP_HACKED = "active";
+/** Untouched: the art's idle frames, no bar, no tint. */
+const CLIP_IDLE = "IDLE";
+/** Being worked on, and — once tinted green — breached: the art's in-use frames. */
+const CLIP_HACKING = "IN_USE";
 
-/** The tint a finished hack gets when there is no art — and the art's own lamp. */
+/** The tint a finished hack gets, art or no art — see the class doc above. */
 const HACKED_GREEN = 0x5effa0;
 export class Terminal {
   readonly tileX: number;
@@ -74,7 +77,7 @@ export class Terminal {
     this.hold.play(CLIP_HACKING);
     if (!this.hold.advance(dt)) return false;
     this.hacked = true;
-    this.hold.settle(HACKED_GREEN, CLIP_HACKED);
+    this.hold.settle(HACKED_GREEN);
     return true;
   }
 
