@@ -11,6 +11,7 @@ import { SetPieceEvents } from "./game/SetPieceEvents";
 import { VaultAndPress } from "./game/VaultAndPress";
 import { Anomalies } from "./game/Anomalies";
 import { coverTilesNear } from "../systems/CoverPoints";
+import { PowerControl } from "./game/PowerControl";
 import { SpriteAtlas } from "../map/SpriteAtlas";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { DetectionSystem } from "../systems/DetectionSystem";
@@ -28,11 +29,7 @@ import { DeployedItem } from "../entities/DeployedItem";
 import { Door } from "../entities/Door";
 import { Terminal } from "../entities/Terminal";
 import { Breaker } from "../entities/Breaker";
-import {
-  initialPowerGrid,
-  setCircuitClosed,
-  type PowerGridState,
-} from "../systems/PowerGrid";
+import { initialPowerGrid, type PowerGridState } from "../systems/PowerGrid";
 import { Laser } from "../entities/Laser";
 import { Sensor } from "../entities/Sensor";
 import { Chest } from "../entities/Chest";
@@ -223,26 +220,6 @@ const WEAPON_ARC_COS = Math.cos((WEAPON_ARC_DEGREES * Math.PI) / 360);
 /** Radius (tiles) around a hacked terminal whose doors it releases. */
 const HACK_UNLOCK_RADIUS = 6;
 
-/**
- * How far a breaker's clunk carries, in tiles.
- *
- * Wider than a door's, narrower than a shot. A cabinet being worked is a real
- * noise and the deck going dark is conspicuous, but the point of the switch is
- * that it buys darkness — one that called the whole level over would be a trap
- * rather than a tool.
- */
-const BREAKER_NOISE_TILES = 7;
-/** How close an orderly has to get before it can reset a breaker, in tiles. */
-const BREAKER_RESET_REACH_TILES = 0.8;
-/**
- * Seconds before a breaker asks for somebody again.
- *
- * An orderly drops out of INSPECT on its own after a couple of seconds, so a
- * reset that nobody completes has to be re-requested or the lights would stay
- * off on a technicality. Long enough that it is not re-issuing orders every
- * frame, short enough that the deck does not feel abandoned.
- */
-const BREAKER_RESET_RETRY_SECONDS = 4;
 
 /** Seconds between knocks, so the action can't be mashed. */
 const KNOCK_COOLDOWN = 0.6;
@@ -283,11 +260,17 @@ export class GameScene extends Phaser.Scene {
    * player came down the ladder.
    */
   private powerGrid: PowerGridState = initialPowerGrid();
-  /**
-   * Breakers waiting on an orderly, and who was sent. Keyed by the breaker, so a
-   * second throw while one reset is already pending replaces rather than stacks.
-   */
-  private readonly pendingResets = new Map<Breaker, { orderly: Orderly | null; retryAt: number }>();
+  /** Cutting the lights, and the facility sending somebody to put them back. */
+  private readonly power = new PowerControl({
+    tileSize: () => this.tileSize,
+    levelName: () => this.level.name,
+    lighting: () => this.lighting,
+    detection: () => this.detection,
+    orderlies: () => this.orderlies,
+    noise: () => this.noise,
+    powerGrid: () => this.powerGrid,
+    violateUnauthorized: () => this.conduct.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED),
+  });
   /** Destructible cover — the rest of the `cover` board is baked art with no entity. */
   private coverTiles: Cover[] = [];
   /** The vent-core/vault/roof set-piece encounters, and their mechanical wiring. */
@@ -589,7 +572,7 @@ export class GameScene extends Phaser.Scene {
     // applied now that both consumers exist. `Lighting` is built after the level,
     // so the breakers cannot do this for themselves at construction.
     for (const breaker of this.breakers) {
-      if (!breaker.isClosed) this.setCircuit(breaker.stats.target, false);
+      if (!breaker.isClosed) this.power.setCircuit(breaker.stats.target, false);
     }
 
     // VENT-4 lives only in the vent core. Its continuous audio layers are
@@ -812,7 +795,7 @@ export class GameScene extends Phaser.Scene {
     // The breakers themselves belong to the level and are rebuilt with it; the
     // circuit *state* they read does not, and stays in the registry.
     this.breakers = [];
-    this.pendingResets.clear();
+    this.power.reset();
     this.runFeatures = undefined;
     this.alert = new AlertState();
     this.noiseSpam = new NoiseSpamTracker();
@@ -1763,7 +1746,7 @@ export class GameScene extends Phaser.Scene {
     // the walk cycle animating through the whole death hold.
     if (this.dyingFor === null) this.updatePlayerFrame(dt, delta);
     this.updateInteractions(dt);
-    this.updateBreakerResets(this.time.now / 1000);
+    this.power.updateResets(this.time.now / 1000);
     this.updateSharedField(dt);
     this.updateActiveItems(dt);
     const fieldActive = this.sharedField.isActive;
@@ -2425,7 +2408,7 @@ export class GameScene extends Phaser.Scene {
       // deliberately, and main1 puts one on the same board as a door.
       if (nearestBreaker && nearestBreakerDist <= Math.min(nearestDoorDist, hatchDist)) {
         adjacentClaimedTap = true;
-        this.throwBreaker(nearestBreaker);
+        this.power.throwBreaker(nearestBreaker);
       } else if (nearestDoor && nearestDoorDist <= hatchDist) {
         adjacentClaimedTap = true;
         if (nearestDoor.toggle()) {
@@ -2501,98 +2484,6 @@ export class GameScene extends Phaser.Scene {
     // Advertise the verb, but only into a slot nothing nearer wanted: a door in your
     // face outranks a hint about somebody across the room.
     if (!this.prompts.visible && this.holdUpCandidate) this.prompts.set("[Q] Hold up", this.player);
-  }
-
-  /**
-   * Powers a circuit on or off across both halves of what "lit" means.
-   *
-   * The visible half and the mechanical half are separate systems that happen to
-   * read the same `light_sources` board, and a blackout that moved only one of
-   * them would be a lie in one direction or the other — pitch dark but still
-   * easy to spot, or fully lit but unseeable. They move together, here, or not
-   * at all.
-   */
-  private setCircuit(target: string, closed: boolean): void {
-    this.lighting.setCircuit(target, closed);
-    this.detection.setCircuit(target, closed);
-  }
-
-  /**
-   * A tap on a breaker: throw it, wake the deck, and start the clock on a reset.
-   *
-   * Cutting the power is a two-sided move rather than a free win. It is heard
-   * (guards come to look at the noise), it is charged as a breach the same way
-   * working a terminal is, and the facility sends somebody to put it back.
-   */
-  private throwBreaker(breaker: Breaker): void {
-    const started = breaker.toggle((closed) => {
-      this.setCircuit(breaker.stats.target, closed);
-      setCircuitClosed(this.powerGrid, this.level.name, breaker.stats.target, closed);
-      if (closed) this.pendingResets.delete(breaker);
-      else this.pendingResets.set(breaker, { orderly: null, retryAt: 0 });
-    });
-    if (!started) return;
-
-    // A breaker cabinet is a panel he has no business at, exactly like a terminal.
-    this.conduct.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED);
-    getAudio().door();
-    this.noise.emitAt(breaker.x, breaker.y, BREAKER_NOISE_TILES * this.tileSize);
-  }
-
-  /**
-   * Sends somebody to put the lights back on, and restores them when they arrive.
-   *
-   * Uses the orderlies' existing {@link Orderly.distract} override, which is
-   * already "walk over and look at that" — and which already refuses an orderly
-   * who has witnessed the player, surrendered, or been stunned or pinned. That
-   * refusal is the mechanic, not an edge case: clear the deck of anyone able to
-   * walk and the dark is yours to keep.
-   */
-  private updateBreakerResets(now: number): void {
-    for (const [breaker, pending] of this.pendingResets) {
-      if (breaker.isClosed) {
-        this.pendingResets.delete(breaker);
-        continue;
-      }
-
-      // Arrived: the reset is the same interaction the player just made, so it
-      // goes through the breaker rather than around it.
-      const sent = pending.orderly;
-      if (sent) {
-        const reach = BREAKER_RESET_REACH_TILES * this.tileSize;
-        if (len(sent.x - breaker.x, sent.y - breaker.y) <= reach) {
-          this.throwBreaker(breaker);
-          continue;
-        }
-      }
-
-      if (now < pending.retryAt) continue;
-      // Nobody en route, or whoever was sent stopped coming — an orderly drops
-      // out of INSPECT on its own after a pause, and can be stunned or held up
-      // on the way. Ask again; if there is nobody left who will come, the deck
-      // simply stays dark.
-      pending.orderly = this.dispatchToBreaker(breaker);
-      pending.retryAt = now + BREAKER_RESET_RETRY_SECONDS;
-    }
-  }
-
-  /**
-   * Sends the nearest orderly who will actually go, or null if none will.
-   *
-   * Tries them nearest-first and takes the first one whose `distract` accepts,
-   * rather than filtering on the public getters — `distract` owns the rules for
-   * who can be diverted, and asking it is what keeps this from drifting when
-   * they change.
-   */
-  private dispatchToBreaker(breaker: Breaker): Orderly | null {
-    const byDistance = [...this.orderlies].sort(
-      (a, b) =>
-        len(a.x - breaker.x, a.y - breaker.y) - len(b.x - breaker.x, b.y - breaker.y),
-    );
-    for (const orderly of byDistance) {
-      if (orderly.distract(breaker.x, breaker.y)) return orderly;
-    }
-    return null;
   }
 
   private onHackComplete(terminal: Terminal): void {
