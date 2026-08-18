@@ -26,7 +26,7 @@ import {
   orderlyFrameKey,
   type OrderlyAnimName,
 } from "./OrderlyAnimations";
-import { angleDiff } from "../systems/angles";
+import { isWithinCone } from "../systems/angles";
 import { len } from "../systems/distance";
 
 export interface OrderlyContext {
@@ -810,10 +810,12 @@ export class Orderly {
     const rangeTiles = cleaning ? SIGHT_RANGE_TILES * SANITATION_SIGHT_MULTIPLIER : SIGHT_RANGE_TILES;
     const dx = player.x - this.x;
     const dy = player.y - this.y;
-    if (len(dx, dy) > rangeTiles * tileSize) return false;
+    const dist2 = dx * dx + dy * dy;
+    const rangePx = rangeTiles * tileSize;
+    if (dist2 > rangePx * rangePx) return false;
     if (cleaning) {
       const half = (SANITATION_CONE_DEGREES * Math.PI) / 360;
-      if (Math.abs(angleDiff(this.facing, Math.atan2(dy, dx))) > half) return false;
+      if (!isWithinCone(dx, dy, dist2, this.facing, half)) return false;
     }
     return grid.hasLineOfSight(this.x / tileSize, this.y / tileSize, player.x / tileSize, player.y / tileSize);
   }

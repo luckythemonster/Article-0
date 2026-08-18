@@ -9,3 +9,7 @@
 ## 2025-05-22 - [A* Neighbor Traversal and DDA Walk Optimization]
 **Learning:** Caching static structures like 8-connected neighbor offsets as flat `Int8Array` and iterating over them with simple index lookups avoids the array destructuring (`[dx, dy]`) and iterator allocation overhead of JS arrays inside hot execution loops. Similarly, caching loop-invariant coordinate properties (such as `Math.floor(x0)`/`Math.floor(y0)`) as local variables in Bresenham's/DDA walks prevents redundant function call invocation overhead inside the hot loop.
 **Action:** Cache static 8-connected offsets as separate flat `Int8Array` buffers and replace standard `for..of` array destructuring with indexed loops. Cache parameter floors outside loops to optimize core graph walks and raycast/line-of-sight algorithms.
+
+## 2025-05-24 - [Vision Cone Vector Dot-Product Optimization]
+**Learning:** Vision cone checks in high-frequency per-frame sensing loops can avoid expensive `Math.atan2` calls and angle wrapping calculations (`angleDiff`) by using 2D vector dot products and comparing squared dot products against precomputed squared cosine thresholds multiplied by the precalculated squared distance (`dist2`).
+**Action:** Use vector dot products (`isWithinCone`) for vision cone containment checks in hot sensing loops instead of `Math.atan2` and `angleDiff`.
