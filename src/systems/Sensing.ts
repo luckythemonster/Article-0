@@ -1,5 +1,5 @@
 import type { AlertState } from "./AlertState";
-import { angleDiff } from "./angles";
+import { isWithinCone } from "./angles";
 
 /**
  * The one implementation of "can this thing see the player, and how fast does
@@ -152,7 +152,8 @@ export function canSense(eye: Eye, ctx: SensingWorld): boolean {
   const rangePx = eye.rangeTiles * tileSize;
   if (dist2 > rangePx * rangePx) return false;
   const half = (eye.coneDegrees * Math.PI) / 360; // half of coneDegrees, in radians
-  if (Math.abs(angleDiff(eye.facing, Math.atan2(dy, dx))) > half) return false;
+  // Fast vector dot-product angle check avoids Math.atan2 allocation & angleDiff wrap arithmetic
+  if (!isWithinCone(dx, dy, dist2, eye.facing, half)) return false;
   return hasLos();
 }
 
