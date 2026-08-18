@@ -24,12 +24,14 @@ const DOOR_SENSE_TILES = 2.5;
 /**
  * An interactive door, sized and placed from the map's authoring data.
  *
- * The door art is drawn pre-squished into a 32px cell but describes a larger
- * footprint via the tile's `colSpan`/`rowSpan` (single doors 1.5 tiles, double
- * doors 2.5) and is nudged into place with `offsetX`/`offsetY` — so we scale the
- * sprite to that footprint and centre it (the editor anchors doors at centre).
- * The two keyframes give distinct **closed** and **open** sprites, which we swap
- * on state change rather than just fading.
+ * The map-tile art is drawn pre-squished into a 32px cell but describes a
+ * larger footprint via the tile's `colSpan`/`rowSpan` (single doors 1.5 tiles,
+ * double doors 2.5) and is nudged into place with `offsetX`/`offsetY` — so it
+ * is scaled to that footprint and centred (the editor anchors doors at
+ * centre), and the two keyframes give distinct **closed** and **open**
+ * sprites, swapped on state change rather than faded. That's the fallback for
+ * when hand-drawn art is absent; see below for where the seating differs when
+ * it's there.
  *
  * Closed, it blocks the player (an Arcade static body covering the footprint)
  * and every grid cell the footprint spans (so it also blocks radar and enforcer
@@ -72,6 +74,17 @@ const DOOR_SENSE_TILES = 2.5;
  * what makes it 1x1.5 instead of the north-south door's plain 1x1, so the
  * footprint itself says which art to ask for. The east-west sources are drawn
  * 32x48 to cover that taller opening at 1:1; see `EntitySprites.ts`.
+ *
+ * **East-west art sits on the floor, not centred.** It is drawn natively
+ * rather than stretched, standing in its own 48px canvas the way the door
+ * physically stands in its jamb — so when it's actually the thing being shown,
+ * its footprint's bottom edge is pinned to the bottom of its own tile instead
+ * of the tile-centred seating the map's `Anchor`/`OffsetY` metadata resolves
+ * to (that metadata was tuned for the old pre-squished, symmetrically
+ * stretched art). North-south doors' art is exactly one tile tall, where
+ * centred and bottom-aligned land in the same place, so this only ever
+ * affects the east-west pair, and only once their art has actually loaded —
+ * the map-tile fallback keeps the centred seating it was authored for.
  *
  * **The open/closed transition is cosmetic only.** `setOpen` still flips the
  * collision grid and the Arcade body the instant it is called, exactly as
@@ -133,9 +146,25 @@ export class Door {
     this.displayW = tile.colSpan * tileSize;
     this.displayH = tile.rowSpan * tileSize;
 
-    // Centre of the footprint, in pixels (cell centre + authored offset).
+    // Horizontal centre of the footprint, in pixels (cell centre + authored offset).
     const cx = (tile.x + 0.5) * tileSize + tile.offsetX;
-    const cy = (tile.y + 0.5) * tileSize + tile.offsetY;
+    // The map's own `Anchor`/`OffsetY` metadata (folded into `tile.offsetY` by
+    // the exporter — see `footprintCentre`'s doc comment) seats the *old*
+    // art correctly: that art was pre-squished into a single 32px cell and
+    // stretched symmetrically over the footprint, so centring it was right.
+    // The hand-drawn east-west art is not stretched — it's drawn natively at
+    // 48px, taller than the 32px cell its tile occupies, with the door
+    // standing on the floor rather than floating centred in a box. So when
+    // that art is actually what's going to be shown, its footprint's bottom
+    // edge is pinned to the bottom of the door's own tile instead. North-south
+    // doors' art is exactly one tile tall, where centred and bottom-aligned are
+    // the same position, so this only ever moves the east-west pair — and only
+    // when their art is there to move; the map-tile fallback keeps the
+    // exporter's centred seating, since that's still the art it's tuned for.
+    const useBottomSeating = eastWest && hasEntitySprite(scene, this.art);
+    const cy = useBottomSeating
+      ? (tile.y + 1) * tileSize - this.displayH / 2
+      : (tile.y + 0.5) * tileSize + tile.offsetY;
 
     // A static *sprite*, not the plain image the map-tile-only rendering used —
     // the body/collision semantics are identical either way, but only a sprite
