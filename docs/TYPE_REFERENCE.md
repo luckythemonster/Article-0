@@ -2420,7 +2420,7 @@ actor — a spill an Orderly has a reason to walk over and deal with.
 
 #### `Door` — class
 
-`src/entities/Door.ts:97`
+`src/entities/Door.ts:115`
 
 An interactive door, sized and placed from the map's authoring data.
 
@@ -3568,7 +3568,7 @@ Sprite/Image created with `(textureKey, frameKey)` draws that exact rect.
 
 #### `TileStamper` — class
 
-`src/map/TileBake.ts:244`
+`src/map/TileBake.ts:245`
 
 Draws individual tiles into a RenderTexture, art-correct and batched.
 
@@ -3594,7 +3594,7 @@ Hold one across a batch and `destroy()` it after `endDraw()`.
 
 #### `BakedPlane` — interface
 
-`src/map/TileBake.ts:175`
+`src/map/TileBake.ts:176`
 
 One walk surface's (or the canopy's) baked art.
 
@@ -3620,7 +3620,7 @@ A component instance placed on an entity, with values resolved to defaults.
 
 #### `CoverBody` — interface
 
-`src/map/TileBake.ts:429`
+`src/map/TileBake.ts:430`
 
 A crawlable tile's built body, tagged the same way — `buildWallBodies`'s output.
 
@@ -3959,7 +3959,7 @@ One guard's board: the route it walks and the stats it carries.
 
 #### `LevelBodyRects` — interface
 
-`src/map/TileBake.ts:444`
+`src/map/TileBake.ts:445`
 
 A level's collision rectangles, split by who they stop.
 
@@ -4073,7 +4073,7 @@ A resolved rectangle inside one of the spritesheet PNGs.
 
 #### `TileRect` — interface
 
-`src/map/TileBake.ts:423` · `extends Rect`
+`src/map/TileBake.ts:424` · `extends Rect`
 
 One crawlable tile's rectangle, tagged with the cell it belongs to.
 
@@ -6358,7 +6358,7 @@ GameScene.
 | [AppliedCorrections](#type-appliedcorrections) | type | `src/systems/Compliance.ts:64` |
 | [AudioDirector](#class-audiodirector) | class | `src/systems/AudioDirector.ts:26` |
 | [BadgeState](#type-badgestate) | type | `src/ui/NetworkPanel.ts:103` |
-| [BakedPlane](#interface-bakedplane) | interface | `src/map/TileBake.ts:175` |
+| [BakedPlane](#interface-bakedplane) | interface | `src/map/TileBake.ts:176` |
 | [BinaryHeap](#class-binaryheap) | class | `src/systems/Pathfinder.ts:280` |
 | [BioMonitor](#class-biomonitor) | class | `src/ui/BioMonitor.ts:76` |
 | [BlockedAt](#type-blockedat) | type | `src/map/TileBake.ts:58` |
@@ -6400,7 +6400,7 @@ GameScene.
 | [CountKind](#type-countkind) | type | `src/ui/NetworkPanel.ts:29` |
 | [Cover](#class-cover) | class | `src/entities/Cover.ts:18` |
 | [CoverBoards](#interface-coverboards) | interface | `src/systems/CoverPoints.ts:15` |
-| [CoverBody](#interface-coverbody) | interface | `src/map/TileBake.ts:429` |
+| [CoverBody](#interface-coverbody) | interface | `src/map/TileBake.ts:430` |
 | [DebugHost](#interface-debughost) | interface | `src/scenes/game/DebugOverlay.ts:67` |
 | [DebugHud](#class-debughud) | class | `src/ui/DebugHud.ts:65` |
 | [DebugOverlay](#class-debugoverlay) | class | `src/scenes/game/DebugOverlay.ts:94` |
@@ -6415,7 +6415,7 @@ GameScene.
 | [Dir8](#type-dir8) | type | `src/entities/directions.ts:31` |
 | [DIRS_8](#const-dirs-8) | const | `src/entities/directions.ts:20` |
 | [DisplayFootprint](#type-displayfootprint) | type | `src/entities/EntitySprites.ts:106` |
-| [Door](#class-door) | class | `src/entities/Door.ts:97` |
+| [Door](#class-door) | class | `src/entities/Door.ts:115` |
 | [DOOR_DEFAULTS](#const-door-defaults) | const | `src/systems/EntityStats.ts:152` |
 | [DoorAccess](#interface-dooraccess) | interface | `src/entities/doorWork.ts:47` |
 | [DoorStats](#interface-doorstats) | interface | `src/systems/EntityStats.ts:143` |
@@ -6494,7 +6494,7 @@ GameScene.
 | [KnownLevel](#type-knownlevel) | type | `src/map/types.ts:339` |
 | [Laser](#class-laser) | class | `src/entities/Laser.ts:28` |
 | [LaserKind](#type-laserkind) | type | `src/entities/Laser.ts:21` |
-| [LevelBodyRects](#interface-levelbodyrects) | interface | `src/map/TileBake.ts:444` |
+| [LevelBodyRects](#interface-levelbodyrects) | interface | `src/map/TileBake.ts:445` |
 | [LexiconCategory](#type-lexiconcategory) | type | `src/systems/Lexicon.ts:19` |
 | [LexiconContext](#interface-lexiconcontext) | interface | `src/systems/Lexicon.ts:257` |
 | [LexiconEntry](#interface-lexiconentry) | interface | `src/systems/Lexicon.ts:30` |
@@ -6640,8 +6640,8 @@ GameScene.
 | [TerminalHacks](#class-terminalhacks) | class | `src/scenes/game/TerminalHacks.ts:52` |
 | [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:190` |
 | [TilePos](#interface-tilepos) | interface | `src/map/generate.ts:118` |
-| [TileRect](#interface-tilerect) | interface | `src/map/TileBake.ts:423` |
-| [TileStamper](#class-tilestamper) | class | `src/map/TileBake.ts:244` |
+| [TileRect](#interface-tilerect) | interface | `src/map/TileBake.ts:424` |
+| [TileStamper](#class-tilestamper) | class | `src/map/TileBake.ts:245` |
 | [TitleScene](#class-titlescene) | class | `src/scenes/TitleScene.ts:13` |
 | [TraceState](#interface-tracestate) | interface | `src/ui/ekg.ts:195` |
 | [Transition](#interface-transition) | interface | `src/map/types.ts:458` |

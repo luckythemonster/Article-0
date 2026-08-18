@@ -22,6 +22,24 @@ import {
 const DOOR_SENSE_TILES = 2.5;
 
 /**
+ * Above a guard's or camera's vision cone (`Enforcer`/`Sensor`, depth 400), so a
+ * closed door reads as solid rather than getting the cone's translucent fill
+ * painted across its own face.
+ *
+ * `hasLineOfSight`/`blocksSight` already stop correctly at a closed door — this
+ * is purely a draw-order fix. The cone's polygon legitimately ends right at the
+ * door (that edge *is* what "the guard's view stops here" means), but at depth
+ * 120 — the floor every other entity this class's size sits at — the door was
+ * being drawn *behind* that edge instead of in front of it, so the last thing
+ * painted there was cone, not door. It read as the cone shining through.
+ *
+ * Still well under orderlies (440), bodies (450) and the player (750): a
+ * character standing in or beside the doorway must draw over the door, not
+ * behind it.
+ */
+const DOOR_DEPTH = 405;
+
+/**
  * An interactive door, sized and placed from the map's authoring data.
  *
  * The map-tile art is drawn pre-squished into a 32px cell but describes a
@@ -176,7 +194,7 @@ export class Door {
       this.image.setVisible(false);
     }
     this.image
-      .setDepth(120)
+      .setDepth(DOOR_DEPTH)
       .setDisplaySize(this.displayW, this.displayH)
       .setFlipY(tile.flipY === true)
       .setTint(tile.tint)
