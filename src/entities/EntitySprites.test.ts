@@ -148,10 +148,11 @@ describe("the breaker keypad", () => {
 
 /**
  * The four doors, the second-most demanding thing the manifest carries after
- * the breaker. `Door.ts` reads `CLOSING` off `OPENING`'s own frames run
- * backwards (no source names a `CLOSING` tag), and the plain "nothing going
- * on" tag is spelled two different ways depending on orientation — both are
- * artist inconsistencies the code has to route around rather than paper over.
+ * the breaker.
+ *
+ * Every tag here is read by `Door.ts`, and two of them mean something other
+ * than their name suggests — which is exactly why these assert against the
+ * `door` layer's own cel labels rather than trusting the tag.
  */
 describe("the door sprites", () => {
   const DOOR_IDS = [
@@ -161,37 +162,68 @@ describe("the door sprites", () => {
     "door-glass-north-south",
   ] as const;
 
-  it("names its plain closed state IDLE on east-west sources and idle on north-south ones", () => {
-    // Same fact `Door.ts`'s `idleTag` branches on — an artist inconsistency
-    // between the two orientations, not something either file got wrong.
-    for (const id of ["door-single-east-west", "door-glass-east-west"] as const) {
-      expect(clipFrames(id, "IDLE").length, id).toBeGreaterThan(0);
-    }
-    for (const id of ["door-single-north-south", "door-glass-north-south"] as const) {
-      expect(clipFrames(id, "idle").length, id).toBeGreaterThan(0);
+  /** The layer carrying the door panel itself, which the glass pair renames. */
+  const doorLayer = (id: (typeof DOOR_IDS)[number]): string =>
+    id.includes("glass") && id.includes("north-south") ? "GLASS_DOOR" : "door";
+
+  it("names the same tags on all four, in the same casing", () => {
+    // The north-south pair used to spell this one `idle` while the east-west
+    // pair said `IDLE`, and `Door.ts` carried a branch to paper over it. The
+    // redraw made them agree; this is what keeps them that way.
+    for (const id of DOOR_IDS) {
+      for (const tag of ["IDLE", "SCAN", "LOCKED", "UNLOCKED", "OPENING", "MOTION_DETECTION"]) {
+        expect(clipFrames(id, tag).length, `${id} ${tag}`).toBeGreaterThan(0);
+      }
+      expect(clipFrames(id, "idle"), id).toEqual([]);
     }
   });
 
-  it("gives every door a two-frame LOCKED and UNLOCKED blink", () => {
+  it("holds the door shut for every closed-state tag", () => {
+    // IDLE/SCAN/LOCKED/UNLOCKED differ only in the indicator light; the panel
+    // itself must not move, or `Door.ts` would be showing a door ajar while
+    // the collision grid still says solid.
     for (const id of DOOR_IDS) {
-      expect(clipFrames(id, "LOCKED").length, id).toBe(2);
-      expect(clipFrames(id, "UNLOCKED").length, id).toBe(2);
+      const shut = framesLabelled(id, "CLOSED", doorLayer(id));
+      const shutLower = framesLabelled(id, "closed", doorLayer(id));
+      const closed = new Set([...shut, ...shutLower]);
+      for (const tag of ["IDLE", "SCAN", "LOCKED", "UNLOCKED"]) {
+        for (const f of clipFrames(id, tag)) {
+          expect(closed.has(f), `${id} ${tag} frame ${f}`).toBe(true);
+        }
+      }
     }
   });
 
-  it("gives every door a two-frame resting-OPEN blink", () => {
+  it("is MOTION_DETECTION, not any tag called OPEN, that holds the door open", () => {
+    // The single most misreadable thing in this art. The old sources had an
+    // `OPEN` tag; these do not, and the frames the door layer labels `OPEN`
+    // are precisely `MOTION_DETECTION`'s — the door standing open with its
+    // sensor counting what goes through. Reading the name instead of the
+    // pixels would leave a door that opens and then snaps shut on screen.
     for (const id of DOOR_IDS) {
-      expect(clipFrames(id, "OPEN").length, id).toBe(2);
+      expect(clipFrames(id, "OPEN"), id).toEqual([]);
+      const motion = clipFrames(id, "MOTION_DETECTION");
+      const openFrames = framesLabelled(id, "OPEN", doorLayer(id));
+      expect(motion.length, id).toBeGreaterThan(0);
+      expect(new Set(motion), id).toEqual(openFrames);
+    }
+  });
+
+  it("runs UNLOCKED straight into OPENING with no gap", () => {
+    // Why `Door.ts` plays them as one clip: the granted beat is the authored
+    // lead-in to the slide, not a separate state to sit in.
+    for (const id of DOOR_IDS) {
+      const unlocked = clipFrames(id, "UNLOCKED");
+      const opening = clipFrames(id, "OPENING");
+      expect(unlocked[unlocked.length - 1] + 1, id).toBe(opening[0]);
     }
   });
 
   it("tags CLOSING over the same frames as OPENING, not reversed", () => {
     // The reason `Door.ts` never reads the `CLOSING` tag: every source names
     // it, but over the *identical* range as `OPENING` — the artist marked
-    // "this is also the swing" rather than drawing a second, reversed clip.
-    // Playing that tag for a close would swing the door open-wards again.
-    // `Door.ts`'s `closingClipKey` builds its own clip from `OPENING`'s frames
-    // read backwards instead, which only needs `OPENING` to be real.
+    // "this is also the travel" rather than drawing a second, reversed clip.
+    // Playing that tag for a close would slide the door open again.
     for (const id of DOOR_IDS) {
       const opening = clipFrames(id, "OPENING");
       const closing = clipFrames(id, "CLOSING");

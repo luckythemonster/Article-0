@@ -45,7 +45,8 @@ export type EntitySpriteId =
   | "door-glass-north-south";
 
 interface SpriteEntry {
-  size: number;
+  width: number;
+  height: number;
   frameCount: number;
   /** Authored hold time per frame, in ms. The timing is part of the drawing. */
   durations: number[];
@@ -66,8 +67,15 @@ export interface EntitySpriteSpec {
   key: string;
   /** Path under `public/`. */
   path: string;
-  /** One frame's authored pixel size (square), mirrored by the build tool's `Spec`. */
-  sourceSize: number;
+  /**
+   * One frame's authored pixel size, mirrored by the build tool's `Spec`.
+   *
+   * Two numbers rather than one because a canvas need not be square: the
+   * east-west doors are 32x48, drawn over the 1x1.5 tile opening they bridge.
+   * Everything else here is square and says so by repeating the number.
+   */
+  sourceWidth: number;
+  sourceHeight: number;
   /**
    * **Every** footprint the map draws this object at, in tiles.
    *
@@ -84,11 +92,12 @@ export interface EntitySpriteSpec {
    * the reason the terminal could be drawn at one size at all.
    *
    * A bare number is a **square** footprint (`col === row`), true of every
-   * sprite here except the doors: a north-south door's tile is 1 tile wide and
-   * 1.5 tall, so its footprint is `{ col, row }` and both axes are checked
-   * independently. `pixelScale.ts`'s rule only asks that *each* axis land on a
-   * whole number — it does not require the same whole number, so a door can be
-   * pixel-perfect at 2 screen pixels per source pixel wide and 3 tall at once.
+   * sprite here except the east-west doors, whose tile is 1 wide and 1.5 tall
+   * and so needs `{ col, row }`. Both axes are checked either way, since a
+   * square footprint over a non-square canvas still gives two ratios.
+   * `pixelScale.ts` only asks that each axis land on a whole number, not the
+   * same one — though as drawn every door now comes out a uniform 2, because
+   * the 32x48 art matches the shape of the opening it covers.
    */
   displayTiles: readonly DisplayFootprint[];
 }
@@ -114,23 +123,26 @@ export const CAMERA_DISPLAY_TILES = 0.5;
  * Every entity sprite that ships.
  *
  * Every pairing comes out whole — 4 and 2 for the terminal's 16px art, 2 and 1
- * for the substation's 32px art, 2 for the camera, 2 for the breaker — and
- * `src/render/pixelScale.test.ts` asserts all of them, so art redrawn at a
- * size that no longer divides fails the build rather than shipping soft.
+ * for the substation's 32px art, 2 for the camera, 2 for the breaker, 2 on both
+ * axes for every door — and `src/render/pixelScale.test.ts` asserts all of
+ * them, so art redrawn at a size that no longer divides fails the build rather
+ * than shipping soft.
  */
 export const ENTITY_SPRITES: readonly EntitySpriteSpec[] = [
   {
     id: "terminal",
     key: "entity-terminal",
     path: "assets/sprites/terminal.png",
-    sourceSize: 16,
+    sourceWidth: 16,
+    sourceHeight: 16,
     displayTiles: [1, 0.5],
   },
   {
     id: "terminal-substation",
     key: "entity-terminal-substation",
     path: "assets/sprites/terminal-substation.png",
-    sourceSize: 32,
+    sourceWidth: 32,
+    sourceHeight: 32,
     displayTiles: [1, 0.5],
   },
   // The odd one out: every other sprite here takes its drawn size from its map
@@ -143,7 +155,8 @@ export const ENTITY_SPRITES: readonly EntitySpriteSpec[] = [
     id: "security-camera",
     key: "entity-security-camera",
     path: "assets/sprites/security-camera.png",
-    sourceSize: 16,
+    sourceWidth: 16,
+    sourceHeight: 16,
     displayTiles: [CAMERA_DISPLAY_TILES],
   },
   // `breaker_main1` is authored at half a tile, which is why this is 16px art.
@@ -151,7 +164,8 @@ export const ENTITY_SPRITES: readonly EntitySpriteSpec[] = [
     id: "breaker",
     key: "entity-breaker",
     path: "assets/sprites/breaker.png",
-    sourceSize: 16,
+    sourceWidth: 16,
+    sourceHeight: 16,
     displayTiles: [0.5],
   },
   // East-west doors' tiles are 1x1.5 — the extra half-tile is the swing
@@ -160,7 +174,8 @@ export const ENTITY_SPRITES: readonly EntitySpriteSpec[] = [
     id: "door-single-east-west",
     key: "entity-door-single-east-west",
     path: "assets/sprites/door-single-east-west.png",
-    sourceSize: 32,
+    sourceWidth: 32,
+    sourceHeight: 48,
     displayTiles: [{ col: 1, row: 1.5 }],
   },
   // North-south doors' tiles are a plain 1x1 — the doorway's extra length
@@ -169,21 +184,24 @@ export const ENTITY_SPRITES: readonly EntitySpriteSpec[] = [
     id: "door-single-north-south",
     key: "entity-door-single-north-south",
     path: "assets/sprites/door-single-north-south.png",
-    sourceSize: 32,
+    sourceWidth: 32,
+    sourceHeight: 32,
     displayTiles: [1],
   },
   {
     id: "door-glass-east-west",
     key: "entity-door-glass-east-west",
     path: "assets/sprites/door-glass-east-west.png",
-    sourceSize: 32,
+    sourceWidth: 32,
+    sourceHeight: 48,
     displayTiles: [{ col: 1, row: 1.5 }],
   },
   {
     id: "door-glass-north-south",
     key: "entity-door-glass-north-south",
     path: "assets/sprites/door-glass-north-south.png",
-    sourceSize: 32,
+    sourceWidth: 32,
+    sourceHeight: 32,
     displayTiles: [1],
   },
 ] as const;
@@ -375,8 +393,8 @@ export async function discoverEntitySprites(): Promise<void> {
 export function preloadEntitySprites(scene: Phaser.Scene): void {
   for (const spec of present) {
     scene.load.spritesheet(spec.key, spec.path, {
-      frameWidth: spec.sourceSize,
-      frameHeight: spec.sourceSize,
+      frameWidth: spec.sourceWidth,
+      frameHeight: spec.sourceHeight,
     });
   }
 }
@@ -398,12 +416,14 @@ export function hasEntitySprite(scene: Phaser.Scene, id: EntitySpriteId): boolea
 export function entitySpriteScales(): {
   id: string;
   displayTiles: readonly DisplayFootprint[];
-  sourceSize: number;
+  sourceWidth: number;
+  sourceHeight: number;
 }[] {
   return ENTITY_SPRITES.map((s) => ({
     id: s.id,
     displayTiles: s.displayTiles,
-    sourceSize: s.sourceSize,
+    sourceWidth: s.sourceWidth,
+    sourceHeight: s.sourceHeight,
   }));
 }
 
@@ -420,12 +440,12 @@ export function assertEntitySpriteScales(): string[] {
   const bad: string[] = [];
   for (const spec of ENTITY_SPRITES) {
     for (const tiles of spec.displayTiles) {
-      if (typeof tiles === "number") {
-        if (!isPixelPerfect(tiles, spec.sourceSize)) bad.push(`${spec.id}@${tiles}`);
-      } else {
-        if (!isPixelPerfect(tiles.col, spec.sourceSize)) bad.push(`${spec.id}@col${tiles.col}`);
-        if (!isPixelPerfect(tiles.row, spec.sourceSize)) bad.push(`${spec.id}@row${tiles.row}`);
-      }
+      // Both axes always, even for a square footprint: the *source* can be
+      // non-square, so one number of tiles still means two different ratios.
+      const col = typeof tiles === "number" ? tiles : tiles.col;
+      const row = typeof tiles === "number" ? tiles : tiles.row;
+      if (!isPixelPerfect(col, spec.sourceWidth)) bad.push(`${spec.id}@col${col}`);
+      if (!isPixelPerfect(row, spec.sourceHeight)) bad.push(`${spec.id}@row${row}`);
     }
   }
   return bad;
@@ -440,7 +460,7 @@ export function assertEntitySpriteScales(): string[] {
  * pair agreeing.
  */
 export function assertEntitySpriteSizes(): string[] {
-  return ENTITY_SPRITES.filter((s) => SPRITES[s.id]?.size !== s.sourceSize).map(
-    (s) => s.id,
-  );
+  return ENTITY_SPRITES.filter(
+    (s) => SPRITES[s.id]?.width !== s.sourceWidth || SPRITES[s.id]?.height !== s.sourceHeight,
+  ).map((s) => s.id);
 }

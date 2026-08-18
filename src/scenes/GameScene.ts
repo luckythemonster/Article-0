@@ -1657,6 +1657,14 @@ export class GameScene extends Phaser.Scene {
       this.deployables = this.deployables.filter((d) => !d.spent);
     }
 
+    // Doors watch for whoever walks up, so their indicator can scan or refuse
+    // before the interact prompt appears. Every door, not `nearestDoor` — that
+    // is filtered to `isManual`, which excludes exactly the locked ones whose
+    // denial light is the most worth showing.
+    const doorTileX = this.player.x / this.tileSize;
+    const doorTileY = this.player.y / this.tileSize;
+    for (const door of this.doors) door.senseProximity(doorTileX, doorTileY);
+
     // Lasers: crossing an active beam/scan zone instantly trips the alarm.
     let laserTripped = false;
     for (const laser of this.lasers) {

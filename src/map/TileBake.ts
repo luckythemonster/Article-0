@@ -114,8 +114,9 @@ export function mergeWallRects(width: number, height: number, blocked: BlockedAt
  * Depth of the baked tile texture.
  *
  * Tile layers used to sit at `layerIndex * 10`, so 0–110 for the shipped map,
- * and the lowest depth anything else uses is 120 (doors, terminals, chests,
- * substations, and the decor drawn out of the doors board). One texture at 0
+ * and the lowest depth anything else uses is 120 (terminals, chests,
+ * substations, and the decor drawn out of the doors board — doors themselves
+ * sit higher, at 405, above guard/camera vision cones). One texture at 0
  * therefore lands exactly where the whole stack used to, and the layer order
  * *within* it is preserved by the order the layers are drawn in.
  */
