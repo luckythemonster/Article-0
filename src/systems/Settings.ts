@@ -52,12 +52,16 @@ export function normalizeSettings(v: unknown): Settings {
 
   // Guard against prototype pollution or unexpected lookup of inherited properties by using hasOwnProperty
   const hasOwn = Object.prototype.hasOwnProperty;
-  const masterVolume = hasOwn.call(v, "masterVolume") ? (v as any).masterVolume : undefined;
-  const muted = hasOwn.call(v, "muted") ? (v as any).muted : undefined;
+  const rawVolume = hasOwn.call(v, "masterVolume") ? (v as Record<string, unknown>).masterVolume : undefined;
+  const rawMuted = hasOwn.call(v, "muted") ? (v as Record<string, unknown>).muted : undefined;
 
-  const volume = Number(masterVolume);
+  const volume = typeof rawVolume === "number" && Number.isFinite(rawVolume) ? rawVolume : undefined;
+  const muted = typeof rawMuted === "boolean" ? rawMuted : DEFAULT_SETTINGS.muted;
+
+  // Fully reconstruct clean object field-by-field with validated primitive types,
+  // completely ignoring prototype keys (__proto__, constructor) or unexpected fields.
   return {
-    masterVolume: Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : DEFAULT_SETTINGS.masterVolume,
-    muted: typeof muted === "boolean" ? muted : DEFAULT_SETTINGS.muted,
+    masterVolume: volume !== undefined ? Math.min(1, Math.max(0, volume)) : DEFAULT_SETTINGS.masterVolume,
+    muted,
   };
 }

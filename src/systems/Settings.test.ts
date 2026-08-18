@@ -16,6 +16,21 @@ describe("Settings", () => {
     expect(normalized).toEqual(DEFAULT_SETTINGS);
   });
 
+  it("safeguards against prototype and constructor property pollution injections", () => {
+    const malicious = {
+      masterVolume: 0.8,
+      muted: false,
+      __proto__: { polluted: true },
+      constructor: { prototype: { compromised: true } },
+    };
+    const normalized = normalizeSettings(malicious);
+    expect(normalized).toEqual({ masterVolume: 0.8, muted: false });
+    expect((normalized as any).polluted).toBeUndefined();
+    expect((normalized as any).compromised).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(normalized, "__proto__")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(normalized, "constructor")).toBe(false);
+  });
+
   it("round-trips a preference", () => {
     saveSettings({ masterVolume: 0.4, muted: true });
     expect(loadSettings()).toEqual({ masterVolume: 0.4, muted: true });
