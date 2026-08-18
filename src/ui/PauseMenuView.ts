@@ -252,6 +252,16 @@ export class PauseMenuView {
         this.showTab((this.active + 1) % this.panes.length, true);
         return;
       }
+      if (e.key === "Home") {
+        e.preventDefault();
+        this.showTab(0, true);
+        return;
+      }
+      if (e.key === "End") {
+        e.preventDefault();
+        this.showTab(this.panes.length - 1, true);
+        return;
+      }
       if (/^[1-9]$/.test(e.key)) {
         e.preventDefault();
         this.showTab(Number(e.key) - 1, true);
@@ -614,15 +624,22 @@ export class PauseMenuView {
     slider.max = "100";
     slider.step = "5";
     slider.value = String(Math.round(current.masterVolume * 100));
-    const readout = el("span", "pause-field-value", current.muted ? "MUTED" : `${slider.value}%`);
+    const readout = el("span", "pause-field-value", "");
 
-    // Set initial disabled state based on mute preference
+    const updateValuetext = (): void => {
+      const text = current.muted ? "MUTED" : `${slider.value}%`;
+      readout.textContent = text;
+      slider.setAttribute("aria-valuetext", text);
+    };
+
+    // Set initial disabled state and accessible valuetext based on mute preference
     slider.disabled = current.muted;
     slider.setAttribute("aria-disabled", String(current.muted));
+    updateValuetext();
 
     slider.addEventListener("input", () => {
       current.masterVolume = Number(slider.value) / 100;
-      readout.textContent = current.muted ? "MUTED" : `${slider.value}%`;
+      updateValuetext();
       push();
     });
     slider.addEventListener("change", () => {
@@ -643,7 +660,7 @@ export class PauseMenuView {
       current.muted = mute.checked;
       slider.disabled = current.muted;
       slider.setAttribute("aria-disabled", String(current.muted));
-      readout.textContent = current.muted ? "MUTED" : `${slider.value}%`;
+      updateValuetext();
       push();
       if (!current.muted) {
         getAudio().ping();
