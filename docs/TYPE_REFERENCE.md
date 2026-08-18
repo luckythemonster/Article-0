@@ -2420,16 +2420,18 @@ actor — a spill an Orderly has a reason to walk over and deal with.
 
 #### `Door` — class
 
-`src/entities/Door.ts:84`
+`src/entities/Door.ts:97`
 
 An interactive door, sized and placed from the map's authoring data.
 
-The door art is drawn pre-squished into a 32px cell but describes a larger
-footprint via the tile's `colSpan`/`rowSpan` (single doors 1.5 tiles, double
-doors 2.5) and is nudged into place with `offsetX`/`offsetY` — so we scale the
-sprite to that footprint and centre it (the editor anchors doors at centre).
-The two keyframes give distinct **closed** and **open** sprites, which we swap
-on state change rather than just fading.
+The map-tile art is drawn pre-squished into a 32px cell but describes a
+larger footprint via the tile's `colSpan`/`rowSpan` (single doors 1.5 tiles,
+double doors 2.5) and is nudged into place with `offsetX`/`offsetY` — so it
+is scaled to that footprint and centred (the editor anchors doors at
+centre), and the two keyframes give distinct **closed** and **open**
+sprites, swapped on state change rather than faded. That's the fallback for
+when hand-drawn art is absent; see below for where the seating differs when
+it's there.
 
 Closed, it blocks the player (an Arcade static body covering the footprint)
 and every grid cell the footprint spans (so it also blocks radar and enforcer
@@ -2472,6 +2474,17 @@ material, and whether the tile's footprint runs long in the row axis
 what makes it 1x1.5 instead of the north-south door's plain 1x1, so the
 footprint itself says which art to ask for. The east-west sources are drawn
 32x48 to cover that taller opening at 1:1; see `EntitySprites.ts`.
+
+**East-west art sits on the floor, not centred.** It is drawn natively
+rather than stretched, standing in its own 48px canvas the way the door
+physically stands in its jamb — so when it's actually the thing being shown,
+its footprint's bottom edge is pinned to the bottom of its own tile instead
+of the tile-centred seating the map's `Anchor`/`OffsetY` metadata resolves
+to (that metadata was tuned for the old pre-squished, symmetrically
+stretched art). North-south doors' art is exactly one tile tall, where
+centred and bottom-aligned land in the same place, so this only ever
+affects the east-west pair, and only once their art has actually loaded —
+the map-tile fallback keeps the centred seating it was authored for.
 
 **The open/closed transition is cosmetic only.** `setOpen` still flips the
 collision grid and the Arcade body the instant it is called, exactly as
@@ -6402,7 +6415,7 @@ GameScene.
 | [Dir8](#type-dir8) | type | `src/entities/directions.ts:31` |
 | [DIRS_8](#const-dirs-8) | const | `src/entities/directions.ts:20` |
 | [DisplayFootprint](#type-displayfootprint) | type | `src/entities/EntitySprites.ts:106` |
-| [Door](#class-door) | class | `src/entities/Door.ts:84` |
+| [Door](#class-door) | class | `src/entities/Door.ts:97` |
 | [DOOR_DEFAULTS](#const-door-defaults) | const | `src/systems/EntityStats.ts:152` |
 | [DoorAccess](#interface-dooraccess) | interface | `src/entities/doorWork.ts:47` |
 | [DoorStats](#interface-doorstats) | interface | `src/systems/EntityStats.ts:143` |
