@@ -6371,7 +6371,7 @@ GameScene.
 | [BuiltLevel](#interface-builtlevel) | interface | `src/scenes/game/LevelBuilder.ts:47` |
 | [Cardinal4](#type-cardinal4) | type | `src/entities/directions.ts:69` |
 | [CARDINALS_4](#const-cardinals-4) | const | `src/entities/directions.ts:67` |
-| [CastingLight](#undefined) | interface | `src/render/lightSampling.ts:16` |
+| [CastingLight](#undefined) | interface | `src/render/lightSampling.ts:15` |
 | [CastRole](#interface-castrole) | interface | `src/entities/CastArt.ts:63` |
 | [Chest](#class-chest) | class | `src/entities/Chest.ts:16` |
 | [CHEST_DEFAULTS](#const-chest-defaults) | const | `src/systems/EntityStats.ts:298` |
@@ -6500,7 +6500,7 @@ GameScene.
 | [LexiconEntry](#interface-lexiconentry) | interface | `src/systems/Lexicon.ts:30` |
 | [Light](#interface-light) | interface | `src/ui/Lighting.ts:79` |
 | [Lighting](#class-lighting) | class | `src/ui/Lighting.ts:141` |
-| [LightSample](#undefined) | interface | `src/render/lightSampling.ts:33` |
+| [LightSample](#undefined) | interface | `src/render/lightSampling.ts:32` |
 | [LightSource](#interface-lightsource) | interface | `src/systems/DetectionSystem.ts:4` |
 | [LightStats](#interface-lightstats) | interface | `src/systems/EntityStats.ts:65` |
 | [LogToken](#interface-logtoken) | interface | `src/systems/Compliance.ts:20` |
