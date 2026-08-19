@@ -174,4 +174,26 @@ describe("sampleLightAt", () => {
     sampleLightAt([light(5, 5, 4)], ...at(19, 19), g, TILE, out);
     expect(out).toEqual({ dx: 0, dy: 0, strength: 0, directionality: 0 });
   });
+
+  it("benchmarks sampleLightAt performance gain", () => {
+    const g = grid(openLevel());
+    const lights: CastingLight[] = [];
+    for (let x = 0; x < 20; x += 3) {
+      for (let y = 0; y < 20; y += 3) {
+        lights.push(light(x, y, 6));
+      }
+    }
+
+    const N = 100_000;
+    const out = emptySample();
+
+    const t0 = performance.now();
+    for (let i = 0; i < N; i++) {
+      sampleLightAt(lights, (i % 20) * TILE, ((i * 3) % 20) * TILE, g, TILE, out);
+    }
+    const t1 = performance.now();
+    const duration = t1 - t0;
+    console.log(`[BENCHMARK] sampleLightAt (${N} calls): ${duration.toFixed(2)}ms`);
+    expect(duration).toBeGreaterThan(0);
+  });
 });
