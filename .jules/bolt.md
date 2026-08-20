@@ -13,3 +13,7 @@
 ## 2025-05-24 - [Vision Cone Vector Dot-Product Optimization]
 **Learning:** Vision cone checks in high-frequency per-frame sensing loops can avoid expensive `Math.atan2` calls and angle wrapping calculations (`angleDiff`) by using 2D vector dot products and comparing squared dot products against precomputed squared cosine thresholds multiplied by the precalculated squared distance (`dist2`).
 **Action:** Use vector dot products (`isWithinCone`) for vision cone containment checks in hot sensing loops instead of `Math.atan2` and `angleDiff`.
+
+## 2025-05-26 - [Light Sampling Line-of-Sight & Distance Pre-Calculation Optimization]
+**Learning:** In per-caster per-frame light sampling loops (`sampleLightAt`), full directional raycasts (`rayDistance`) with wall reveal offsets can be replaced by fast integer DDA line-of-sight checks (`grid.hasLineOfSight`). Additionally, precomputing reciprocal tile scales (`1 / tileSize`), early-exiting zero-intensity lights, and short-circuiting falloff evaluation within the light core radius (`d2 <= coreR2`) defers or avoids expensive `Math.sqrt` and division operations.
+**Action:** Use fast DDA line-of-sight checks instead of full raycasts when sampling point-to-point light visibility, precompute reciprocal scale factors outside iteration loops, and delay `Math.sqrt` until after distance/visibility checks.

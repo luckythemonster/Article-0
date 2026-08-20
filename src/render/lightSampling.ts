@@ -1,5 +1,4 @@
 import type { CollisionGrid } from "../systems/CollisionGrid";
-import { rayDistance } from "../systems/Visibility";
 import { falloff, POOL_CORE } from "./falloff";
 
 /**
@@ -88,38 +87,51 @@ export function sampleLightAt(
   let sumY = 0;
   let total = 0;
 
+  const invTileSize = 1 / tileSize;
+  const sx = x * invTileSize;
+  const sy = y * invTileSize;
+
   for (const l of lights) {
+    if (l.intensity <= 0) continue;
+
     const dx = x - l.x;
     const dy = y - l.y;
     const d2 = dx * dx + dy * dy;
+    const r = l.radiusPx;
     // Squared-distance reject first: lights are static and reach at most a few tiles,
     // so this throws out nearly all of them before anything expensive happens.
-    if (d2 >= l.radiusPx * l.radiusPx) continue;
+    if (d2 >= r * r) continue;
 
-    const d = Math.sqrt(d2);
-    const s = falloff(d / l.radiusPx, POOL_CORE) * l.intensity;
-    if (s <= 0) continue;
-
-    // Standing exactly on the light: it is bright here but has no direction to throw
-    // from, so it contributes to `total` and nothing to the vector sum. Also the only
-    // case where the ray below would have no direction to walk in.
-    if (d === 0) {
-      total += s;
+    // Fast integer-DDA line-of-sight check back toward the light.
+    if (!grid.hasLineOfSight(sx, sy, l.x * invTileSize, l.y * invTileSize)) {
       continue;
     }
 
-    const nx = dx / d;
-    const ny = dy / d;
-    // Cast back toward the light. Unobstructed, `rayDistance` returns the cap exactly,
-    // so a strict comparison is enough — no epsilon.
-    const reachTiles = d / tileSize;
-    if (rayDistance(grid, x / tileSize, y / tileSize, -nx, -ny, reachTiles, 0) < reachTiles) {
+    // Standing exactly on the light: bright here but has no direction to throw
+    // from, so it contributes to `total` and nothing to the vector sum.
+    if (d2 === 0) {
+      total += l.intensity;
       continue;
     }
 
+    let d: number;
+    let s: number;
+    const coreR2 = r * r * (POOL_CORE * POOL_CORE);
+    if (d2 <= coreR2) {
+      // Within the light core radius, falloff is 1.0.
+      s = l.intensity;
+      d = Math.sqrt(d2);
+    } else {
+      d = Math.sqrt(d2);
+      s = falloff(d / r, POOL_CORE) * l.intensity;
+      if (s <= 0) continue;
+    }
+
+    // Weighted direction vector accumulation (nx * s = dx * (s / d))
+    const factor = s / d;
     total += s;
-    sumX += nx * s;
-    sumY += ny * s;
+    sumX += dx * factor;
+    sumY += dy * factor;
   }
 
   if (total <= 0) {
