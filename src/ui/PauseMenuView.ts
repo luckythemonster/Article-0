@@ -334,6 +334,8 @@ export class PauseMenuView {
     const detail = el("div", "pause-detail");
     detail.tabIndex = 0;
     detail.setAttribute("aria-label", "Journal entry details");
+    detail.setAttribute("aria-live", "polite");
+    detail.setAttribute("aria-atomic", "true");
     const unlocked = new Set(this.snap.journal.unlocked);
 
     const list = new SelectList((i) => {
@@ -372,6 +374,8 @@ export class PauseMenuView {
     const detail = el("div", "pause-detail");
     detail.tabIndex = 0;
     detail.setAttribute("aria-label", "Item details");
+    detail.setAttribute("aria-live", "polite");
+    detail.setAttribute("aria-atomic", "true");
     const rows: SelectListRow[] = [];
     /** Parallel to `rows`: the item each row describes, or null for a header. */
     const subjects: (string | null)[] = [];
@@ -447,6 +451,8 @@ export class PauseMenuView {
     const detail = el("div", "pause-detail");
     detail.tabIndex = 0;
     detail.setAttribute("aria-label", "Index entry details");
+    detail.setAttribute("aria-live", "polite");
+    detail.setAttribute("aria-atomic", "true");
     const ctx: LexiconContext = {
       journal: this.snap.journal,
       inventory: this.snap.inventory,
