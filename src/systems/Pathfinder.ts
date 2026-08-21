@@ -76,6 +76,12 @@ export function tilePassable(
   plane = 0,
 ): boolean {
   if (!grid.inBounds(tx, ty)) return false;
+  // For bodies with radius <= 0.5 tile units centered on a tile (tx + 0.5, ty + 0.5),
+  // the bounding circle strictly stays within tile (tx, ty). Therefore, checking
+  // whether tile (tx, ty) itself is passable avoids expensive circleFits grid sweeps.
+  if (radiusTiles <= 0.5) {
+    return !grid.isBlocked(tx, ty, plane) || (openable !== undefined && openable(tx, ty));
+  }
   return circleFits(grid, tx + 0.5, ty + 0.5, radiusTiles, openable, plane);
 }
 
