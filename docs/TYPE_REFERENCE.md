@@ -297,7 +297,7 @@ const RUN_KEYS = [ "inventory", "selectedConsumable", "staplerFieldCharges", "ob
 
 #### `BinaryHeap` — class *(module-private)*
 
-`src/systems/Pathfinder.ts:280`
+`src/systems/Pathfinder.ts:286`
 
 Minimal binary min-heap over (node, priority) pairs.
 
@@ -6359,7 +6359,7 @@ GameScene.
 | [AudioDirector](#class-audiodirector) | class | `src/systems/AudioDirector.ts:26` |
 | [BadgeState](#type-badgestate) | type | `src/ui/NetworkPanel.ts:103` |
 | [BakedPlane](#interface-bakedplane) | interface | `src/map/TileBake.ts:176` |
-| [BinaryHeap](#class-binaryheap) | class | `src/systems/Pathfinder.ts:280` |
+| [BinaryHeap](#class-binaryheap) | class | `src/systems/Pathfinder.ts:286` |
 | [BioMonitor](#class-biomonitor) | class | `src/ui/BioMonitor.ts:76` |
 | [BlockedAt](#type-blockedat) | type | `src/map/TileBake.ts:58` |
 | [BodyExtent](#interface-bodyextent) | interface | `src/systems/WallPress.ts:24` |
