@@ -1072,7 +1072,12 @@ export class GameScene extends Phaser.Scene {
    * line of sight), activates it on F, and publishes its state for the HUD. The
    * undetectable effect is applied in update() via the concealment path.
    *
-   * Guards are the usual witnesses, but the last two acts have their own: the vault's
+   * **Silicate** guards only — a human security guard is not a witness, however
+   * close he stands. There is no "we" to merge into with a man, and the whole
+   * verb is the merge; letting him charge it would make the run's signature
+   * mechanic indifferent to the one distinction the setting is about.
+   *
+   * Silicate guards are the usual witnesses, but the last two acts have their own: the vault's
    * silicate racks and the roof's dish. Both rooms need the merge to be survivable and
    * neither is patrolled, so without them the run's signature verb would simply stop
    * working for the whole endgame. Mechanically they are the same thing anyway — a
@@ -1087,7 +1092,7 @@ export class GameScene extends Phaser.Scene {
       this.grid.hasLineOfSight(x / ts, y / ts, px / ts, py / ts);
 
     const witnessing =
-      this.guards.some((e) => sees(e.x, e.y, WITNESS_RADIUS_TILES)) ||
+      this.guards.some((e) => e.isSilicate && sees(e.x, e.y, WITNESS_RADIUS_TILES)) ||
       this.encounters.witnessAnchors().some((a) => sees(a.x, a.y, a.radiusTiles));
     this.sharedField.witness(dt, witnessing);
     if (Phaser.Input.Keyboard.JustDown(this.keys.field) && this.sharedField.activate()) {
@@ -1391,6 +1396,12 @@ export class GameScene extends Phaser.Scene {
     // Fail-state — bio-integrity depleted, or cornered by a silicate during a
     // full alert: the mesh prunes Rowan's logs (Alignment).
     //
+    // "Silicate" is meant literally, which is why the guard list is filtered
+    // rather than counted. This ending is the *mesh* seizing him; a human
+    // security guard cornering him is a man with a job, and routing that through
+    // the Alignment ending would say the two are the same thing. He can still
+    // shoot, so he is not harmless — he just isn't this.
+    //
     // Suspended through the rooftop capture sequence. Rowan is *supposed* to be
     // surrounded there — being cornered is the scripted ending, not a failure — and
     // without this the Enforcers closing in would race the tribunal and usually win,
@@ -1401,7 +1412,7 @@ export class GameScene extends Phaser.Scene {
       !fieldActive &&
       !captured &&
       this.alert.isCombatAware &&
-      this.guards.some((e) => this.isCornering(e));
+      this.guards.some((e) => e.isSilicate && this.isCornering(e));
     this.captureProgress = cornered
       ? this.captureProgress + dt
       : Math.max(0, this.captureProgress - dt * 2);

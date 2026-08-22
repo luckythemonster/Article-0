@@ -3,6 +3,7 @@ import { Chest } from "../../entities/Chest";
 import { Cover } from "../../entities/Cover";
 import { Door } from "../../entities/Door";
 import { Drone } from "../../entities/Drone";
+import { SecurityGuard } from "../../entities/SecurityGuard";
 import { Enforcer } from "../../entities/Enforcer";
 import { ENFORCER_SKIN } from "../../entities/EnforcerAnimations";
 import { Laser } from "../../entities/Laser";
@@ -218,20 +219,26 @@ function spawnCast(
   // waypoint 0 and walking the rest as a loop.
   for (const g of index.guards) {
     const start = g.route[0];
-    out.guards.push(
-      g.kind === "drone"
-        ? new Drone(scene, start.x, start.y, tileSize, g.components, g.route, planeOf(start))
-        : new Enforcer(
-            scene,
-            start.x,
-            start.y,
-            tileSize,
-            g.components,
-            ENFORCER_SKIN,
-            g.route,
-            planeOf(start),
-          ),
-    );
+    const plane = planeOf(start);
+    // Three subclasses of one AI, picked off the board's own components. The
+    // switch is exhaustive on `GuardKind` so adding a fourth fails the build
+    // rather than silently spawning an enforcer, which is exactly how the
+    // security guard went unnoticed.
+    switch (g.kind) {
+      case "drone":
+        out.guards.push(new Drone(scene, start.x, start.y, tileSize, g.components, g.route, plane));
+        break;
+      case "security":
+        out.guards.push(
+          new SecurityGuard(scene, start.x, start.y, tileSize, g.components, g.route, plane),
+        );
+        break;
+      case "enforcer":
+        out.guards.push(
+          new Enforcer(scene, start.x, start.y, tileSize, g.components, ENFORCER_SKIN, g.route, plane),
+        );
+        break;
+    }
   }
   // An orderly board is one orderly's round, the same way a guard board is one
   // guard's beat — it spawns on waypoint 0 and loiters its way round the rest.

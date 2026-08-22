@@ -5,6 +5,7 @@ import {
   ENFORCER_SILHOUETTE,
   ORDERLY_SILHOUETTE,
   PLAYER_SILHOUETTE,
+  SECURITY_SILHOUETTE,
   type Silhouette,
 } from "./Silhouette";
 import {
@@ -15,6 +16,7 @@ import {
 import { ORDERLY_ANIM_FRAME_COUNTS, orderlyFrameKey, type OrderlyAnimName } from "./OrderlyAnimations";
 import { ENFORCER_SKIN } from "./EnforcerAnimations";
 import { DRONE_SKIN } from "./DroneAnimations";
+import { SECURITY_SKIN } from "./SecurityGuardAnimations";
 import type { GuardSkin } from "./GuardSkin";
 
 /**
@@ -109,6 +111,20 @@ const ROLES: Record<string, CastRole> = {
     head: 0xf0f3f7,
     accent: 0x41586f,
     dark: 0x6b7887,
+  },
+  /**
+   * The human security guard. Deliberately reads closer to the orderly than to
+   * the enforcer — same pale head, a uniform blue-grey body — because the one
+   * thing his art has to say before anything else is *this one is a person*. The
+   * red visor accent is the only hot colour on him, and it is the insignia rather
+   * than a machine's lens: authority worn by someone, not built into them.
+   */
+  security: {
+    silhouette: SECURITY_SILHOUETTE,
+    body: 0x3f4a63,
+    head: 0xe8d9c5,
+    accent: 0xb5535f,
+    dark: 0x1c2233,
   },
 };
 
@@ -336,6 +352,7 @@ export function buildCastTextures(scene: Phaser.Scene): void {
   for (const [role, skin] of [
     [ROLES.enforcer, ENFORCER_SKIN],
     [ROLES.drone, DRONE_SKIN],
+    [ROLES.security, SECURITY_SKIN],
   ] as [CastRole, GuardSkin][]) {
     for (const dir of DIRS_8) {
       for (let i = 0; i < skin.frameCount; i++) {

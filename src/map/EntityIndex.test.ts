@@ -55,7 +55,11 @@ describe("EntityIndex — the cast", () => {
       LEGACY,
     );
     expect(ix.guards).toHaveLength(1);
-    expect(ix.guards[0].kind).toBe("enforcer");
+    // `Job: SECURITY` is a human security guard, not an enforcer. This used to
+    // read "enforcer" — the rule was "any human who isn't an orderly", so the
+    // map's four `security_guard_*` boards spawned people wearing silicate art
+    // and silicate stats.
+    expect(ix.guards[0].kind).toBe("security");
     expect(ix.guards[0].route).toEqual([
       { x: 11, y: 4 },
       { x: 16, y: 8 },
@@ -64,7 +68,7 @@ describe("EntityIndex — the cast", () => {
     ]);
   });
 
-  it("tells a drone board from a guard board by its component", () => {
+  it("tells a drone board from a security board by its component", () => {
     const ix = indexEntities(
       level({
         drone_A: [tile(8, 13, "drone1", silicate), tile(1, 13, "drone2", silicate)],
@@ -72,7 +76,38 @@ describe("EntityIndex — the cast", () => {
       }),
       LEGACY,
     );
-    expect(ix.guards.map((g) => g.kind).sort()).toEqual(["drone", "enforcer"]);
+    expect(ix.guards.map((g) => g.kind).sort()).toEqual(["drone", "security"]);
+  });
+
+  it("leaves a job the engine has no cast for on the enforcer fallback", () => {
+    // `TECHNICIAN` is the third value of the map's `Job` enum and nothing in the
+    // game is one. Classifying it would put a character on the map no design
+    // asked for, so it lands where every unrecognised human always has.
+    const ix = indexEntities(
+      level({
+        tech_A: [tile(3, 3, "tech1", human("TECHNICIAN"))],
+        nameless_A: [tile(9, 9, "body1", human(""))],
+      }),
+      LEGACY,
+    );
+    expect(ix.guards.map((g) => g.kind)).toEqual(["enforcer", "enforcer"]);
+  });
+
+  it("refuses a board that mixes an orderly with a security guard", () => {
+    // Same rule the kinds have always followed: a board is one character's
+    // route, so a board describing two is no route at all. Guessing which one
+    // survives would silently drop the other.
+    const ix = indexEntities(
+      level({
+        mixed_A: [
+          tile(2, 2, "a1", human("ORDERLY")),
+          tile(4, 4, "a2", human("SECURITY")),
+        ],
+      }),
+      LEGACY,
+    );
+    expect(ix.guards).toHaveLength(0);
+    expect(ix.orderlies).toHaveLength(0);
   });
 
   it("reads an orderly board as one orderly's round, in ref order", () => {

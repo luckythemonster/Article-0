@@ -265,6 +265,19 @@ export class Enforcer {
   /** Read and written by the shared {@link workDoors} — see `doorWork.ts`. */
   heldDoor: PathNode | null = null;
 
+  /**
+   * Whether this guard is a silicate.
+   *
+   * A getter on the prototype rather than a field, so a subclass overrides it
+   * without any constructor-ordering hazard. `SecurityGuard` is the one that
+   * answers false, and the distinction is load-bearing rather than flavour: the
+   * Shared Field merges only with silicates, and the capture ending is the mesh
+   * pruning Rowan's logs — a man cornering him is neither.
+   */
+  get isSilicate(): boolean {
+    return true;
+  }
+
   constructor(
     scene: Phaser.Scene,
     tileX: number,
@@ -274,11 +287,21 @@ export class Enforcer {
     skin: GuardSkin = ENFORCER_SKIN,
     route: PatrolRoute = [],
     plane = 0,
+    /**
+     * Already-read stats, for a subclass whose defaults are not an enforcer's.
+     *
+     * Paired with `skin` and defaulted the same way: a reskin that is also a
+     * retune supplies both, and everything else keeps reading the `enforcer`
+     * component exactly as before. `src/entities/SecurityGuard.ts` is the one
+     * caller — the drone is an enforcer in every respect but its drawing, so it
+     * passes a skin and nothing else.
+     */
+    stats: EnforcerStats = enforcerStatsFor(components),
   ) {
     this.plane = plane;
     this.skin = skin;
     this.radiusTiles = skin.collisionRadiusTiles;
-    this.stats = enforcerStatsFor(components);
+    this.stats = stats;
     this.route = route;
     this.x = (tileX + 0.5) * tileSize;
     this.y = (tileY + 0.5) * tileSize;
