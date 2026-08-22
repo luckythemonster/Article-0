@@ -140,9 +140,16 @@ describe("the hand-drawn entity sprites", () => {
       "door-glass-north-south",
       "door-single-east-west",
       "door-single-north-south",
+      "footlocker",
+      "laser-beam",
+      "laser-emitter",
+      "lattice-uplink",
+      "locker",
       "security-camera",
       "terminal",
       "terminal-substation",
+      "trip-laser-east-west",
+      "trip-laser-north-south",
     ]);
   });
 

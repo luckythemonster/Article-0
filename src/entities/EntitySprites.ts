@@ -42,7 +42,14 @@ export type EntitySpriteId =
   | "door-single-east-west"
   | "door-single-north-south"
   | "door-glass-east-west"
-  | "door-glass-north-south";
+  | "door-glass-north-south"
+  | "laser-beam"
+  | "laser-emitter"
+  | "trip-laser-east-west"
+  | "trip-laser-north-south"
+  | "locker"
+  | "footlocker"
+  | "lattice-uplink";
 
 interface SpriteEntry {
   width: number;
@@ -203,6 +210,88 @@ export const ENTITY_SPRITES: readonly EntitySpriteSpec[] = [
     sourceWidth: 32,
     sourceHeight: 32,
     displayTiles: [1],
+  },
+
+  // --- The 2026-08-21 bundle -----------------------------------------------
+  //
+  // The laser grid. `laser-beam` is the run itself, tagged by axis; the emitter
+  // is the housing at each end, tagged by which way it fires plus an `idle` and
+  // a `deactivated` for an EMP'd one. Half a tile because it is a fitting bolted
+  // into its cell, the same reasoning the camera housing gets.
+  {
+    id: "laser-beam",
+    key: "entity-laser-beam",
+    path: "assets/sprites/laser-beam.png",
+    sourceWidth: 32,
+    sourceHeight: 32,
+    displayTiles: [1],
+  },
+  {
+    id: "laser-emitter",
+    key: "entity-laser-emitter",
+    path: "assets/sprites/laser-emitter.png",
+    sourceWidth: 32,
+    sourceHeight: 32,
+    displayTiles: [0.5, 1],
+  },
+  // The trip lasers are drawn to the shape of the gap they cross, which is why
+  // the east-west one is 40px tall on a 1x1.25 tile and its sibling is square —
+  // the same reasoning the east-west doors get, at a different span.
+  {
+    id: "trip-laser-east-west",
+    key: "entity-trip-laser-east-west",
+    path: "assets/sprites/trip-laser-east-west.png",
+    sourceWidth: 32,
+    sourceHeight: 40,
+    displayTiles: [{ col: 1, row: 1.25 }],
+  },
+  {
+    id: "trip-laser-north-south",
+    key: "entity-trip-laser-north-south",
+    path: "assets/sprites/trip-laser-north-south.png",
+    sourceWidth: 32,
+    sourceHeight: 32,
+    displayTiles: [1],
+  },
+  // The two body-stash containers — see `src/entities/Locker.ts`. The upright
+  // locker is keypad-locked and the footlocker is the floor-standing one; both
+  // are a whole tile.
+  {
+    id: "locker",
+    key: "entity-locker",
+    path: "assets/sprites/locker.png",
+    sourceWidth: 32,
+    sourceHeight: 32,
+    displayTiles: [1],
+  },
+  {
+    id: "footlocker",
+    key: "entity-footlocker",
+    path: "assets/sprites/footlocker.png",
+    sourceWidth: 32,
+    sourceHeight: 32,
+    displayTiles: [1],
+  },
+  // `crate`, `crate-stack`, `bunk-bed` and `bulkhead` are cut and committed but
+  // deliberately **not listed here**, because this list is a load manifest: an
+  // entry costs a HEAD probe and a texture at boot, and none of those four has
+  // anything to draw it yet. Cover art is baked into the level texture rather
+  // than sprited (see `src/entities/Cover.ts`), and the map has no 2x3 door def
+  // for the bulkhead to be — its only large opening is the 2.5x2.5 `elevator`,
+  // which `EntityIndex` files as scenery on purpose. Adding an entry is one
+  // object literal once a call site exists; `docs/SPRITE_BACKLOG.md` records what
+  // each is waiting on.
+  //
+  // Act IV's dish. 160px of art over 2.5 tiles is exactly 1 screen pixel per
+  // source pixel; the alternative that also divides is 5 tiles at 2, which would
+  // put a 160px dish on a roof that is 12 tiles wide.
+  {
+    id: "lattice-uplink",
+    key: "entity-lattice-uplink",
+    path: "assets/sprites/lattice-uplink.png",
+    sourceWidth: 160,
+    sourceHeight: 160,
+    displayTiles: [2.5],
   },
 ] as const;
 
