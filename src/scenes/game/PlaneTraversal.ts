@@ -159,6 +159,7 @@ export class PlaneTraversal {
         sneak: false,
         run: false,
         escorting: false,
+      carrying: false,
         press: null,
         canStand: true,
       },

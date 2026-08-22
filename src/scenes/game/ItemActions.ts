@@ -2,6 +2,7 @@ import type Phaser from "phaser";
 import { Cover } from "../../entities/Cover";
 import { DeployedItem } from "../../entities/DeployedItem";
 import type { Laser } from "../../entities/Laser";
+import type { Enforcer } from "../../entities/Enforcer";
 import type { Orderly } from "../../entities/Orderly";
 import type { Player } from "../../entities/Player";
 import { playVfx, ELECTRONICS_SPARK, EMP_BLAST, IMPACT } from "../../entities/Vfx";
@@ -27,6 +28,8 @@ import {
   STAPLER_FIELD_NOISE,
   STAPLER_FIELD_RANGE_TILES,
   STAPLER_PIN_DURATION,
+  EMP_SHUTDOWN_DURATION,
+  EMP_SHUTDOWN_TILES,
   STUN_ROUND_DURATION,
   STUN_ROUND_NOISE,
   STUN_ROUND_REACH_TILES,
@@ -68,6 +71,8 @@ export interface ItemWorld {
   noise(): NoiseEvents;
   activeItems(): ActiveItemState;
   orderlies(): readonly Orderly[];
+  /** The patrols — the dart reaches the human ones, the EMP the silicate ones. */
+  guards(): readonly Enforcer[];
   lasers(): readonly Laser[];
   coverTiles(): readonly Cover[];
   /** The EMP zone's graphics layer, drawn between guard cones and bodies. */
@@ -216,13 +221,26 @@ export class ItemActions {
         playVfx(scene, ELECTRONICS_SPARK, laser.x, laser.y, ts);
       }
     }
+    // Silicates inside the tighter shutdown radius go down entirely, rather than
+    // merely being blinded by the zone. Two radii off one grenade so it keeps both
+    // uses: thrown wide it buys a corridor, and set off at somebody's feet it puts
+    // them on the floor — which is the only way the player has of producing a
+    // silicate body to stash. Humans are unaffected: an EMP does nothing to flesh,
+    // and the dart is what reaches them.
+    const shutdownPx = EMP_SHUTDOWN_TILES * ts;
+    for (const guard of this.w.guards()) {
+      if (!guard.isSilicate || guard.isStashed) continue;
+      if (!withinOrEqual(guard.x - player.x, guard.y - player.y, shutdownPx)) continue;
+      guard.putDown(EMP_SHUTDOWN_DURATION);
+      playVfx(scene, ELECTRONICS_SPARK, guard.x, guard.y, ts);
+    }
     playVfx(scene, EMP_BLAST, player.x, player.y, ts);
     scene.cameras.main.flash(200, 120, 200, 255);
   }
 
   /**
-   * Fires a short stun dart along Rowan's facing: the nearest orderly within
-   * reach and roughly ahead is frozen (can't witness), and independently the
+   * Fires a short stun dart along Rowan's facing: the nearest **person** within
+   * reach and roughly ahead is put down (can't witness), and independently the
    * nearest destructible cover tile ahead is broken — a stun round has no real
    * raycast today (see the orderly loop below), so both effects can land off
    * the same shot rather than fighting over which one the dart "really" hit.
@@ -248,8 +266,36 @@ export class ItemActions {
         target = orderly;
       }
     }
-    target?.stun(STUN_ROUND_DURATION);
-    if (target) playVfx(this.w.scene, IMPACT, target.x, target.y, ts);
+    // A human guard is as dartable as an orderly, and has to be: on `main1` both
+    // patrols are people, so without this the dart has nothing to hit there and
+    // the whole takedown-and-stash loop is unreachable on the first level of the
+    // game. Silicates are excluded for the same reason humans are excluded from
+    // the EMP — a dart is a chemical, and there is nothing in a silicate for it
+    // to act on.
+    let guardTarget: Enforcer | undefined;
+    let bestGuardDist = Infinity;
+    for (const guard of this.w.guards()) {
+      if (guard.isSilicate || guard.isDown || guard.isStashed) continue;
+      const dx = guard.x - player.x;
+      const dy = guard.y - player.y;
+      const dist = len(dx, dy);
+      if (dist > reachPx || dist === 0) continue;
+      if ((dx * fx + dy * fy) / dist < WEAPON_ARC_COS) continue;
+      if (dist < bestGuardDist) {
+        bestGuardDist = dist;
+        guardTarget = guard;
+      }
+    }
+
+    // The nearer of the two wins. One dart, one body — resolving both would let a
+    // single shot clear a room whenever an orderly happened to stand behind a guard.
+    if (guardTarget && bestGuardDist < bestDist) {
+      guardTarget.putDown(STUN_ROUND_DURATION);
+      playVfx(this.w.scene, IMPACT, guardTarget.x, guardTarget.y, ts);
+    } else {
+      target?.stun(STUN_ROUND_DURATION);
+      if (target) playVfx(this.w.scene, IMPACT, target.x, target.y, ts);
+    }
 
     let cover: Cover | undefined;
     let bestCoverDist = Infinity;

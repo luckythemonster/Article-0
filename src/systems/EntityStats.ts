@@ -189,6 +189,66 @@ export function securityGuardStatsFor(components: ComponentData[]): EnforcerStat
   };
 }
 
+// ---------------------------------------------------------------------------
+// Bodies, and putting them somewhere
+// ---------------------------------------------------------------------------
+
+/**
+ * Seconds of held interact to put a body into a locker, or take one back out.
+ *
+ * Longer than a chest's search (2.0) and much longer than a door (a tap),
+ * because it is the most exposed thing the player can choose to do: both hands
+ * busy, standing still, in a room where something has just been put on the
+ * floor. If it were cheap, stashing would be the automatic follow-up to every
+ * takedown rather than a decision about whether there is time.
+ *
+ * Real seconds, not {@link paced}. It is a gameplay clock — the balance it
+ * encodes is against the patrol timings the player is reading, and pacing it
+ * would slide it against them.
+ */
+export const LOCKER_STASH_TIME = 3.0;
+
+/**
+ * Rowan's speed multiplier while carrying a body.
+ *
+ * Slower than the hold-up march ({@link ESCORT_SPEED_MULTIPLIER}) because that
+ * one walks on its own legs and this one does not. Level with the crouch (0.45)
+ * so the two never need retuning against each other: carrying is already the
+ * more exposed of the two, since a carried body is visible above cover.
+ */
+export const CARRY_SPEED_MULTIPLIER = 0.4;
+
+/**
+ * How close Rowan has to be to a downed body to pick it up, in tiles.
+ *
+ * Tighter than `INTERACT_RANGE` (1.4) on purpose. A body lies on the floor
+ * beside the fixtures the player is usually reaching for, and at the same reach
+ * the pick-up would keep stealing presses meant for a terminal or a door — the
+ * claim chain resolves by nearest, and a body is often nearer than the thing
+ * next to it.
+ */
+export const BODY_PICKUP_TILES = 0.9;
+
+/**
+ * Seconds a silicate stays shut down after an EMP Grenade goes off next to it.
+ *
+ * Sits between the Stun Rounds dart and the Rail-Stapler's pin, so the three
+ * ways of putting something down stay ordered by how much they cost to use: the
+ * dart is single-target and cheap, the EMP is an area effect off a consumable,
+ * and the staple is the longest and needs the boss weapon.
+ */
+export const EMP_SHUTDOWN_DURATION = 9.0;
+
+/**
+ * Tiles from an EMP burst's centre within which a silicate is shut down.
+ *
+ * Deliberately smaller than the chaff zone the same grenade lays down. The zone
+ * blinds everything inside it and always has; this is the harder effect and it
+ * asks for a closer throw, so the grenade keeps its "buy yourself a corridor"
+ * use while gaining a "put that one down" use at range zero.
+ */
+export const EMP_SHUTDOWN_TILES = 2.2;
+
 /** Noise ping (0..1) emitted by a pursuing guard's shot. */
 export const ENFORCER_FIRE_NOISE = 0.5;
 

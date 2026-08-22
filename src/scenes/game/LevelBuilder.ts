@@ -4,6 +4,7 @@ import { Cover } from "../../entities/Cover";
 import { Door } from "../../entities/Door";
 import { Drone } from "../../entities/Drone";
 import { SecurityGuard } from "../../entities/SecurityGuard";
+import { Locker } from "../../entities/Locker";
 import { Enforcer } from "../../entities/Enforcer";
 import { ENFORCER_SKIN } from "../../entities/EnforcerAnimations";
 import { Laser } from "../../entities/Laser";
@@ -69,6 +70,7 @@ export interface BuiltLevel {
   coverBodies: Phaser.GameObjects.GameObject[];
   /** Arcade bodies for the closed doors, for the player collider. */
   doorBodies: Phaser.GameObjects.GameObject[];
+  lockers: Locker[];
   /**
    * The level's baked art, one texture per walk surface plus the canopy — see
    * `bakePlanes`. A single-plane level has exactly one entry, at the depth the
@@ -137,6 +139,7 @@ export function buildLevel(
     wallBodies,
     coverBodies: coverBodyEntries.map((e) => e.body),
     doorBodies: [],
+    lockers: [],
     claimedTiles: index.claimed,
     planes,
     deckEdgeBodies,
@@ -295,6 +298,14 @@ function spawnInteractables(
 ): void {
   const deck = deckCells(level, tileSize);
   const planeOf = (t: { x: number; y: number }): number => deckPlaneAt(deck, level, t.x, t.y);
+
+  // The two silhouettes differ in art and nothing else, so which one a locker
+  // wears is read off the tile's own ref rather than branched on anywhere below.
+  for (const t of index.lockers) {
+    out.lockers.push(
+      new Locker(scene, t, tileSize, t.ref.includes("foot") ? "footlocker" : "locker"),
+    );
+  }
 
   for (const t of index.doors) {
     const door = new Door(scene, t, tileSize, grid);

@@ -38,6 +38,7 @@ import { initialPowerGrid, type PowerGridState } from "../systems/PowerGrid";
 import { Laser } from "../entities/Laser";
 import { Sensor } from "../entities/Sensor";
 import { Chest } from "../entities/Chest";
+import { Locker, type StashedBody } from "../entities/Locker";
 import { Cover } from "../entities/Cover";
 import { buildAlertNetworkSnapshot, NoiseSpamTracker } from "../systems/AlertNetwork";
 import { Lighting } from "../ui/Lighting";
@@ -84,6 +85,7 @@ import {
   STAPLER_FIELD_MAX_CHARGES,
   STAPLER_ITEM,
   STARTING_INVENTORY,
+  BODY_PICKUP_TILES,
   STUN_ROUND_DURATION,
   WALL_PRESS_DETECTION_MULTIPLIER,
 } from "../systems/EntityStats";
@@ -204,6 +206,15 @@ export class GameScene extends Phaser.Scene {
   private terminals: Terminal[] = [];
   private lasers: Laser[] = [];
   private sensors: Sensor[] = [];
+  private lockers: Locker[] = [];
+  /**
+   * The body Rowan is carrying, if any.
+   *
+   * A `StashedBody` rather than an `Orderly | Enforcer` because from here the two
+   * are the same thing — something on the floor that can be moved and put away —
+   * and the scene has no reason to know which. See `src/entities/Locker.ts`.
+   */
+  private carried: StashedBody | null = null;
   private chests: Chest[] = [];
   private breakers: Breaker[] = [];
   /**
@@ -248,6 +259,7 @@ export class GameScene extends Phaser.Scene {
     lasers: () => this.lasers,
     sensors: () => this.sensors,
     orderlies: () => this.orderlies,
+    guards: () => this.guards,
   });
   /** Refilled each frame and republished; see {@link RadarSnapshot}. */
   private readonly radarSnapshot = emptyRadarSnapshot();
@@ -299,6 +311,7 @@ export class GameScene extends Phaser.Scene {
     noise: () => this.noise,
     activeItems: () => this.activeItems,
     orderlies: () => this.orderlies,
+    guards: () => this.guards,
     lasers: () => this.lasers,
     coverTiles: () => this.coverTiles,
     empGfx: () => this.empGfx,
@@ -497,6 +510,7 @@ export class GameScene extends Phaser.Scene {
     );
     this.player = built.player;
     this.guards = built.guards;
+    this.lockers = built.lockers;
     this.orderlies = built.orderlies;
     this.doors = built.doors;
     this.terminals = built.terminals;
@@ -758,6 +772,10 @@ export class GameScene extends Phaser.Scene {
    */
   private resetPerRun(): void {
     this.guards = [];
+    // Bodies belong to the level they were put down on, and a carried one must
+    // not survive a transition into a scene where it no longer exists.
+    this.lockers = [];
+    this.carried = null;
     this.orderlies = [];
     // A lunch left on deck 1 is not still on the floor when you come back up a
     // ladder: deployables belong to the level, like the guards who react to them.
@@ -1068,6 +1086,36 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Everyone on this level who can be put down, carried and stashed.
+   *
+   * One roster over both casts, because "a body" is not a fact about which class
+   * it came from. Five separate places have to agree on who is currently out of
+   * play — the anomaly scan, the ground shadows, the radar, the alert-network
+   * count and the pick-up search — and before this they each iterated `guards`
+   * and `orderlies` on their own terms. A stashed body dropped from four of them
+   * and not the fifth is a body that is invisible and still reported, which is
+   * the exact bug the mechanic exists to prevent.
+   *
+   * Allocates a fresh array per call, so callers on the frame path take the two
+   * lists directly and only the once-per-press pick-up search uses this.
+   */
+  private stashables(): StashedBody[] {
+    return [...this.guards, ...this.orderlies];
+  }
+
+  /**
+   * Keeps a carried body on Rowan's shoulder.
+   *
+   * Driven from `tickWorld` after he has moved, so the body lands on this frame's
+   * position rather than last frame's — at the carry pace that is a couple of
+   * pixels, but it is the difference between a body that rides and one that
+   * visibly lags.
+   */
+  private updateCarry(): void {
+    this.carried?.moveTo(this.player.x, this.player.y);
+  }
+
+  /**
    * Charges the Shared Field by witnessing a nearby silicate (within range, with
    * line of sight), activates it on F, and publishes its state for the HUD. The
    * undetectable effect is applied in update() via the concealment path.
@@ -1194,6 +1242,7 @@ export class GameScene extends Phaser.Scene {
         sneak: false,
         run: false,
         escorting: false,
+        carrying: false,
         press: null,
         canStand: true,
       };
@@ -1214,6 +1263,7 @@ export class GameScene extends Phaser.Scene {
       // *not* touch the direction: the whole march is steered by walking normally,
       // and the axes are still inverted underneath it if NW-SMAC-01 is doing that.
       escorting: this.holdUp.target !== null,
+      carrying: this.carried !== null,
     };
   }
 
@@ -1607,8 +1657,11 @@ export class GameScene extends Phaser.Scene {
     const casters = this.shadowCasters;
     casters.length = 0;
     casters.push(this.player);
-    for (const guard of this.guards) casters.push(guard);
-    for (const orderly of this.orderlies) casters.push(orderly);
+    // A stashed body casts no shadow, because it is not in the room. Its sprite
+    // is already hidden; without this the shadow stays behind on the floor and is
+    // the one thing left pointing at the locker.
+    for (const guard of this.guards) if (!guard.isStashed) casters.push(guard);
+    for (const orderly of this.orderlies) if (!orderly.isStashed) casters.push(orderly);
     this.entityShadows.update(casters);
   }
 
@@ -1674,6 +1727,9 @@ export class GameScene extends Phaser.Scene {
     // denial light is the most worth showing.
     const doorTileX = this.player.x / this.tileSize;
     const doorTileY = this.player.y / this.tileSize;
+    // After the player has moved this frame, so a carried body rides on his
+    // current position rather than last frame's.
+    this.updateCarry();
     for (const door of this.doors) door.senseProximity(doorTileX, doorTileY);
 
     // Lasers: crossing an active beam/scan zone instantly trips the alarm.
@@ -1765,17 +1821,20 @@ export class GameScene extends Phaser.Scene {
 
   /** Publishes this frame's HUD state, and draws the debug overlay over it. */
   private publishFrame(): void {
-    this.registry.set(
-      "alertNetwork",
-      buildAlertNetworkSnapshot(this.guards, this.sensors, this.alert),
-    );
+    // Both readouts are built over the guards *in play*. A stashed one is not a
+    // contact the mesh has, and leaving it in would mean the alert-network count
+    // never drops when the player deals with somebody — which is the feedback
+    // that tells him the stash worked. Filtered here rather than inside the two
+    // systems: they are headless and have no business knowing what a locker is.
+    const active = this.guards.filter((g) => !g.isStashed);
+    this.registry.set("alertNetwork", buildAlertNetworkSnapshot(active, this.sensors, this.alert));
     this.registry.set(
       "radar",
       buildRadarSnapshot(
         this.grid,
         this.tileSize,
         this.player,
-        this.guards,
+        active,
         this.sensors,
         this.alert.phase === "ALERT",
         this.radarSnapshot,
@@ -1907,6 +1966,37 @@ export class GameScene extends Phaser.Scene {
     const searching = !!nearestChest && interactDown && !hacking && !encounterHold;
     if (searching) this.conduct.violate("TAMPERING", FLAG_TAMPERING);
     if (searching && nearestChest!.open(dt)) this.collectChest(nearestChest!);
+
+    // --- Lockers (hold E) ---
+    //
+    // Slotted in beside the chest rather than in the tap chain below, because it
+    // is the same shape of interaction: stand still, hold, and be exposed for as
+    // long as it takes. A chest wins a tie at equal reach — it is a thing the
+    // player walked over to on purpose, and a locker is usually just the nearest
+    // wall.
+    let nearestLocker: Locker | undefined;
+    let nearestLockerDist = Infinity;
+    for (const locker of this.lockers) {
+      if (!locker.canWork(this.carried !== null)) continue;
+      const d = len(locker.x / ts - ptx, locker.y / ts - pty);
+      if (d <= INTERACT_RANGE && d < nearestLockerDist) {
+        nearestLockerDist = d;
+        nearestLocker = locker;
+      }
+    }
+    const stashing =
+      !!nearestLocker && interactDown && !hacking && !encounterHold && !searching;
+    // Only a completed stash empties his hands. A retrieval puts the body on the
+    // floor at the locker rather than into them — he opened a door, he did not
+    // catch anybody — so picking it back up is a separate press, and the two
+    // directions of the verb are not each other's inverse.
+    if (stashing && nearestLocker!.work(dt, this.carried) === "stashed") {
+      this.carried = null;
+      getAudio().door();
+    }
+    for (const locker of this.lockers) {
+      if (locker !== nearestLocker || !stashing) locker.idle(dt);
+    }
     for (const chest of this.chests) {
       if (chest !== nearestChest || !interactDown || hacking || encounterHold) chest.idle(dt);
     }
@@ -1940,6 +2030,28 @@ export class GameScene extends Phaser.Scene {
     // --- Vaulting low cover (tap E) ---
     const vaultTo = this.vault.target();
 
+    // --- Bodies (tap E) ---
+    //
+    // A tighter reach than everything else in this chain — see
+    // `BODY_PICKUP_TILES`. A body lies on the floor among the fixtures the player
+    // is usually reaching for, and at the shared 1.4-tile reach it would keep
+    // winning presses meant for the terminal it fell in front of.
+    //
+    // Only searched for while his hands are empty: with a body already up, the
+    // same tap puts it down, and there is nothing to look for.
+    let bodyToLift: StashedBody | undefined;
+    if (!this.carried) {
+      let bestBodyDist = BODY_PICKUP_TILES;
+      for (const body of this.stashables()) {
+        if (!body.isCarryable) continue;
+        const d = len(body.x / ts - ptx, body.y / ts - pty);
+        if (d <= bestBodyDist) {
+          bestBodyDist = d;
+          bodyToLift = body;
+        }
+      }
+    }
+
     // A tap not consumed by a hack opens/closes a door, uses a hatch, or goes
     // over the crate in front of you — whichever is nearer (a hatch you're
     // standing on always wins). The vault is last of the three because a door and
@@ -1968,6 +2080,19 @@ export class GameScene extends Phaser.Scene {
         // other surface where the link comes out.
         this.traversal.begin(ladder);
         return;
+      } else if (bodyToLift || this.carried) {
+        // Picking up and putting down are the same tap, because they are the same
+        // decision seen from either side and there is never a frame where both
+        // are available: `bodyToLift` is only searched for while his hands are
+        // empty. Above the vault for the same reason a door is — a body is a
+        // thing you walked over to, and the crate you happen to be facing must
+        // never steal the press from it.
+        adjacentClaimedTap = true;
+        if (this.carried) {
+          this.carried = null;
+        } else {
+          this.carried = bodyToLift!;
+        }
       } else if (vaultTo) {
         adjacentClaimedTap = true;
         this.vault.begin(vaultTo);
@@ -2014,6 +2139,11 @@ export class GameScene extends Phaser.Scene {
         breakerDist: nearestBreakerDist,
         chest: nearestChest,
         chestDist: nearestChestDist,
+        locker: nearestLocker ? { occupied: nearestLocker.isOccupied } : undefined,
+        lockerDist: nearestLockerDist,
+        body: bodyToLift !== undefined,
+        bodyDist: bodyToLift ? len(bodyToLift.x / ts - ptx, bodyToLift.y / ts - pty) : Infinity,
+        carrying: this.carried !== null,
         hatch: hatch !== undefined || (ladder !== undefined && this.traversal.armedForLink),
         vault: vaultTo !== null,
         ventLabel: encounter.label,

@@ -57,11 +57,20 @@ export interface EnforcerFireResult {
  * Set entry per tile per orderly for the length of the run, and have a guard
  * re-investigate the same man forever.
  */
-export type PersonAnomalyKind = "stunnedOrderly" | "pinnedOrderly" | "surrenderedOrderly";
+export type PersonAnomalyKind =
+  | "stunnedOrderly"
+  | "pinnedOrderly"
+  | "surrenderedOrderly"
+  | "downedGuard";
 
 /** True for the three kinds that are a person rather than a thing. */
 export function isPersonAnomaly(kind: GuardAnomaly["kind"]): kind is PersonAnomalyKind {
-  return kind === "stunnedOrderly" || kind === "pinnedOrderly" || kind === "surrenderedOrderly";
+  return (
+    kind === "stunnedOrderly" ||
+    kind === "pinnedOrderly" ||
+    kind === "surrenderedOrderly" ||
+    kind === "downedGuard"
+  );
 }
 
 /** An environmental anomaly a guard's vision cone can notice. */
@@ -229,6 +238,10 @@ export class Enforcer {
 
   /** Which walk surface this guard patrols — see `src/map/planes.ts`. */
   readonly plane: number;
+  /** Seconds of EMP shutdown remaining; while > 0 the guard is inert. */
+  private downTimer = 0;
+  /** Out of sight in a locker — see {@link setStashed}. */
+  private stashed = false;
   private readonly cone: Phaser.GameObjects.Graphics;
   private readonly body: Phaser.GameObjects.Sprite;
   private readonly bang: Phaser.GameObjects.Text;
@@ -336,8 +349,95 @@ export class Enforcer {
     this.bang = alertMarker(scene, this.x, this.y, tileSize);
   }
 
+  /**
+   * Puts this guard on the floor for a stretch.
+   *
+   * One timer, two words for what it is: a human security guard is knocked
+   * **unconscious** by a Stun Rounds dart, and a silicate is **deactivated** by an
+   * EMP at close range. The distinction is entirely in which weapon reaches which
+   * guard — see `fireStunDart` and `detonateChaff` in
+   * `src/scenes/game/ItemActions.ts` — and the state they produce is the same
+   * state, because from the player's side both are a body to deal with.
+   *
+   * Neither weapon could do this before. The dart only ever looked at orderlies,
+   * and the EMP only *blinded*: it laid down a positional chaff zone guards could
+   * not see through while they went on walking their beats. So nothing in the
+   * game could put a guard down at all, and the takedown half of a stealth game
+   * was missing rather than merely hard.
+   *
+   * Deliberately a timer, not a kill. Nothing in this game destroys a silicate
+   * and it should not start here: the run's argument is about what a silicate
+   * *is*, and a permanent off-switch would settle that in the mechanics rather
+   * than leaving it to the Tribunal.
+   */
+  putDown(seconds: number): void {
+    this.downTimer = Math.max(this.downTimer, seconds);
+    this.detection = 0;
+    this.clearPath();
+    this.bang.setVisible(false);
+  }
+
+  /** True while on the floor — guards read one of these as an anomaly. */
+  get isDown(): boolean {
+    return this.downTimer > 0;
+  }
+
+  /**
+   * Puts the guard out of sight, or takes it back out. See
+   * {@link Orderly.setStashed}, which this mirrors exactly — including the timer
+   * continuing to run inside the locker.
+   */
+  setStashed(on: boolean): void {
+    if (this.stashed === on) return;
+    this.stashed = on;
+    this.body.setVisible(!on);
+    if (on) {
+      this.bang.setVisible(false);
+      this.cone.clear();
+    }
+  }
+
+  /** True while out of sight in a locker. */
+  get isStashed(): boolean {
+    return this.stashed;
+  }
+
+  /** A body that can be picked up: down, and not already put away. */
+  get isCarryable(): boolean {
+    return this.isDown && !this.stashed;
+  }
+
+  /** Moves a carried body with the carrier. */
+  moveTo(x: number, y: number): void {
+    this.x = x;
+    this.y = y;
+    this.body.setPosition(x, y);
+    this.eye.x = x;
+    this.eye.y = y;
+  }
+
   update(dt: number, ctx: EnforcerContext): EnforcerFireResult | undefined {
     const { tileSize, grid } = ctx;
+
+    // Stashed: nothing to draw, think or sense. The shutdown clock still runs —
+    // see `setStashed` — so this ticks it before bailing out.
+    if (this.stashed) {
+      this.downTimer = Math.max(0, this.downTimer - dt);
+      return undefined;
+    }
+
+    // Down: inert on the floor, blind, and not walking anywhere.
+    // The cone is cleared rather than merely narrowed, because a dark cone is
+    // the whole visual difference between a stopped guard and a stopped guard
+    // that can still see you.
+    if (this.downTimer > 0) {
+      this.downTimer = Math.max(0, this.downTimer - dt);
+      this.detection = 0;
+      this.cone.clear();
+      this.body.setPosition(this.x, this.y);
+      this.bang.setVisible(false);
+      return undefined;
+    }
 
     let fired: EnforcerFireResult | undefined;
     if (ctx.alert.phase === "ALERT") {

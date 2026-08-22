@@ -1,13 +1,18 @@
 import type { Chest } from "../../entities/Chest";
 import type { Door } from "../../entities/Door";
-import type { GuardAnomaly } from "../../entities/Enforcer";
+import type { Enforcer, GuardAnomaly } from "../../entities/Enforcer";
 import type { Laser } from "../../entities/Laser";
 import type { Orderly } from "../../entities/Orderly";
 import type { Sensor } from "../../entities/Sensor";
 
 /**
  * Everything a guard's cone could notice as out of place this frame: doors left
- * open, chests emptied, emitters knocked out, orderlies on the floor.
+ * open, chests emptied, emitters knocked out, bodies on the floor.
+ *
+ * A body that has been stashed in a locker is reported by none of it — see
+ * `src/entities/Locker.ts`. That is the whole of what stashing does, and it has
+ * to be enforced here rather than by hiding the sprite, because a cone reads this
+ * list and not the screen.
  *
  * The allocation discipline is the reason this is a class rather than a
  * function. It runs every frame, and each entry used to be a fresh object
@@ -33,6 +38,7 @@ export interface AnomalyWorld {
   lasers(): readonly Laser[];
   sensors(): readonly Sensor[];
   orderlies(): readonly Orderly[];
+  guards(): readonly Enforcer[];
 }
 
 export class Anomalies {
@@ -87,7 +93,23 @@ export class Anomalies {
       }
     }
 
+    for (const guard of this.w.guards()) {
+      // A guard on the floor is the loudest thing in the room, so it reports
+      // before anything a patrol might merely find odd. Stashed ones report
+      // nothing at all — that is what stashing is.
+      if (!guard.isDown || guard.isStashed) continue;
+      this.push(
+        guard.x,
+        guard.y,
+        Math.floor(guard.x / ts),
+        Math.floor(guard.y / ts),
+        "downedGuard",
+        "guard",
+      );
+    }
+
     for (const orderly of this.w.orderlies()) {
+      if (orderly.isStashed) continue;
       if (orderly.isStunned) {
         this.push(
           orderly.x,

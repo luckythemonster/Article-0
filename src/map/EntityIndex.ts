@@ -77,6 +77,8 @@ export interface EntityIndex {
   chests: GameTile[];
   /** Power breakers — see `src/systems/PowerGrid.ts`. */
   breakers: GameTile[];
+  /** Body-stash containers — see `src/entities/Locker.ts`. Engine-added. */
+  lockers: GameTile[];
   /** Tiles claimed by one of the above; `bakeTileLayers` must skip them. */
   claimed: Set<GameTile>;
 }
@@ -161,6 +163,7 @@ export function indexEntities(level: GameLevel, legacyBoards: ReadonlySet<string
     terminals: [],
     chests: [],
     breakers: [],
+    lockers: [],
     claimed: new Set<GameTile>(),
   };
 
@@ -260,4 +263,12 @@ export function indexFixtures(level: GameLevel, index: EntityIndex): void {
   // absent from GameScene's `ENTITY_LAYERS` and why claiming per tile matters:
   // the breaker must not be baked into the level texture *and* drawn as a sprite.
   take(board("power"), "power_grid", index.breakers);
+  // Lockers carry no component to test — they are engine-added clones of map
+  // furniture, and `src/map/Lockers.ts` owns the board wholesale. So the board
+  // itself is the claim, which is safe here in a way it would not be for a map
+  // board: nothing but the generator ever writes to it.
+  for (const tile of board("lockers")) {
+    index.lockers.push(tile);
+    index.claimed.add(tile);
+  }
 }

@@ -184,6 +184,8 @@ export class Orderly {
   private state: OrderlyState = "WANDER";
   /** Seconds of stun remaining; while > 0 the orderly is frozen and can't witness. */
   private stunTimer = 0;
+  /** Out of sight in a locker — see {@link setStashed}. */
+  private stashed = false;
   /** Seconds pinned to a wall (the Rail-Stapler's field mode) remaining; same effect as stun. */
   private pinTimer = 0;
   /** A knock the orderly is walking over to inspect, or null outside INSPECT. */
@@ -326,6 +328,17 @@ export class Orderly {
 
   /** True on the exact frame the orderly first spots the player. */
   update(dt: number, ctx: OrderlyContext): boolean {
+    // Stashed: nothing to draw, nothing to think, nothing to witness. The timers
+    // still run — see `setStashed` for why a locker is not a coffin — so this
+    // falls through to the frozen branch's countdown rather than returning early
+    // with the clock stopped.
+    if (this.stashed) {
+      this.stunTimer = Math.max(0, this.stunTimer - dt);
+      this.pinTimer = Math.max(0, this.pinTimer - dt);
+      this.moving = false;
+      return false;
+    }
+
     // Stunned or pinned: hold still and stay blind until it wears off.
     if (this.stunTimer > 0 || this.pinTimer > 0) {
       this.stunTimer = Math.max(0, this.stunTimer - dt);
@@ -853,6 +866,53 @@ export class Orderly {
       if (wantTint) this.body.setTint(SURRENDER_TINT);
       else this.body.clearTint();
     }
+  }
+
+  /**
+   * Puts the body out of sight, or takes it back out.
+   *
+   * The one thing that stops an unconscious orderly being an anomaly. While
+   * stashed he is hidden, frozen, and dropped from every list the scene builds
+   * over the cast — see `GameScene.stashables` for the five of them — so a patrol
+   * walks past the locker without noticing anything.
+   *
+   * The stun/pin timer keeps ticking down inside the locker. A body does not stay
+   * unconscious because it is in a box, and letting the timer freeze would turn
+   * stashing into a permanent removal — which is a much stronger verb than this is
+   * meant to be, and would make the Stun Rounds a lethal weapon by the back door.
+   */
+  setStashed(on: boolean): void {
+    if (this.stashed === on) return;
+    this.stashed = on;
+    this.body.setVisible(!on);
+    if (on) {
+      this.bang.setVisible(false);
+      this.speech.setVisible(false);
+    }
+  }
+
+  /** True while out of sight in a locker. */
+  get isStashed(): boolean {
+    return this.stashed;
+  }
+
+  /**
+   * A body that can be picked up: down, and not already put away.
+   *
+   * Surrender is deliberately not enough. A man with his hands up is conscious and
+   * looking at you, and picking him up would read as an abduction the fiction has
+   * no verb for — the hold-up already covers "make him come with you", and it
+   * covers it by walking him there on his own feet.
+   */
+  get isCarryable(): boolean {
+    return this.isImmobilized && !this.stashed;
+  }
+
+  /** Moves a carried body with the carrier. */
+  moveTo(x: number, y: number): void {
+    this.x = x;
+    this.y = y;
+    this.body.setPosition(x, y);
   }
 
   /** True while frozen by a Stun Rounds dart — guards treat this as an anomaly. */

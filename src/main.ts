@@ -6,6 +6,7 @@ import { appendLogCacheBeta } from "./map/LogCacheBeta";
 import { appendAlignmentVault } from "./map/AlignmentVault";
 import { appendRoofArray } from "./map/RoofArrayLevel";
 import { appendDestructibleCover } from "./map/DestructibleCover";
+import { appendLockers } from "./map/Lockers";
 import { graftExtractionEntrance } from "./map/AdoptAuthored";
 import { planFor } from "./map/MapPlan";
 import type { EdPlayFile } from "./map/types";
@@ -99,6 +100,7 @@ class BootScene extends Phaser.Scene {
     // Best-effort: gives the destructible-cover mechanic something real to break in a
     // playthrough. Doesn't gate anything, so no flag is stashed for it.
     appendDestructibleCover(parsed.map, plan.startLevel);
+    appendLockers(parsed.map, plan.startLevel);
     this.registry.set("mapPlan", plan);
     this.registry.set("hasVentCore", hasVentCore);
     this.registry.set("hasLogBeta", hasLogBeta);
