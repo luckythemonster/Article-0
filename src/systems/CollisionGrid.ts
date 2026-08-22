@@ -169,6 +169,42 @@ export class CollisionGrid {
     for (let i = 0; i < opaque.length; i++) if (opaque[i] === 1) this.seeThrough[i] = 0;
     for (let i = 0; i < plainOpaque.length; i++) if (plainOpaque[i] === 1) padded.delete(i);
 
+    // Third retraction: padding that *caps* a wall run rather than lining one.
+    //
+    // `{Bottom: 0.4}` is authored for a wall in a horizontal run, where the
+    // bottom 40% of the cell genuinely is standable floor in front of the
+    // face — the case `Visibility`'s PADDED_WALK_NOTE keeps the precise rect
+    // for. Reused as the last cell of a *vertical* run it points the wrong
+    // way: the same strip stops being floor alongside a wall and becomes a
+    // 0.4-tile channel straight through it, which the ray walks then read as
+    // open. main1's east-west doorway is one of these — the cell above the
+    // door — so a guard's cone leaked through a shut door's top edge.
+    //
+    // Both tests below have to hold, and each alone gets it wrong. Without the
+    // first, every wall on the level border retracts, since out of bounds
+    // reads as a run continuing. Without the second, a freestanding padded
+    // post retracts too, though its open margin is open on every side and
+    // pierces nothing.
+    const opaqueAt = (nx: number, ny: number): boolean =>
+      !this.inBounds(nx, ny) || opaque[ny * this.width + nx] === 1;
+    for (const [cell, rect] of padded) {
+      const x = cell % this.width;
+      const y = (cell - x) / this.width;
+      // A gap on one axis is a channel across the other: it has to be open at
+      // both ends for sight to use it, and cut a run for that to be a hole.
+      const eastWest =
+        rect.h < 1 &&
+        !opaqueAt(x - 1, y) &&
+        !opaqueAt(x + 1, y) &&
+        (opaqueAt(x, y - 1) || opaqueAt(x, y + 1));
+      const northSouth =
+        rect.w < 1 &&
+        !opaqueAt(x, y - 1) &&
+        !opaqueAt(x, y + 1) &&
+        (opaqueAt(x - 1, y) || opaqueAt(x + 1, y));
+      if (eastWest || northSouth) padded.delete(cell);
+    }
+
     // The upper plane, where there is one. Its walkable set is the deck itself:
     // you cannot step off a gantry, and that single rule covers the edges, the
     // gaps and the level border at once. Nothing on it occludes — the walls are
@@ -300,6 +336,12 @@ export class CollisionGrid {
    * still see out) — without this, that skip would also let sight leak
    * straight through the *solid* part of a thin padded wall the viewer is
    * standing against.
+   *
+   * Absent for two kinds of cell that do block sight: one whose tile has no
+   * authored padding (the coarse cell is already exact), and one whose padding
+   * would open a channel *through* a wall run rather than a strip of floor
+   * along it — see the third retraction pass in the constructor. For both, the
+   * whole-cell {@link blocksSight} is the honest answer.
    */
   paddedRectAt(tileX: number, tileY: number, plane = 0): Rect | undefined {
     const slot = this.paddedSlotAt(tileX, tileY, plane);

@@ -222,6 +222,32 @@ describe("CollisionGrid", () => {
       } as unknown as GameLevel;
     }
 
+    /**
+     * A wall row at y=1 inset from the bottom by 0.4, as half of `main1`'s
+     * walls are: solid y∈[1,1.6), open floor y∈[1.6,2) sharing the same row.
+     */
+    function paddedWallRow(): GameLevel {
+      const tiles: unknown[] = [];
+      for (let x = 0; x < 10; x++) {
+        tiles.push({
+          x,
+          y: 1,
+          colSpan: 1,
+          rowSpan: 1,
+          offsetX: 0,
+          offsetY: 0,
+          components: [],
+          collider: { Bottom: 0.4 },
+        });
+      }
+      return {
+        name: "t",
+        width: 10,
+        height: 6,
+        layers: [{ name: "walls", tiles }],
+      } as unknown as GameLevel;
+    }
+
     it("exposes the tile's precise collider rect, in tile units, for its own cell", () => {
       const g = new CollisionGrid(paddedWallLevel());
       const r = g.paddedRectAt(2, 1);
@@ -265,32 +291,6 @@ describe("CollisionGrid", () => {
     });
 
     describe("cells the walk steps *through*, not just its endpoints", () => {
-      /**
-       * A wall row at y=1 inset from the bottom by 0.4, as half of `main1`'s
-       * walls are: solid y∈[1,1.6), open floor y∈[1.6,2) sharing the same row.
-       */
-      function paddedWallRow(): GameLevel {
-        const tiles: unknown[] = [];
-        for (let x = 0; x < 10; x++) {
-          tiles.push({
-            x,
-            y: 1,
-            colSpan: 1,
-            rowSpan: 1,
-            offsetX: 0,
-            offsetY: 0,
-            components: [],
-            collider: { Bottom: 0.4 },
-          });
-        }
-        return {
-          name: "t",
-          width: 10,
-          height: 6,
-          layers: [{ name: "walls", tiles }],
-        } as unknown as GameLevel;
-      }
-
       it("sees along the strip of floor the wall leaves in front of its face", () => {
         // Both endpoints sit in the open bottom 40% of the wall's own row, and
         // every cell between them is a wall cell — but none of their solid
@@ -303,6 +303,83 @@ describe("CollisionGrid", () => {
         const g = new CollisionGrid(paddedWallRow());
         // From below the row up to above it, well away from either endpoint cell.
         expect(g.hasLineOfSight(1.5, 2.5, 8.5, 0.5)).toBe(false);
+      });
+    });
+
+    describe("a padded cell that caps a wall run", () => {
+      /**
+       * main1's east-west doorway, column 14: a north-south wall run whose
+       * bottom cap carries `{Bottom: 0.4}`, with open floor either side of it.
+       *
+       * The padding was authored for a wall in a *horizontal* run, where the
+       * bottom 40% really is standable floor in front of the face. Used as the
+       * cap of a *vertical* run it points the wrong way: the strip stops being
+       * floor-in-front-of-a-wall and becomes a 0.4-tile channel straight
+       * through the run, which sight walked clean through.
+       */
+      function runCapLevel(): GameLevel {
+        return {
+          name: "t",
+          width: 8,
+          height: 8,
+          layers: [
+            {
+              name: "walls",
+              tiles: [
+                { x: 4, y: 1, colSpan: 1, rowSpan: 1, components: [] },
+                { x: 4, y: 2, colSpan: 1, rowSpan: 1, components: [] },
+                {
+                  x: 4,
+                  y: 3,
+                  colSpan: 1,
+                  rowSpan: 1,
+                  components: [],
+                  collider: { Bottom: 0.4 },
+                },
+              ],
+            },
+          ],
+        } as unknown as GameLevel;
+      }
+
+      it("drops the precise rect, so sight cannot cross the run through the strip", () => {
+        const g = new CollisionGrid(runCapLevel());
+        // y=3.8 sits in the cap's open bottom 40%. Left and right of column 4
+        // are open floor, so before this the ray entered the cell, missed the
+        // solid top 60%, and carried straight on into the next room.
+        expect(g.hasLineOfSight(2.5, 3.8, 6.5, 3.8)).toBe(false);
+        expect(g.paddedRectAt(4, 3)).toBeUndefined();
+      });
+
+      it("still blocks the coarse way round — the run itself is unchanged", () => {
+        const g = new CollisionGrid(runCapLevel());
+        expect(g.hasLineOfSight(2.5, 1.5, 6.5, 1.5)).toBe(false);
+        expect(g.blocksSight(4, 3)).toBe(true);
+      });
+
+      it("leaves a freestanding padded post precise — it caps no run", () => {
+        // The `paddedWallLevel` fixture above: one padded tile, no neighbours.
+        // Its open margin is genuinely open on every side, so the rect stays.
+        const g = new CollisionGrid(paddedWallLevel());
+        expect(g.paddedRectAt(2, 1)).toBeDefined();
+        expect(g.hasLineOfSight(1, 1.9, 4, 1.9)).toBe(true);
+      });
+
+      it("leaves a padded horizontal run precise — its strip runs along the wall", () => {
+        // The case PADDED_WALK_NOTE exists for. The strip is parallel to the
+        // run, not across it, so seeing along it must keep working.
+        const g = new CollisionGrid(paddedWallRow());
+        expect(g.paddedRectAt(4, 1)).toBeDefined();
+        expect(g.hasLineOfSight(1.5, 1.8, 8.5, 1.8)).toBe(true);
+      });
+
+      it("leaves a wall on the level border precise", () => {
+        // Out of bounds reads as blocking, so a border wall looks like it
+        // continues a run in every direction. That must not by itself retract
+        // the rect, or every edge tile on the map loses its open margin.
+        const g = new CollisionGrid(paddedWallRow());
+        expect(g.paddedRectAt(0, 1)).toBeDefined();
+        expect(g.paddedRectAt(9, 1)).toBeDefined();
       });
     });
   });
