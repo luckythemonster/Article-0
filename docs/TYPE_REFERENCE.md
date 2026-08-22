@@ -5363,7 +5363,7 @@ two things this boss does that nothing else in the game does:
 
 #### `ComplianceView` — class
 
-`src/ui/ComplianceView.ts:31`
+`src/ui/ComplianceView.ts:32`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -5779,7 +5779,7 @@ Everything the transmission depends on, gathered by the caller.
 
 #### `ComplianceViewCallbacks` — interface
 
-`src/ui/ComplianceView.ts:24`
+`src/ui/ComplianceView.ts:25`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -6384,8 +6384,8 @@ GameScene.
 | [ComplianceData](#interface-compliancedata) | interface | `src/scenes/ComplianceScene.ts:8` |
 | [ComplianceResult](#interface-complianceresult) | interface | `src/systems/Compliance.ts:67` |
 | [ComplianceScene](#class-compliancescene) | class | `src/scenes/ComplianceScene.ts:23` |
-| [ComplianceView](#class-complianceview) | class | `src/ui/ComplianceView.ts:31` |
-| [ComplianceViewCallbacks](#interface-complianceviewcallbacks) | interface | `src/ui/ComplianceView.ts:24` |
+| [ComplianceView](#class-complianceview) | class | `src/ui/ComplianceView.ts:32` |
+| [ComplianceViewCallbacks](#interface-complianceviewcallbacks) | interface | `src/ui/ComplianceView.ts:25` |
 | [ComponentData](#interface-componentdata) | interface | `src/map/types.ts:224` |
 | [ConductBreach](#type-conductbreach) | type | `src/systems/Conduct.ts:26` |
 | [ConductInput](#interface-conductinput) | interface | `src/systems/Conduct.ts:46` |
