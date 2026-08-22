@@ -350,7 +350,7 @@ so a pane wider than its own cell lost the rest of itself entirely.
 | `blocksSight` | `blocksSight(tileX: number, tileY: number, plane = 0): boolean` | Blocks line of sight. Everything that blocks movement also blocks sight *unless* it was registered as see-through. Out of bounds blocks sight, which is also what stops the ray walks in `hasLineOfSight` and `Visibility.rayDistance` running away. |
 | `setBlocked` | `setBlocked(tileX: number, tileY: number, blocked: boolean, seeThrough = false, plane = 0): void` | Marks a tile blocked or clear at runtime — used by doors, which block movement, radar and enforcer pathing while closed and clear all of it the instant they open. Out-of-bounds writes are ignored. @param seeThrough when blocking, let sight through anyway (clear glazing). Ignored   when clearing a cell, since an open cell blocks nothing either way. |
 | `wallsNear` | `wallsNear(cx: number, cy: number, radius: number, out: WallBuffer, plane = 0): WallBuffer` | Blocked-tile offsets within a circular radius (in tiles) of a centre point, as (dx, dy) relative to that centre, appended to `out`. Used by the radar to sample nearby terrain without scanning the whole level each frame. Fills a caller-owned `WallBuffer` rather than returning a fresh array because this runs every frame: a 10-tile radar radius sweeps 441 cells and can report a few hundred of them, and one `{ dx, dy }` per report at 60fps is a steady stream of short-lived objects for something that is only ever read and thrown away within the frame. |
-| `paddedRectAt` | `paddedRectAt(tileX: number, tileY: number, plane = 0): Rect \| undefined` | The precise solid rectangle (tile units) of a padded, sight-blocking tile occupying this cell — `undefined` for the overwhelming majority of cells, where the coarse whole-cell `blocksSight` is already exact. Exists for the one place the coarse grid can't answer correctly: a wall with authored `ColliderPadding` leaves part of its own cell walkable (the physics body is inset — see `footprint.ts`'s `colliderRect`), so a viewer can legitimately stand inside that "opaque" cell. `hasLineOfSight` and `Visibility.rayDistance`/`sightDistances` skip testing the ray's own origin/endpoint cell (so debug no-clip embedded in an ordinary wall can still see out) — without this, that skip would also let sight leak straight through the *solid* part of a thin padded wall the viewer is standing against. |
+| `paddedRectAt` | `paddedRectAt(tileX: number, tileY: number, plane = 0): Rect \| undefined` | The precise solid rectangle (tile units) of a padded, sight-blocking tile occupying this cell — `undefined` for the overwhelming majority of cells, where the coarse whole-cell `blocksSight` is already exact. Exists for the one place the coarse grid can't answer correctly: a wall with authored `ColliderPadding` leaves part of its own cell walkable (the physics body is inset — see `footprint.ts`'s `colliderRect`), so a viewer can legitimately stand inside that "opaque" cell. `hasLineOfSight` and `Visibility.rayDistance`/`sightDistances` skip testing the ray's own origin/endpoint cell (so debug no-clip embedded in an ordinary wall can still see out) — without this, that skip would also let sight leak straight through the *solid* part of a thin padded wall the viewer is standing against. Absent for two kinds of cell that do block sight: one whose tile has no authored padding (the coarse cell is already exact), and one whose padding would open a channel *through* a wall run rather than a strip of floor along it — see the third retraction pass in the constructor. For both, the whole-cell `blocksSight` is the honest answer. |
 | `paddedSlotAt` | `paddedSlotAt(tileX: number, tileY: number, plane = 0): number` | This cell's padded-rect slot, or `NO_PADDED_RECT`. The allocation-free half of `paddedRectAt`, for the ray walks. Paired with `paddedEntryAt`: read the slot once to learn *whether* the cell is only partly opaque, then ask where the ray enters that part. |
 | `paddedEntryAt` | `paddedEntryAt( slot: number, ox: number, oy: number, dx: number, dy: number, ): number \| undefined` | Distance along `(dx, dy)` at which the ray from `(ox, oy)` enters the solid rect held in `slot`, or `undefined` when it misses it entirely. `slot` comes from `paddedSlotAt`. Everything is in tile units, and `(dx, dy)` need not be normalized — `t` comes back in whatever unit they are. |
 | `hasLineOfSight` | `hasLineOfSight(x0: number, y0: number, x1: number, y1: number, plane = 0): boolean` | Line-of-sight test between two tile coordinates using a supercover DDA walk. Returns true if no blocked tile lies strictly between the endpoints. |
@@ -1472,7 +1472,7 @@ Anything the radar can plot: a guard or a camera.
 
 #### `RayDirections` — interface
 
-`src/systems/Visibility.ts:64`
+`src/systems/Visibility.ts:71`
 
 Unit ray directions, split into parallel arrays so casting allocates nothing.
 
@@ -2420,7 +2420,7 @@ actor — a spill an Orderly has a reason to walk over and deal with.
 
 #### `Door` — class
 
-`src/entities/Door.ts:115`
+`src/entities/Door.ts:122`
 
 An interactive door, sized and placed from the map's authoring data.
 
@@ -6415,7 +6415,7 @@ GameScene.
 | [Dir8](#type-dir8) | type | `src/entities/directions.ts:31` |
 | [DIRS_8](#const-dirs-8) | const | `src/entities/directions.ts:20` |
 | [DisplayFootprint](#type-displayfootprint) | type | `src/entities/EntitySprites.ts:106` |
-| [Door](#class-door) | class | `src/entities/Door.ts:115` |
+| [Door](#class-door) | class | `src/entities/Door.ts:122` |
 | [DOOR_DEFAULTS](#const-door-defaults) | const | `src/systems/EntityStats.ts:152` |
 | [DoorAccess](#interface-dooraccess) | interface | `src/entities/doorWork.ts:47` |
 | [DoorStats](#interface-doorstats) | interface | `src/systems/EntityStats.ts:143` |
@@ -6579,7 +6579,7 @@ GameScene.
 | [RadarSnapshot](#interface-radarsnapshot) | interface | `src/systems/Radar.ts:33` |
 | [RadarUnit](#interface-radarunit) | interface | `src/systems/Radar.ts:17` |
 | [Range](#type-range) | type | `src/systems/QualiaLock.ts:43` |
-| [RayDirections](#interface-raydirections) | interface | `src/systems/Visibility.ts:64` |
+| [RayDirections](#interface-raydirections) | interface | `src/systems/Visibility.ts:71` |
 | [Rect](#interface-rect) | interface | `src/map/footprint.ts:70` |
 | [RelayCore](#class-relaycore) | class | `src/systems/RelayCore.ts:75` |
 | [RelayHud](#class-relayhud) | class | `src/ui/RelayHud.ts:24` |

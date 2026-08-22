@@ -58,6 +58,13 @@ export const WALL_REVEAL_TILES = 0.5;
  * runs down the strip of floor that is genuinely open, and the distance it returns
  * is the ray's true entry into the solid, which varies continuously as the viewer
  * moves instead of snapping when `Math.floor` of his position changes cell.
+ *
+ * All of which holds for a padded wall that *lines* a run — the strip lies along
+ * the wall, and seeing down it is the point. It inverts for one that **caps** a
+ * run, where the same strip lies across the wall and is a hole through it rather
+ * than floor beside it. Those cells are given no precise rect at all, so the walk
+ * below never reaches the `continue` on them; see the third retraction pass in
+ * `CollisionGrid`'s constructor for which cells those are and why.
  */
 
 /** Unit ray directions, split into parallel arrays so casting allocates nothing. */
