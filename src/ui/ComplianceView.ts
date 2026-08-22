@@ -18,6 +18,7 @@ import {
   type Correction,
   type PuzzleState,
 } from "../systems/Compliance";
+import { getAudio } from "../systems/AudioDirector";
 import { asButton, captureModalFocus, el } from "./dom";
 import "./ComplianceView.css";
 
@@ -130,11 +131,13 @@ export class ComplianceView {
   // --- interaction ---------------------------------------------------------
 
   private selectToken(tokenId: string): void {
+    getAudio().ping();
     this.selectedTokenId = this.selectedTokenId === tokenId ? null : tokenId;
     this.render();
   }
 
   private applyCorrection(corr: Correction): void {
+    getAudio().ping();
     // Toggle: clicking the already-applied module removes it.
     if (this.applied[corr.targetTokenId] === corr.id) {
       delete this.applied[corr.targetTokenId];
@@ -146,6 +149,7 @@ export class ComplianceView {
   }
 
   private removeCorrection(tokenId: string): void {
+    getAudio().ping();
     delete this.applied[tokenId];
     this.selectedTokenId = tokenId;
     this.render();
@@ -159,9 +163,25 @@ export class ComplianceView {
   // --- rendering -----------------------------------------------------------
 
   private render(): void {
+    const active = document.activeElement as HTMLElement | null;
+    const focusedTokenId = active?.getAttribute("data-token-id");
+    const focusedCorrId = active?.getAttribute("data-corr-id");
+
     this.renderLog();
     this.renderCorrections();
     this.renderStatus();
+
+    if (focusedTokenId) {
+      const target = Array.from(this.logEl.querySelectorAll<HTMLElement>("[data-token-id]")).find(
+        (node) => node.getAttribute("data-token-id") === focusedTokenId,
+      );
+      target?.focus({ preventScroll: true });
+    } else if (focusedCorrId) {
+      const target = Array.from(this.correctionsEl.querySelectorAll<HTMLElement>("[data-corr-id]")).find(
+        (node) => node.getAttribute("data-corr-id") === focusedCorrId,
+      );
+      target?.focus({ preventScroll: true });
+    }
   }
 
   private renderLog(): void {
@@ -179,6 +199,7 @@ export class ComplianceView {
       const span = el("span", "compliance-token");
       span.classList.add(corr ? "is-corrected" : "is-flagged");
       if (this.selectedTokenId === tok.id) span.classList.add("is-selected");
+      span.setAttribute("data-token-id", tok.id);
 
       // Each editable term is a keyboard-operable toggle button: aria-pressed
       // tracks whether it is corrected, and a spoken label carries the state.
@@ -208,6 +229,7 @@ export class ComplianceView {
     for (const corr of this.puzzle.availableCorrections) {
       const btn = el("button", "compliance-correction");
       btn.type = "button";
+      btn.setAttribute("data-corr-id", corr.id);
       const isApplied = this.applied[corr.targetTokenId] === corr.id;
       const isForSelected = this.selectedTokenId === corr.targetTokenId;
       if (isApplied) btn.classList.add("is-applied");
