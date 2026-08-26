@@ -357,14 +357,16 @@ ring hides them rather than sitting behind them.
 > (`{ key: "ui-vitals-bezel", path: "assets/ui/vitals/bezel.png", size: 80 }`)
 > before it can work. Tell me when you're drawing it and I'll add the line.
 
-> ⚠️ **Sizing note — the vitals bezel has a tight canvas.** The radar sprite is
-> 96×96 with a 46px radius circle, leaving a 2px margin on each side for bezel
-> framing. The vitals bezel is 80×80 with a 40px radius circle — a full 80px
-> diameter with zero margin. The bezel depth and detailing (tick marks, screw
-> heads, a bearing scale) must fit entirely inside the 40px radius opening, or
-> drawn at the very edge of the 80×80 boundary. The transparent interior still
-> protects the face and trace below, so the bezel itself can be a 2-4px ring
-> where the Radar can offer thicker framing — asymmetric by design, not a bug.
+> ⚠️ **Sizing note — the vitals bezel's real margin is ~2-3px, not the whole
+> radius.** "Drawn radius 40" in the table above is the canvas edge (80×80,
+> so r=40), not how far out the moving content reaches. `src/ui/ekg.ts` caps
+> the trace at `BASE_RADIUS + AMPLITUDE_PX` = 26 + 11 = **r=37**, a hard limit
+> the code itself documents — so the ring has a genuine ~3px gutter (r=37 to
+> r=40) to draw in, slightly more than the radar's own ~2px (content capped at
+> r=46 inside a 96×96/r=48 canvas). Keep the transparent hole out to about
+> r=38 for a hair of buffer past the R-spike peak, and treat r=38-40 as the
+> bezel's territory — enough for a thin rim, fine tick marks, or small implied
+> rivets, not a bezel with real relief.
 
 ---
 
