@@ -14,7 +14,9 @@ import { shadowShapeFor, type ShadowShape } from "../render/shadowShape";
 import { type GuardSkin } from "./GuardSkin";
 import { DIRS_8, nearestDirection, type Dir8 } from "./directions";
 import { ENFORCER_SKIN } from "./EnforcerAnimations";
-import { alertMarker } from "./markers";
+import { alertMarker, speechMarker } from "./markers";
+import { getAudio } from "../systems/AudioDirector";
+import { barkFor, type SilicateVoice } from "../systems/SilicateBarks";
 import { len, withinOrEqual } from "../systems/distance";
 import { workDoors } from "./doorWork";
 
@@ -245,6 +247,13 @@ export class Enforcer {
   private readonly cone: Phaser.GameObjects.Graphics;
   private readonly body: Phaser.GameObjects.Sprite;
   private readonly bang: Phaser.GameObjects.Text;
+  /** The spoken line, shown as text so a muted player gets the same information. */
+  private readonly speech: Phaser.GameObjects.Text;
+  /** Seconds the current line stays on screen. */
+  private speechTimer = 0;
+  /** The state the last bark was for, so only a change speaks. */
+  private barkedState: GuardState | null = null;
+  private barkCooldown = 0;
   private dir: Dir8 = "south";
 
   private prevPhase: AlertPhase = "INFILTRATION";
@@ -290,6 +299,29 @@ export class Enforcer {
   get isSilicate(): boolean {
     return true;
   }
+
+  /**
+   * Which of the two silicate voices this guard speaks in.
+   *
+   * On the base class because the enforcer *is* the base class; `Drone`
+   * overrides it. A `SecurityGuard` inherits "enforcer" and never uses it — see
+   * {@link barkOnStateChange}, which returns before reading this for anything
+   * that is not a silicate.
+   */
+  protected get voice(): SilicateVoice {
+    return "enforcer";
+  }
+
+  /**
+   * Seconds before this guard may speak again.
+   *
+   * Long enough to cover an alert converging several patrols on one point, which
+   * is the case that turns barks into a chord.
+   */
+  private static readonly BARK_COOLDOWN = 4;
+
+  /** How long a spoken line stays on screen. Roughly how long SAM takes to say one. */
+  private static readonly BARK_SHOW_SECONDS = 2.2;
 
   constructor(
     scene: Phaser.Scene,
@@ -347,6 +379,42 @@ export class Enforcer {
     this.shadow = shadowShapeFor(skin.collider, skin.displayTiles, tileSize);
     this.body.play(skin.animKey("south"));
     this.bang = alertMarker(scene, this.x, this.y, tileSize);
+    this.speech = speechMarker(scene, this.x, this.y, tileSize);
+  }
+
+  /**
+   * Says something on entering a new state, and shows it.
+   *
+   * Fired on the *change* only. A line every frame in `ALERT` would be a
+   * continuous drone, and the whole value of a bark is that it marks the moment
+   * something changed in a room the player may not be looking at.
+   *
+   * The cooldown is per guard and exists for the case that made it necessary: an
+   * alert converges four patrols on one point and they all enter `ALERT` within a
+   * few frames of each other. Without it that is a chord rather than a callout.
+   *
+   * A human security guard says nothing here. These lines are the apparatus
+   * talking about itself and they are voiced by a formant synthesiser; putting
+   * them in a person's mouth would erase the distinction the whole run is about.
+   * He is silent for now rather than borrowing a voice that is not his.
+   */
+  private barkOnStateChange(dt: number): void {
+    this.barkCooldown = Math.max(0, this.barkCooldown - dt);
+    const state = this.state;
+    if (state === this.barkedState) return;
+    this.barkedState = state;
+    if (!this.isSilicate || this.barkCooldown > 0) return;
+
+    const line = barkFor(state, Math.random());
+    if (!line) {
+      this.speech.setVisible(false);
+      return;
+    }
+    this.barkCooldown = Enforcer.BARK_COOLDOWN;
+    this.speech.setText(line);
+    this.speech.setVisible(true);
+    this.speechTimer = Enforcer.BARK_SHOW_SECONDS;
+    getAudio().bark(line, this.voice);
   }
 
   /**
@@ -375,6 +443,8 @@ export class Enforcer {
     this.detection = 0;
     this.clearPath();
     this.bang.setVisible(false);
+    this.speech.setVisible(false);
+    this.speechTimer = 0;
   }
 
   /** True while on the floor — guards read one of these as an anomaly. */
@@ -393,6 +463,7 @@ export class Enforcer {
     this.body.setVisible(!on);
     if (on) {
       this.bang.setVisible(false);
+      this.speech.setVisible(false);
       this.cone.clear();
     }
   }
@@ -480,6 +551,10 @@ export class Enforcer {
     else if (this.state === "CAUTIOUS") tint = 0xfff2a8;
     this.body.setTint(tint);
     this.body.setPosition(this.x, this.y);
+    this.barkOnStateChange(dt);
+    this.speechTimer = Math.max(0, this.speechTimer - dt);
+    if (this.speechTimer === 0) this.speech.setVisible(false);
+    this.speech.setPosition(this.x, this.y - tileSize * 1.35);
     this.bang.setPosition(this.x, this.y - tileSize);
     this.bang.setVisible(this.detection > 0.66 || ctx.alert.phase === "ALERT" || this.state === "SUSPICIOUS");
     return fired;

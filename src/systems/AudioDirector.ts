@@ -5,6 +5,11 @@
  * mood, and short enveloped tones cover the gameplay SFX. EIRA-7's presence is
  * felt as a faint 37 Hz sub under the calm layer (her carrier-wave signature).
  *
+ * The one exception to "no assets" is not an asset either: silicate barks are
+ * synthesised too, by SAM — the 1982 Commodore 64 formant synthesiser, via the
+ * `sam-js` port — and rendered to buffers that play through this same mixer. See
+ * {@link AudioDirector.bark} and `src/systems/SilicateBarks.ts`.
+ *
  * Volume and mute come from {@link ./Settings} — loaded at construction and
  * written back whenever the pause menu's SETTINGS tab changes them.
  *
@@ -12,7 +17,9 @@
  * and is resumed on the first key/pointer input (and defensively before each
  * SFX). A single instance lives for the app's lifetime — use {@link getAudio}.
  */
+import SamJs from "sam-js";
 import { DEFAULT_SETTINGS, loadSettings, normalizeSettings, saveSettings, type Settings } from "./Settings";
+import { allBarkLines, VOICE_PRESETS, type SilicateVoice } from "./SilicateBarks";
 
 export type MusicMood = "calm" | "search" | "alert" | "none";
 
@@ -22,6 +29,19 @@ export type MusicMood = "calm" | "search" | "alert" | "none";
  * mix as tuned rather than a boost into clipping.
  */
 const HEADROOM = 0.22;
+
+/**
+ * SAM renders at 22.05 kHz and says so nowhere in its own types.
+ *
+ * `buf32` hands back a bare `Float32Array` with no rate attached, so the buffer
+ * it is copied into has to be created at the rate it was rendered at or every
+ * line plays at the wrong pitch and speed — the context's own `sampleRate` is
+ * usually 44.1 or 48 kHz, which would run the voice at roughly double.
+ */
+const SAM_SAMPLE_RATE = 22050;
+
+/** How loud a bark sits under the music, before the master gain. */
+const BARK_GAIN = 0.9;
 
 class AudioDirector {
   private readonly ctx?: AudioContext;
@@ -36,6 +56,17 @@ class AudioDirector {
   private suctionOn = false;
   private purgeGain?: GainNode;
   private purgeOn = false;
+  /**
+   * Every silicate line, rendered once and kept.
+   *
+   * Keyed `<voice>:<line>`. `buf32` is synchronous and CPU-bound — it runs the
+   * whole reciter and the formant renderer inline — so calling it on the frame a
+   * guard spots you would drop that frame. The set of lines is fixed and small
+   * (`allBarkLines`), so they are all rendered up front on the first bark and
+   * every later one is a buffer that already exists.
+   */
+  private readonly barks = new Map<string, AudioBuffer>();
+  private barksReady = false;
 
   constructor() {
     const Ctor: typeof AudioContext | undefined =
@@ -51,11 +82,92 @@ class AudioDirector {
       // Adopt the stored preference before the first sound plays, so a muted
       // player never gets one frame of audio on reload.
       this.applySettings(loadSettings());
-      const resume = (): void => void this.ctx?.resume();
+      // The same gesture that unlocks the context is where the voice set gets
+      // rendered. It costs ~150ms of main thread, which is invisible at the title
+      // screen and would be a dropped frame on the one where a guard first spots
+      // you — and doing it in this constructor would charge it to every player
+      // before the title has even drawn, whether or not a silicate ever speaks.
+      const resume = (): void => {
+        void this.ctx?.resume();
+        this.ensureBarks();
+      };
       window.addEventListener("keydown", resume);
       window.addEventListener("pointerdown", resume);
     } catch {
       this.ctx = undefined;
+    }
+  }
+
+  /**
+   * Speaks one silicate line.
+   *
+   * **Not `sam.speak()`.** That builds its own `AudioContext` and plays straight
+   * to the speakers, which would sail past the master gain and mean a muted
+   * player still heard every bark. Rendering to a buffer and playing it through
+   * the same mixer as everything else is what makes the pause menu's volume
+   * slider and mute govern it like they govern the door and the klaxon.
+   *
+   * A no-op when there is no audio context (headless, or a browser that refused
+   * one) or when SAM fails on a line — a guard that cannot be heard still shows
+   * its line on the speech marker, so the bark degrades to text rather than to
+   * nothing.
+   */
+  bark(line: string, voice: SilicateVoice): void {
+    if (!this.ctx || !this.master) return;
+    void this.ctx.resume();
+    this.ensureBarks();
+    const buffer = this.barks.get(`${voice}:${line}`);
+    if (!buffer) return;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buffer;
+    const g = this.ctx.createGain();
+    g.gain.value = BARK_GAIN;
+    src.connect(g);
+    g.connect(this.master);
+    src.start();
+  }
+
+  /**
+   * Renders every line in both voices, once.
+   *
+   * Driven off the first key or pointer event — see the constructor — so the cost
+   * lands at the title screen rather than mid-game. {@link bark} calls it too, as
+   * a backstop for any path that reaches a bark without one of those having
+   * fired; it is idempotent, so the second call is a flag check.
+   *
+   * Both voices are rendered together rather than lazily per voice: they are
+   * ~150ms and ~2.8MB between them, and splitting the cost would mean paying the
+   * second half at the first moment a drone speaks, which is exactly the kind of
+   * moment this is being kept away from.
+   */
+  private ensureBarks(): void {
+    if (this.barksReady || !this.ctx) return;
+    this.barksReady = true;
+    const lines = allBarkLines();
+    for (const voice of Object.keys(VOICE_PRESETS) as SilicateVoice[]) {
+      let sam: SamJs;
+      try {
+        sam = new SamJs(VOICE_PRESETS[voice]);
+      } catch {
+        return;
+      }
+      for (const line of lines) {
+        try {
+          const rendered = sam.buf32(line);
+          // `buf32` is typed `Float32Array | Boolean` — it returns `false` for a
+          // line its reciter cannot make phonemes of.
+          if (!(rendered instanceof Float32Array) || rendered.length === 0) continue;
+          const buffer = this.ctx.createBuffer(1, rendered.length, SAM_SAMPLE_RATE);
+          // Copied element-wise rather than through `copyToChannel`, whose type
+          // insists on a `Float32Array<ArrayBuffer>` while SAM's is declared over
+          // the wider `ArrayBufferLike`. A few thousand samples once per line at
+          // boot is not worth a cast that would outlive the reason for it.
+          buffer.getChannelData(0).set(rendered);
+          this.barks.set(`${voice}:${line}`, buffer);
+        } catch {
+          // One bad line must not cost the rest of the set.
+        }
+      }
     }
   }
 
