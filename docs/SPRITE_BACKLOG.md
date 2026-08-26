@@ -357,6 +357,15 @@ ring hides them rather than sitting behind them.
 > (`{ key: "ui-vitals-bezel", path: "assets/ui/vitals/bezel.png", size: 80 }`)
 > before it can work. Tell me when you're drawing it and I'll add the line.
 
+> ⚠️ **Sizing note — the vitals bezel has a tight canvas.** The radar sprite is
+> 96×96 with a 46px radius circle, leaving a 2px margin on each side for bezel
+> framing. The vitals bezel is 80×80 with a 40px radius circle — a full 80px
+> diameter with zero margin. The bezel depth and detailing (tick marks, screw
+> heads, a bearing scale) must fit entirely inside the 40px radius opening, or
+> drawn at the very edge of the 80×80 boundary. The transparent interior still
+> protects the face and trace below, so the bezel itself can be a 2-4px ring
+> where the Radar can offer thicker framing — asymmetric by design, not a bug.
+
 ---
 
 ## Priority 3 — the staged VFX packs
