@@ -45,6 +45,8 @@ which of the two it is; wrap it in `paced()` only if it's a rate of motion.
 | Group | Constant in `EntityStats.ts` |
 | --- | --- |
 | Guards and drones | `ENFORCER_DEFAULTS`, `ENFORCER_FIRE_NOISE` |
+| Human security guards | `SECURITY_GUARD_DEFAULTS`, read by `securityGuardStatsFor` |
+| Putting a body down and hiding it | `LOCKER_STASH_TIME`, `CARRY_SPEED_MULTIPLIER`, `BODY_PICKUP_TILES`, `EMP_SHUTDOWN_DURATION`, `EMP_SHUTDOWN_TILES` |
 | Cameras | `SENSOR_DEFAULTS` (thermal radius and network radius are shared with guards) |
 | Lights | `LIGHT_DEFAULTS` |
 | Doors, glass | `DOOR_DEFAULTS`, `glassStatsFor` (only `VisionBlock` is read) |
@@ -58,6 +60,27 @@ which of the two it is; wrap it in `paced()` only if it's a rate of motion.
 For the full member list of any of these, see
 [`TYPE_REFERENCE.md`](TYPE_REFERENCE.md) — it is generated from the sources, so it cannot
 drift.
+
+## Two relationships worth knowing before you retune
+
+Most numbers here stand alone. Two do not, and both are asserted by
+`EntityStats.test.ts` — which is the only place both halves of each are in scope.
+
+**Enforcer pace against Rowan's.** `patrolSpeed` (1.6) sits just above a sneak
+(`PLAYER_WALK_TILES` 3.2 × 0.45 = 1.44), so a patrol out-walks a crouched player;
+`purgeSpeed` (3.0) sits just below a walk (3.2), so walking away holds distance and
+a sprint (× 1.6 = 5.12) escapes outright. The purge used to be 4.0, which beat a
+walk — making a sprint the only escape, and a sprint is exactly what `Conduct`
+reads as "not staff". Raising it back past 3.2 undoes that.
+
+**The security guard against the enforcer.** `SECURITY_GUARD_DEFAULTS` is the same
+shape as `ENFORCER_DEFAULTS` and every field that differs says the same thing: he
+is a man doing a job rather than a purpose-built sentry. Shorter `sightRange`,
+longer `auditDelay`, a genuinely zero `thermalRadius`, a smaller
+`alertNetworkRadius` (he radios the mesh, he is not on it), and a worse shot.
+`turnRate` is deliberately held level — a man turns his head faster than a sentry
+rotates a camera crown, and dropping that too would make him trivially flankable
+on top of everything else.
 
 ## Inventory
 

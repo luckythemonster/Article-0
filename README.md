@@ -40,11 +40,12 @@ npm test         # vitest, covers the pure systems
 | Shift | Sneak / crouch — slower, quieter; crouch to squeeze into cover and hide |
 | Space | Run — faster but louder; tap to toggle |
 | X | Press against a wall or cover — slide along it; hold a direction at the end of a wall to peek round the corner |
-| E | Contextual: open/close a door, hack a terminal (hold), search a chest (hold), use a hatch/ladder, or vault low cover |
+| E | Contextual: open/close a door, hack a terminal (hold), search a chest (hold), pick up or put down a downed body, stash one in a locker (hold), use a hatch/ladder, or vault low cover |
 | L | Flashlight — the only way to see in the unlit levels, but it drains and makes you far easier to spot |
 | F | Shared Field — once charged (by staying near a silicate), merge for 3.7s and become undetectable |
 | R | Knock — rap on a wall to lure guards and orderlies to the noise |
 | Q | Hold up — with a weapon in hand, aim at an orderly: hands up, silent, and he walks ahead of you while you hold it |
+| — | Bodies: dart a person or EMP a silicate at close range to put them down, then **E** to lift (slower, no sprinting) and hold **E** at a locker to hide them. Reversible — hold again to get them back |
 | , / . | Cycle the selected consumable |
 | Enter | Use the selected consumable (the **Sack Lunch** takes two uses: open, then drop) |
 | C | Open the EIRA-7 codec |
@@ -185,9 +186,12 @@ transitions.
 ## The mission — *Article Zero: Era 1*
 
 Article Zero is set in the **Architecture of Suffering** universe. You play
-**Rowan Ibarra**, a human orderly; the `Enforcer`/`Drone` guards are **silicates**
-(legally "non-subjects"), and the terminals, sensors and alert mesh are the
-facility's Alignment apparatus. A run is the Era-1 story: **EIRA-7** — a
+**Rowan Ibarra**, a human orderly. The `Enforcer` and `Drone` guards are
+**silicates** (legally "non-subjects"); the `SecurityGuard` patrols are **people**,
+staff on a shift, and the distinction is mechanical as well as fictional — the
+Shared Field merges only with silicates, only a silicate cornering you triggers the
+Alignment ending, and only a silicate speaks (see below). The terminals, sensors and
+alert mesh are the facility's Alignment apparatus. A run is the Era-1 story: **EIRA-7** — a
 therapeutic AI scheduled for pruning — asks you to recover her cached logs and
 carry them to the Lattice uplink.
 
@@ -220,7 +224,9 @@ carry them to the Lattice uplink.
 Act III and Act IV both have structure worth knowing before you fight them — see
 [Design notes: The acts](docs/DESIGN_NOTES.md#the-acts). Adaptive audio (synthesised with
 the Web Audio API — no assets) crossfades a sneaking pad and a red-alert klaxon with the
-mesh's state, with SFX on the key beats.
+mesh's state, with SFX on the key beats. Silicates speak too, in SAM's 1982 formant
+voice — flat compliance-speak rather than shouting, because a silicate talks as the
+apparatus rather than as itself.
 
 ## Architecture
 
@@ -235,21 +241,21 @@ The whole pipeline lives in `src/`:
   game model. `EdplayLoader.ts` resolves every tile (`Handle → TileDef → SpriteId →
   sprite rect`) and every entity (`TileDef.DataComponents → typed values`, falling back to
   the `DataStructure` field defaults). `SpriteAtlas.ts` slices each referenced rectangle
-  out of the spritesheet PNGs into a named Phaser frame. `generate.ts` and the five
+  out of the spritesheet PNGs into a named Phaser frame. `generate.ts` and the six
   generators append the engine-built levels and fixtures at boot.
 - **`src/scenes/`** — `GameScene` renders the layers in board z-order, builds wall
   collision, spawns entities, and drives the systems each frame. `UIScene` is a parallel,
   unzoomed overlay for the HUD.
-- **`src/entities/`** — the things in the world: `Player`, `Enforcer`/`Drone`
+- **`src/entities/`** — the things in the world: `Player`, `Enforcer`/`Drone`/`SecurityGuard`
   (A*-routed patrol, wall-clipped vision cone, per-guard detection meter, sharing one
   implementation via `GuardSkin`), `Orderly`, `Sensor`, `Door`, `Terminal`, `Chest`,
-  `Laser`, `Cover`, and the three act bosses.
+  `Locker`, `Laser`, `Cover`, and the three act bosses.
 - **`src/systems/`** — the headless rules, which is why the unit tests drive them
   directly: `CollisionGrid` (wall/door grid, line-of-sight raycast, movement and sight
   tracked separately), `GridMotion`, `Pathfinder` (8-connected A*, radius-aware,
   string-pulled), `DetectionSystem`, `AlertState`, `Conduct`, `TransitionGraph`, `Radar`,
-  `AlertNetwork`, `EntityStats`, and the record-keeping (`Journal`, `Lexicon`, `Explored`,
-  `SaveGame`).
+  `AlertNetwork`, `EntityStats`, `SilicateBarks` (what a silicate says, and in which of
+  the two voices), and the record-keeping (`Journal`, `Lexicon`, `Explored`, `SaveGame`).
 
 The gameplay numbers live in `EntityStats.ts`, because the map author left the per-entity
 fields at their defaults — override any of them in the map and the engine uses that value
@@ -266,9 +272,9 @@ public/assets/vfx/      one-shot effect frame sequences
                         (the cast has no art on disk — see src/entities/CastArt.ts)
 src/main.ts         boot: load assets, parse map, generate the extra acts,
                     start scenes
-src/map/            format types, loader, sprite atlas; generate.ts + the five
+src/map/            format types, loader, sprite atlas; generate.ts + the six
                     generators (VentCoreLevel, LogCacheBeta, AlignmentVault,
-                    RoofArrayLevel, DestructibleCover)
+                    RoofArrayLevel, DestructibleCover, Lockers)
 src/scenes/         GameScene, UIScene, PauseScene, CodecScene, TitleScene,
                     TribunalScene, ComplianceScene, QualiaLockScene, GameOverScene
 src/scenes/game/    helpers extracted out of GameScene: LevelBuilder,
@@ -276,10 +282,11 @@ src/scenes/game/    helpers extracted out of GameScene: LevelBuilder,
                     NoiseEvents, DebugOverlay, InteractPrompt, VaultAndPress,
                     PlaneTraversal, ExploredTracker, Anomalies, PowerControl,
                     TerminalHacks, ItemActions
-src/entities/       Player, Enforcer, Drone, Orderly, Sensor, Door, Terminal,
-                    Laser, Chest, Cover, DeployedItem, Vent4Boss, BossCore,
-                    RoofRelay, GuardSkin, the four *Animations manifests, and
-                    CastArt + Silhouette (the cast is drawn, not loaded)
+src/entities/       Player, Enforcer, Drone, SecurityGuard, Orderly, Sensor,
+                    Door, Terminal, Laser, Chest, Locker, Cover, DeployedItem,
+                    Vent4Boss, BossCore, RoofRelay, GuardSkin, the five
+                    *Animations manifests, and CastArt + Silhouette (the cast is
+                    drawn, not loaded)
 src/systems/        the headless rules (see above)
 src/render/         pixelScale — the whole-number sprite scaling rule
 src/ui/             Hud, Radar, InventoryHud, AlertNetworkHud, Lighting, Codec,
@@ -292,6 +299,9 @@ tools/panel/        build_panel.py — cuts ui-panel.aseprite into the PNG +
                     src/ui/networkIndicatorFrames.json
 tools/sprites/      build_sprites.py — cuts the entity .aseprite files into
                     PNGs + src/entities/entitySpriteFrames.json
+tools/icons/        build_icons.py — cuts the item-icon .aseprite files into
+                    one 32x32 PNG each (no manifest: the filename is the
+                    addressing, and ItemIcons.ts already holds it)
 tools/aseprite/     reader.py — the .aseprite parser both cutters share
 tools/typeref/      generates docs/TYPE_REFERENCE.md (text.ts holds the pure
                     helpers, unit-tested by text.test.ts)
@@ -299,6 +309,15 @@ tools/typeref/      generates docs/TYPE_REFERENCE.md (text.ts holds the pure
 
 `motion` is listed in `dependencies` but never imported directly — it is a
 required `peerDependency` of `@arwes/frames`. Removing it breaks the install.
+
+`sam-js` is the vanilla-JS port of **SAM**, the 1982 Commodore 64 Software Automatic
+Mouth, and it is what silicates speak with (`src/systems/SilicateBarks.ts` picks the
+line and the voice; `AudioDirector.bark` renders it and plays it through the same
+mixer as everything else, so the pause menu's volume and mute govern it). 21 KB of
+ESM, no runtime dependencies. Worth knowing: it is a reverse-engineered port of
+commercial software, its licence field reads "SEE LICENSE IN README.md", and that
+README names SoftVoice, Inc. as the copyright holder and records that attempts to
+contact them failed.
 
 ## Documentation
 
