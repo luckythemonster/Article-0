@@ -193,6 +193,7 @@ export class VaultAndPress {
         sneak: false,
         run: false,
         escorting: false,
+      carrying: false,
         press: null,
         canStand: true,
       },

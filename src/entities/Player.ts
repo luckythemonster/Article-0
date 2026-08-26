@@ -12,6 +12,7 @@ import { DIRS_8, directionOf, type Dir8 } from "./directions";
 import {
   ESCORT_SPEED_MULTIPLIER,
   PLAYER_DEFAULTS,
+  CARRY_SPEED_MULTIPLIER,
   PLAYER_WALK_TILES,
   PRESS_FLUSH_PULL,
   PRESS_LEAN_SECONDS,
@@ -227,7 +228,12 @@ export class Player {
     // A man with his back flat against a wall is not about to break into a sprint,
     // for the same reason marching a hostage rules one out.
     const running =
-      cursors.run && moving && !cursors.escorting && !this.press && this.stance === "standing";
+      cursors.run &&
+      moving &&
+      !cursors.escorting &&
+      !cursors.carrying &&
+      !this.press &&
+      this.stance === "standing";
     this.runningNow = running;
     // Crouched *and* mid-transition both move at the slow sneak pace. Pressing and
     // escorting are their own branches at their own constants even though all three
@@ -237,11 +243,13 @@ export class Player {
       ? PRESS_SPEED_MULTIPLIER
       : transitioning || sneaking
         ? 0.45
-        : cursors.escorting
-          ? ESCORT_SPEED_MULTIPLIER
-          : running
-            ? 1.6
-            : 1;
+        : cursors.carrying
+          ? CARRY_SPEED_MULTIPLIER
+          : cursors.escorting
+            ? ESCORT_SPEED_MULTIPLIER
+            : running
+              ? 1.6
+              : 1;
     const speed = this.walkSpeed * stanceMul;
 
     let sliding = false;
@@ -515,6 +523,17 @@ export interface InputState {
    * roof's input lock use, and for the same reason.
    */
   escorting: boolean;
+  /**
+   * Carrying a body: slower still, and no sprinting. Arrives the same way
+   * `escorting` does and for the same reason — it is a consequence of what Rowan
+   * picked up, not a key.
+   *
+   * Its own flag rather than a second use of `escorting`, even though both mean
+   * "hands full, walk": a hostage walks on his own legs at a pace tuned so he can
+   * keep station ahead of Rowan, and a body does not. Collapsing them would mean
+   * retuning the march to retune the carry.
+   */
+  carrying: boolean;
   /**
    * The wall face to hold this frame, or null to move freely.
    *

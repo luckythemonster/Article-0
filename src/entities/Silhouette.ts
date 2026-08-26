@@ -73,6 +73,21 @@ export const DRONE_SILHOUETTE: Silhouette = {
 };
 
 /**
+ * The human security guard: a standing figure like the orderly's, broadened at
+ * the shoulders by the stab vest and the belt.
+ *
+ * 24px of body in 96, against the orderly's 17 — enough that the two read apart
+ * at a glance without approaching the enforcer's 46. At 1.5 display tiles that is
+ * a 0.19-tile collision radius, comfortably inside `MAX_GUARD_RADIUS_TILES`, so
+ * he clears the one-tile ducts every guard has to fit through.
+ */
+export const SECURITY_SILHOUETTE: Silhouette = {
+  frameWidth: 96,
+  frameHeight: 96,
+  aabb: { width: 24, height: 50, offsetX: 36, offsetY: 21 },
+};
+
+/**
  * The orderly: a thin standing figure on a generously padded frame — 17px of
  * body in 96. `FOOT_WIDEN` in `shadowShape.ts` exists mostly for this one,
  * whose shadow reads as a stripe without it.

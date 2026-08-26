@@ -137,6 +137,106 @@
       ],
       "width": 16
     },
+    "bulkhead": {
+      "cels": {
+        "north_door": {
+          "0": "CLOSED",
+          "16": "OPEN"
+        },
+        "south_door": {
+          "0": "CLOSED",
+          "16": "OPEN"
+        }
+      },
+      "durations": [
+        270,
+        120,
+        29,
+        120,
+        270,
+        120,
+        29,
+        120,
+        270,
+        120,
+        29,
+        120,
+        270,
+        120,
+        29,
+        120,
+        270
+      ],
+      "frameCount": 17,
+      "height": 96,
+      "tags": [
+        {
+          "from": 0,
+          "name": "OPEN",
+          "to": 16
+        },
+        {
+          "from": 0,
+          "name": "CLOSE",
+          "to": 16
+        }
+      ],
+      "width": 64
+    },
+    "bunk-bed": {
+      "cels": {},
+      "durations": [
+        100,
+        100,
+        100,
+        100
+      ],
+      "frameCount": 4,
+      "height": 32,
+      "tags": [
+        {
+          "from": 0,
+          "name": "WEST",
+          "to": 0
+        },
+        {
+          "from": 1,
+          "name": "EAST",
+          "to": 1
+        },
+        {
+          "from": 2,
+          "name": "SOUTH",
+          "to": 2
+        },
+        {
+          "from": 3,
+          "name": "NORTH",
+          "to": 3
+        }
+      ],
+      "width": 32
+    },
+    "crate": {
+      "cels": {},
+      "durations": [
+        100
+      ],
+      "frameCount": 1,
+      "height": 32,
+      "tags": [],
+      "width": 32
+    },
+    "crate-stack": {
+      "cels": {},
+      "durations": [
+        100
+      ],
+      "frameCount": 1,
+      "height": 32,
+      "tags": [],
+      "width": 32
+    },
     "door-glass-east-west": {
       "cels": {
         "door": {
@@ -571,6 +671,468 @@
       ],
       "width": 32
     },
+    "footlocker": {
+      "cels": {
+        "Layer 3": {
+          "11": "BLINK",
+          "12": "LOCKED",
+          "13": "BLINK",
+          "14": "UNLOCKING",
+          "15": "UNLOCKING",
+          "16": "UNLOCKING",
+          "17": "UNLOCKING",
+          "18": "UNLOCKING",
+          "19": "UNLOCKING",
+          "20": "UNLOCKING",
+          "21": "UNLOCKING",
+          "22": "UNLOCKING",
+          "23": "UNLOCKING",
+          "24": "UNLOCKING",
+          "25": "UNLOCKING",
+          "26": "UNLOCKING",
+          "27": "UNLOCKING",
+          "28": "UNLOCKING",
+          "29": "UNLOCKING",
+          "30": "UNLOCKING",
+          "31": "UNLOCKING",
+          "32": "UNLOCKING",
+          "33": "UNLOCKING",
+          "34": "UNLOCKING"
+        },
+        "Layer 4": {
+          "0": "IDLE",
+          "1": "0",
+          "10": "9",
+          "11": "FLASH",
+          "12": "IDLE",
+          "13": "FLASH",
+          "14": "UNLOCKING",
+          "15": "UNLOCKING",
+          "16": "UNLOCKING",
+          "17": "UNLOCKING",
+          "18": "UNLOCKING",
+          "19": "UNLOCKING",
+          "2": "1",
+          "20": "UNLOCKING",
+          "21": "UNLOCKING",
+          "22": "UNLOCKING",
+          "23": "UNLOCKING",
+          "24": "UNLOCKING",
+          "25": "UNLOCKING",
+          "26": "UNLOCKING",
+          "27": "UNLOCKING",
+          "28": "UNLOCKING",
+          "29": "UNLOCKING",
+          "3": "2",
+          "30": "UNLOCKING",
+          "31": "UNLOCKING",
+          "32": "UNLOCKING",
+          "33": "UNLOCKING",
+          "34": "UNLOCKING",
+          "4": "3",
+          "5": "4",
+          "6": "5",
+          "7": "6",
+          "8": "7",
+          "9": "8"
+        }
+      },
+      "durations": [
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71
+      ],
+      "frameCount": 35,
+      "height": 32,
+      "tags": [
+        {
+          "from": 0,
+          "name": "IDLE",
+          "to": 0
+        },
+        {
+          "from": 1,
+          "name": "CODE_INPUT",
+          "to": 10
+        },
+        {
+          "from": 11,
+          "name": "INVALID_CODE",
+          "to": 13
+        },
+        {
+          "from": 14,
+          "name": "UNLOCKING",
+          "to": 22
+        },
+        {
+          "from": 23,
+          "name": "OPEN",
+          "to": 28
+        },
+        {
+          "from": 29,
+          "name": "CLOSE",
+          "to": 34
+        }
+      ],
+      "width": 32
+    },
+    "laser-beam": {
+      "cels": {},
+      "durations": [
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20
+      ],
+      "frameCount": 12,
+      "height": 32,
+      "tags": [
+        {
+          "from": 0,
+          "name": "east-west",
+          "to": 5
+        },
+        {
+          "from": 6,
+          "name": "north-south",
+          "to": 11
+        }
+      ],
+      "width": 32
+    },
+    "laser-emitter": {
+      "cels": {},
+      "durations": [
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20
+      ],
+      "frameCount": 31,
+      "height": 32,
+      "tags": [
+        {
+          "from": 0,
+          "name": "east",
+          "to": 5
+        },
+        {
+          "from": 6,
+          "name": "north",
+          "to": 11
+        },
+        {
+          "from": 12,
+          "name": "south",
+          "to": 17
+        },
+        {
+          "from": 18,
+          "name": "west",
+          "to": 23
+        },
+        {
+          "from": 24,
+          "name": "idle",
+          "to": 29
+        },
+        {
+          "from": 30,
+          "name": "deactivated",
+          "to": 30
+        }
+      ],
+      "width": 32
+    },
+    "lattice-uplink": {
+      "cels": {},
+      "durations": [
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71,
+        71
+      ],
+      "frameCount": 48,
+      "height": 160,
+      "tags": [
+        {
+          "from": 0,
+          "name": "NORTHWEST",
+          "to": 5
+        },
+        {
+          "from": 0,
+          "name": "SEARCHING",
+          "to": 47
+        },
+        {
+          "from": 6,
+          "name": "NORTH",
+          "to": 11
+        },
+        {
+          "from": 12,
+          "name": "NORTHEAST",
+          "to": 17
+        },
+        {
+          "from": 18,
+          "name": "EAST",
+          "to": 23
+        },
+        {
+          "from": 24,
+          "name": "SOUTHEAST",
+          "to": 29
+        },
+        {
+          "from": 30,
+          "name": "SOUTH",
+          "to": 35
+        },
+        {
+          "from": 36,
+          "name": "SOUTHWEST",
+          "to": 41
+        },
+        {
+          "from": 42,
+          "name": "WEST",
+          "to": 47
+        }
+      ],
+      "width": 160
+    },
+    "locker": {
+      "cels": {
+        "door": {
+          "0": "CLOSED",
+          "1": "CLOSED",
+          "10": "CLOSED",
+          "11": "CLOSED",
+          "12": "CLOSED",
+          "13": "CLOSED",
+          "14": "CLOSED",
+          "15": "CLOSED",
+          "16": "OPENING",
+          "17": "OPENING",
+          "18": "OPENING",
+          "19": "OPENING",
+          "2": "CLOSED",
+          "20": "OPENING",
+          "21": "OPENING",
+          "22": "OPENING",
+          "23": "OPEN",
+          "3": "CLOSED",
+          "4": "CLOSED",
+          "5": "CLOSED",
+          "6": "CLOSED",
+          "7": "CLOSED",
+          "8": "CLOSED",
+          "9": "CLOSED"
+        },
+        "keypad": {
+          "0": "IDLE",
+          "1": "IDLE",
+          "10": "7",
+          "11": "8",
+          "12": "9",
+          "13": "VERIFYING",
+          "14": "BLINK",
+          "15": "UNLOCKED",
+          "16": "UNLOCKED",
+          "17": "UNLOCKED",
+          "18": "UNLOCKED",
+          "19": "UNLOCKED",
+          "2": "IDLE",
+          "20": "UNLOCKED",
+          "21": "UNLOCKED",
+          "22": "UNLOCKED",
+          "23": "UNLOCKED",
+          "3": "0",
+          "4": "1",
+          "5": "2",
+          "6": "3",
+          "7": "4",
+          "8": "5",
+          "9": "6"
+        }
+      },
+      "durations": [
+        36,
+        1000,
+        36,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        250,
+        36,
+        1000,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100
+      ],
+      "frameCount": 24,
+      "height": 32,
+      "tags": [
+        {
+          "from": 0,
+          "name": "LOCKED",
+          "to": 2
+        },
+        {
+          "from": 3,
+          "name": "CODE_INPUT",
+          "to": 12
+        },
+        {
+          "from": 13,
+          "name": "UNLOCKED",
+          "to": 15
+        },
+        {
+          "from": 16,
+          "name": "OPENING",
+          "to": 22
+        },
+        {
+          "from": 16,
+          "name": "CLOSING",
+          "to": 22
+        },
+        {
+          "from": 23,
+          "name": "OPEN",
+          "to": 23
+        }
+      ],
+      "width": 32
+    },
     "security-camera": {
       "cels": {
         "Layer 1": {
@@ -771,6 +1333,97 @@
           "from": 8,
           "name": "deactivated",
           "to": 10
+        }
+      ],
+      "width": 32
+    },
+    "trip-laser-east-west": {
+      "cels": {
+        "beam": {
+          "0": "ACTIVE",
+          "1": "FLICKER",
+          "2": "FLICKER",
+          "3": "OPEN",
+          "4": "OPEN",
+          "5": "OPEN"
+        },
+        "emitters": {
+          "0": "POWER_ON",
+          "1": "POWER_ON",
+          "2": "POWER_ON",
+          "3": "POWER_ON",
+          "4": "POWER_ON",
+          "5": "POWER_ON",
+          "6": "NO_POWER"
+        }
+      },
+      "durations": [
+        36,
+        36,
+        36,
+        36,
+        36,
+        36,
+        100
+      ],
+      "frameCount": 7,
+      "height": 40,
+      "tags": [
+        {
+          "from": 0,
+          "name": "ACTIVE",
+          "to": 2
+        },
+        {
+          "from": 3,
+          "name": "OPEN",
+          "to": 5
+        },
+        {
+          "from": 6,
+          "name": "DEACTIVATED",
+          "to": 6
+        }
+      ],
+      "width": 32
+    },
+    "trip-laser-north-south": {
+      "cels": {
+        "beam": {
+          "0": "FLICKER",
+          "1": "ON",
+          "2": "FLICKER",
+          "3": "OFF",
+          "4": "OFF",
+          "5": "OFF"
+        }
+      },
+      "durations": [
+        36,
+        71,
+        36,
+        125,
+        125,
+        125,
+        125
+      ],
+      "frameCount": 7,
+      "height": 32,
+      "tags": [
+        {
+          "from": 0,
+          "name": "ACTIVE",
+          "to": 2
+        },
+        {
+          "from": 3,
+          "name": "OPEN",
+          "to": 5
+        },
+        {
+          "from": 6,
+          "name": "DEACTIVATED",
+          "to": 6
         }
       ],
       "width": 32

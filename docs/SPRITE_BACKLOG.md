@@ -158,6 +158,113 @@ art" has the full contract, including why `CLOSING` is built by reversing
 
 ---
 
+## Done — the 2026-08-21 bundle
+
+Two zips landed on 2026-08-21 (`Article Zero sprites 82126.zip`,
+`Article Zero UI 82126.zip`) and sat unreferenced. Both are now unpacked, cut and
+committed; the zips are gone, since keeping them alongside the loose sources
+would be the same binary twice in git.
+
+### World sprites — seven wired, four waiting on a call site
+
+All eleven are in `SPRITES` in `tools/sprites/build_sprites.py` and their PNGs are
+committed. Seven are also in `ENTITY_SPRITES` and drawn:
+
+| id | source | canvas | shown at | drawn by |
+|---|---|---|---|---|
+| `laser-beam` | `laser.aseprite` | 32x32 | 1 tile | `src/entities/Laser.ts` |
+| `laser-emitter` | `laser_emitter.aseprite` | 32x32 | ½ tile | `Laser.ts` |
+| `trip-laser-east-west` | `trip_laser_east-west.aseprite` | **32x40** | 1x1.25 | `Laser.ts` |
+| `trip-laser-north-south` | `TRIP_LASER_NORTH-SOUTH.aseprite` | 32x32 | 1 tile | `Laser.ts` |
+| `lattice-uplink` | `lattice_uplink.aseprite` | **160x160** | 2.5 tiles | `src/entities/RoofRelay.ts` |
+| `locker` | `locker.aseprite` | 32x32 | 1 tile | `src/entities/Locker.ts` |
+| `footlocker` | `footlocker.aseprite` | 32x32 | 1 tile | `Locker.ts` |
+
+A **beam** laser is now `laser-beam` segments tiled along its span with an emitter
+housing at each end facing inward. The emitter's tags carry three states the class
+already had and could not show — firing, `idle` between pulses, `deactivated` under
+an EMP. The **scanner** keeps its `Graphics`: its sweep is a 4x4 scan zone, and the
+trip lasers are doorway-width beams, so borrowing them would misdescribe it.
+
+`lattice-uplink` plays `SEARCHING` — the full 48-frame sweep, which overlaps all
+eight facing tags and so must be read through `clipFrames`, not by position — while
+Act IV's pedestals are still being set, then holds a bearing once the feed is armed.
+
+> ⚠️ **Four are cut but deliberately absent from `ENTITY_SPRITES`.** That list is a
+> *load* manifest: an entry costs a HEAD probe and a texture at boot, and none of
+> these has anything to draw it yet. Adding one is a single object literal once a
+> call site exists.
+>
+> | id | canvas | drawn at | waiting on |
+> |---|---|---|---|
+> | `crate` | 32x32 | 1 or ½ tile | Cover art is baked into the level texture (`src/map/TileBake.ts`), not sprited — `Cover.destroy` erases it from the bake. Spriting cover is its own change. |
+> | `crate-stack` | 32x32 | 1 or ½ tile | as above |
+> | `bunk-bed` | 32x32 | 1 tile, or 1x2 | Nothing places furniture as an entity. Its four frames are facings (`WEST`/`EAST`/`SOUTH`/`NORTH`), not an animation. |
+> | `bulkhead` | **64x96** | 2x3 tiles | The map has no 2x3 door def. Its only large opening is the 2.5x2.5 `elevator`, which `EntityIndex` files as scenery on purpose — made real it would seal the player in. |
+
+`box.aseprite` and `box1.aseprite` are single-frame, so the build tool warns that
+there is nothing to address by tag. That is correct for art with no states, not a
+problem to fix.
+
+### Item icons — eight, and a third cutter
+
+`tools/icons/build_icons.py` joins `build_sprites.py` and `build_panel.py`, sharing
+`tools/aseprite/reader.py` and the same source-is-the-`.aseprite` contract. It emits
+**one file per icon rather than a strip**, because `ITEM_ICON_PATHS` addresses icons
+by path and there is no spritesheet seam on that side to address a frame through —
+and it emits **no manifest**, because the filename *is* the addressing and it is
+already written down in `src/systems/ItemIcons.ts`.
+
+Every colour is an exact ENDESGA-64 entry.
+
+| source | frames | emits |
+|---|---|---|
+| `medkit.aseprite` | 1 | `medkit.png` |
+| `disk.aseprite` | 1 | `disk.png` |
+| `Q0 certification icon.aseprite` | 1 | `Q0_certification.png` |
+| `EMP grenade.aseprite` | 1 | `EMP_grenade.png` |
+| `flashlight.aseprite` | 2 | `flashlight-off.png`, `flashlight-on.png` |
+| `keycard icon.aseprite` | 5 | `access_chit.png` |
+| `STAPLE_GUN.aseprite` | 1 | `rail_stapler.png` — **new**, and now wired |
+
+`rail_stapler.png` is the one with no 256px original behind it, so only the
+`assets/ui/icons/` half of the fallback pair exists; if it ever goes missing the
+Stapler renders iconless, which is what it did before.
+
+`keycard icon.aseprite` carries **four more clearance levels** on its
+`clearance_level` layer. They are drawn and unwired: `access_chit` is one item and
+nothing in `ItemCatalog` carries a clearance to pick between them by. Left alone
+rather than guessed at.
+
+`breaker_load.aseprite` has no item it obviously belongs to and is unmapped.
+
+Still outstanding as redraws: **`battery.png`** and **`thermal_gel.png`**, both still
+the legacy 256px art. Still missing entirely: `stun_rounds.png`, `log_alpha.png`,
+`log_beta.png` (and see the note about their `ITEM_ICON_PATHS` lines below).
+
+### The two bezels — on disk, wrong size, not wired
+
+Both arrived in the UI zip and **neither can be used as drawn**, because
+`src/render/uiScale.ts` requires UI art to be authored at the size it appears:
+
+| source | is | needs to be | ratio as drawn |
+|---|---|---|---|
+| `radar bezel.aseprite` | 160x160 | **96x96** | 0.6 — fails |
+| `UI-VITALS-BEZEL.aseprite` | 128x128 | **80x80** | 0.625 — fails |
+
+Redraw at those sizes and both drop straight in: `ui-radar-bezel` is already in
+`UI_TEXTURES` pointing at `assets/ui/radar/bezel.png`, and `ui-vitals-bezel` still
+needs the one manifest line described in Priority 2 below.
+
+Worth knowing before redrawing: the radar source's tags are
+`SILENT`/`QUIET`/`MEDIUM`/`LOUD`/`JAMMED`, which is a *noise readout* rather than
+plain chrome — `JAMMED` is the state `src/systems/Radar.ts` already has. Wiring
+those would be more than a drop-in and wants deciding on its own. The vitals source
+carries a `pulse_meter` and a `label` layer plus a `NO_SOUND` tag, and its `BEZEL`
+and `RADAR_WELL` layers are hidden.
+
+---
+
 ## Priority 1 — item icons
 
 **Status: seam is live. Art only — no code needed.**
@@ -172,24 +279,23 @@ Draw at **32×32**, save as PNG with alpha, drop in `public/assets/ui/icons/` un
 first and silently falls back, so the set can be replaced one file at a time with
 the game playable throughout.
 
-### Redraws — 8 remaining
+### Redraws — 2 remaining
+
+Six of the eight were redrawn in the 2026-08-21 bundle and are cut by
+`tools/icons/build_icons.py` — see "Done — the 2026-08-21 bundle" above. What is
+left is what that bundle did not include:
 
 | file | item in game |
 |---|---|
-| `Q0_certification.png` | Q0_COMPLIANCE_CERT |
-| `access_chit.png` | Access Chit |
 | `battery.png` | Battery |
-| `disk.png` | EIRA-7 Cached Log |
-| `flashlight-off.png` | Flashlight, stowed |
-| `flashlight-on.png` | Flashlight, lit |
-| `medkit.png` | Medkit |
 | `thermal_gel.png` | Thermal Gel |
 
 Already correct, don't redo: **`sack_lunch.png`** (authored at 32×32 from the
-start — it is the reference for what these should look like) and
-**`EMP_grenade.png`** (redrawn 2026-08-14).
+start — it is the reference for what these should look like), **`EMP_grenade.png`**,
+and the six from the bundle (`Q0_certification`, `access_chit`, `disk`,
+`flashlight-off`, `flashlight-on`, `medkit`).
 
-### New icons — 4 items have none at all
+### New icons — 3 items have none at all
 
 These render with no icon today. Adding one is the same drop-in, but the file
 goes in **both** places or wires a path — see the note below.
@@ -197,11 +303,13 @@ goes in **both** places or wires a path — see the note below.
 | item | suggested filename |
 |---|---|
 | Stun Rounds | `stun_rounds.png` |
-| Pneumatic Rail-Stapler | `rail_stapler.png` |
 | LOG_CACHE_ALPHA | `log_alpha.png` |
 | LOG_CACHE_BETA | `log_beta.png` |
 
-> **These four need one line of code each**, unlike the redraws. `ITEM_ICON_PATHS`
+The Pneumatic Rail-Stapler is **done** — `rail_stapler.png` came in the 2026-08-21
+bundle and its `ITEM_ICON_PATHS` line is wired.
+
+> **These three need one line of code each**, unlike the redraws. `ITEM_ICON_PATHS`
 > in `src/systems/ItemIcons.ts` maps item name → path, and an item absent from it
 > renders without an icon regardless of what is on disk. Ping me with the files
 > and I'll wire them, or add the entry alongside the existing eight.
@@ -234,6 +342,7 @@ tick marks, a bearing scale, screw heads.
 | drawn radius | 46 | 40 |
 | texture key | `ui-radar-bezel` | `ui-vitals-bezel` |
 | path | `public/assets/ui/radar/bezel.png` | *see warning below* |
+| art on disk? | yes, but **160×160** — redraw at 96 | yes, but **128×128** — redraw at 80 |
 | code needed? | **no** — already in the manifest | **yes, one line** |
 
 **The interior of both must be transparent.** Each scope's contents are drawn on a
@@ -340,7 +449,11 @@ than shipping soft.
   `docs/ART_PIPELINE.md`.
 - **The four wired VFX** — EMP blast, electronics spark, impact, smoke plume — all
   satisfy the scale rule and are covered by a test.
-- **`sack_lunch.png`** and **`EMP_grenade.png`** icons.
+- **The item icons** — `sack_lunch.png` was always right, and eight more are cut
+  from `.aseprite` sources by `tools/icons/build_icons.py`. Only `battery.png` and
+  `thermal_gel.png` are still legacy art.
+- **The seven mounted world sprites** from the 2026-08-21 bundle — the laser grid,
+  the lattice uplink, and the two lockers. See "Done" above.
 - **The network panel** — finished, wired to live data, and every colour an
   exact EDG64 entry asserted by its build tool. See "Done" above.
 - **The terminal, substation and security camera** — hand-drawn, state-driven and
@@ -366,6 +479,7 @@ than shipping soft.
 | what each panel frame means | `src/ui/NetworkPanel.ts` |
 | the panel's build tool | `tools/panel/build_panel.py` |
 | the entity sprites' build tool | `tools/sprites/build_sprites.py` |
+| the item icons' build tool | `tools/icons/build_icons.py` |
 | the shared `.aseprite` reader | `tools/aseprite/reader.py` |
 | entity sprite manifest and clip lookup | `src/entities/EntitySprites.ts` |
 | effect specs | `src/entities/Vfx.ts` |

@@ -40,6 +40,14 @@ export interface PromptCandidates {
   chestDist: number;
   hatch: boolean;
   vault: boolean;
+  /** A locker in reach that this press would actually do something at. */
+  locker: { occupied: boolean } | undefined;
+  lockerDist: number;
+  /** A downed body in reach to pick up. Mutually exclusive with {@link carrying}. */
+  body: boolean;
+  bodyDist: number;
+  /** Rowan already has somebody up, so the verb in reach is putting them down. */
+  carrying: boolean;
   ventLabel?: string;
   ventDist?: number;
   /** A transition the player is standing on that refuses to open, and why. */
@@ -100,6 +108,28 @@ export function promptLabelFor(c: PromptCandidates): string | undefined {
   if (c.door && c.doorDist < best) {
     best = c.doorDist;
     label = c.door.isOpen ? "[E] Close" : "[E] Open";
+  }
+  // A locker is a hold like the chest, and sorts with the taps for the same
+  // reason the chest does: the player cannot tell holds from taps by looking, so
+  // one nearest-wins list is the only ordering that matches what he sees.
+  if (c.locker && c.lockerDist < best) {
+    best = c.lockerDist;
+    label = c.locker.occupied ? "[E] Retrieve body" : "[E] Stash body";
+  }
+  // Plain nearest-wins against the locker above — neither outranks the other,
+  // because with empty hands over a body there is nothing a locker could do for
+  // him that he has not got a hand free for yet. Its reach is much tighter than
+  // everything else here (see `BODY_PICKUP_TILES`), so in practice it takes the
+  // slot only when he is standing over the man.
+  //
+  // `carrying` has no distance and so cannot join that comparison: it fills the
+  // slot only if nothing else claimed one, which is what stops "[E] Put down"
+  // shouting over the terminal he is standing at with a body on his shoulder.
+  if (c.carrying && best === Infinity) {
+    label = "[E] Put down";
+  } else if (c.body && c.bodyDist < best) {
+    best = c.bodyDist;
+    label = "[E] Pick up";
   }
   if (c.hatch && 0.2 < best) {
     label = "[E] Use access";

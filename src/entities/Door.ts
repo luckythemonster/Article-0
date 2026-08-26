@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { footprintCells } from "../map/footprint";
+import { colliderRect, footprintCells } from "../map/footprint";
 import type { GameTile, SpriteFrame } from "../map/types";
 import type { CollisionGrid } from "../systems/CollisionGrid";
 import { doorStatsFor, glassStatsFor, isGlass, type DoorStats } from "../systems/EntityStats";
@@ -58,10 +58,32 @@ const DOOR_DEPTH = 405;
  * when hand-drawn art is absent; see below for where the seating differs when
  * it's there.
  *
- * Closed, it blocks the player (an Arcade static body covering the footprint)
- * and every grid cell the footprint spans (so it also blocks radar and enforcer
- * pathing). Opening clears both. A door with a non-zero `key` is *locked* — only a
- * terminal hack (or, later, a keycard) opens it.
+ * Closed, it blocks the player (an Arcade static body) and every grid cell the
+ * footprint spans (so it also blocks radar and enforcer pathing). Opening clears
+ * both. A door with a non-zero `key` is *locked* — only a terminal hack (or,
+ * later, a keycard) opens it.
+ *
+ * **The body is a zone sized by `colliderRect`, not the sprite.** It used to ride
+ * on the sprite — `setDisplaySize(footprint) + refreshBody()` — which was wrong
+ * twice over, and both ways showed in play:
+ *
+ * - It covered the raw `colSpan x rowSpan` footprint, ignoring the tile's
+ *   authored `ColliderPadding`. Every shipped door def carries some: the
+ *   north-south defs inset `{Bottom: 0.4}`, so the lower 12.8px of a doorway that
+ *   should be walkable was solid, and the east-west defs inset
+ *   `{Left: 0.2, Right: 0.2}`, so a 19.2px-wide body was 32. `colliderRect` in
+ *   `src/map/footprint.ts` exists precisely to apply that padding, and
+ *   `src/map/TileBake.ts` has always routed padded *walls* through it — this
+ *   class was the one collider path that never called it.
+ * - It followed the art. `useBottomSeating` below reseats east-west doors so they
+ *   stand in their jambs, and `refreshBody()` dragged the collider along, while
+ *   `this.cells` went on using the authored `offsetY`. On the shipped 1x1.5 defs
+ *   that is a 12px disagreement between the box the player hits and the cells
+ *   that block pathing, sight and radar.
+ *
+ * Giving collision its own zone fixes both and decouples the two for good: the
+ * sprite is free to be reseated or rescaled by an animation (`playClip` re-asserts
+ * `setDisplaySize` after every `play()`) without collision noticing.
  *
  * **Glazed** doors are the exception to blocking sight: the map's glass doors carry a
  * `glass` component alongside their `door` one, and clear glazing stops you walking
@@ -128,7 +150,13 @@ export class Door {
   readonly seeThrough: boolean;
 
   private open: boolean;
-  private readonly image: Phaser.Types.Physics.Arcade.SpriteWithStaticBody;
+  /** Art only. Collision lives on {@link collider} — see the class doc. */
+  private readonly image: Phaser.GameObjects.Sprite;
+  /**
+   * The static body the player collides with, sized from the tile's authored
+   * `ColliderPadding` rather than from the sprite. See the class doc.
+   */
+  private readonly collider: Phaser.GameObjects.Zone;
   private readonly grid: CollisionGrid;
   private readonly cells: { x: number; y: number }[];
   private readonly closedFrame?: SpriteFrame;
@@ -195,17 +223,23 @@ export class Door {
     // the body/collision semantics are identical either way, but only a sprite
     // can `.play()` a clip when hand-drawn art is there to play.
     if (this.closedFrame) {
-      this.image = scene.physics.add.staticSprite(cx, cy, this.closedFrame.textureKey, this.closedFrame.frameKey);
+      this.image = scene.add.sprite(cx, cy, this.closedFrame.textureKey, this.closedFrame.frameKey);
     } else {
-      this.image = scene.physics.add.staticSprite(cx, cy, "__WHITE");
+      this.image = scene.add.sprite(cx, cy, "__WHITE");
       this.image.setVisible(false);
     }
     this.image
       .setDepth(DOOR_DEPTH)
       .setDisplaySize(this.displayW, this.displayH)
       .setFlipY(tile.flipY === true)
-      .setTint(tile.tint)
-      .refreshBody();
+      .setTint(tile.tint);
+
+    // The body is its own zone, built from the tile's authored collider rather
+    // than from the sprite — the same `colliderRect` -> `add.zone` route
+    // `buildWallBodies` in `src/map/TileBake.ts` takes for a padded wall.
+    const rect = colliderRect(tile, tileSize);
+    this.collider = scene.add.zone(rect.x + rect.w / 2, rect.y + rect.h / 2, rect.w, rect.h);
+    scene.physics.add.existing(this.collider, true);
 
     // Grid footprint: every cell whose centre falls inside the door rectangle.
     this.cells = footprintCells(tile, tileSize);
@@ -214,8 +248,8 @@ export class Door {
   }
 
   /** The Arcade body used for player collision. */
-  get body(): Phaser.Types.Physics.Arcade.SpriteWithStaticBody {
-    return this.image;
+  get body(): Phaser.GameObjects.Zone {
+    return this.collider;
   }
 
   get isOpen(): boolean {
@@ -274,7 +308,7 @@ export class Door {
     // stay transparent to sight the whole time, closed or not.
     for (const c of this.cells) this.grid.setBlocked(c.x, c.y, !this.open, this.seeThrough);
 
-    const body = this.image.body as Phaser.Physics.Arcade.StaticBody;
+    const body = this.collider.body as Phaser.Physics.Arcade.StaticBody;
     body.enable = !this.open;
 
     if (hasEntitySprite(this.image.scene, this.art)) {

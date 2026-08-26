@@ -153,6 +153,54 @@ describe("colliderRect", () => {
   });
 });
 
+describe("a door's collider vs. the cells it blocks", () => {
+  // `src/entities/Door.ts` builds its Arcade body from `colliderRect` and its
+  // grid footprint from `footprintCells`. The two have to describe the same
+  // region: the body used to ride on the sprite instead, which the hand-drawn
+  // east-west art reseats 12px up its own tile, and the pair silently parted
+  // company — the player collided with one rectangle while pathing, sight and
+  // radar used another.
+
+  /**
+   * True when every cell the door blocks has its centre inside the door's body.
+   *
+   * This direction, and not the reverse: the grid is deliberately whole-cell
+   * (see `colliderRect`'s own doc), so the body may overhang a cell it blocks —
+   * an east-west door's 48px body reaches 4px above and 12px below the single
+   * cell its centre lands in. What must hold is that the coarse grid never
+   * blocks a cell the fine body has vacated, which is what lets pathing, sight
+   * and radar keep working in whole cells.
+   */
+  function cellCentresInsideBody(t: GameTile, tileSize = 32): boolean {
+    const r = colliderRect(t, tileSize);
+    return footprintCells(t, tileSize).every((c) => {
+      const cx = (c.x + 0.5) * tileSize;
+      const cy = (c.y + 0.5) * tileSize;
+      return cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h;
+    });
+  }
+
+  it("keeps every cell an east-west door blocks under its body", () => {
+    // `door_single_vertical1` and the three defs shaped like it: 1x1.5, nudged
+    // down 4px, jambs pulled in 0.2 a side.
+    expect(cellCentresInsideBody(padded({ Left: 0.2, Right: 0.2 }, 1, 1.5, 0, 4))).toBe(true);
+  });
+
+  it("keeps every cell a north-south door blocks under its body", () => {
+    // `door_single_horizontal1` and the three defs shaped like it.
+    expect(cellCentresInsideBody(padded({ Bottom: 0.4 }, 1, 1, 0, 0))).toBe(true);
+  });
+
+  it("centres the body on the authored footprint, not on the art's seating", () => {
+    // The regression: the sprite is bottom-seated to `(y + 1) * 32 - h / 2` when
+    // the 32x48 art is present, which is 12px above the authored centre for a
+    // def carrying `OffsetY: 4`. Collision must not follow it there.
+    const t = padded({ Left: 0.2, Right: 0.2 }, 1, 1.5, 0, 4);
+    const r = colliderRect(t, 32);
+    expect(r.y + r.h / 2).toBeCloseTo(footprintCentre(t, 32).y);
+  });
+});
+
 describe("raySlabIntersect", () => {
   const rect = { x: 10, y: 10, w: 4, h: 4 }; // [10,14) x [10,14)
 

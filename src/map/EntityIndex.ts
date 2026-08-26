@@ -35,10 +35,24 @@ import type { GameLayer, GameLevel, GameTile } from "./types";
  * Pure — no Phaser — so the classification is unit-testable on its own.
  */
 
+/**
+ * The three guards a board can describe.
+ *
+ * `security` is a **human** and the other two are silicates, which is not a
+ * cosmetic distinction in this setting — the Shared Field merges only with
+ * silicates, and being cornered by one is the mesh-prune ending. Anything that
+ * asks "is this a silicate" has to ask it of the kind, not of the class.
+ */
+export type GuardKind = "enforcer" | "drone" | "security";
+
+
 /** One guard's board: the route it walks and the stats it carries. */
 export interface GuardRoute {
-  /** Enforcer skin or drone skin — the two share all their AI. */
-  kind: "enforcer" | "drone";
+  /**
+   * Which guard walks this board. All three share the same AI — see
+   * `src/entities/Enforcer.ts`, and `Drone`/`SecurityGuard` beside it.
+   */
+  kind: GuardKind;
   /** Waypoints in authored order, walked as a loop. */
   route: PatrolRoute;
   /** The board's own components, read for this guard's stats. */
@@ -63,6 +77,8 @@ export interface EntityIndex {
   chests: GameTile[];
   /** Power breakers — see `src/systems/PowerGrid.ts`. */
   breakers: GameTile[];
+  /** Body-stash containers — see `src/entities/Locker.ts`. Engine-added. */
+  lockers: GameTile[];
   /** Tiles claimed by one of the above; `bakeTileLayers` must skip them. */
   claimed: Set<GameTile>;
 }
@@ -73,8 +89,17 @@ const SILICATE = "silicate";
 const SENSOR = "sensor";
 const ENEMY_SPAWN = "enemyspawn";
 
-/** `Human.Job` values that decide which human a human is. */
+/**
+ * `Human.Job` values that decide which human a human is.
+ *
+ * The map's `Job` enum has three entries — `SECURITY`, `ORDERLY`, `TECHNICIAN` —
+ * and two of them are cast. `TECHNICIAN` is deliberately absent: nothing in the
+ * game is one yet, and inventing a fourth character to catch the name would put
+ * a body on the map that no design asked for. It falls through to the enforcer
+ * branch below, which is where it has always landed.
+ */
 const JOB_ORDERLY = "ORDERLY";
+const JOB_SECURITY = "SECURITY";
 
 const has = (tile: GameTile, type: string): boolean =>
   tile.components.some((c) => c.type === type);
@@ -106,15 +131,20 @@ function bodiesOn(layer: GameLayer): GameTile[] {
  * a drone describes no single route, and picking one would silently drop the
  * other.
  */
-function bodyKindOf(bodies: readonly GameTile[]): "enforcer" | "drone" | "orderly" | undefined {
+function bodyKindOf(bodies: readonly GameTile[]): GuardKind | "orderly" | undefined {
   if (bodies.length === 0) return undefined;
   if (bodies.every((t) => has(t, SILICATE))) return "drone";
   if (!bodies.every((t) => has(t, HUMAN))) return undefined;
-  const orderlies = bodies.filter(
-    (t) => str(t.components, HUMAN, "Job", "") === JOB_ORDERLY,
-  ).length;
-  if (orderlies === bodies.length) return "orderly";
-  if (orderlies === 0) return "enforcer";
+  const jobs = bodies.map((t) => str(t.components, HUMAN, "Job", ""));
+  if (jobs.every((j) => j === JOB_ORDERLY)) return "orderly";
+  // A human on a `Job: SECURITY` board is a security guard, and used to be an
+  // enforcer: the old rule was "any human who isn't an orderly", which handed
+  // the map's four `security_guard_*` boards to the silicate skin and the
+  // silicate stats. Four people were patrolling as machines.
+  if (jobs.every((j) => j === JOB_SECURITY)) return "security";
+  // Anything else all-human and orderly-free keeps the old fallback, which is
+  // what `TECHNICIAN` and an unset `Job` land on.
+  if (!jobs.some((j) => j === JOB_ORDERLY || j === JOB_SECURITY)) return "enforcer";
   return undefined;
 }
 
@@ -133,6 +163,7 @@ export function indexEntities(level: GameLevel, legacyBoards: ReadonlySet<string
     terminals: [],
     chests: [],
     breakers: [],
+    lockers: [],
     claimed: new Set<GameTile>(),
   };
 
@@ -232,4 +263,12 @@ export function indexFixtures(level: GameLevel, index: EntityIndex): void {
   // absent from GameScene's `ENTITY_LAYERS` and why claiming per tile matters:
   // the breaker must not be baked into the level texture *and* drawn as a sprite.
   take(board("power"), "power_grid", index.breakers);
+  // Lockers carry no component to test — they are engine-added clones of map
+  // furniture, and `src/map/Lockers.ts` owns the board wholesale. So the board
+  // itself is the claim, which is safe here in a way it would not be for a map
+  // board: nothing but the generator ever writes to it.
+  for (const tile of board("lockers")) {
+    index.lockers.push(tile);
+    index.claimed.add(tile);
+  }
 }

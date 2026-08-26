@@ -2,6 +2,7 @@ import type Phaser from "phaser";
 import type { ComponentData } from "../map/types";
 import { Enforcer } from "./Enforcer";
 import { DRONE_SKIN } from "./DroneAnimations";
+import type { SilicateVoice } from "../systems/SilicateBarks";
 import type { PatrolRoute } from "../systems/PatrolRoute";
 
 /**
@@ -11,6 +12,11 @@ import type { PatrolRoute } from "../systems/PatrolRoute";
  * drone's {@link GuardSkin} wired into the shared AI core.
  */
 export class Drone extends Enforcer {
+  /** The smaller, faster of the two silicate voices. See `SilicateBarks`. */
+  protected override get voice(): SilicateVoice {
+    return "drone";
+  }
+
   constructor(
     scene: Phaser.Scene,
     tileX: number,

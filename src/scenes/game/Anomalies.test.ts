@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { Anomalies, type AnomalyWorld } from "./Anomalies";
 import type { Chest } from "../../entities/Chest";
 import type { Door } from "../../entities/Door";
+import type { Enforcer } from "../../entities/Enforcer";
 import type { Laser } from "../../entities/Laser";
 import type { Orderly } from "../../entities/Orderly";
 import type { Sensor } from "../../entities/Sensor";
@@ -15,7 +16,11 @@ const chest = (tileX: number, tileY: number, isOpen: boolean) =>
 const laser = (x: number, y: number, isEmped: boolean) => ({ x, y, isEmped }) as Laser;
 const sensor = (x: number, y: number) => ({ x, y }) as Sensor;
 const orderly = (x: number, y: number, state: Partial<Orderly> = {}) =>
-  ({ x, y, isStunned: false, isPinned: false, isSurrendered: false, ...state }) as Orderly;
+  ({ x, y, isStunned: false, isPinned: false, isSurrendered: false, isStashed: false, ...state }) as Orderly;
+
+/** A guard with only the fields `Anomalies` reads. */
+const guard = (x: number, y: number, state: Partial<Enforcer> = {}): Enforcer =>
+  ({ x, y, isDown: false, isStashed: false, ...state }) as Enforcer;
 
 function world(parts: Partial<Record<keyof AnomalyWorld, unknown>> = {}): AnomalyWorld {
   return {
@@ -25,11 +30,41 @@ function world(parts: Partial<Record<keyof AnomalyWorld, unknown>> = {}): Anomal
     lasers: () => [],
     sensors: () => [],
     orderlies: () => [],
+    guards: () => [],
     ...parts,
   } as AnomalyWorld;
 }
 
 describe("Anomalies", () => {
+  it("reports a guard on the floor, and says nothing about a stashed one", () => {
+    const a = new Anomalies(
+      world({
+        guards: () => [
+          guard(TS, TS, { isDown: true }),
+          // Down *and* put away: the whole point of the locker is that this one
+          // is not here as far as any cone is concerned.
+          guard(3 * TS, TS, { isDown: true, isStashed: true }),
+          guard(5 * TS, TS),
+        ],
+      }),
+    );
+    const kinds = a.build(null).map((x) => x.kind);
+    expect(kinds).toEqual(["downedGuard"]);
+  });
+
+  it("says nothing about a stashed orderly either", () => {
+    const a = new Anomalies(
+      world({
+        orderlies: () => [
+          orderly(TS, TS, { isStunned: true, isStashed: true }),
+          orderly(3 * TS, TS, { isPinned: true, isStashed: true }),
+          orderly(5 * TS, TS, { isSurrendered: true, isStashed: true }),
+        ],
+      }),
+    );
+    expect(a.build(null)).toEqual([]);
+  });
+
   it("reports only the doors and chests that are open", () => {
     const a = new Anomalies(
       world({

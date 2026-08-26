@@ -14,7 +14,9 @@ import { shadowShapeFor, type ShadowShape } from "../render/shadowShape";
 import { type GuardSkin } from "./GuardSkin";
 import { DIRS_8, nearestDirection, type Dir8 } from "./directions";
 import { ENFORCER_SKIN } from "./EnforcerAnimations";
-import { alertMarker } from "./markers";
+import { alertMarker, speechMarker } from "./markers";
+import { getAudio } from "../systems/AudioDirector";
+import { barkFor, type SilicateVoice } from "../systems/SilicateBarks";
 import { len, withinOrEqual } from "../systems/distance";
 import { workDoors } from "./doorWork";
 
@@ -57,11 +59,20 @@ export interface EnforcerFireResult {
  * Set entry per tile per orderly for the length of the run, and have a guard
  * re-investigate the same man forever.
  */
-export type PersonAnomalyKind = "stunnedOrderly" | "pinnedOrderly" | "surrenderedOrderly";
+export type PersonAnomalyKind =
+  | "stunnedOrderly"
+  | "pinnedOrderly"
+  | "surrenderedOrderly"
+  | "downedGuard";
 
 /** True for the three kinds that are a person rather than a thing. */
 export function isPersonAnomaly(kind: GuardAnomaly["kind"]): kind is PersonAnomalyKind {
-  return kind === "stunnedOrderly" || kind === "pinnedOrderly" || kind === "surrenderedOrderly";
+  return (
+    kind === "stunnedOrderly" ||
+    kind === "pinnedOrderly" ||
+    kind === "surrenderedOrderly" ||
+    kind === "downedGuard"
+  );
 }
 
 /** An environmental anomaly a guard's vision cone can notice. */
@@ -229,9 +240,20 @@ export class Enforcer {
 
   /** Which walk surface this guard patrols — see `src/map/planes.ts`. */
   readonly plane: number;
+  /** Seconds of EMP shutdown remaining; while > 0 the guard is inert. */
+  private downTimer = 0;
+  /** Out of sight in a locker — see {@link setStashed}. */
+  private stashed = false;
   private readonly cone: Phaser.GameObjects.Graphics;
   private readonly body: Phaser.GameObjects.Sprite;
   private readonly bang: Phaser.GameObjects.Text;
+  /** The spoken line, shown as text so a muted player gets the same information. */
+  private readonly speech: Phaser.GameObjects.Text;
+  /** Seconds the current line stays on screen. */
+  private speechTimer = 0;
+  /** The state the last bark was for, so only a change speaks. */
+  private barkedState: GuardState | null = null;
+  private barkCooldown = 0;
   private dir: Dir8 = "south";
 
   private prevPhase: AlertPhase = "INFILTRATION";
@@ -265,6 +287,42 @@ export class Enforcer {
   /** Read and written by the shared {@link workDoors} — see `doorWork.ts`. */
   heldDoor: PathNode | null = null;
 
+  /**
+   * Whether this guard is a silicate.
+   *
+   * A getter on the prototype rather than a field, so a subclass overrides it
+   * without any constructor-ordering hazard. `SecurityGuard` is the one that
+   * answers false, and the distinction is load-bearing rather than flavour: the
+   * Shared Field merges only with silicates, and the capture ending is the mesh
+   * pruning Rowan's logs — a man cornering him is neither.
+   */
+  get isSilicate(): boolean {
+    return true;
+  }
+
+  /**
+   * Which of the two silicate voices this guard speaks in.
+   *
+   * On the base class because the enforcer *is* the base class; `Drone`
+   * overrides it. A `SecurityGuard` inherits "enforcer" and never uses it — see
+   * {@link barkOnStateChange}, which returns before reading this for anything
+   * that is not a silicate.
+   */
+  protected get voice(): SilicateVoice {
+    return "enforcer";
+  }
+
+  /**
+   * Seconds before this guard may speak again.
+   *
+   * Long enough to cover an alert converging several patrols on one point, which
+   * is the case that turns barks into a chord.
+   */
+  private static readonly BARK_COOLDOWN = 4;
+
+  /** How long a spoken line stays on screen. Roughly how long SAM takes to say one. */
+  private static readonly BARK_SHOW_SECONDS = 2.2;
+
   constructor(
     scene: Phaser.Scene,
     tileX: number,
@@ -274,11 +332,21 @@ export class Enforcer {
     skin: GuardSkin = ENFORCER_SKIN,
     route: PatrolRoute = [],
     plane = 0,
+    /**
+     * Already-read stats, for a subclass whose defaults are not an enforcer's.
+     *
+     * Paired with `skin` and defaulted the same way: a reskin that is also a
+     * retune supplies both, and everything else keeps reading the `enforcer`
+     * component exactly as before. `src/entities/SecurityGuard.ts` is the one
+     * caller — the drone is an enforcer in every respect but its drawing, so it
+     * passes a skin and nothing else.
+     */
+    stats: EnforcerStats = enforcerStatsFor(components),
   ) {
     this.plane = plane;
     this.skin = skin;
     this.radiusTiles = skin.collisionRadiusTiles;
-    this.stats = enforcerStatsFor(components);
+    this.stats = stats;
     this.route = route;
     this.x = (tileX + 0.5) * tileSize;
     this.y = (tileY + 0.5) * tileSize;
@@ -311,10 +379,136 @@ export class Enforcer {
     this.shadow = shadowShapeFor(skin.collider, skin.displayTiles, tileSize);
     this.body.play(skin.animKey("south"));
     this.bang = alertMarker(scene, this.x, this.y, tileSize);
+    this.speech = speechMarker(scene, this.x, this.y, tileSize);
+  }
+
+  /**
+   * Says something on entering a new state, and shows it.
+   *
+   * Fired on the *change* only. A line every frame in `ALERT` would be a
+   * continuous drone, and the whole value of a bark is that it marks the moment
+   * something changed in a room the player may not be looking at.
+   *
+   * The cooldown is per guard and exists for the case that made it necessary: an
+   * alert converges four patrols on one point and they all enter `ALERT` within a
+   * few frames of each other. Without it that is a chord rather than a callout.
+   *
+   * A human security guard says nothing here. These lines are the apparatus
+   * talking about itself and they are voiced by a formant synthesiser; putting
+   * them in a person's mouth would erase the distinction the whole run is about.
+   * He is silent for now rather than borrowing a voice that is not his.
+   */
+  private barkOnStateChange(dt: number): void {
+    this.barkCooldown = Math.max(0, this.barkCooldown - dt);
+    const state = this.state;
+    if (state === this.barkedState) return;
+    this.barkedState = state;
+    if (!this.isSilicate || this.barkCooldown > 0) return;
+
+    const line = barkFor(state, Math.random());
+    if (!line) {
+      this.speech.setVisible(false);
+      return;
+    }
+    this.barkCooldown = Enforcer.BARK_COOLDOWN;
+    this.speech.setText(line);
+    this.speech.setVisible(true);
+    this.speechTimer = Enforcer.BARK_SHOW_SECONDS;
+    getAudio().bark(line, this.voice);
+  }
+
+  /**
+   * Puts this guard on the floor for a stretch.
+   *
+   * One timer, two words for what it is: a human security guard is knocked
+   * **unconscious** by a Stun Rounds dart, and a silicate is **deactivated** by an
+   * EMP at close range. The distinction is entirely in which weapon reaches which
+   * guard — see `fireStunDart` and `detonateChaff` in
+   * `src/scenes/game/ItemActions.ts` — and the state they produce is the same
+   * state, because from the player's side both are a body to deal with.
+   *
+   * Neither weapon could do this before. The dart only ever looked at orderlies,
+   * and the EMP only *blinded*: it laid down a positional chaff zone guards could
+   * not see through while they went on walking their beats. So nothing in the
+   * game could put a guard down at all, and the takedown half of a stealth game
+   * was missing rather than merely hard.
+   *
+   * Deliberately a timer, not a kill. Nothing in this game destroys a silicate
+   * and it should not start here: the run's argument is about what a silicate
+   * *is*, and a permanent off-switch would settle that in the mechanics rather
+   * than leaving it to the Tribunal.
+   */
+  putDown(seconds: number): void {
+    this.downTimer = Math.max(this.downTimer, seconds);
+    this.detection = 0;
+    this.clearPath();
+    this.bang.setVisible(false);
+    this.speech.setVisible(false);
+    this.speechTimer = 0;
+  }
+
+  /** True while on the floor — guards read one of these as an anomaly. */
+  get isDown(): boolean {
+    return this.downTimer > 0;
+  }
+
+  /**
+   * Puts the guard out of sight, or takes it back out. See
+   * {@link Orderly.setStashed}, which this mirrors exactly — including the timer
+   * continuing to run inside the locker.
+   */
+  setStashed(on: boolean): void {
+    if (this.stashed === on) return;
+    this.stashed = on;
+    this.body.setVisible(!on);
+    if (on) {
+      this.bang.setVisible(false);
+      this.speech.setVisible(false);
+      this.cone.clear();
+    }
+  }
+
+  /** True while out of sight in a locker. */
+  get isStashed(): boolean {
+    return this.stashed;
+  }
+
+  /** A body that can be picked up: down, and not already put away. */
+  get isCarryable(): boolean {
+    return this.isDown && !this.stashed;
+  }
+
+  /** Moves a carried body with the carrier. */
+  moveTo(x: number, y: number): void {
+    this.x = x;
+    this.y = y;
+    this.body.setPosition(x, y);
+    this.eye.x = x;
+    this.eye.y = y;
   }
 
   update(dt: number, ctx: EnforcerContext): EnforcerFireResult | undefined {
     const { tileSize, grid } = ctx;
+
+    // Stashed: nothing to draw, think or sense. The shutdown clock still runs —
+    // see `setStashed` — so this ticks it before bailing out.
+    if (this.stashed) {
+      this.downTimer = Math.max(0, this.downTimer - dt);
+      return undefined;
+    }
+
+    // Down: inert on the floor, blind, and not walking anywhere.
+    // The cone is cleared rather than merely narrowed, because a dark cone is
+    // the whole visual difference between a stopped guard and a stopped guard
+    // that can still see you.
+    if (this.downTimer > 0) {
+      this.downTimer = Math.max(0, this.downTimer - dt);
+      this.detection = 0;
+      this.cone.clear();
+      this.body.setPosition(this.x, this.y);
+      this.bang.setVisible(false);
+      return undefined;
+    }
 
     let fired: EnforcerFireResult | undefined;
     if (ctx.alert.phase === "ALERT") {
@@ -357,6 +551,10 @@ export class Enforcer {
     else if (this.state === "CAUTIOUS") tint = 0xfff2a8;
     this.body.setTint(tint);
     this.body.setPosition(this.x, this.y);
+    this.barkOnStateChange(dt);
+    this.speechTimer = Math.max(0, this.speechTimer - dt);
+    if (this.speechTimer === 0) this.speech.setVisible(false);
+    this.speech.setPosition(this.x, this.y - tileSize * 1.35);
     this.bang.setPosition(this.x, this.y - tileSize);
     this.bang.setVisible(this.detection > 0.66 || ctx.alert.phase === "ALERT" || this.state === "SUSPICIOUS");
     return fired;

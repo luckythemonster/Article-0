@@ -15,6 +15,11 @@ function nothing(): PromptCandidates {
     chestDist: Infinity,
     hatch: false,
     vault: false,
+    locker: undefined,
+    lockerDist: Infinity,
+    body: false,
+    bodyDist: Infinity,
+    carrying: false,
   };
 }
 
@@ -25,6 +30,46 @@ const liveBreaker = { isClosed: true } as PromptCandidates["breaker"];
 const cutBreaker = { isClosed: false } as PromptCandidates["breaker"];
 const someTerminal = {} as PromptCandidates["terminal"];
 const someChest = {} as PromptCandidates["chest"];
+
+describe("promptLabelFor — bodies and lockers", () => {
+  it("names which way the locker verb runs", () => {
+    expect(
+      promptLabelFor({ ...nothing(), locker: { occupied: false }, lockerDist: 1 }),
+    ).toBe("[E] Stash body");
+    expect(
+      promptLabelFor({ ...nothing(), locker: { occupied: true }, lockerDist: 1 }),
+    ).toBe("[E] Retrieve body");
+  });
+
+  it("offers the pick-up over a body, and the put-down once he has one", () => {
+    expect(promptLabelFor({ ...nothing(), body: true, bodyDist: 0.5 })).toBe("[E] Pick up");
+    expect(promptLabelFor({ ...nothing(), carrying: true })).toBe("[E] Put down");
+  });
+
+  it("resolves a body against a locker by which is nearer", () => {
+    // Both are real verbs at the same key and neither outranks the other, so this
+    // is the plain nearest-wins the rest of the list uses. It reads correctly
+    // either way round, which is why it is left alone: with empty hands over a
+    // body the tap picks it up, and there is nothing a locker could do for him
+    // that he has not got a hand free for yet.
+    const near = { ...nothing(), locker: { occupied: true }, lockerDist: 0.9 };
+    expect(promptLabelFor({ ...near, body: true, bodyDist: 0.4 })).toBe("[E] Pick up");
+    expect(promptLabelFor({ ...near, body: true, bodyDist: 1.2 })).toBe("[E] Retrieve body");
+  });
+
+  it("keeps the put-down quiet while anything else is in reach", () => {
+    // Carrying is not a nearest-wins candidate — it has no distance — so it only
+    // fills the slot when nothing else claimed it. Otherwise standing over a
+    // terminal with a body up would offer the wrong verb.
+    const label = promptLabelFor({
+      ...nothing(),
+      carrying: true,
+      locker: { occupied: false },
+      lockerDist: 1,
+    });
+    expect(label).toBe("[E] Stash body");
+  });
+});
 
 describe("promptLabelFor", () => {
   it("offers nothing when nothing is in reach", () => {

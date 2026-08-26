@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import type { GameTile } from "../map/types";
 import { paced } from "../systems/EntityStats";
+import { ensureEntityAnim, hasEntitySprite } from "./EntitySprites";
 
 /**
  * A laser hazard, drawn procedurally from the map's footprint data.
@@ -15,10 +16,39 @@ import { paced } from "../systems/EntityStats";
  * Both pulse active/idle on a cadence so there's always a timing window to slip
  * through, and neither blocks movement — the cost of crossing is tripping the
  * alarm. The footprint comes straight from the tile's `colSpan`/`rowSpan` +
- * offset (the sprite frames are an inconsistent 20–23-frame animation, so we
- * draw the beam ourselves rather than fight them).
+ * offset.
+ *
+ * ### Hand-drawn art, when it's on disk
+ *
+ * A **beam** is dressed with `laser-beam` segments tiled along its span and a
+ * `laser-emitter` housing at each end, facing inward. The emitter's tags carry
+ * the three states this class already had and had no way to show: it fires while
+ * the beam is up, sits `idle` through the pulse's off window, and goes
+ * `deactivated` under an EMP — so a suppressed emitter now reads as suppressed
+ * rather than as a beam that happens to be mid-blink.
+ *
+ * The **scanner** keeps its `Graphics`. Its sweep is a rotating line over a 4x4
+ * area and there is no art for it; the bundle's trip lasers are doorway-width
+ * beams, not scan zones, so borrowing them would misdescribe the hazard.
+ *
+ * **Optional, and fails open** — the same probe every other sprite goes through.
+ * The `Graphics` is built either way and simply draws nothing where sprites took
+ * over, so a missing strip costs the dressing and never the hazard: the trip
+ * rectangle in {@link checkTrip} is computed from the tile and never from the
+ * art.
  */
 export type LaserKind = "scanner" | "beam";
+
+/**
+ * Above the doors (405) and below the orderlies (440).
+ *
+ * A beam crosses a doorway and has to paint over the door it crosses; a body
+ * walking through the beam has to paint over the beam. See `src/render/depths.ts`.
+ */
+const LASER_DEPTH = 430;
+
+/** Matches the `laser-emitter` entry in {@link ENTITY_SPRITES}. */
+const EMITTER_DISPLAY_TILES = 0.5;
 
 const SCANNER_ON = 1.4;
 const SCANNER_OFF = 1.0;
@@ -40,6 +70,14 @@ export class Laser {
   private readonly cy: number;
   private readonly rect: { x: number; y: number; w: number; h: number };
   private readonly gfx: Phaser.GameObjects.Graphics;
+  /**
+   * Beam segments and the two end housings, empty when the art is absent or the
+   * hazard is a scanner. Held together because they are shown and hidden as one.
+   */
+  private readonly segments: Phaser.GameObjects.Sprite[] = [];
+  private readonly emitters: Phaser.GameObjects.Sprite[] = [];
+  /** What the emitters are currently playing, so a repeat is not restarted. */
+  private emitterTag = "";
 
   constructor(scene: Phaser.Scene, tile: GameTile, tileSize: number) {
     const ref = tile.ref.toLowerCase();
@@ -62,8 +100,67 @@ export class Laser {
     }
 
     this.timer = this.kind === "scanner" ? SCANNER_ON : BEAM_ON;
-    this.gfx = scene.add.graphics().setDepth(430);
+    this.gfx = scene.add.graphics().setDepth(LASER_DEPTH);
+    if (this.kind === "beam") this.buildArt(scene, tileSize, w, h);
     this.draw();
+  }
+
+  /**
+   * Lays the beam segments and the two housings out along the span.
+   *
+   * Segment count comes off the span rather than a constant: a 3x1 beam gets
+   * three, and a longer one gets as many as it needs. They are placed on tile
+   * centres, which is where the map's own beam runs sit, so the drawn line lands
+   * on the trip band {@link rect} describes instead of near it.
+   *
+   * The housings face *inward* — a horizontal beam is fired east from its west
+   * end and west from its east end — which is what makes a beam read as
+   * something projected across the gap rather than a stripe painted on the
+   * floor.
+   */
+  private buildArt(scene: Phaser.Scene, tileSize: number, w: number, h: number): void {
+    if (!hasEntitySprite(scene, "laser-beam") || !hasEntitySprite(scene, "laser-emitter")) return;
+
+    const span = this.horizontal ? w : h;
+    const count = Math.max(1, Math.round(span / tileSize));
+    const beamTag = this.horizontal ? "east-west" : "north-south";
+    // `undefined` means the strip is there but that tag is not — a redraw that
+    // renamed or dropped it. Fall back to the drawn line rather than shipping an
+    // invisible hazard; `draw()` keys off `segments` being empty.
+    const beamAnim = ensureEntityAnim(scene, "laser-beam", beamTag);
+    if (!beamAnim) return;
+
+    const start = this.horizontal ? this.cx - span / 2 : this.cy - span / 2;
+    for (let i = 0; i < count; i++) {
+      const along = start + (i + 0.5) * (span / count);
+      const sprite = scene.add
+        .sprite(this.horizontal ? along : this.cx, this.horizontal ? this.cy : along, "entity-laser-beam")
+        .setDepth(LASER_DEPTH)
+        .setDisplaySize(tileSize, tileSize);
+      sprite.play(beamAnim);
+      this.segments.push(sprite);
+    }
+
+    // Half a tile, matching this sprite's `displayTiles` — a housing is a fitting
+    // bolted into its cell, not something filling it.
+    const housing = tileSize * EMITTER_DISPLAY_TILES;
+    const ends: [number, number, string][] = this.horizontal
+      ? [
+          [start, this.cy, "east"],
+          [start + span, this.cy, "west"],
+        ]
+      : [
+          [this.cx, start, "south"],
+          [this.cx, start + span, "north"],
+        ];
+    for (const [x, y, facing] of ends) {
+      const sprite = scene.add
+        .sprite(x, y, "entity-laser-emitter")
+        .setDepth(LASER_DEPTH)
+        .setDisplaySize(housing, housing);
+      sprite.setData("facing", facing);
+      this.emitters.push(sprite);
+    }
   }
 
   /** Suppresses this hazard for a stretch (an EMP Grenade burst). */
@@ -118,9 +215,39 @@ export class Laser {
     return tripped;
   }
 
+  /**
+   * Puts the sprites in step with the hazard's state.
+   *
+   * Three states, and the emitter is the only thing that can tell them apart:
+   * firing, resting between pulses, and suppressed. The beam segments are simply
+   * shown or hidden, since a beam that is off is not there.
+   *
+   * A no-op when the art is absent — `emitters` is empty and the loop does not
+   * run — which is what keeps {@link draw} the single source of the fallback.
+   */
+  private syncArt(): void {
+    for (const seg of this.segments) seg.setVisible(this.active);
+
+    const tag = this.empTimer > 0 ? "deactivated" : this.active ? "" : "idle";
+    if (tag === this.emitterTag) return;
+    this.emitterTag = tag;
+    for (const emitter of this.emitters) {
+      // An empty tag means "fire", and which direction that is was decided once
+      // at construction — so it is read back off the sprite rather than
+      // recomputed from the geometry every time the pulse turns over.
+      const clip = tag === "" ? (emitter.getData("facing") as string) : tag;
+      const key = ensureEntityAnim(emitter.scene, "laser-emitter", clip);
+      if (key) emitter.play(key, true);
+    }
+  }
+
   private draw(): void {
+    this.syncArt();
     const g = this.gfx;
     g.clear();
+    // Where the sprites took over, the fallback line would double-draw over
+    // them — so a dressed beam draws nothing and the art is the whole of it.
+    if (this.segments.length > 0) return;
     if (this.kind === "scanner") {
       const fill = this.active ? 0.16 : 0.05;
       g.fillStyle(0xff3bd0, fill);

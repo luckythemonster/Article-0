@@ -123,6 +123,27 @@ SPRITES: tuple[Spec, ...] = (
         width=32,
         height=32,
     ),
+    # The 2026-08-21 bundle. Four families, and the sizes are not uniform because
+    # the objects are not: a trip laser is a beam across a doorway and is drawn to
+    # the doorway's shape, the bulkhead spans 2x3 tiles, and the uplink dish is a
+    # 160px set piece. See `src/entities/EntitySprites.ts` for the display
+    # footprints each of these is checked against.
+    Spec(id="laser-beam", source="laser.aseprite", width=32, height=32),
+    Spec(id="laser-emitter", source="laser_emitter.aseprite", width=32, height=32),
+    Spec(id="trip-laser-east-west", source="trip_laser_east-west.aseprite", width=32, height=40),
+    Spec(
+        id="trip-laser-north-south",
+        source="TRIP_LASER_NORTH-SOUTH.aseprite",
+        width=32,
+        height=32,
+    ),
+    Spec(id="locker", source="locker.aseprite", width=32, height=32),
+    Spec(id="footlocker", source="footlocker.aseprite", width=32, height=32),
+    Spec(id="crate", source="box.aseprite", width=32, height=32),
+    Spec(id="crate-stack", source="box1.aseprite", width=32, height=32),
+    Spec(id="bunk-bed", source="bunk_bed.aseprite", width=32, height=32),
+    Spec(id="bulkhead", source="big bulkhead.aseprite", width=64, height=96),
+    Spec(id="lattice-uplink", source="lattice_uplink.aseprite", width=160, height=160),
 )
 
 

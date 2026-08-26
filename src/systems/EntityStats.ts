@@ -48,12 +48,29 @@ export interface EnforcerStats {
   fireDamage: number;
 }
 
+/**
+ * **The two speeds are balanced against Rowan's, not chosen in isolation.**
+ * Both are {@link paced} on the way out of {@link enforcerStatsFor}, so what
+ * matters is their ratio to {@link PLAYER_WALK_TILES} (3.2) and the stance
+ * multipliers in `Player.update` — sneak 0.45, walk 1, run 1.6:
+ *
+ * | | tiles/s | against |
+ * |---|---|---|
+ * | `patrolSpeed` 1.6 | | just over a sneak (1.44), so a patrol still out-walks a crouched player |
+ * | `purgeSpeed` 3.0 | | just under a walk (3.2), so walking away holds distance; a sprint (5.12) escapes outright |
+ *
+ * The purge used to be 4.0, which beat a walk — so the only way out of a chase
+ * was to sprint, and sprinting is exactly what `src/systems/Conduct.ts` reads as
+ * "not staff". That made the conduct system a penalty with no alternative rather
+ * than a trade-off. Asserted by `EntityStats.test.ts`, which is the only place
+ * both halves of the relationship are in scope.
+ */
 export const ENFORCER_DEFAULTS: EnforcerStats = {
   sightRange: 6.5,
   sightAngle: 70,
   thermalRadius: 2,
-  patrolSpeed: 2.2,
-  purgeSpeed: 4.0,
+  patrolSpeed: 1.6,
+  purgeSpeed: 3.0,
   turnRate: 120,
   auditDelay: 0.9,
   alertNetworkRadius: 7,
@@ -111,6 +128,126 @@ export function enforcerStatsFor(components: ComponentData[]): EnforcerStats {
     fireDamage: num(components, "enforcer", "FireDamage", ENFORCER_DEFAULTS.fireDamage),
   };
 }
+
+/**
+ * The human security guard — an {@link EnforcerStats} with a person's numbers.
+ *
+ * He runs the same AI as an enforcer (see `src/entities/SecurityGuard.ts`), so he
+ * needs the same shape of stats; what differs is that he is a man doing a job
+ * rather than a purpose-built sentry, and every field below says so:
+ *
+ * - **`sightRange` 5.0** against the enforcer's 6.5, and **`auditDelay` 1.4**
+ *   against 0.9 — eyes, not optics. He takes half a second longer to be sure.
+ * - **`thermalRadius` 0** — he has no thermal sense at all. This is the one
+ *   default that is genuinely zero, and it stays zero however the map is
+ *   authored: {@link num} reads a map-side 0 as "unset" and falls back here.
+ * - **`alertNetworkRadius` 4** against 7 — he radios the mesh, he is not *on* it.
+ * - **`fireDamage` 8** against 12, and **`purgeSpeed` 2.6** against 3.0 — worse
+ *   shot, slower legs, kit that was not built into him.
+ *
+ * `turnRate` is the one field held level with the enforcer's: a man turns his
+ * head faster than a sentry rotates a camera crown, and dropping it too would
+ * have made him trivially flankable on top of everything else.
+ */
+export const SECURITY_GUARD_DEFAULTS: EnforcerStats = {
+  sightRange: 5.0,
+  sightAngle: 75,
+  thermalRadius: 0,
+  patrolSpeed: 1.5,
+  purgeSpeed: 2.6,
+  turnRate: 120,
+  auditDelay: 1.4,
+  alertNetworkRadius: 4,
+  fireRange: 3.8,
+  fireCooldown: 1.9,
+  fireDamage: 8,
+};
+
+/**
+ * Reads a security guard's stats, falling back to {@link SECURITY_GUARD_DEFAULTS}.
+ *
+ * Reads the **same `enforcer` component** the enforcer does, because that is what
+ * the map places on him — the four `security_guard_*` boards carry the identical
+ * tuning schema, all left at 0. So this differs from {@link enforcerStatsFor} in
+ * its defaults and nothing else, and an author who *does* tune one of these
+ * boards gets that value, {@link paced} the same way.
+ */
+export function securityGuardStatsFor(components: ComponentData[]): EnforcerStats {
+  const d = SECURITY_GUARD_DEFAULTS;
+  return {
+    sightRange: num(components, "enforcer", "SightRange", d.sightRange),
+    sightAngle: num(components, "enforcer", "SightAngle", d.sightAngle),
+    thermalRadius: num(components, "enforcer", "ThermalDetectionRadius", d.thermalRadius),
+    patrolSpeed: paced(num(components, "enforcer", "PatrolSpeed", d.patrolSpeed)),
+    purgeSpeed: paced(num(components, "enforcer", "PurgeSpeed", d.purgeSpeed)),
+    turnRate: paced(num(components, "enforcer", "TurnRate", d.turnRate)),
+    auditDelay: num(components, "enforcer", "AuditDelay", d.auditDelay),
+    alertNetworkRadius: num(components, "enforcer", "AlertNetworkRadius", d.alertNetworkRadius),
+    fireRange: num(components, "enforcer", "FireRange", d.fireRange),
+    fireCooldown: num(components, "enforcer", "FireCooldown", d.fireCooldown),
+    fireDamage: num(components, "enforcer", "FireDamage", d.fireDamage),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Bodies, and putting them somewhere
+// ---------------------------------------------------------------------------
+
+/**
+ * Seconds of held interact to put a body into a locker, or take one back out.
+ *
+ * Longer than a chest's search (2.0) and much longer than a door (a tap),
+ * because it is the most exposed thing the player can choose to do: both hands
+ * busy, standing still, in a room where something has just been put on the
+ * floor. If it were cheap, stashing would be the automatic follow-up to every
+ * takedown rather than a decision about whether there is time.
+ *
+ * Real seconds, not {@link paced}. It is a gameplay clock — the balance it
+ * encodes is against the patrol timings the player is reading, and pacing it
+ * would slide it against them.
+ */
+export const LOCKER_STASH_TIME = 3.0;
+
+/**
+ * Rowan's speed multiplier while carrying a body.
+ *
+ * Slower than the hold-up march ({@link ESCORT_SPEED_MULTIPLIER}) because that
+ * one walks on its own legs and this one does not. Level with the crouch (0.45)
+ * so the two never need retuning against each other: carrying is already the
+ * more exposed of the two, since a carried body is visible above cover.
+ */
+export const CARRY_SPEED_MULTIPLIER = 0.4;
+
+/**
+ * How close Rowan has to be to a downed body to pick it up, in tiles.
+ *
+ * Tighter than `INTERACT_RANGE` (1.4) on purpose. A body lies on the floor
+ * beside the fixtures the player is usually reaching for, and at the same reach
+ * the pick-up would keep stealing presses meant for a terminal or a door — the
+ * claim chain resolves by nearest, and a body is often nearer than the thing
+ * next to it.
+ */
+export const BODY_PICKUP_TILES = 0.9;
+
+/**
+ * Seconds a silicate stays shut down after an EMP Grenade goes off next to it.
+ *
+ * Sits between the Stun Rounds dart and the Rail-Stapler's pin, so the three
+ * ways of putting something down stay ordered by how much they cost to use: the
+ * dart is single-target and cheap, the EMP is an area effect off a consumable,
+ * and the staple is the longest and needs the boss weapon.
+ */
+export const EMP_SHUTDOWN_DURATION = 9.0;
+
+/**
+ * Tiles from an EMP burst's centre within which a silicate is shut down.
+ *
+ * Deliberately smaller than the chaff zone the same grenade lays down. The zone
+ * blinds everything inside it and always has; this is the harder effect and it
+ * asks for a closer throw, so the grenade keeps its "buy yourself a corridor"
+ * use while gaining a "put that one down" use at range zero.
+ */
+export const EMP_SHUTDOWN_TILES = 2.2;
 
 /** Noise ping (0..1) emitted by a pursuing guard's shot. */
 export const ENFORCER_FIRE_NOISE = 0.5;

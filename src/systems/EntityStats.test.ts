@@ -102,6 +102,29 @@ describe("The hold-up — balance vs. the two weapons", () => {
   });
 });
 
+describe("Enforcer pace — balance vs. Rowan's three stances", () => {
+  // The stance multipliers live in `Player.update`; mirrored here because the
+  // relationship can only be asserted where both halves are in scope.
+  const SNEAK = 0.45;
+  const RUN = 1.6;
+
+  it("out-walks a sneaking player, or a crouch would outrun a patrol", () => {
+    expect(ENFORCER_DEFAULTS.patrolSpeed).toBeGreaterThan(PLAYER_WALK_TILES * SNEAK);
+  });
+
+  it("loses a walking player, so leaving calmly is a real escape", () => {
+    expect(ENFORCER_DEFAULTS.purgeSpeed).toBeLessThan(PLAYER_WALK_TILES);
+  });
+
+  it("is outrun outright by a sprint", () => {
+    expect(ENFORCER_DEFAULTS.purgeSpeed).toBeLessThan(PLAYER_WALK_TILES * RUN);
+  });
+
+  it("chases faster than it patrols", () => {
+    expect(ENFORCER_DEFAULTS.purgeSpeed).toBeGreaterThan(ENFORCER_DEFAULTS.patrolSpeed);
+  });
+});
+
 describe("consumableSlots — the item cursor's list", () => {
   it("lists every distinct held type, even when that's all six at once", () => {
     // MAX_CONSUMABLES (a total-unit cap) used to double as consumableSlots'

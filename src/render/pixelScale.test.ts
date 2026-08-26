@@ -3,6 +3,7 @@ import { isPixelPerfect, screenPixelsPerSourcePixel, snapToPixel } from "./pixel
 import { PLAYER_DISPLAY_TILES, PLAYER_SOURCE_SIZE } from "../entities/PlayerAnimations";
 import { DRONE_SKIN } from "../entities/DroneAnimations";
 import { ENFORCER_SKIN } from "../entities/EnforcerAnimations";
+import { SECURITY_SKIN } from "../entities/SecurityGuardAnimations";
 import { ORDERLY_DISPLAY_TILES, ORDERLY_SOURCE_SIZE } from "../entities/OrderlyAnimations";
 import { assertVfxScales, vfxScales } from "../entities/Vfx";
 import {
@@ -49,6 +50,10 @@ describe("the shipped character sprites", () => {
     expect(screenPixelsPerSourcePixel(ENFORCER_SKIN.displayTiles, ENFORCER_SKIN.sourceSize)).toBe(1);
   });
 
+  it("renders the security guard one source pixel to one screen pixel", () => {
+    expect(screenPixelsPerSourcePixel(SECURITY_SKIN.displayTiles, SECURITY_SKIN.sourceSize)).toBe(1);
+  });
+
   it("renders the orderly one source pixel to one screen pixel", () => {
     expect(screenPixelsPerSourcePixel(ORDERLY_DISPLAY_TILES, ORDERLY_SOURCE_SIZE)).toBe(1);
   });
@@ -61,9 +66,10 @@ describe("the shipped character sprites", () => {
    * its art redrawn at a size that pairs with its display height. None could be
    * corrected by changing the numbers alone.
    *
-   * This iterates the cast rather than listing assertions, so a fifth character
-   * is held to the same rule without anyone remembering to add a case, and the
-   * failure names who broke it.
+   * This iterates the cast rather than listing assertions, so a new character is
+   * held to the same rule without anyone remembering to add a case, and the
+   * failure names who broke it. The security guard is the fifth, and arrived
+   * pixel-perfect precisely because the list was here to draw him against.
    */
   it("resamples nothing", () => {
     const cast: [string, number, number][] = [
@@ -71,6 +77,7 @@ describe("the shipped character sprites", () => {
       ["drone", DRONE_SKIN.displayTiles, DRONE_SKIN.sourceSize],
       ["enforcer", ENFORCER_SKIN.displayTiles, ENFORCER_SKIN.sourceSize],
       ["orderly", ORDERLY_DISPLAY_TILES, ORDERLY_SOURCE_SIZE],
+      ["security", SECURITY_SKIN.displayTiles, SECURITY_SKIN.sourceSize],
     ];
     const resampling = cast.filter(([, tiles, size]) => !isPixelPerfect(tiles, size));
     expect(resampling.map(([name]) => name)).toEqual([]);
@@ -133,9 +140,16 @@ describe("the hand-drawn entity sprites", () => {
       "door-glass-north-south",
       "door-single-east-west",
       "door-single-north-south",
+      "footlocker",
+      "laser-beam",
+      "laser-emitter",
+      "lattice-uplink",
+      "locker",
       "security-camera",
       "terminal",
       "terminal-substation",
+      "trip-laser-east-west",
+      "trip-laser-north-south",
     ]);
   });
 

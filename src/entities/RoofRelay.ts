@@ -15,6 +15,7 @@ import {
   ROOF_SEARCHLIGHTS,
 } from "../map/RoofArrayLevel";
 import { drawVisionCone, type ConeStyle } from "../ui/VisionCone";
+import { ensureEntityAnim, entitySpriteKey, hasEntitySprite } from "./EntitySprites";
 import { accrueDetection, canSense, type Eye } from "../systems/Sensing";
 import { HoldFixture, nearestFixture } from "./HoldFixture";
 import { anchorFrom, anchorsFrom, type TilePos } from "../map/generate";
@@ -40,6 +41,9 @@ import type { EncounterInteractResult } from "./EncounterTypes";
  * shared sensing path as everything else, rather than keeping a private copy of the cone
  * test. Concealment still counts — cover, and the Shared Field the dish itself charges.
  */
+
+/** Matches the `lattice-uplink` entry in `ENTITY_SPRITES`: 160px art over 2.5 tiles. */
+const UPLINK_DISPLAY_TILES = 2.5;
 
 const SEARCHLIGHT_CONE: ConeStyle = {
   color: 0xfff0b0,
@@ -89,6 +93,10 @@ export class RoofRelay {
   private waveIndex = 0;
   private readonly lights: { x: number; y: number; gfx: Phaser.GameObjects.Graphics }[] = [];
   private readonly dishGfx: Phaser.GameObjects.Graphics;
+  /** The hand-drawn dish, when its art is on disk. Undefined leaves the glow alone. */
+  private readonly dishSprite?: Phaser.GameObjects.Sprite;
+  /** What the dish is currently playing, so a looping clip is not restarted. */
+  private dishTag = "";
 
   constructor(
     scene: Phaser.Scene,
@@ -142,6 +150,16 @@ export class RoofRelay {
       // A searchlight is not making a judgement about conduct — it is a lamp.
       readsConduct: false,
     };
+    // The dish itself sits *under* the pulse field, which is an additive glow
+    // meant to read as something the dish is emitting. Above the camera housings
+    // at 455, because on the roof this is the tallest thing there is.
+    if (hasEntitySprite(scene, "lattice-uplink")) {
+      const size = this.tileSize * UPLINK_DISPLAY_TILES;
+      this.dishSprite = scene.add
+        .sprite(this.dish.x, this.dish.y, entitySpriteKey("lattice-uplink"))
+        .setDepth(455)
+        .setDisplaySize(size, size);
+    }
     this.dishGfx = scene.add.graphics().setDepth(456).setBlendMode(Phaser.BlendModes.ADD);
   }
 
@@ -316,8 +334,39 @@ export class RoofRelay {
     }
   }
 
+  /**
+   * Aims the drawn dish.
+   *
+   * Two states, because the art has exactly two things to say and `RelayCore` has
+   * exactly two to tell it. While the pedestals are still being set the dish is
+   * hunting — the `SEARCHING` tag is the full 48-frame sweep through all eight
+   * bearings, which is what "not locked on yet" looks like. Once the feed is
+   * armed it holds a bearing and stops moving, and that stillness is the cue that
+   * the calibration walk is finished.
+   *
+   * The held bearing is `NORTH` and is not read off anything, because there is
+   * nothing to read: `RelayCore` tracks progress and pedestals, not a heading.
+   * Inventing one would mean inventing a geography for the Lattice that no other
+   * part of the game refers to. North is the arbitrary-but-consistent choice, and
+   * it points the dish up-screen where the player can see its face.
+   */
+  private aimDish(): void {
+    const sprite = this.dishSprite;
+    if (!sprite) return;
+    const tag = this.core.state === RelayState.CALIBRATE ? "SEARCHING" : "NORTH";
+    if (tag === this.dishTag) return;
+    this.dishTag = tag;
+    const key = ensureEntityAnim(sprite.scene, "lattice-uplink", tag);
+    if (key) sprite.play(key, true);
+    // `play()` reseats the sprite at its frame's own size, so the display size
+    // has to be re-asserted after it — the same re-assert `Door.playClip` does.
+    const size = this.tileSize * UPLINK_DISPLAY_TILES;
+    sprite.setDisplaySize(size, size);
+  }
+
   /** The dish's silicate pulse field: brighter and faster as the uplink runs. */
   private drawDish(): void {
+    this.aimDish();
     const g = this.dishGfx;
     g.clear();
     if (this.core.state === RelayState.CALIBRATE) {
