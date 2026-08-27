@@ -25,13 +25,13 @@ import {
   SACK_LUNCH_ITEM,
   STAPLER_FIELD_COOLDOWN,
   STAPLER_FIELD_MAX_CHARGES,
-  STAPLER_FIELD_NOISE,
+  STAPLER_FIELD_NOISE_TILES,
   STAPLER_FIELD_RANGE_TILES,
   STAPLER_PIN_DURATION,
   EMP_SHUTDOWN_DURATION,
   EMP_SHUTDOWN_TILES,
   STUN_ROUND_DURATION,
-  STUN_ROUND_NOISE,
+  STUN_ROUND_NOISE_TILES,
   STUN_ROUND_REACH_TILES,
   STUN_ROUNDS_ITEM,
   THERMAL_GEL_ITEM,
@@ -316,7 +316,7 @@ export class ItemActions {
     cover?.destroy();
 
     this.w.conduct().violate("HOSTILE", FLAG_HOSTILE);
-    this.w.noise().emitAt(player.x, player.y, STUN_ROUND_NOISE * ts);
+    this.w.noise().emitAt(player.x, player.y, STUN_ROUND_NOISE_TILES * ts);
   }
 
   /** Field-mode shots left this run — see {@link STAPLER_FIELD_MAX_CHARGES}. */
@@ -391,7 +391,7 @@ export class ItemActions {
       getAudio().railStapler();
     }
     this.w.conduct().violate("HOSTILE", FLAG_HOSTILE);
-    this.w.noise().emitAt(player.x, player.y, STAPLER_FIELD_NOISE * ts);
+    this.w.noise().emitAt(player.x, player.y, STAPLER_FIELD_NOISE_TILES * ts);
   }
 
   /** Draws the EMP Grenade's EMP zone while it's live. */

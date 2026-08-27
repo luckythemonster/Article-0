@@ -6,6 +6,7 @@ import type { Terminal } from "../../entities/Terminal";
 import type { AlertState } from "../../systems/AlertState";
 import type { NoiseSpamTracker } from "../../systems/AlertNetwork";
 import type { CollisionGrid } from "../../systems/CollisionGrid";
+import type { NoiseLog } from "../../systems/NoiseLog";
 import { len, within } from "../../systems/distance";
 
 /**
@@ -37,6 +38,8 @@ export interface NoiseWorld {
   grid: CollisionGrid;
   alert: AlertState;
   noiseSpam: NoiseSpamTracker;
+  /** The readable tail of recent emissions, for the radar's compass ticks. */
+  noiseLog: NoiseLog;
   guards: readonly Enforcer[];
   /** The player, live — rallied guards are told to look at them, not at the noise. */
   player: { x: number; y: number };
@@ -57,10 +60,16 @@ export class NoiseEvents {
    * pings in the same area within a short window are a distraction exploit:
    * once {@link NoiseSpamTracker} flags spam, skip per-guard investigation
    * entirely and radio it in as a confirmed sighting instead.
+   *
+   * The emission is logged before either branch. A ping that escalates to spam
+   * is still a sound that happened — it is in fact the loudest thing in the
+   * game at that moment — so logging after the escalation's early return would
+   * hide exactly the noises the radar most needs to show.
    */
   emitAt(cx: number, cy: number, radiusPx: number): void {
     if (radiusPx <= 0) return;
     const w = this.w;
+    w.noiseLog.record(cx, cy, radiusPx, w.now());
     const tx = Math.floor(cx / w.tileSize);
     const ty = Math.floor(cy / w.tileSize);
     if (w.noiseSpam.record(tx, ty, w.now())) {
