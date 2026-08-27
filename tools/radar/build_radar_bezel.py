@@ -7,16 +7,41 @@
 scope's masked contents. Both sides of that seam predate this source file —
 this script is the missing third side: the PNG they are waiting for.
 
-**Only the `bezel` layer is cut.** The source also carries a `DIRECTION
-INDICATORS` group with eight compass layers (`north`, `northeast`, ...), each
-tagged across `SCANNING`/`LOUD_SOURCE`/`MEDIUM_SOURCE`/`QUIET_SOURCE`/`JAMMED`
-frames with per-direction `PING`/`BLINK`/`LOUD`/`MEDIUM`/`QUIET` cels — a
-readout of which way a noise source is and how loud it is. Nothing in
-`src/systems/Radar.ts` tracks noise sources today, so there is no state to
-drive those layers with; wiring them is a game-system change, not an art
-drop-in, and is left for whoever adds that mechanic. Only the static ring is
-cut here, and its interior stays transparent so the scope's masked terrain and
-blips still show through underneath it.
+**Only the `bezel` layer is cut**, and the ring is asserted to be the same on
+every frame before frame 0 is taken — see `_assert_static_ring`. The rest of
+the source is a noise readout that this tool deliberately does not touch, and
+what it *is* is worth writing down, because it is not shaped like a clip:
+
+The `DIRECTION INDICATORS` group carries eight compass layers (`north`,
+`northeast`, ...), each a full 96x96 canvas holding one 1-2px tick at its own
+position around the ring — eight non-overlapping spots. **No frame ever shows
+two directions in different states**: every frame paints all eight the same
+colour, and the frames supply a loudness ramp rather than a bearing —
+`#0cf1ff` idle ping, `#99e65f` quiet, `#ffeb57` medium, `#ff0040` loud, over
+`#3d3d3d` dark between blinks. Timing carries meaning too: idle flashes 36ms
+once per ~1.3s, an active source blinks 100ms on / 36ms off.
+
+So the bearing lives in the *layers* and the loudness in the *frames*, which
+makes this the network panel's problem, not the entity sprites' — eight
+independent positions times five states do not fit in a set of flat frames.
+Wiring it means cutting each direction layer separately, cropped to its own
+tick, the way `tools/panel/build_panel.py` cuts its corner LED clusters; then
+lighting whichever bearings the game wants at whichever loudness. Nothing in
+`src/systems/Radar.ts` tracks a noise source today, so there is no state to
+drive that with, and it is left for whoever adds that mechanic.
+
+Two traps for that person. `JAMMED` spans frames 2-7 and so **overlaps** all
+three of `LOUD_SOURCE`, `MEDIUM_SOURCE` and `QUIET_SOURCE` — the same shape as
+`lattice-uplink`'s `SEARCHING`, which has to be read through `clipFrames`
+rather than by frame position. And the cel labels slip: on the dark frames
+five layers read `BLINK` while three read `LOUD`, though all eight pixels are
+an identical `#3d3d3d`. That is the same class of error as the `>10`/`>9` slip
+`build_panel.py` documents, and here the pixels are the contract, not the
+labels.
+
+The hidden `well` layer is an opaque interior fill, the backdrop the artist
+drew the ring against. It stays dropped: compositing it would floor the scope
+and hide the blips the ring is supposed to frame.
 
 Run by hand; the output is committed. Same arrangement as `tools/icons/`,
 `tools/panel/` and `tools/sprites/`.
@@ -48,9 +73,39 @@ BEZEL_SIZE = 96
 BEZEL_FRAME = 0
 
 
+def _assert_static_ring(doc, bezel_layer: int) -> None:
+    """Fail if the ring is not identical on every frame.
+
+    Taking a single frame is only correct while the ring itself does not
+    animate — all eight frames of movement in this source belong to the
+    direction ticks, on their own layers. If an artist ever animates the
+    `bezel` layer, a one-frame PNG would silently ship the first frame and
+    throw the rest away, which is exactly the kind of quiet loss the other
+    cutters' `expect_size` and `_probe` assertions exist to prevent.
+
+    The fix, should this ever fire, is a strip plus a manifest — not a
+    different frame index.
+    """
+    reference = doc.composite(BEZEL_FRAME, [bezel_layer]).tobytes()
+    moving = [
+        f for f in range(doc.frame_count)
+        if doc.composite(f, [bezel_layer]).tobytes() != reference
+    ]
+    if moving:
+        raise SystemExit(
+            f"{SRC}: the 'bezel' layer differs on frame(s) {moving} from frame "
+            f"{BEZEL_FRAME}.\n"
+            "  The ring is animated now, so one frame no longer describes it. "
+            "This tool emits a single PNG and `ui-radar-bezel` loads it as a "
+            "single image — both need to become a strip, alongside "
+            "src/ui/UiTextures.ts and src/ui/Radar.ts."
+        )
+
+
 def build(strict: bool = False) -> None:
     doc = read(SRC, expect_size=(BEZEL_SIZE, BEZEL_SIZE))
     bezel_layer = doc.layer_index("bezel")
+    _assert_static_ring(doc, bezel_layer)
 
     print(f"{os.path.relpath(SRC, ROOT)}: {doc.frame_count} frames, "
           f"{BEZEL_SIZE}x{BEZEL_SIZE}")
