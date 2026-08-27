@@ -152,13 +152,13 @@ below) modulate sweep speed, steam, and thermal behaviour on the boss side.
 | --- | --- | --- |
 | `interactionTime` | `1.4` |  |
 | `noiseOnOpen` | `3` |  |
-| `items` | `["Medkit", "Battery", "Access Chit"]` | Loot used when the map leaves a chest's item slots blank (they all are). The schema only carries three slots, and since unlit space became genuinely opaque a Battery outranks Stun Rounds — light is load-bearing, stunning an Orderly bystander is a convenience. |
+| `items` | `["Medkit", "Battery", "Access Chit"]` | Last-resort loot, for a chest carrying no loot field of any kind. **This used to be what every chest on the shipped map yielded**, because the engine read `item1/2/3` and the map authors `items` — see `chestLoot`. Now that both schemas are read it is genuinely a fallback, and on the shipped map it is unreachable: the tile editor substitutes the `Chest` DataStructure's own `DefaultValues` for any field an author leaves null, so even the two chests that look blank (`main2vault`, `secret2`) arrive carrying a value. That schema default is `"Medkit", "Battery` — with the closing quote genuinely missing in `edplay.json`. `parseItemList` is tolerant of it deliberately rather than by accident: those two chests are the only thing that depends on stray quotes being stripped rather than being taken literally. Kept at three because the slot schema has three, and ordered so that since unlit space became genuinely opaque a Battery outranks Stun Rounds — light is load-bearing, stunning an Orderly bystander is a convenience. |
 
 <a id="const-consumable-order"></a>
 
 #### `CONSUMABLE_ORDER` — const
 
-`src/systems/EntityStats.ts:1032`
+`src/systems/EntityStats.ts:1188`
 
 The consumables selectable through the item cursor, in canonical display
 order. Held consumables fill the list dynamically (unheld names are
@@ -953,7 +953,7 @@ Snapshot published to the registry for the HUD and the codec.
 
 #### `ConsumableSlot` — interface
 
-`src/systems/EntityStats.ts:1071`
+`src/systems/EntityStats.ts:1227`
 
 One held, distinct consumable type, with its position in the display list.
 
@@ -1108,7 +1108,7 @@ field nothing acts on is how the codebase accumulated dead content in the first 
 
 #### `ItemInfo` — interface
 
-`src/systems/ItemCatalog.ts:48`
+`src/systems/ItemCatalog.ts:50`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1410,7 +1410,7 @@ The player's wave adds an exponential-decay envelope (the DAMPING control).
 
 #### `PlayerStats` — interface
 
-`src/systems/EntityStats.ts:618`
+`src/systems/EntityStats.ts:671`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1666,7 +1666,7 @@ Unit ray directions, split into parallel arrays so casting allocates nothing.
 
 #### `RelayStats` — interface
 
-`src/systems/EntityStats.ts:1295`
+`src/systems/EntityStats.ts:1451`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1841,7 +1841,7 @@ Serializable mid-fight state, so re-entering the level doesn't restart the boss.
 
 #### `SmacStats` — interface
 
-`src/systems/EntityStats.ts:1223`
+`src/systems/EntityStats.ts:1379`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2038,7 +2038,7 @@ Serializable fight progress — kept in the registry across level swaps.
 
 #### `Vent4Stats` — interface
 
-`src/systems/EntityStats.ts:1099`
+`src/systems/EntityStats.ts:1255`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -6894,8 +6894,8 @@ GameScene.
 | [ConductState](#class-conductstate) | class | `src/systems/Conduct.ts:112` |
 | [ConductView](#interface-conductview) | interface | `src/systems/Conduct.ts:246` |
 | [ConeStyle](#interface-conestyle) | interface | `src/ui/VisionCone.ts:29` |
-| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:1032` |
-| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:1071` |
+| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:1188` |
+| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:1227` |
 | [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:20` |
 | [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:42` |
 | [CountKind](#type-countkind) | type | `src/ui/NetworkPanel.ts:29` |
@@ -6992,7 +6992,7 @@ GameScene.
 | [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:23` |
 | [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:182` |
 | [ItemActions](#class-itemactions) | class | `src/scenes/game/ItemActions.ts:101` |
-| [ItemInfo](#interface-iteminfo) | interface | `src/systems/ItemCatalog.ts:48` |
+| [ItemInfo](#interface-iteminfo) | interface | `src/systems/ItemCatalog.ts:50` |
 | [ItemWorld](#interface-itemworld) | interface | `src/scenes/game/ItemActions.ts:75` |
 | [JournalEntry](#interface-journalentry) | interface | `src/systems/Journal.ts:44` |
 | [JournalEntryId](#type-journalentryid) | type | `src/systems/Journal.ts:23` |
@@ -7067,7 +7067,7 @@ GameScene.
 | [Player](#class-player) | class | `src/entities/Player.ts:47` |
 | [PlayerAnimName](#type-playeranimname) | type | `src/entities/PlayerAnimations.ts:17` |
 | [PlayerParams](#interface-playerparams) | interface | `src/systems/QualiaLock.ts:34` |
-| [PlayerStats](#interface-playerstats) | interface | `src/systems/EntityStats.ts:618` |
+| [PlayerStats](#interface-playerstats) | interface | `src/systems/EntityStats.ts:671` |
 | [Pose](#interface-pose) | interface | `src/entities/CastArt.ts:55` |
 | [PowerControl](#class-powercontrol) | class | `src/scenes/game/PowerControl.ts:58` |
 | [PowerGridState](#interface-powergridstate) | interface | `src/systems/PowerGrid.ts:27` |
@@ -7101,7 +7101,7 @@ GameScene.
 | [RelayMsg](#interface-relaymsg) | interface | `src/systems/RelayCore.ts:46` |
 | [RelaySnapshot](#interface-relaysnapshot) | interface | `src/systems/RelayCore.ts:40` |
 | [RelayState](#enum-relaystate) | enum | `src/systems/RelayCore.ts:18` |
-| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:1295` |
+| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:1451` |
 | [RelayTickResult](#interface-relaytickresult) | interface | `src/entities/RoofRelay.ts:61` |
 | [RelayTransition](#interface-relaytransition) | interface | `src/systems/RelayCore.ts:35` |
 | [RelayView](#interface-relayview) | interface | `src/systems/RelayCore.ts:55` |
@@ -7136,7 +7136,7 @@ GameScene.
 | [SmacMsg](#interface-smacmsg) | interface | `src/systems/SmacCore.ts:72` |
 | [SmacSnapshot](#interface-smacsnapshot) | interface | `src/systems/SmacCore.ts:63` |
 | [SmacState](#enum-smacstate) | enum | `src/systems/SmacCore.ts:38` |
-| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:1223` |
+| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:1379` |
 | [SmacTickResult](#interface-smactickresult) | interface | `src/entities/BossCore.ts:56` |
 | [SmacTransition](#interface-smactransition) | interface | `src/systems/SmacCore.ts:57` |
 | [SmacView](#interface-smacview) | interface | `src/systems/SmacCore.ts:94` |
@@ -7193,7 +7193,7 @@ GameScene.
 | [Vent4PhysicsSystem](#class-vent4physicssystem) | class | `src/systems/Vent4PhysicsSystem.ts:63` |
 | [Vent4Snapshot](#interface-vent4snapshot) | interface | `src/systems/Vent4Core.ts:34` |
 | [Vent4State](#enum-vent4state) | enum | `src/systems/Vent4Core.ts:17` |
-| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:1099` |
+| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:1255` |
 | [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:67` |
 | [Vent4Transition](#interface-vent4transition) | interface | `src/systems/Vent4Core.ts:28` |
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |

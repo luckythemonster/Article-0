@@ -12,7 +12,7 @@ import {
   type TilePos,
 } from "./generate";
 import { adoptVentCore } from "./AdoptAuthored";
-import { STAPLER_ITEM } from "../systems/EntityStats";
+import { VENT_CORE_CHEST_LOOT } from "../systems/EntityStats";
 
 /**
  * The VENT-4 boss arena, generated in code and appended to the parsed map at
@@ -30,6 +30,7 @@ import { STAPLER_ITEM } from "../systems/EntityStats";
  */
 
 export const VENT_CORE_LEVEL = "vent_core";
+
 
 /** The hatch tile shared with the host level — entry and only exit. */
 export const VENT_CORE_ENTRY = { x: 18, y: 34 };
@@ -246,11 +247,7 @@ function buildVentCore(map: GameMap, host: string, hostLevel: GameLevel): void {
       tiles: [
         // All three slots non-empty: blank ones fall back to the default loot
         // table in chestStatsFor.
-        cloneWithComponent(chestProto, CHEST.x, CHEST.y, "chest", {
-          item1: STAPLER_ITEM,
-          item2: "Sealant Tape",
-          item3: "Q0 Filter Mask",
-        }),
+        cloneWithComponent(chestProto, CHEST.x, CHEST.y, "chest", { ...VENT_CORE_CHEST_LOOT }),
       ],
     },
     { name: "spawn", tiles: [marker("spawn", SPAWN.x, SPAWN.y)] },

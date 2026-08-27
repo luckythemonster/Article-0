@@ -30,8 +30,10 @@ import {
   RATION_HEAL,
   RATION_PACK_ITEM,
   RATION_SPOOF_SECONDS,
+  FILTER_MASK_ITEM,
   SACK_LUNCH_ITEM,
   SANITATION_SECONDS,
+  SEALANT_TAPE_ITEM,
   STAPLER_FIELD_MAX_CHARGES,
   STAPLER_FIELD_RANGE_TILES,
   STAPLER_ITEM,
@@ -130,6 +132,21 @@ const CATALOG: Record<string, ItemInfo> = {
       "Q-zero. A credential that certifies not what its holder can do but what its holder is " +
       "agreed to lack. Issued for good conduct in the vent core.",
     effect: "Passive. Compliance survives EVASION — though never a full ALERT.",
+  },
+  [SEALANT_TAPE_ITEM]: {
+    blurb:
+      "Duct sealant, rated for pressure work. The vent core is held together with the stuff, " +
+      "which is its own comment on how much the facility spends keeping the air moving versus " +
+      "keeping the people in it breathing.",
+    effect: "No effect. Carried, not used.",
+    name: SEALANT_TAPE_ITEM,
+  },
+  [FILTER_MASK_ITEM]: {
+    blurb:
+      "Half-mask, Q0-rated. Issued to whoever draws the vent shift, on the reasoning that a " +
+      "lung is expensive and a filter is not.",
+    effect: "No effect. Carried, not used.",
+    name: FILTER_MASK_ITEM,
   },
   [STAPLER_ITEM]: {
     name: STAPLER_ITEM,

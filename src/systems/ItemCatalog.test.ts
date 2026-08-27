@@ -1,36 +1,35 @@
 import { describe, it, expect } from "vitest";
 import { catalogedNames, itemInfo } from "./ItemCatalog";
 import {
-  ACCESS_CHIT_ITEM,
-  BATTERY_ITEM,
-  CERT_ITEM,
-  CHAFF_PACK_ITEM,
   CHEST_DEFAULTS,
   CONSUMABLE_ORDER,
-  EIRA7_LOG_ITEM,
-  FLASHLIGHT_ITEM,
+  KNOWN_ITEMS,
+  LOG_ALPHA_ITEM,
+  LOG_BETA_ITEM,
   RATION_HEAL,
   RATION_PACK_ITEM,
-  SACK_LUNCH_ITEM,
-  STAPLER_ITEM,
-  STUN_ROUNDS_ITEM,
-  THERMAL_GEL_ITEM,
 } from "./EntityStats";
 
-/** Every item name the engine can actually put in the player's hands. */
-const ALL_ITEMS = [
-  CHAFF_PACK_ITEM,
-  THERMAL_GEL_ITEM,
-  RATION_PACK_ITEM,
-  BATTERY_ITEM,
-  STUN_ROUNDS_ITEM,
-  SACK_LUNCH_ITEM,
-  FLASHLIGHT_ITEM,
-  ACCESS_CHIT_ITEM,
-  EIRA7_LOG_ITEM,
-  CERT_ITEM,
-  STAPLER_ITEM,
-];
+/**
+ * Items the engine can grant that are *not* described here, and are expected not to be.
+ *
+ * The two log-cache halves are granted by `TerminalHacks` and shown under KEY ITEMS with
+ * no blurb — a real gap, and a pre-existing one: it predates the chest wiring and is not
+ * caused by it. Named here rather than silently omitted so the exactness check below stays
+ * honest about what it is letting through, and so closing the gap is a matter of deleting
+ * a line from this list and watching the test tell you what to write.
+ */
+const UNCATALOGUED = [LOG_ALPHA_ITEM, LOG_BETA_ITEM];
+
+/**
+ * Every item name the engine can actually put in the player's hands.
+ *
+ * Derived from {@link KNOWN_ITEMS} rather than hand-listed again. It used to be its own
+ * copy, which is one list of item names too many: the chest loader needs the same set to
+ * resolve authored spellings against, and two hand-maintained copies of "what is an item"
+ * drift the first time somebody adds one to only one of them.
+ */
+const ALL_ITEMS = KNOWN_ITEMS.filter((name) => !UNCATALOGUED.includes(name));
 
 describe("ItemCatalog", () => {
   it("describes every item the engine can grant", () => {

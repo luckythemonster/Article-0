@@ -5,6 +5,7 @@ import { planFor } from "./MapPlan";
 import type { EdPlayFile, GameMap } from "./types";
 import { TransitionGraph } from "../systems/TransitionGraph";
 import { appendVentCore, VENT_CORE_LEVEL } from "./VentCoreLevel";
+import { chestStatsFor, STAPLER_ITEM } from "../systems/EntityStats";
 
 /**
  * Integration test on the real shipped map.
@@ -127,6 +128,31 @@ describe("VentCoreLevel — real map, adopt path", () => {
     expect(hub).toHaveLength(1);
     // turbine1 (17,9) and turbine2 (19,9), so the arena turns about (18,9).
     expect({ x: hub[0].x, y: hub[0].y }).toEqual({ x: 18, y: 9 });
+  });
+
+  it("furnishes the supply chest the author drew but never wired up", () => {
+    // `vent_core`'s `items` board carries one tile drawn with the chest sprite's own
+    // frames — and, in the raw map, no DataComponents at all. `indexFixtures` gates on
+    // `has(t, "chest")`, so it walked straight past, and the Rail-Stapler behind it was
+    // unobtainable in normal play: VENT-4's JAMMED phase had nothing to answer it.
+    const level = parsed.map.levels.find((l) => l.name === VENT_CORE_LEVEL)!;
+    const chests = (level.layers.find((l) => l.name === "items")?.tiles ?? []).filter((t) =>
+      t.components.some((c) => c.type === "chest"),
+    );
+    expect(chests).toHaveLength(1);
+    expect(chestStatsFor(chests[0].components).items).toContain(STAPLER_ITEM);
+  });
+
+  it("furnishes it in place, keeping the tile the author drew", () => {
+    // Adding the missing component rather than cloning a donor chest over the top: the
+    // sprite frames and collider are the author's and must survive.
+    const level = parsed.map.levels.find((l) => l.name === VENT_CORE_LEVEL)!;
+    const chest = level.layers.find((l) => l.name === "items")!.tiles[0];
+    // Still the author's `item_chest5`, with its own art and collider — not a clone of
+    // some other level's chest dropped over the top.
+    expect(chest).toMatchObject({ x: 32, y: 12, ref: "item_chest5" });
+    expect(chest.frame).toBeDefined();
+    expect(chest.stateFrames?.empty).toBeDefined();
   });
 
   it("keeps every derived anchor on the level", () => {

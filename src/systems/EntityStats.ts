@@ -596,23 +596,76 @@ export const CHEST_DEFAULTS = {
   interactionTime: 1.4,
   noiseOnOpen: 3,
   /**
-   * Loot used when the map leaves a chest's item slots blank (they all are). The
-   * schema only carries three slots, and since unlit space became genuinely opaque
-   * a Battery outranks Stun Rounds — light is load-bearing, stunning an Orderly
-   * bystander is a convenience.
+   * Last-resort loot, for a chest carrying no loot field of any kind.
+   *
+   * **This used to be what every chest on the shipped map yielded**, because the
+   * engine read `item1/2/3` and the map authors `items` — see {@link chestLoot}.
+   * Now that both schemas are read it is genuinely a fallback, and on the shipped
+   * map it is unreachable: the tile editor substitutes the `Chest` DataStructure's
+   * own `DefaultValues` for any field an author leaves null, so even the two chests
+   * that look blank (`main2vault`, `secret2`) arrive carrying a value.
+   *
+   * That schema default is `"Medkit", "Battery` — with the closing quote genuinely
+   * missing in `edplay.json`. {@link parseItemList} is tolerant of it deliberately
+   * rather than by accident: those two chests are the only thing that depends on
+   * stray quotes being stripped rather than being taken literally.
+   *
+   * Kept at three because the slot schema has three, and ordered so that since unlit
+   * space became genuinely opaque a Battery outranks Stun Rounds — light is
+   * load-bearing, stunning an Orderly bystander is a convenience.
    */
   items: ["Medkit", "Battery", "Access Chit"],
 } as const;
 
 export function chestStatsFor(components: ComponentData[]): ChestStats {
-  const items = ["item1", "item2", "item3"]
-    .map((field, i) => str(components, "chest", field, CHEST_DEFAULTS.items[i] ?? ""))
-    .filter((name) => name !== "");
   return {
     interactionTime: num(components, "chest", "InteractionTime", CHEST_DEFAULTS.interactionTime),
     noiseOnOpen: num(components, "chest", "NoiseOnOpen", CHEST_DEFAULTS.noiseOnOpen),
-    items,
+    items: chestLoot(components),
   };
+}
+
+/**
+ * What a chest yields, from whichever of the **two** loot schemas it carries.
+ *
+ * There are two because there are two authors, and both are legitimate:
+ *
+ * - The **map** writes a single `items` string holding a quoted, comma-separated
+ *   list — that is the shape of the `Chest` DataStructure in the tile editor, and
+ *   what all six authored chests on the shipped map actually carry.
+ * - The **engine's own generators** write `item1` / `item2` / `item3`, one name per
+ *   slot (see `src/map/VentCoreLevel.ts`).
+ *
+ * The engine reading only the second of those is why authored loot was inert for so
+ * long: every chest on the map fell through to {@link CHEST_DEFAULTS}, so the Stun
+ * Rounds on `main1` and `secret1` never appeared and the hold-up they enable was
+ * unreachable in normal play.
+ *
+ * **Slots win over the list, and that precedence is load-bearing.**
+ * `cloneWithComponent` (`src/map/generate.ts`) merges values into a *prototype's*
+ * component, so a chest the engine clones from a map tile inherits that tile's
+ * authored `items` string whether or not anyone wanted it. A generated slot is a
+ * deliberate statement; an inherited list is an accident of cloning. If the list won,
+ * the vent core's chest would hand out the donor chest's loot instead of the
+ * Rail-Stapler — which is exactly the bug `adoptVentCore` would otherwise reintroduce.
+ */
+function chestLoot(components: ComponentData[]): string[] {
+  // Read the slots raw first: their own fallback is per-slot (a chest naming only
+  // `item1` still gets the default's second and third), so asking for them with
+  // defaults could not tell "authored" from "absent".
+  const slots = ["item1", "item2", "item3"];
+  if (slots.some((field) => str(components, "chest", field, "") !== "")) {
+    return slots
+      .map((field, i) => str(components, "chest", field, CHEST_DEFAULTS.items[i] ?? ""))
+      .filter((name) => name !== "");
+  }
+
+  const authored = parseItemList(str(components, "chest", "items", ""))
+    .map(resolveItemName)
+    .filter((name): name is string => name !== undefined);
+  // An empty or unparseable list reads as *unset*, not as an empty chest — the two
+  // blank chests on the shipped map want the default table, not nothing.
+  return authored.length > 0 ? authored : [...CHEST_DEFAULTS.items];
 }
 
 export interface PlayerStats {
@@ -731,6 +784,40 @@ export const VAULT_NOISE = 0.6;
 
 /** Loot granted by the vent-core supply chest; enables capacitor fire while JAMMED. */
 export const STAPLER_ITEM = "Pneumatic Rail-Stapler";
+
+/**
+ * Flavour loot in the vent core's supply chest, alongside the Rail-Stapler.
+ *
+ * Named rather than left as the string literals they were, because until the chest was
+ * furnished on the shipped map (`furnishVentCoreChest`) nothing could ever hold them and
+ * the spelling only had to agree with itself. Now they reach the player's KEY ITEMS, so
+ * they answer to {@link KNOWN_ITEMS} and to `ItemCatalog` like anything else he carries.
+ */
+export const SEALANT_TAPE_ITEM = "Sealant Tape";
+export const FILTER_MASK_ITEM = "Q0 Filter Mask";
+
+/**
+ * What the vent core's supply chest holds.
+ *
+ * Shared by the two ways an arena comes into being — generated by
+ * `src/map/VentCoreLevel.ts`, or adopted from an authored one by
+ * `furnishVentCoreChest` in `src/map/AdoptAuthored.ts` — because the Rail-Stapler is
+ * what answers VENT-4's JAMMED phase, and a player who reached the boss down one path
+ * and not the other would find the fight unwinnable rather than hard.
+ *
+ * It lives *here*, rather than in either map module, because those two import each
+ * other: `VentCoreLevel` calls `adoptVentCore`, and the adopt path needs this loot.
+ * Holding it in the module that already owns every item name keeps that a one-way
+ * dependency instead of a cycle that happens to work.
+ *
+ * Written as slots (`item1/2/3`) rather than as an `items` list — see {@link chestLoot}
+ * for why the slots have to win over an inherited list.
+ */
+export const VENT_CORE_CHEST_LOOT: Readonly<Record<string, string>> = {
+  item1: STAPLER_ITEM,
+  item2: SEALANT_TAPE_ITEM,
+  item3: FILTER_MASK_ITEM,
+};
 
 /** Proof-of-compliance item granted when VENT-4 is silenced. */
 export const CERT_ITEM = "Q0_COMPLIANCE_CERT";
@@ -1022,6 +1109,75 @@ export const OPENED_RATION_DETECTION_MULTIPLIER = 1.15;
 export const OPENED_RATION_NOISE = 0.1;
 
 // --- Item taxonomy -------------------------------------------------------
+
+/**
+ * Every item name the game knows how to act on.
+ *
+ * The list exists to answer one question — *is this string an item?* — which the
+ * chest loader has to ask because the map is authored by hand and does not always
+ * spell things the way the engine does.
+ *
+ * Deliberately **not** derived from `ItemCatalog.catalogedNames()`, tempting as that
+ * is: `ItemCatalog` imports this module, so importing it back would close a cycle.
+ * The two are kept in step by a test instead, which can import both — see
+ * `EntityStats.test.ts`. The two log-cache halves are here but *not* catalogued, so
+ * the assertion is containment rather than equality.
+ */
+export const KNOWN_ITEMS: readonly string[] = [
+  CHAFF_PACK_ITEM,
+  THERMAL_GEL_ITEM,
+  RATION_PACK_ITEM,
+  BATTERY_ITEM,
+  STUN_ROUNDS_ITEM,
+  SACK_LUNCH_ITEM,
+  FLASHLIGHT_ITEM,
+  ACCESS_CHIT_ITEM,
+  EIRA7_LOG_ITEM,
+  CERT_ITEM,
+  STAPLER_ITEM,
+  SEALANT_TAPE_ITEM,
+  FILTER_MASK_ITEM,
+  LOG_ALPHA_ITEM,
+  LOG_BETA_ITEM,
+];
+
+/** Case- and space-insensitive form of an item name, for matching authored spellings. */
+const itemKey = (name: string): string => name.toLowerCase().replace(/\s+/g, "");
+
+/**
+ * Splits the map's `items` field into names.
+ *
+ * The authored form is a quoted, comma-separated list — `"Battery", "EMP Grenade"` —
+ * written by hand in the tile editor, so the parse is forgiving about spacing and
+ * about stray quotes, and drops empty entries rather than yielding blank items.
+ */
+export function parseItemList(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((part) => part.trim().replace(/^"+|"+$/g, "").trim())
+    .filter((part) => part !== "");
+}
+
+/**
+ * The canonical item name an authored spelling means, or `undefined` for one the game
+ * has never heard of.
+ *
+ * Matching ignores case and spacing, which is what rescues `main1`'s `"StunRounds"` —
+ * the same item as {@link STUN_ROUNDS_ITEM}, written without the space. That one
+ * matters more than it looks: it is the only Stun Rounds the player can reach before
+ * `secret1`, and carrying them is what enables the hold-up.
+ *
+ * **An unrecognised name is dropped, not granted.** `main1` also authors `"Key1"`,
+ * which has no engine meaning at all — doors lock on a *numeric* `key` field and
+ * nothing reads an inventory item as a key. Granting the string anyway would be worse
+ * than ignoring it: {@link isKeyItem} is the complement of {@link CONSUMABLE_ORDER}, so
+ * it would sit in the player's KEY ITEMS for the whole run with no icon, no
+ * description and no effect.
+ */
+export function resolveItemName(raw: string): string | undefined {
+  const key = itemKey(raw);
+  return KNOWN_ITEMS.find((name) => itemKey(name) === key);
+}
 
 /**
  * The consumables selectable through the item cursor, in canonical display

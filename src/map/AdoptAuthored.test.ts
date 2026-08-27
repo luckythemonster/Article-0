@@ -6,6 +6,7 @@ import {
   graftExtractionEntrance,
 } from "./AdoptAuthored";
 import { MissingProto, requireClear } from "./generate";
+import { chestStatsFor, STAPLER_ITEM } from "../systems/EntityStats";
 import type { GameLevel, GameMap, GameTile } from "./types";
 
 const tile = (x: number, y: number, ref = "", components: unknown[] = []): GameTile =>
@@ -79,6 +80,43 @@ describe("adoptVentCore", () => {
   it("declines when nothing can serve as a sub-station", () => {
     const l = levelOf("vent_core", { "VENT-4": [tile(22, 18, "tdVent_4_Chassis1")] });
     expect(adoptVentCore(l)).toBe(false);
+  });
+
+  describe("the supply chest", () => {
+    it("gives an unwired items tile the chest component it was drawn without", () => {
+      const l = arena();
+      l.layers.push({ name: "items", tiles: [tile(32, 12, "item_chest1")] } as never);
+      adoptVentCore(l);
+      const chest = board(l, "items")[0];
+      expect(chest.components.some((c) => (c as { type: string }).type === "chest")).toBe(true);
+      expect(chestStatsFor(chest.components).items).toContain(STAPLER_ITEM);
+    });
+
+    it("furnishes in place rather than replacing the author's tile", () => {
+      const l = arena();
+      l.layers.push({ name: "items", tiles: [tile(32, 12, "item_chest1")] } as never);
+      adoptVentCore(l);
+      expect(board(l, "items")).toHaveLength(1);
+      expect(board(l, "items")[0]).toMatchObject({ x: 32, y: 12, ref: "item_chest1" });
+    });
+
+    it("leaves a chest the author already wired up alone", () => {
+      // Author beats engine, the rule the rest of this module works under.
+      const l = arena();
+      const wired = tile(5, 5, "item_chest1", [
+        { type: "chest", values: { item1: "Medkit", item2: "", item3: "" } },
+      ]);
+      l.layers.push({ name: "items", tiles: [wired] } as never);
+      adoptVentCore(l);
+      expect(chestStatsFor(board(l, "items")[0].components).items).not.toContain(STAPLER_ITEM);
+    });
+
+    it("adds nothing when the author placed no marker", () => {
+      // No spot anybody chose, so no chest — rather than one dropped somewhere arbitrary.
+      const l = arena();
+      adoptVentCore(l);
+      expect(board(l, "items")).toHaveLength(0);
+    });
   });
 
   describe("the v0.4 vocabulary", () => {

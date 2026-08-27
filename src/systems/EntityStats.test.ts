@@ -6,6 +6,12 @@ import {
   CONSUMABLE_ORDER,
   countConsumables,
   ARMED_POSTS_PER_LEVEL,
+  chestStatsFor,
+  CHEST_DEFAULTS,
+  KNOWN_ITEMS,
+  parseItemList,
+  resolveItemName,
+  STAPLER_ITEM,
   enforcerStatsFor,
   ENFORCER_DEFAULTS,
   FIREARMS_AUTHORIZATION_DELAY,
@@ -303,5 +309,132 @@ describe("Rowan's takedown — balance against the two things it sits between", 
   it("reaches less far than an orderly can see", () => {
     // Closing to arm's length means standing well inside his eyeline to do it.
     expect(PLAYER_MELEE_REACH_TILES).toBeLessThan(5);
+  });
+});
+
+/** A `chest` component carrying the map's single-string loot schema. */
+const authoredChest = (items: string): ComponentData[] => [
+  { type: "chest", values: { items } },
+];
+
+describe("parseItemList — the map's authored loot schema", () => {
+  it("splits a quoted, comma-separated list", () => {
+    expect(parseItemList('"Battery", "EMP Grenade", "Thermal Gel"')).toEqual([
+      "Battery",
+      "EMP Grenade",
+      "Thermal Gel",
+    ]);
+  });
+
+  it("is forgiving about spacing", () => {
+    expect(parseItemList('  "Battery"   ,"Medkit"  ')).toEqual(["Battery", "Medkit"]);
+  });
+
+  it("tolerates the unterminated quote the shipped map's schema default carries", () => {
+    // `main2vault` and `secret2` inherit the Chest DataStructure's own DefaultValues,
+    // which are written `"Medkit", "Battery` — the closing quote is genuinely missing
+    // in edplay.json. Those two chests are the only thing that depends on this.
+    expect(parseItemList('"Medkit", "Battery')).toEqual(["Medkit", "Battery"]);
+  });
+
+  it("yields nothing for an empty or quote-only field", () => {
+    expect(parseItemList("")).toEqual([]);
+    expect(parseItemList('  ,  ""  , ')).toEqual([]);
+  });
+});
+
+describe("resolveItemName", () => {
+  it("passes a name the game already spells the same way", () => {
+    expect(resolveItemName("Stun Rounds")).toBe(STUN_ROUNDS_ITEM);
+  });
+
+  it("rescues main1's spacing variant", () => {
+    // The only Stun Rounds reachable before `secret1`, and what enables the hold-up.
+    expect(resolveItemName("StunRounds")).toBe(STUN_ROUNDS_ITEM);
+  });
+
+  it("ignores case", () => {
+    expect(resolveItemName("emp grenade")).toBe(CHAFF_PACK_ITEM);
+  });
+
+  it("returns undefined for a name with no engine meaning", () => {
+    // `main1` authors "Key1". Doors lock on a numeric field and nothing reads an
+    // inventory item as a key, so granting it would park an inert string in KEY ITEMS.
+    expect(resolveItemName("Key1")).toBeUndefined();
+  });
+});
+
+describe("chestStatsFor — loot from either schema", () => {
+  it("reads the map's authored items list", () => {
+    expect(chestStatsFor(authoredChest('"Stun Rounds", "EMP Grenade"')).items).toEqual([
+      STUN_ROUNDS_ITEM,
+      CHAFF_PACK_ITEM,
+    ]);
+  });
+
+  it("drops authored names the game does not know, keeping the rest", () => {
+    expect(chestStatsFor(authoredChest('"StunRounds", "Battery", "Key1", "Medkit"')).items).toEqual(
+      [STUN_ROUNDS_ITEM, BATTERY_ITEM, RATION_PACK_ITEM],
+    );
+  });
+
+  it("falls back to the default table for a chest with no loot field at all", () => {
+    expect(chestStatsFor([{ type: "chest", values: {} }]).items).toEqual([...CHEST_DEFAULTS.items]);
+  });
+
+  it("treats a list of nothing but unknown names as unset rather than as an empty chest", () => {
+    expect(chestStatsFor(authoredChest('"Key1", "Key2"')).items).toEqual([...CHEST_DEFAULTS.items]);
+  });
+
+  it("lets engine-written slots win over an inherited items list", () => {
+    // Load-bearing: `cloneWithComponent` merges onto a *prototype's* component, so a
+    // generated chest inherits the donor tile's authored list whether anyone wanted it
+    // or not. Without this precedence the vent core hands out the donor's loot instead
+    // of the Rail-Stapler.
+    const inherited: ComponentData[] = [
+      { type: "chest", values: { items: '"Battery", "Medkit"', item1: STAPLER_ITEM } },
+    ];
+    expect(chestStatsFor(inherited).items[0]).toBe(STAPLER_ITEM);
+  });
+
+  it("keeps engine-written slots unfiltered, and fills blank ones per slot", () => {
+    // Two behaviours, both deliberate and both pre-existing.
+    //
+    // Unfiltered: the slot schema is written by the engine, which only ever writes names
+    // it means, so it is not resolved against KNOWN_ITEMS the way hand-authored text is.
+    // Filtering it would silently drop the vent core's flavour loot.
+    //
+    // Per-slot: a blank slot takes *that slot's* default rather than emptying the chest —
+    // which is why `VentCoreLevel` fills all three deliberately.
+    const generated: ComponentData[] = [
+      { type: "chest", values: { item1: "Anything At All", item2: "", item3: "" } },
+    ];
+    expect(chestStatsFor(generated).items).toEqual([
+      "Anything At All",
+      CHEST_DEFAULTS.items[1],
+      CHEST_DEFAULTS.items[2],
+    ]);
+  });
+});
+
+describe("KNOWN_ITEMS", () => {
+  it("has no duplicates", () => {
+    expect(new Set(KNOWN_ITEMS).size).toBe(KNOWN_ITEMS.length);
+  });
+
+  it("has no two names that normalise to the same key", () => {
+    // `resolveItemName` matches on a case- and space-insensitive key and takes the
+    // first hit, so a collision would make one of the two items unauthorable with no
+    // sign that anything was wrong.
+    const keys = KNOWN_ITEMS.map((n) => n.toLowerCase().replace(/\s+/g, ""));
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("covers the default chest loot", () => {
+    for (const name of CHEST_DEFAULTS.items) expect(resolveItemName(name)).toBe(name);
+  });
+
+  it("covers every consumable", () => {
+    for (const name of CONSUMABLE_ORDER) expect(resolveItemName(name)).toBe(name);
   });
 });
