@@ -8,14 +8,14 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 
 | Area | Enums | Classes | Interfaces | Type aliases | Constants | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| [Systems](#systems) | 3 | 17 | 84 | 20 | 6 | 130 |
+| [Systems](#systems) | 3 | 19 | 84 | 20 | 6 | 132 |
 | [Entities](#entities) | 0 | 20 | 23 | 18 | 3 | 64 |
 | [Map](#map) | 0 | 4 | 36 | 4 | 1 | 45 |
 | [Scenes](#scenes) | 0 | 23 | 24 | 2 | 0 | 49 |
-| [UI](#ui) | 0 | 22 | 26 | 3 | 5 | 56 |
+| [UI](#ui) | 0 | 22 | 26 | 5 | 6 | 59 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **88** | **196** | **47** | **15** | **349** |
+| **All** | **3** | **90** | **196** | **49** | **16** | **354** |
 
 ## Conventions
 
@@ -146,7 +146,7 @@ below) modulate sweep speed, steam, and thermal behaviour on the boss side.
 
 #### `CHEST_DEFAULTS` — const
 
-`src/systems/EntityStats.ts:435`
+`src/systems/EntityStats.ts:447`
 
 | Key | Value | Notes |
 | --- | --- | --- |
@@ -158,7 +158,7 @@ below) modulate sweep speed, steam, and thermal behaviour on the boss side.
 
 #### `CONSUMABLE_ORDER` — const
 
-`src/systems/EntityStats.ts:831`
+`src/systems/EntityStats.ts:853`
 
 The consumables selectable through the item cursor, in canonical display
 order. Held consumables fill the list dynamically (unheld names are
@@ -173,7 +173,7 @@ const CONSUMABLE_ORDER = [ CHAFF_PACK_ITEM, THERMAL_GEL_ITEM, RATION_PACK_ITEM, 
 
 #### `DOOR_DEFAULTS` — const
 
-`src/systems/EntityStats.ts:289`
+`src/systems/EntityStats.ts:301`
 
 | Key | Value | Notes |
 | --- | --- | --- |
@@ -207,7 +207,7 @@ const RUN_KEYS = [ "inventory", "selectedConsumable", "staplerFieldCharges", "ob
 
 #### `TERMINAL_DEFAULTS` — const
 
-`src/systems/EntityStats.ts:336`
+`src/systems/EntityStats.ts:348`
 
 | Key | Value | Notes |
 | --- | --- | --- |
@@ -422,6 +422,52 @@ One level's seen-tile mask.
 | `fromBase64` | `static fromBase64(s: string, width: number, height: number): ExploredMap` | Rebuilds a mask from a persisted string. Anything that doesn't decode to the right length yields a blank map rather than throwing — a save whose level was re-authored to a different size should cost the player their fog, not their run. |
 
 *Plus 2 private members.*
+
+<a id="class-noiselog"></a>
+
+#### `NoiseLog` — class
+
+`src/systems/NoiseLog.ts:40`
+
+A rolling window of recent noise emissions, in world pixels.
+
+Hold one per run and hand it to both `NoiseEvents` (which writes) and
+`buildRadarSnapshot` (which reads). Entries expire by age rather than being
+consumed, so any number of readers can walk the same window in a frame.
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `record` | `record(x: number, y: number, radiusPx: number, now: number): void` | Records one emission at `now` (seconds). `radiusPx` is how far the sound carries, not how loud it is at any given point — the two are the same number in this game, because `emitAt` derives a listener's intensity purely from how far into the radius they stand. |
+| `forEach` | `forEach(now: number, fn: (x: number, y: number, radiusPx: number) => void): void` | Calls `fn` for every emission still inside `NOISE_FADE_SEC` of `now`. Order is unspecified — the ring is walked by slot, not by age. Every reader so far combines entries with `max`, for which order does not matter; a reader that needs newest-first should sort what it collects rather than this imposing a cost on the ones that do not. |
+| `clear` | `clear(): void` | Drops every entry. Called on a level swap, where the old level's sounds are moot. |
+
+*Plus 3 private members.*
+
+<a id="class-noisesectors"></a>
+
+#### `NoiseSectors` — class
+
+`src/systems/Radar.ts:33`
+
+How loud each bearing is right now, 0 (silent) to 1 (a source underfoot).
+
+Fixed at `NOISE_SECTORS` slots rather than growable like
+`WallBuffer`, because the sectors are the art's eight ticks and there
+can never be a ninth. Refilled each frame and read the same frame; hold one
+per snapshot rather than minting one.
+
+Sector 0 is due east and they run clockwise on screen (+y is south), which is
+the row order `tools/radar/build_radar_bezel.py` lays the spritesheet out in.
+The two agree on purpose: a sector index *is* a sheet row, with no lookup
+table in between to drift.
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `clear` | `clear(): void` | Silences every bearing, keeping the buffer. |
+| `add` | `add(sector: number, loudness: number): void` | Raises `sector` to `loudness` if that is louder than what is already there. Louder wins rather than accumulating: two quiet noises on one bearing are still two quiet noises, and summing them into a red tick would report a threat that is not out there. |
+| `level` | `level(i: number): number` | How loud sector `i` is, 0..1. |
+
+*Plus 1 private member.*
 
 <a id="class-noisespamtracker"></a>
 
@@ -744,7 +790,7 @@ Half-extents of the pressing body, in tiles.
 
 #### `BreakerStats` — interface
 
-`src/systems/EntityStats.ts:387`
+`src/systems/EntityStats.ts:399`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -755,7 +801,7 @@ Half-extents of the pressing body, in tiles.
 
 #### `ChestStats` — interface
 
-`src/systems/EntityStats.ts:426`
+`src/systems/EntityStats.ts:438`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -835,7 +881,7 @@ Snapshot published to the registry for the HUD and the codec.
 
 #### `ConsumableSlot` — interface
 
-`src/systems/EntityStats.ts:870`
+`src/systems/EntityStats.ts:892`
 
 One held, distinct consumable type, with its position in the display list.
 
@@ -917,7 +963,7 @@ The extra context `accrueDetection` needs on top of `SensingWorld`.
 
 #### `DoorStats` — interface
 
-`src/systems/EntityStats.ts:280`
+`src/systems/EntityStats.ts:292`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -968,7 +1014,7 @@ Everything sensing needs to know about one eye — a guard's, or a camera's.
 
 #### `GlassStats` — interface
 
-`src/systems/EntityStats.ts:310`
+`src/systems/EntityStats.ts:322`
 
 A glazed panel. The map's glass tiles are *also* doors — the shipped tile defs carry a
 `door` and a `glass` component together — so this describes the glazing on top of the
@@ -1277,7 +1323,7 @@ The player's wave adds an exponential-decay envelope (the DAMPING control).
 
 #### `PlayerStats` — interface
 
-`src/systems/EntityStats.ts:458`
+`src/systems/EntityStats.ts:470`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1439,7 +1485,7 @@ Minimal terminal shape needed to choose a rack (position + resolved type).
 
 #### `RadarBlip` — interface
 
-`src/systems/Radar.ts:8`
+`src/systems/Radar.ts:71`
 
 A guard blip, player-relative, in tile units.
 
@@ -1454,7 +1500,7 @@ A guard blip, player-relative, in tile units.
 
 #### `RadarSnapshot` — interface
 
-`src/systems/Radar.ts:33`
+`src/systems/Radar.ts:96`
 
 Everything the radar UI needs to draw one frame, in screen-agnostic units.
 
@@ -1470,12 +1516,13 @@ the largest single source of garbage in the frame.
 | `jammed` | `boolean` | True during ALERT — the signal is jammed and nothing else is populated. |
 | `blips` | `RadarBlip[]` |  |
 | `walls` | `WallBuffer` | Blocked-tile offsets near the player, player-relative, in tiles. |
+| `noise` | `NoiseSectors` | How loud each compass bearing is, for the bezel's noise ticks. |
 
 <a id="interface-radarunit"></a>
 
 #### `RadarUnit` — interface
 
-`src/systems/Radar.ts:17`
+`src/systems/Radar.ts:80`
 
 Anything the radar can plot: a guard or a camera.
 
@@ -1532,7 +1579,7 @@ Unit ray directions, split into parallel arrays so casting allocates nothing.
 
 #### `RelayStats` — interface
 
-`src/systems/EntityStats.ts:1094`
+`src/systems/EntityStats.ts:1116`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1628,7 +1675,7 @@ plain object. `EnforcerContext` satisfies this by shape.
 
 #### `SensorStats` — interface
 
-`src/systems/EntityStats.ts:348`
+`src/systems/EntityStats.ts:360`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1707,7 +1754,7 @@ Serializable mid-fight state, so re-entering the level doesn't restart the boss.
 
 #### `SmacStats` — interface
 
-`src/systems/EntityStats.ts:1022`
+`src/systems/EntityStats.ts:1044`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1814,7 +1861,7 @@ The slice of the level this module reads. Structural, so a test can pass a liter
 
 #### `TerminalStats` — interface
 
-`src/systems/EntityStats.ts:327`
+`src/systems/EntityStats.ts:339`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1904,7 +1951,7 @@ Serializable fight progress — kept in the registry across level swaps.
 
 #### `Vent4Stats` — interface
 
-`src/systems/EntityStats.ts:898`
+`src/systems/EntityStats.ts:920`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -4576,7 +4623,7 @@ rather than death: the record simply shows that no subject was harmed.
 
 #### `GameScene` — class
 
-`src/scenes/GameScene.ts:188` · `extends Phaser.Scene`
+`src/scenes/GameScene.ts:189` · `extends Phaser.Scene`
 
 The playable scene. Renders one level's tile art in board z-order, builds the
 wall collision, spawns the player and guards, and drives the stealth systems
@@ -4589,7 +4636,7 @@ each frame.
 | `create` | `create(): void` |  |
 | `update` | `update(_time: number, delta: number): void` |  |
 
-*Plus 112 private members.*
+*Plus 113 private members.*
 
 <a id="class-interactprompt"></a>
 
@@ -4630,12 +4677,12 @@ each frame.
 
 #### `NoiseEvents` — class
 
-`src/scenes/game/NoiseEvents.ts:51`
+`src/scenes/game/NoiseEvents.ts:54`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `constructor` | `constructor(private readonly w: NoiseWorld)` |  |
-| `emitAt` | `emitAt(cx: number, cy: number, radiusPx: number): void` | Minor investigations (a single noise ping) never broadcast over the alert network — only the individual guard(s) in earshot react. But repeated pings in the same area within a short window are a distraction exploit: once `NoiseSpamTracker` flags spam, skip per-guard investigation entirely and radio it in as a confirmed sighting instead. |
+| `emitAt` | `emitAt(cx: number, cy: number, radiusPx: number): void` | Minor investigations (a single noise ping) never broadcast over the alert network — only the individual guard(s) in earshot react. But repeated pings in the same area within a short window are a distraction exploit: once `NoiseSpamTracker` flags spam, skip per-guard investigation entirely and radio it in as a confirmed sighting instead. The emission is logged before either branch. A ping that escalates to spam is still a sound that happened — it is in fact the loudest thing in the game at that moment — so logging after the escalation's early return would hide exactly the noises the radar most needs to show. |
 | `doorOperated` | `doorOperated(door: Door): void` | A door operating: nearby guards turn to look and grow wary. |
 | `orderlyAlarm` | `orderlyAlarm(orderly: Orderly): void` | A spotted orderly raises the alarm: nearby guards turn to look. |
 | `broadcast` | `broadcast(originX: number, originY: number, radiusTiles: number): void` | A confirmed sighting propagates through the alert network: every guard within the spotter's radius snaps to look toward the player and grows wary, so a camera or a distant guard tripping the alarm immediately rallies the ones nearby. The origin is where the *sighting* happened; what the rallied guards are told to look at is the player. Those differ whenever the spotter is a camera across the room, and conflating them would send guards to stare at the camera. |
@@ -5080,7 +5127,7 @@ independent of `Lighting`'s. `reload` swaps in the new level's mask.
 
 #### `GameSceneData` — interface *(module-private)*
 
-`src/scenes/GameScene.ts:133`
+`src/scenes/GameScene.ts:134`
 
 Data passed to `GameScene` when (re)starting for a level swap.
 
@@ -5143,7 +5190,7 @@ Getters for everything `create()` rebinds per level.
 
 #### `NoiseWorld` — interface
 
-`src/scenes/game/NoiseEvents.ts:35`
+`src/scenes/game/NoiseEvents.ts:36`
 
 The live level state noise propagation reads. Held by reference.
 
@@ -5153,6 +5200,7 @@ The live level state noise propagation reads. Held by reference.
 | `grid` | `CollisionGrid` |  |
 | `alert` | `AlertState` |  |
 | `noiseSpam` | `NoiseSpamTracker` |  |
+| `noiseLog` | `NoiseLog` | The readable tail of recent emissions, for the radar's compass ticks. |
 | `guards` | `readonly Enforcer[]` |  |
 | `player` | `{ x: number; y: number }` | The player, live — rallied guards are told to look at them, not at the noise. |
 | `orderlies` | `readonly Orderly[]` |  |
@@ -5431,6 +5479,18 @@ HUD widgets and DOM overlays. Phaser-drawn HUD pieces and DOM-drawn full-screen 
 
 ### UI — Constants
 
+<a id="const-directions"></a>
+
+#### `DIRECTIONS` — const
+
+`src/ui/radarDirections.ts:16`
+
+Sector order, matching the sheet's row order and `Radar.ts`'s sector indices.
+
+```ts
+const DIRECTIONS = [ "east", "southeast", "south", "southwest", "west", "northwest", "north", "northeast", ] as const;
+```
+
 <a id="const-required-fonts"></a>
 
 #### `REQUIRED_FONTS` — const
@@ -5528,10 +5588,10 @@ widget picks a role rather than a number.
 
 #### `UI_TEXTURES` — const
 
-`src/ui/UiTextures.ts:70`
+`src/ui/UiTextures.ts:71`
 
 ```ts
-const UI_TEXTURES = [ { key: "ui-panel", path: "assets/ui/panel/ui-panel.png", size: 48, slice: 12, sheet: { margin: 0, spacing: 0, count: SCREEN_FRAME_COUNT }, }, { key: "ui-network-indicators", path: "assets/ui/panel/network-indicators.png", size: INDICATOR_SIZE, sheet: { margin: 0, spacing: 0, count: INDICATOR_FRAME_COUNT }, }, { key: "ui-radar-bezel", path: "assets/ui/radar/bezel.png", size: 96 }, ] as const;
+const UI_TEXTURES = [ { key: "ui-panel", path: "assets/ui/panel/ui-panel.png", size: 48, slice: 12, sheet: { margin: 0, spacing: 0, count: SCREEN_FRAME_COUNT }, }, { key: "ui-network-indicators", path: "assets/ui/panel/network-indicators.png", size: INDICATOR_SIZE, sheet: { margin: 0, spacing: 0, count: INDICATOR_FRAME_COUNT }, }, { key: "ui-radar-bezel", path: "assets/ui/radar/bezel.png", size: 96 }, { key: "ui-radar-directions", path: "assets/ui/radar/radar-directions.png", size: TICK_SIZE, sheet: { margin: 0, spacing: 0, count: TICK_FRAME_COUNT }, }, ] as const;
 ```
 
 ### UI — Classes
@@ -5913,7 +5973,7 @@ ownership in `GameScene` where it belongs.
 
 #### `Radar` — class
 
-`src/ui/Radar.ts:41`
+`src/ui/Radar.ts:47`
 
 Soliton-radar-style circular minimap, screen-anchored top-right.
 
@@ -5933,7 +5993,7 @@ top so the edge stays crisp.
 | `constructor` | `constructor(scene: Phaser.Scene)` |  |
 | `update` | `update(snapshot: RadarSnapshot): void` |  |
 
-*Plus 13 private members.*
+*Plus 18 private members.*
 
 <a id="class-relayhud"></a>
 
@@ -6471,7 +6531,7 @@ exists — no call site changes, nothing to remember.
 
 #### `UiSheetSpec` — interface
 
-`src/ui/UiTextures.ts:61`
+`src/ui/UiTextures.ts:62`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -6483,7 +6543,7 @@ exists — no call site changes, nothing to remember.
 
 #### `UiTextureSpec` — interface
 
-`src/ui/UiTextures.ts:25`
+`src/ui/UiTextures.ts:26`
 
 The HUD's optional artwork.
 
@@ -6545,6 +6605,16 @@ Which count cluster — the keys the generator writes, so they cannot drift.
 type CountKind = "UNIT_indicator_LEDs" | "SPOT_indicator_LEDs" | "SUSP_indicator_LEDs";
 ```
 
+<a id="type-direction"></a>
+
+#### `Direction` — type
+
+`src/ui/radarDirections.ts:21`
+
+```ts
+type Direction = (typeof DIRECTIONS)[number];
+```
+
 <a id="type-rgb"></a>
 
 #### `RGB` — type *(module-private)*
@@ -6553,6 +6623,16 @@ type CountKind = "UNIT_indicator_LEDs" | "SPOT_indicator_LEDs" | "SUSP_indicator
 
 ```ts
 type RGB = [number, number, number];
+```
+
+<a id="type-tickstate"></a>
+
+#### `TickState` — type
+
+`src/ui/radarDirections.ts:22`
+
+```ts
+type TickState = keyof typeof FRAMES.states;
 ```
 
 ---
@@ -6639,15 +6719,15 @@ GameScene.
 | [BossCore](#class-bosscore) | class | `src/entities/BossCore.ts:64` |
 | [BossCoreHud](#class-bosscorehud) | class | `src/ui/BossCoreHud.ts:45` |
 | [Breaker](#class-breaker) | class | `src/entities/Breaker.ts:41` |
-| [BreakerStats](#interface-breakerstats) | interface | `src/systems/EntityStats.ts:387` |
+| [BreakerStats](#interface-breakerstats) | interface | `src/systems/EntityStats.ts:399` |
 | [BuiltLevel](#interface-builtlevel) | interface | `src/scenes/game/LevelBuilder.ts:49` |
 | [Cardinal4](#type-cardinal4) | type | `src/entities/directions.ts:69` |
 | [CARDINALS_4](#const-cardinals-4) | const | `src/entities/directions.ts:67` |
 | [CastingLight](#undefined) | interface | `src/render/lightSampling.ts:15` |
 | [CastRole](#interface-castrole) | interface | `src/entities/CastArt.ts:65` |
 | [Chest](#class-chest) | class | `src/entities/Chest.ts:16` |
-| [CHEST_DEFAULTS](#const-chest-defaults) | const | `src/systems/EntityStats.ts:435` |
-| [ChestStats](#interface-cheststats) | interface | `src/systems/EntityStats.ts:426` |
+| [CHEST_DEFAULTS](#const-chest-defaults) | const | `src/systems/EntityStats.ts:447` |
+| [ChestStats](#interface-cheststats) | interface | `src/systems/EntityStats.ts:438` |
 | [CodecContext](#interface-codeccontext) | interface | `src/ui/Codec.ts:28` |
 | [CodecData](#interface-codecdata) | interface | `src/scenes/CodecScene.ts:15` |
 | [CodecScene](#class-codecscene) | class | `src/scenes/CodecScene.ts:37` |
@@ -6665,8 +6745,8 @@ GameScene.
 | [ConductState](#class-conductstate) | class | `src/systems/Conduct.ts:112` |
 | [ConductView](#interface-conductview) | interface | `src/systems/Conduct.ts:246` |
 | [ConeStyle](#interface-conestyle) | interface | `src/ui/VisionCone.ts:29` |
-| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:831` |
-| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:870` |
+| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:853` |
+| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:892` |
 | [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:20` |
 | [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:42` |
 | [CountKind](#type-countkind) | type | `src/ui/NetworkPanel.ts:29` |
@@ -6685,13 +6765,15 @@ GameScene.
 | [DetectionSystem](#class-detectionsystem) | class | `src/systems/DetectionSystem.ts:45` |
 | [DetectionWorld](#interface-detectionworld) | interface | `src/systems/Sensing.ts:76` |
 | [Dir8](#type-dir8) | type | `src/entities/directions.ts:31` |
+| [Direction](#type-direction) | type | `src/ui/radarDirections.ts:21` |
+| [DIRECTIONS](#const-directions) | const | `src/ui/radarDirections.ts:16` |
 | [DIRS_8](#const-dirs-8) | const | `src/entities/directions.ts:20` |
 | [DisplayFootprint](#type-displayfootprint) | type | `src/entities/EntitySprites.ts:113` |
 | [Door](#class-door) | class | `src/entities/Door.ts:163` |
-| [DOOR_DEFAULTS](#const-door-defaults) | const | `src/systems/EntityStats.ts:289` |
+| [DOOR_DEFAULTS](#const-door-defaults) | const | `src/systems/EntityStats.ts:301` |
 | [DoorAccess](#interface-dooraccess) | interface | `src/entities/doorWork.ts:47` |
 | [DoorSeating](#interface-doorseating) | interface | `src/entities/doorGeometry.ts:37` |
-| [DoorStats](#interface-doorstats) | interface | `src/systems/EntityStats.ts:280` |
+| [DoorStats](#interface-doorstats) | interface | `src/systems/EntityStats.ts:292` |
 | [DoorWalker](#interface-doorwalker) | interface | `src/entities/doorWork.ts:30` |
 | [Drone](#class-drone) | class | `src/entities/Drone.ts:14` |
 | [EdAnimation](#interface-edanimation) | interface | `src/map/types.ts:48` |
@@ -6739,11 +6821,11 @@ GameScene.
 | [GameMap](#interface-gamemap) | interface | `src/map/types.ts:301` |
 | [GameMode](#type-gamemode) | type | `src/systems/GameState.ts:20` |
 | [GameOverScene](#class-gameoverscene) | class | `src/scenes/GameOverScene.ts:13` |
-| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:188` |
-| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:133` |
+| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:189` |
+| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:134` |
 | [GameTile](#interface-gametile) | interface | `src/map/types.ts:230` |
 | [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:332` |
-| [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:310` |
+| [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:322` |
 | [GuardAnomaly](#interface-guardanomaly) | interface | `src/entities/Enforcer.ts:79` |
 | [GuardKind](#type-guardkind) | type | `src/map/EntityIndex.ts:46` |
 | [GuardRoute](#interface-guardroute) | interface | `src/map/EntityIndex.ts:50` |
@@ -6795,9 +6877,11 @@ GameScene.
 | [MusicMood](#type-musicmood) | type | `src/systems/AudioDirector.ts:24` |
 | [NetworkIndicatorFrames](#interface-networkindicatorframes) | interface | `src/ui/NetworkPanel.ts:158` |
 | [NetworkUnit](#interface-networkunit) | interface | `src/systems/AlertNetwork.ts:5` |
-| [NoiseEvents](#class-noiseevents) | class | `src/scenes/game/NoiseEvents.ts:51` |
+| [NoiseEvents](#class-noiseevents) | class | `src/scenes/game/NoiseEvents.ts:54` |
+| [NoiseLog](#class-noiselog) | class | `src/systems/NoiseLog.ts:40` |
+| [NoiseSectors](#class-noisesectors) | class | `src/systems/Radar.ts:33` |
 | [NoiseSpamTracker](#class-noisespamtracker) | class | `src/systems/AlertNetwork.ts:78` |
-| [NoiseWorld](#interface-noiseworld) | interface | `src/scenes/game/NoiseEvents.ts:35` |
+| [NoiseWorld](#interface-noiseworld) | interface | `src/scenes/game/NoiseEvents.ts:36` |
 | [ObjectiveHud](#class-objectivehud) | class | `src/ui/ObjectiveHud.ts:27` |
 | [ObjectiveLine](#interface-objectiveline) | interface | `src/systems/Objectives.ts:185` |
 | [ObjectiveState](#interface-objectivestate) | interface | `src/systems/Objectives.ts:20` |
@@ -6829,7 +6913,7 @@ GameScene.
 | [Player](#class-player) | class | `src/entities/Player.ts:45` |
 | [PlayerAnimName](#type-playeranimname) | type | `src/entities/PlayerAnimations.ts:17` |
 | [PlayerParams](#interface-playerparams) | interface | `src/systems/QualiaLock.ts:34` |
-| [PlayerStats](#interface-playerstats) | interface | `src/systems/EntityStats.ts:458` |
+| [PlayerStats](#interface-playerstats) | interface | `src/systems/EntityStats.ts:470` |
 | [Pose](#interface-pose) | interface | `src/entities/CastArt.ts:55` |
 | [PowerControl](#class-powercontrol) | class | `src/scenes/game/PowerControl.ts:58` |
 | [PowerGridState](#interface-powergridstate) | interface | `src/systems/PowerGrid.ts:27` |
@@ -6850,10 +6934,10 @@ GameScene.
 | [QualiaRound](#interface-qualiaround) | interface | `src/systems/QualiaLock.ts:251` |
 | [QualiaStatus](#type-qualiastatus) | type | `src/systems/QualiaLock.ts:40` |
 | [RackCandidate](#interface-rackcandidate) | interface | `src/systems/QualiaLock.ts:273` |
-| [Radar](#class-radar) | class | `src/ui/Radar.ts:41` |
-| [RadarBlip](#interface-radarblip) | interface | `src/systems/Radar.ts:8` |
-| [RadarSnapshot](#interface-radarsnapshot) | interface | `src/systems/Radar.ts:33` |
-| [RadarUnit](#interface-radarunit) | interface | `src/systems/Radar.ts:17` |
+| [Radar](#class-radar) | class | `src/ui/Radar.ts:47` |
+| [RadarBlip](#interface-radarblip) | interface | `src/systems/Radar.ts:71` |
+| [RadarSnapshot](#interface-radarsnapshot) | interface | `src/systems/Radar.ts:96` |
+| [RadarUnit](#interface-radarunit) | interface | `src/systems/Radar.ts:80` |
 | [Range](#type-range) | type | `src/systems/QualiaLock.ts:43` |
 | [RayDirections](#interface-raydirections) | interface | `src/systems/Visibility.ts:71` |
 | [Rect](#interface-rect) | interface | `src/map/footprint.ts:70` |
@@ -6863,7 +6947,7 @@ GameScene.
 | [RelayMsg](#interface-relaymsg) | interface | `src/systems/RelayCore.ts:46` |
 | [RelaySnapshot](#interface-relaysnapshot) | interface | `src/systems/RelayCore.ts:40` |
 | [RelayState](#enum-relaystate) | enum | `src/systems/RelayCore.ts:18` |
-| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:1094` |
+| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:1116` |
 | [RelayTickResult](#interface-relaytickresult) | interface | `src/entities/RoofRelay.ts:61` |
 | [RelayTransition](#interface-relaytransition) | interface | `src/systems/RelayCore.ts:35` |
 | [RelayView](#interface-relayview) | interface | `src/systems/RelayCore.ts:55` |
@@ -6880,7 +6964,7 @@ GameScene.
 | [SensingDeps](#interface-sensingdeps) | interface | `src/scenes/game/SensingContext.ts:25` |
 | [SensingWorld](#interface-sensingworld) | interface | `src/systems/Sensing.ts:60` |
 | [Sensor](#class-sensor) | class | `src/entities/Sensor.ts:37` |
-| [SensorStats](#interface-sensorstats) | interface | `src/systems/EntityStats.ts:348` |
+| [SensorStats](#interface-sensorstats) | interface | `src/systems/EntityStats.ts:360` |
 | [SetPieceEvents](#class-setpieceevents) | class | `src/scenes/game/SetPieceEvents.ts:67` |
 | [SetPieceWorld](#interface-setpieceworld) | interface | `src/scenes/game/SetPieceEvents.ts:50` |
 | [Settings](#interface-settings) | interface | `src/systems/Settings.ts:13` |
@@ -6898,7 +6982,7 @@ GameScene.
 | [SmacMsg](#interface-smacmsg) | interface | `src/systems/SmacCore.ts:72` |
 | [SmacSnapshot](#interface-smacsnapshot) | interface | `src/systems/SmacCore.ts:63` |
 | [SmacState](#enum-smacstate) | enum | `src/systems/SmacCore.ts:38` |
-| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:1022` |
+| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:1044` |
 | [SmacTickResult](#interface-smactickresult) | interface | `src/entities/BossCore.ts:56` |
 | [SmacTransition](#interface-smactransition) | interface | `src/systems/SmacCore.ts:57` |
 | [SmacView](#interface-smacview) | interface | `src/systems/SmacCore.ts:94` |
@@ -6915,9 +6999,10 @@ GameScene.
 | [SurrenderWorld](#interface-surrenderworld) | interface | `src/systems/Surrender.ts:33` |
 | [Target](#type-target) | type | `src/scenes/game/ItemActions.ts:349` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:43` |
-| [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:336` |
+| [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:348` |
 | [TerminalHacks](#class-terminalhacks) | class | `src/scenes/game/TerminalHacks.ts:53` |
-| [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:327` |
+| [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:339` |
+| [TickState](#type-tickstate) | type | `src/ui/radarDirections.ts:22` |
 | [TilePos](#interface-tilepos) | interface | `src/map/generate.ts:118` |
 | [TileRect](#interface-tilerect) | interface | `src/map/TileBake.ts:424` |
 | [TileStamper](#class-tilestamper) | class | `src/map/TileBake.ts:245` |
@@ -6934,11 +7019,11 @@ GameScene.
 | [UI](#const-ui) | const | `src/ui/hudTheme.ts:34` |
 | [UI_DEPTH](#const-ui-depth) | const | `src/ui/hudTheme.ts:134` |
 | [UI_TEXT](#const-ui-text) | const | `src/ui/hudTheme.ts:113` |
-| [UI_TEXTURES](#const-ui-textures) | const | `src/ui/UiTextures.ts:70` |
+| [UI_TEXTURES](#const-ui-textures) | const | `src/ui/UiTextures.ts:71` |
 | [UiPanelOptions](#interface-uipaneloptions) | interface | `src/ui/NineSlicePanel.ts:25` |
 | [UIScene](#class-uiscene) | class | `src/scenes/UIScene.ts:34` |
-| [UiSheetSpec](#interface-uisheetspec) | interface | `src/ui/UiTextures.ts:61` |
-| [UiTextureSpec](#interface-uitexturespec) | interface | `src/ui/UiTextures.ts:25` |
+| [UiSheetSpec](#interface-uisheetspec) | interface | `src/ui/UiTextures.ts:62` |
+| [UiTextureSpec](#interface-uitexturespec) | interface | `src/ui/UiTextures.ts:26` |
 | [VaultAndPress](#class-vaultandpress) | class | `src/scenes/game/VaultAndPress.ts:96` |
 | [VaultLayout](#interface-vaultlayout) | interface | `src/map/AlignmentVault.ts:81` |
 | [VaultQuery](#interface-vaultquery) | interface | `src/scenes/game/VaultAndPress.ts:31` |
@@ -6954,7 +7039,7 @@ GameScene.
 | [Vent4PhysicsSystem](#class-vent4physicssystem) | class | `src/systems/Vent4PhysicsSystem.ts:63` |
 | [Vent4Snapshot](#interface-vent4snapshot) | interface | `src/systems/Vent4Core.ts:34` |
 | [Vent4State](#enum-vent4state) | enum | `src/systems/Vent4Core.ts:17` |
-| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:898` |
+| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:920` |
 | [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:67` |
 | [Vent4Transition](#interface-vent4transition) | interface | `src/systems/Vent4Core.ts:28` |
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |

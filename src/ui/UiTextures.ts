@@ -1,6 +1,7 @@
 import type Phaser from "phaser";
 import { UI_ICON_SIZE } from "../render/uiScale";
 import { INDICATOR_FRAME_COUNT, INDICATOR_SIZE, SCREEN_FRAME_COUNT } from "./NetworkPanel";
+import { TICK_FRAME_COUNT, TICK_SIZE } from "./radarDirections";
 
 /**
  * The HUD's optional artwork.
@@ -107,6 +108,24 @@ export const UI_TEXTURES: readonly UiTextureSpec[] = [
    * be transparent — see the note in `Radar.drawBezel`.
    */
   { key: "ui-radar-bezel", path: "assets/ui/radar/bezel.png", size: 96 },
+  /**
+   * The radar bezel's eight noise-direction ticks.
+   *
+   * A separate key rather than frames of `ui-radar-bezel`, for the same reason
+   * `ui-network-indicators` is separate from `ui-panel`: the ring is one static
+   * image and these are a grid of states. Keeping them apart also keeps the
+   * ring's `_assert_static_ring` guard in `tools/radar/build_radar_bezel.py`
+   * meaningful, which making it a strip would have quietly ended.
+   *
+   * One row per bearing, `TICK_FRAME_COUNT` counting the grid rather than the 40
+   * drawn slots — the three spare columns per row are never addressed.
+   */
+  {
+    key: "ui-radar-directions",
+    path: "assets/ui/radar/radar-directions.png",
+    size: TICK_SIZE,
+    sheet: { margin: 0, spacing: 0, count: TICK_FRAME_COUNT },
+  },
 ] as const;
 
 /** The size item icons are authored and drawn at. */

@@ -41,6 +41,7 @@ import { Chest } from "../entities/Chest";
 import { Locker, type StashedBody } from "../entities/Locker";
 import { Cover } from "../entities/Cover";
 import { buildAlertNetworkSnapshot, NoiseSpamTracker } from "../systems/AlertNetwork";
+import { NoiseLog } from "../systems/NoiseLog";
 import { Lighting } from "../ui/Lighting";
 import { MemoryLayer } from "../ui/MemoryLayer";
 import { PlaneOverlay } from "../ui/PlaneOverlay";
@@ -73,7 +74,7 @@ import {
   FLASHLIGHT_DETECTION_MULTIPLIER,
   GAME_SPEED,
   isConsumable,
-  ENFORCER_FIRE_NOISE,
+  ENFORCER_FIRE_NOISE_TILES,
   ESCORT_STANDOFF_TILES,
   HOLD_UP_GRACE_SECONDS,
   MAX_CONSUMABLES,
@@ -276,6 +277,13 @@ export class GameScene extends Phaser.Scene {
   private alert = new AlertState();
   /** Anti-exploit: escalates repeated noise pings in the same area straight to ALERT. */
   private noiseSpam = new NoiseSpamTracker();
+  /**
+   * The readable tail of recent noise, for the radar's compass ticks.
+   *
+   * Cleared rather than replaced on a level swap: it owns a fixed buffer, and
+   * keeping it is the point of having one.
+   */
+  private readonly noiseLog = new NoiseLog();
   private transitions!: TransitionGraph;
 
   /** Where this scene run should start (level + optional arrival tile). */
@@ -536,6 +544,7 @@ export class GameScene extends Phaser.Scene {
       grid: this.grid,
       alert: this.alert,
       noiseSpam: this.noiseSpam,
+      noiseLog: this.noiseLog,
       guards: this.guards,
       player: this.player,
       orderlies: this.orderlies,
@@ -797,6 +806,7 @@ export class GameScene extends Phaser.Scene {
     this.power.reset();
     this.alert = new AlertState();
     this.noiseSpam = new NoiseSpamTracker();
+    this.noiseLog.clear();
     this.sharedField = new SharedField();
     // Load-bearing: a live aim holds a reference to an `Orderly`, and every orderly on
     // the deck is rebuilt by the restart this method exists to service. Without this
@@ -1820,7 +1830,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.fireTracers.push({ x1: shot.originX, y1: shot.originY, x2: endX, y2: endY, ttl: 0.1 });
-    this.noise.emitAt(shot.originX, shot.originY, ENFORCER_FIRE_NOISE * ts);
+    this.noise.emitAt(shot.originX, shot.originY, ENFORCER_FIRE_NOISE_TILES * ts);
   }
 
   /** Fades out the guard-fire tracer line(s) drawn this frame. */
@@ -1853,6 +1863,8 @@ export class GameScene extends Phaser.Scene {
         active,
         this.sensors,
         this.alert.phase === "ALERT",
+        this.noiseLog,
+        this.time.now / 1000,
         this.radarSnapshot,
       ),
     );
@@ -1921,7 +1933,7 @@ export class GameScene extends Phaser.Scene {
     //
     // The dangerous one is the Stapler's field tap at the end of the chain: without
     // this it would fire on a tap that nothing adjacent claimed, pin the very man
-    // being held up, spend one of three per-run charges and emit STAPLER_FIELD_NOISE
+    // being held up, spend one of three per-run charges and emit STAPLER_FIELD_NOISE_TILES
     // — turning the one silent verb in the game into the loudest one, by accident.
     //
     // `JustDown` is a *consuming* read, so it is evaluated unconditionally and the

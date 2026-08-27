@@ -3,11 +3,17 @@ import { RADAR_RADIUS_TILES, type RadarSnapshot } from "../systems/Radar";
 import { FONT_MONO } from "./fonts";
 import { RADAR_RADIUS } from "./hudLayout";
 import { UI, UI_DEPTH, UI_PAD, UI_TEXT, hex } from "./hudTheme";
+import { DIRECTIONS, frameFor, jammedFrameFor, tickOffset, type Direction } from "./radarDirections";
 import { hasUiTexture } from "./UiTextures";
 import { onResize } from "./resize";
 
 /** Optional ring art; absent by default, in which case the bezel is stroked. */
 const BEZEL_TEXTURE = "ui-radar-bezel";
+/** Optional noise-direction ticks; independent of the ring, and equally optional. */
+const DIRECTIONS_TEXTURE = "ui-radar-directions";
+
+/** The bezel art's authored size, and the box the tick offsets are relative to. */
+const BEZEL_ART_SIZE = 96;
 
 const PANEL_BG = hex(UI.bgPanel);
 const PANEL_BG_ALPHA = 0.85;
@@ -46,6 +52,15 @@ export class Radar {
   private readonly jamText: Phaser.GameObjects.Text;
   /** Created lazily, and only when the optional ring art is present. */
   private bezelImage?: Phaser.GameObjects.Image;
+  /**
+   * The eight noise-direction ticks, or empty when the art is absent.
+   *
+   * Parallel to {@link DIRECTIONS}, so the index is the sector index the
+   * snapshot reports — no lookup between the two.
+   */
+  private readonly ticks: Phaser.GameObjects.Image[] = [];
+  /** Last frame set per tick, to dedupe a 60Hz update down to real changes. */
+  private readonly tickFrames: number[] = [];
   private readonly radius = RADAR_RADIUS;
   private readonly pxPerTile: number;
   private cx = 0;
@@ -73,8 +88,42 @@ export class Radar {
       .setDepth(UI_DEPTH.ACCENT)
       .setVisible(false);
 
+    this.createTicks();
     this.reposition();
     onResize(scene, () => this.reposition());
+  }
+
+  /**
+   * The eight noise ticks, once, if the art is there.
+   *
+   * Plain `Image`s rather than `Sprite`s: every frame change is an explicit
+   * `setFrame` driven by the snapshot, so there is no animation machinery to
+   * keep in step with game state. Positioned by {@link placeTicks}, which
+   * re-runs on resize.
+   */
+  private createTicks(): void {
+    if (!hasUiTexture(this.scene, DIRECTIONS_TEXTURE)) return;
+    for (let i = 0; i < DIRECTIONS.length; i++) {
+      this.ticks.push(
+        this.scene.add
+          .image(0, 0, DIRECTIONS_TEXTURE, 0)
+          .setOrigin(0, 0)
+          .setScrollFactor(0)
+          .setDepth(UI_DEPTH.ACCENT),
+      );
+      this.tickFrames.push(-1);
+    }
+  }
+
+  /** Puts each tick at its authored spot on the ring, from the generated offsets. */
+  private placeTicks(): void {
+    if (this.ticks.length === 0) return;
+    const left = this.cx - BEZEL_ART_SIZE / 2;
+    const top = this.cy - BEZEL_ART_SIZE / 2;
+    DIRECTIONS.forEach((dir: Direction, i: number) => {
+      const { x, y } = tickOffset(dir);
+      this.ticks[i].setPosition(left + x, top + y);
+    });
   }
 
   private reposition(): void {
@@ -82,6 +131,7 @@ export class Radar {
     this.cx = this.scene.scale.width - pad - this.radius;
     this.cy = pad + this.radius;
     this.drawBezel();
+    this.placeTicks();
     this.maskShape.clear();
     this.maskShape.fillStyle(0xffffff);
     this.maskShape.fillCircle(this.cx, this.cy, this.radius);
@@ -115,6 +165,10 @@ export class Radar {
   update(snapshot: RadarSnapshot): void {
     const { cx, cy, pxPerTile } = this;
     this.jamText.setVisible(snapshot.jammed);
+
+    // Before the jam branch below returns: the ticks have a jammed look of their
+    // own rather than simply going out.
+    this.updateTicks(snapshot);
 
     this.content.clear();
 
@@ -161,6 +215,28 @@ export class Radar {
     }
 
     this.drawPlayerMarker(cx, cy, snapshot.facing);
+  }
+
+  /**
+   * Sets each compass tick to the frame this instant calls for.
+   *
+   * Both the loudness band and the blink phase are decided in
+   * {@link ./radarDirections}, which is Phaser-free and unit-tested; this only
+   * moves frames onto Game Objects. The `tickFrames` memo dedupes a 60Hz update
+   * down to actual changes, and an absent sheet leaves `ticks` empty so the
+   * whole method costs one length check.
+   */
+  private updateTicks(snapshot: RadarSnapshot): void {
+    if (this.ticks.length === 0) return;
+    const now = this.scene.time.now;
+    DIRECTIONS.forEach((dir: Direction, i: number) => {
+      const frame = snapshot.jammed
+        ? jammedFrameFor(dir, now)
+        : frameFor(dir, snapshot.noise.level(i), now);
+      if (frame === this.tickFrames[i]) return;
+      this.tickFrames[i] = frame;
+      this.ticks[i].setFrame(frame);
+    });
   }
 
   /** A small filled triangle pointing along the player's facing angle. */

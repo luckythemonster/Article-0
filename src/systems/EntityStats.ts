@@ -249,8 +249,20 @@ export const EMP_SHUTDOWN_DURATION = 9.0;
  */
 export const EMP_SHUTDOWN_TILES = 2.2;
 
-/** Noise ping (0..1) emitted by a pursuing guard's shot. */
-export const ENFORCER_FIRE_NOISE = 0.5;
+/**
+ * Radius (tiles) a pursuing guard's shot carries.
+ *
+ * Well past a door (4) — gunfire is what turns one guard's problem into the
+ * room's — but deliberately short of a thrown breaker (7).
+ *
+ * These three values (with the dart's 2 and the stapler's 3) were unit-confused
+ * until recently: they were written as 0..1 scalars and multiplied by the tile
+ * size as though they were tile counts, so a shot carried half a tile and was
+ * heard by nobody. There is therefore no play-tested history behind this number
+ * — 6 is a deliberately conservative first pass at a value that was previously
+ * inert, and it wants tuning against a combat-heavy level rather than trusting.
+ */
+export const ENFORCER_FIRE_NOISE_TILES = 6;
 
 export function lightStatsFor(components: ComponentData[]): LightStats {
   return {
@@ -641,8 +653,13 @@ export const RATION_HEAL = 35;
 export const STUN_ROUND_REACH_TILES = 5;
 /** Seconds an Orderly stays stunned after being hit by a dart. */
 export const STUN_ROUND_DURATION = 8;
-/** Noise ping (0..1) emitted when firing a Stun Rounds dart. */
-export const STUN_ROUND_NOISE = 0.2;
+/**
+ * Radius (tiles) the noise of firing a Stun Rounds dart carries.
+ *
+ * The quietest emitter there is — quieter than a chest (3) — which is the whole
+ * reason to spend a dart rather than walk up and start something.
+ */
+export const STUN_ROUND_NOISE_TILES = 2;
 /**
  * Reach (tiles) of the Rail-Stapler's general-purpose field mode — breaking
  * destructible cover or pinning an orderly outside the VENT-4 fight. Kept
@@ -660,8 +677,13 @@ export const STAPLER_FIELD_RANGE_TILES = 4;
 export const STAPLER_FIELD_COOLDOWN = 3;
 /** Seconds an orderly stays pinned to a wall after a field-mode hit. */
 export const STAPLER_PIN_DURATION = 6;
-/** Noise ping (0..1) emitted when firing the Stapler's field mode. */
-export const STAPLER_FIELD_NOISE = 0.35;
+/**
+ * Radius (tiles) the noise of the Stapler's field mode carries.
+ *
+ * A pneumatic slam: level with a chest (3), so it is usable near a patrol but
+ * not under one.
+ */
+export const STAPLER_FIELD_NOISE_TILES = 3;
 /**
  * Field-mode shots per run. Unlike Stun Rounds (a stocked consumable), the
  * Stapler itself is a permanent key item, so the field mode needs its own

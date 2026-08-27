@@ -306,9 +306,11 @@ separate layer *underneath* the bezel — the radar's terrain and blips through 
 geometry mask, the dial's face and EKG trace directly. Anything opaque inside the
 ring hides them rather than sitting behind them.
 
-Both currently draw as a 2px `--c-border-cool` circle. A sprite can add bezel depth,
-tick marks, a bearing scale, screw heads — as long as it stays inside the source size
-and leaves the middle clear.
+The radar now draws its mounted ring art (`public/assets/ui/radar/bezel.png`, cut
+from `radar_bezel.aseprite` by `tools/radar/build_radar_bezel.py`); the bio-integrity
+dial still draws as a 2px `--c-border-cool` circle pending its own redraw. A sprite
+can add bezel depth, tick marks, a bearing scale, screw heads — as long as it stays
+inside the source size and leaves the middle clear.
 
 ## 7. What not to draw
 
