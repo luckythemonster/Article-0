@@ -426,7 +426,7 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
 
 | Component | Read | Ignored |
 | --- | --- | --- |
-| `enforcer` | `SightRange`, `SightAngle`, `ThermalDetectionRadius`, `AuditDelay`, `PatrolSpeed`, `PurgeSpeed`, `TurnRate`, `AlertNetworkRadius` | `DiscomfortEmitterPower`, `ArmorIntegrity`, `SystemStability` — they imply a combat model the game doesn't have |
+| `enforcer` | `SightRange`, `SightAngle`, `ThermalDetectionRadius`, `AuditDelay`, `PatrolSpeed`, `PurgeSpeed`, `TurnRate`, `AlertNetworkRadius`, `Armed`, `FireRange`, `FireCooldown`, `FireDamage`, `MeleeRange`, `MeleeCooldown`, `MeleeDamage` | `DiscomfortEmitterPower`, `ArmorIntegrity`, `SystemStability` — they imply a combat model the game doesn't have |
 | `door` | `key`, `state`, `OperationNoise` | `OpenSpeed` |
 | `glass` | `VisionBlock` | `type` (the sprite conveys it), `BreakNoise` (no breakage mechanic) |
 | `terminal` | `type`, `HackTime` | `password`; `AlertOnFail` is parsed into `TerminalStats` but unused — there is no hack-fail path for it to attach to |
@@ -440,6 +440,21 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
 | `vertical` | presence (→ a way out, on a `verticals` board) | `direction`, `material` |
 | `power_grid` | `Target`, `state` | — |
 | `hatch`, `audio_hazard` | **nothing** | every field |
+
+**`Armed` does not behave like the other `enforcer` fields, in two ways.** It is a
+boolean, so unlike every numeric field a `0` is a genuine value rather than "unset" —
+though it reads the same either way, because a permission nobody granted and a permission
+explicitly withheld are the same permission. And it is a *request*, not a setting: the
+engine caps the whole level at `ARMED_POSTS_PER_LEVEL` (currently **one** firearm) and
+only ever grants it to an enforcer, so a board asking for a second one is ignored, and a
+`drones` or `security_guard_*` board asking at all is ignored. Setting it on one enforcer
+board does move the level's single gun to that post rather than the first one indexed.
+Even then the guard holds fire until the facility releases weapons — see
+[Design notes](DESIGN_NOTES.md#firearms-are-restricted-not-absent).
+
+The six combat fields are all read but none is authored anywhere on the shipped map, so
+the engine defaults apply throughout; `MeleeRange` / `MeleeCooldown` / `MeleeDamage` are
+the ones that matter now, since an unarmed guard is the norm.
 
 ### TileDef and board fields
 

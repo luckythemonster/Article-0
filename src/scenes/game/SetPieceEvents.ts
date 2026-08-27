@@ -197,6 +197,13 @@ export class SetPieceEvents implements EncountersCallbacks {
     const py = (at.y + 0.5) * ts;
     // A one-waypoint route: the guard walks its post and then hunts on contact, which
     // is what an Enforcer dropped onto a roof to find someone would do.
+    //
+    // The empty component list is load-bearing rather than incidental: it reads as
+    // `armed: false` (see `flag` in EntityStats), so a siege wave is melee-only however
+    // long it runs. `RELAY_DEFAULTS` allows six of these on the roof at once, and six
+    // guns would undo `ARMED_POSTS_PER_LEVEL` on the one level that spawns guards
+    // outside `LevelBuilder`, where the allowance is issued. The relay's own searchlight
+    // is the ranged threat up here; the bodies it calls in are there to close.
     const guard = new Enforcer(this.w.scene, px, py, ts, [], ENFORCER_SKIN, [{ x: px, y: py }]);
     this.w.guards().push(guard);
     // They are not a surprise — the whole roof knows Rowan is there by now.

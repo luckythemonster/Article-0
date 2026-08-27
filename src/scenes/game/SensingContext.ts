@@ -1,4 +1,5 @@
 import type { AlertState } from "../../systems/AlertState";
+import type { FirearmsAuthorization } from "../../systems/Firearms";
 import type { CollisionGrid } from "../../systems/CollisionGrid";
 import type { DetectionSystem } from "../../systems/DetectionSystem";
 import type { EnforcerContext, GuardAnomaly } from "../../entities/Enforcer";
@@ -27,6 +28,8 @@ export interface SensingDeps {
   tileSize: number;
   detection: DetectionSystem;
   alert: AlertState;
+  /** Whether the facility has released firearms — see `src/systems/Firearms.ts`. */
+  firearms: FirearmsAuthorization;
   /** True while the flashlight beam is lit — it makes Rowan far easier to spot. */
   flashlightOn: () => boolean;
   /** True while Thermal Gel is masking body heat. */
@@ -74,6 +77,7 @@ export class SensingContext {
       chaffZone: null,
       thermalRadiusMultiplier: (base) => deps.detection.thermalRadiusFor(base, deps.thermalMasked()),
       alert: deps.alert,
+      firearms: deps.firearms,
       anomalies: [],
       lures: [],
       rationSpoof: false,

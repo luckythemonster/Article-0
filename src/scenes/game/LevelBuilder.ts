@@ -1,4 +1,5 @@
 import type Phaser from "phaser";
+import type { ComponentData } from "../../map/types";
 import { Chest } from "../../entities/Chest";
 import { Cover } from "../../entities/Cover";
 import { Door } from "../../entities/Door";
@@ -11,7 +12,8 @@ import { Laser } from "../../entities/Laser";
 import { Orderly } from "../../entities/Orderly";
 import { Player } from "../../entities/Player";
 import { Breaker } from "../../entities/Breaker";
-import { breakerStatsFor } from "../../systems/EntityStats";
+import { breakerStatsFor, enforcerStatsFor, type EnforcerStats } from "../../systems/EntityStats";
+import { issueFirearms } from "../../map/ArmedPosts";
 import { isCircuitClosed, type PowerGridState } from "../../systems/PowerGrid";
 import { Sensor } from "../../entities/Sensor";
 import { Terminal } from "../../entities/Terminal";
@@ -197,6 +199,19 @@ function spawnPlayer(
 }
 
 /**
+ * An enforcer's stats with {@link EnforcerStats.armed} forced to the allowance's answer.
+ *
+ * Set here rather than mutated onto the guard afterwards, because `Enforcer.stats` is
+ * read every frame by `pursue` and a body that was briefly armed during construction is
+ * a race nobody should have to reason about. Forced in *both* directions: a board that
+ * set `Armed` past the cap has it taken away again, which is the only way the cap can
+ * mean anything.
+ */
+function armedStats(components: ComponentData[], armed: boolean): EnforcerStats {
+  return { ...enforcerStatsFor(components), armed };
+}
+
+/**
  * Guards, drones and orderlies.
  *
  * Two sources, because two map generations. `EntityIndex` reads the component-
@@ -220,7 +235,9 @@ function spawnCast(
   // A guard board is one guard's *route*, not a headcount — see
   // `routeFromLayer`. Each board therefore spawns a single guard standing on
   // waypoint 0 and walking the rest as a loop.
-  for (const g of index.guards) {
+  // Who on this level, if anyone, is carrying. See `issueFirearms`.
+  const armedPosts = issueFirearms(index.guards);
+  for (const [i, g] of index.guards.entries()) {
     const start = g.route[0];
     const plane = planeOf(start);
     // Three subclasses of one AI, picked off the board's own components. The
@@ -238,7 +255,17 @@ function spawnCast(
         break;
       case "enforcer":
         out.guards.push(
-          new Enforcer(scene, start.x, start.y, tileSize, g.components, ENFORCER_SKIN, g.route, plane),
+          new Enforcer(
+            scene,
+            start.x,
+            start.y,
+            tileSize,
+            g.components,
+            ENFORCER_SKIN,
+            g.route,
+            plane,
+            armedStats(g.components, armedPosts.has(i)),
+          ),
         );
         break;
     }
@@ -263,6 +290,11 @@ function spawnCast(
         enforcerLayer.tiles[0].components,
         ENFORCER_SKIN,
         enforcerRoute,
+        0,
+        // A second source of enforcers on the same level, so it answers to the same
+        // allowance: unarmed whenever the component-typed cast already spent it. Without
+        // this the two map generations would each field their own gun.
+        armedStats(enforcerLayer.tiles[0].components, armedPosts.size === 0),
       ),
     );
   }

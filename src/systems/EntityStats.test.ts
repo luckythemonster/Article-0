@@ -5,8 +5,15 @@ import {
   consumableSlots,
   CONSUMABLE_ORDER,
   countConsumables,
+  ARMED_POSTS_PER_LEVEL,
   enforcerStatsFor,
   ENFORCER_DEFAULTS,
+  FIREARMS_AUTHORIZATION_DELAY,
+  flag,
+  GUARD_MELEE_NOISE_TILES,
+  GUARD_MELEE_STAGGER_MULTIPLIER,
+  GUARD_MELEE_STAGGER_SECONDS,
+  ENFORCER_FIRE_NOISE_TILES,
   ESCORT_SPEED_MULTIPLIER,
   ESCORT_WALK_TILES,
   HOLD_UP_ARC_DEGREES,
@@ -16,7 +23,12 @@ import {
   HOLD_UP_RELEASE_TILES,
   MAX_CONSUMABLES,
   paced,
+  PLAYER_DEFAULTS,
+  PLAYER_MELEE_NOISE_TILES,
+  PLAYER_MELEE_REACH_TILES,
   PLAYER_WALK_TILES,
+  securityGuardStatsFor,
+  SECURITY_GUARD_DEFAULTS,
   RATION_PACK_ITEM,
   SACK_LUNCH_ITEM,
   STAPLER_FIELD_MAX_CHARGES,
@@ -159,5 +171,137 @@ describe("consumableSlots — the item cursor's list", () => {
     ];
     expect(countConsumables(held)).toBe(held.length);
     expect(countConsumables(held)).toBeLessThanOrEqual(MAX_CONSUMABLES);
+  });
+});
+
+describe("enforcerStatsFor — contact attack fields", () => {
+  it("falls back to the engine defaults when the map carries no melee tuning", () => {
+    const stats = enforcerStatsFor([]);
+    expect(stats.meleeRange).toBe(ENFORCER_DEFAULTS.meleeRange);
+    expect(stats.meleeCooldown).toBe(ENFORCER_DEFAULTS.meleeCooldown);
+    expect(stats.meleeDamage).toBe(ENFORCER_DEFAULTS.meleeDamage);
+  });
+
+  it("picks up a non-zero map override", () => {
+    const components: ComponentData[] = [
+      {
+        type: "enforcer",
+        values: { MeleeRange: "3", MeleeCooldown: "0.4", MeleeDamage: "30" },
+      },
+    ];
+    const stats = enforcerStatsFor(components);
+    expect(stats.meleeRange).toBe(3);
+    expect(stats.meleeCooldown).toBe(0.4);
+    expect(stats.meleeDamage).toBe(30);
+  });
+
+  it("treats an authored 0 as unset, same as every other enforcer stat", () => {
+    const components: ComponentData[] = [{ type: "enforcer", values: { MeleeRange: "0" } }];
+    expect(enforcerStatsFor(components).meleeRange).toBe(ENFORCER_DEFAULTS.meleeRange);
+  });
+});
+
+describe("Firearms are restricted by default", () => {
+  it("leaves every guard unarmed when the map says nothing", () => {
+    // The default *is* the restriction — see EnforcerStats.armed. If this ever flips,
+    // every body on every level is carrying again and the whole gate is decorative.
+    expect(enforcerStatsFor([]).armed).toBe(false);
+    expect(securityGuardStatsFor([]).armed).toBe(false);
+    expect(ENFORCER_DEFAULTS.armed).toBe(false);
+    expect(SECURITY_GUARD_DEFAULTS.armed).toBe(false);
+  });
+
+  it("lets a board arm a post explicitly", () => {
+    const components: ComponentData[] = [{ type: "enforcer", values: { Armed: "1" } }];
+    expect(enforcerStatsFor(components).armed).toBe(true);
+  });
+
+  it("reads an absent, blank or zero flag as false", () => {
+    // `num` treats 0 as unset, and for a boolean unset and false are the same answer.
+    expect(flag([], "enforcer", "Armed")).toBe(false);
+    expect(flag([{ type: "enforcer", values: { Armed: "" } }], "enforcer", "Armed")).toBe(false);
+    expect(flag([{ type: "enforcer", values: { Armed: "0" } }], "enforcer", "Armed")).toBe(false);
+    expect(flag([{ type: "enforcer", values: { Armed: "false" } }], "enforcer", "Armed")).toBe(false);
+  });
+
+  it("reads 1 and true as true", () => {
+    expect(flag([{ type: "enforcer", values: { Armed: "1" } }], "enforcer", "Armed")).toBe(true);
+    expect(flag([{ type: "enforcer", values: { Armed: "true" } }], "enforcer", "Armed")).toBe(true);
+  });
+
+  it("keeps the per-level allowance scarce", () => {
+    // The number is the design. A cap of 0 would make firearms absent rather than
+    // restricted, and anything above 1 stops reading as scarcity on a level this size.
+    expect(ARMED_POSTS_PER_LEVEL).toBe(1);
+  });
+
+  it("can be reached inside a single ALERT window", () => {
+    // AlertState's own ALERT_DURATION is 8s. A delay at or past it could never be
+    // crossed, which would make firearms unreachable rather than restricted.
+    expect(FIREARMS_AUTHORIZATION_DELAY).toBeLessThan(8);
+    expect(FIREARMS_AUTHORIZATION_DELAY).toBeGreaterThan(0);
+  });
+});
+
+describe("Guard melee — balance against the capture that follows it", () => {
+  it("staggers for less time than a capture takes to land", () => {
+    // The relationship the whole exchange rests on: a silicate prods at 1.6 tiles and
+    // seizes at 1.3, so a stagger outlasting `captureTime` would make one connection a
+    // run-ender. Eating two is a mistake you can see coming; eating one is a coin flip.
+    expect(GUARD_MELEE_STAGGER_SECONDS).toBeLessThan(PLAYER_DEFAULTS.captureTime);
+  });
+
+  it("prods from outside the capture radius, so the strike lands before the seizure", () => {
+    expect(ENFORCER_DEFAULTS.meleeRange).toBeGreaterThan(PLAYER_DEFAULTS.captureRadius);
+  });
+
+  it("slows Rowan without stopping him", () => {
+    // Above a sneak (0.45) and below a walk: the strike buys the guard his closing
+    // distance, it does not decide the exchange on its own.
+    expect(GUARD_MELEE_STAGGER_MULTIPLIER).toBeGreaterThan(0.45);
+    expect(GUARD_MELEE_STAGGER_MULTIPLIER).toBeLessThan(1);
+  });
+
+  it("lands a staggered sprint between the two purge speeds", () => {
+    // The asymmetry the whole cast is built on: the humans hurt you, the silicates
+    // take you in. A staggered Rowan still out-runs a man with a stick, and does not
+    // out-run a sentry — which is how a prod feeds the capture that ends the run.
+    // 1.6 is the run multiplier in `Player.update`; both sides are paced, so the
+    // unpaced ratio is the truth.
+    const staggeredSprint = PLAYER_WALK_TILES * 1.6 * GUARD_MELEE_STAGGER_MULTIPLIER;
+    expect(staggeredSprint).toBeGreaterThan(SECURITY_GUARD_DEFAULTS.purgeSpeed);
+    expect(staggeredSprint).toBeLessThan(ENFORCER_DEFAULTS.purgeSpeed);
+  });
+
+  it("is much quieter than gunfire", () => {
+    // The mechanical argument for the facility preferring hands: a scuffle does not
+    // call the floor the way a shot does.
+    expect(GUARD_MELEE_NOISE_TILES).toBeLessThan(ENFORCER_FIRE_NOISE_TILES);
+  });
+
+  it("hits harder as a man than as a sentry, and reaches less far", () => {
+    // He has no capture to follow it with, so the strike is his whole answer.
+    expect(SECURITY_GUARD_DEFAULTS.meleeDamage).toBeGreaterThan(ENFORCER_DEFAULTS.meleeDamage);
+    expect(SECURITY_GUARD_DEFAULTS.meleeRange).toBeLessThan(ENFORCER_DEFAULTS.meleeRange);
+  });
+});
+
+describe("Rowan's takedown — balance against the two things it sits between", () => {
+  it("is contact reach, well under the hold-up's", () => {
+    // Pointing something at a man works from across the room; putting hands on him
+    // means walking all the way in with nothing in them.
+    expect(PLAYER_MELEE_REACH_TILES).toBeLessThan(HOLD_UP_REACH_TILES);
+  });
+
+  it("is louder than a hold-up and quieter than a dart", () => {
+    // The three ways off the board stay ordered by what they cost to use. The hold-up
+    // has no noise constant at all, and that absence is documented as the mechanic.
+    expect(PLAYER_MELEE_NOISE_TILES).toBeGreaterThan(0);
+    expect(PLAYER_MELEE_NOISE_TILES).toBeLessThan(2);
+  });
+
+  it("reaches less far than an orderly can see", () => {
+    // Closing to arm's length means standing well inside his eyeline to do it.
+    expect(PLAYER_MELEE_REACH_TILES).toBeLessThan(5);
   });
 });

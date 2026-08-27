@@ -187,6 +187,110 @@ that used to let half a sentry sit inside a wall.
 small spider-legged sentry skin. The map gives both the identical `enforcer` stats
 component, so they share one implementation (`Enforcer`/`Drone` + `GuardSkin`).
 
+### Guards close; they do not shoot
+
+**A guard's default attack is his hands.** Every guard used to draw and fire the instant
+the base woke up — one hitscan shot, inherited by all three classes off `Enforcer.pursue`
+— which made the answer to a patrol a question about cover rather than about distance.
+It also read as the wrong genre: a building full of sidearms is a firefight game wearing a
+stealth game's clothes.
+
+Now a guard walks Rowan down and strikes at contact reach. That flips what the player is
+being asked to do, because `purgeSpeed` is deliberately under a walk (2.6 and 3.0 against
+`PLAYER_WALK_TILES` 3.2): **against a melee guard, walking away denies the attack
+outright.** The chase became a problem you solve with your legs.
+
+The strike is also quiet — `GUARD_MELEE_NOISE_TILES` 1.5 against gunfire's 6, and under a
+door's 4. That gap is the in-fiction argument for the whole change: a facility that means
+to recover its assets rather than destroy them has every reason to prefer hands, and a
+scuffle does not call the floor the way a shot does.
+
+**Close quarters splits by what a body actually is**, because silicates already had an
+answer humans didn't:
+
+| | close answer | fires? |
+| --- | --- | --- |
+| `Enforcer` / `Drone` | a prod that staggers, at 1.6 tiles — *outside* the 1.3-tile capture radius, so the strike is the setup and the seizure is the finish | only as an armed post, only once authorized |
+| `SecurityGuard` | a shock prod: more damage (10 vs 8), shorter reach, slower swing. He has no capture to follow it with, so this is his whole answer | never |
+| `Orderly` | unchanged — witnesses, no attack | no |
+
+**Whether a guard keeps walking once he is in reach is the difference between the two
+bodies.** A man plants at his own reach and works from there — he has no seizure to
+follow the strike with, and closing further would only shove him through Rowan
+(`moveCirclePx` collides with the grid, not with the cast). A sentry keeps coming,
+because for it the strike is the setup: planting at 1.6 would leave it permanently
+outside the 1.3-tile radius it exists to reach, and the capture would be unreachable in
+a chase.
+
+`GUARD_MELEE_STAGGER_MULTIPLIER` is tuned to land a staggered sprint (2.82 tiles/s)
+*between* the two purge speeds, which is the same asymmetry the rest of the cast is built
+on: **the humans hurt you, the silicates take you in.** A staggered Rowan still out-runs a
+man with a stick and does not out-run a sentry. `GUARD_MELEE_STAGGER_SECONDS` is likewise
+held under `captureTime`, so one prod can never on its own hold him inside the window that
+ends the run — you have to eat two. Both edges are asserted in `EntityStats.test.ts`.
+
+### Firearms are restricted, not absent
+
+A gun needs **two independent permissions**, and neither alone is enough:
+
+1. **The body is carrying one** — `EnforcerStats.armed`, which defaults to *false*. The
+   per-level complement is capped at `ARMED_POSTS_PER_LEVEL` (1) by
+   `src/map/ArmedPosts.ts`, and only ever an enforcer: a drone is too small to mount a
+   weapon and the security staff are not issued them, so no amount of map authoring can
+   arm either. Scarcity is a property of the roster, so it is settled over the whole
+   roster rather than per body — otherwise a map that set `Armed` on four boards would
+   satisfy every other gate and put four rifles on one floor.
+2. **The facility has released weapons** — `src/systems/Firearms.ts`. `pursue` has only
+   ever been reachable at ALERT, so "guns during an alert" was already true and nobody
+   could feel it. This is the rule that bites, because it is a rule about *duration*:
+   authorization accrues over `FIREARMS_AUTHORIZATION_DELAY` (6s) of **sustained** ALERT,
+   under `AlertState`'s own 8s window so a refreshed sighting can cross it. Break line of
+   sight promptly and no gun ever comes out. It latches, survives the drop to EVASION —
+   a building does not rescind weapons because it briefly lost sight of what it was
+   hunting — and stands down on the return to INFILTRATION.
+
+**A player who plays well may finish a run without hearing a shot. That is the intended
+outcome, not a hole in the tuning.**
+
+Siege waves stay unarmed for free: `SetPieceEvents.onSiegeSpawn` builds its enforcers with
+an empty component list, which reads as `armed: false`. That is load-bearing rather than
+incidental — `RELAY_DEFAULTS` allows six of them at once, on the one level that spawns
+guards outside `LevelBuilder`, where the allowance is issued.
+
+### Where ranged stays, because melee cannot do the job
+
+Deliberately preserved. Do not "finish the job" by removing these:
+
+- **The three bosses.** VENT-4's burst/steam/intake, NW-SMAC-01's audit beam and deviation
+  damage, the rooftop relay's searchlight. All are hazards on their own `Core` systems,
+  and none of them has hands.
+- **Lasers**, which are environmental and were never an attack.
+- **The unreachable target.** The shot check in `pursue` deliberately does not consult
+  pathing, which is what covers the case melee cannot: a clean sightline with nothing
+  walkable in between — across a stairwell gap, or through the map's glass, which blocks
+  movement but not sight (see *Glazing* below). Closing is not an option there. Every
+  guard that isn't an armed, authorized post simply holds its cone, and that is the
+  correct outcome rather than a gap: **being unreachable should be safe from all but the
+  facility's rarest bodies.**
+
+### [Q] is one verb with two halves
+
+Holding a weapon, `[Q]` is the hold-up. Empty-handed, it is a bare-handed takedown at
+`PLAYER_MELEE_REACH_TILES` (1.1) — it puts an orderly or a *human* guard on the floor for
+`STUN_ROUND_DURATION`, exactly as a dart does, and leaves silicates alone for the same
+reason the dart does (there is nothing in a sentry for a chemical to act on, and a man
+does not wrestle one either — the EMP stays their answer).
+
+Overloading the key rather than spending a new one is what keeps the two readable as the
+same idea: closing on a person instead of firing at one. The practical argument is
+stronger, though — **the hold-up needs a weapon Rowan may never find**, and a stealth game
+whose only close-quarters answer is one the player cannot reach has no close-quarters
+answer at all. It borrows the hold-up's narrower 90° arc rather than the weapons' 120°,
+because it is aimed rather than sprayed. It breaks no cover (a forearm is not a
+projectile) and it is not silent (`PLAYER_MELEE_NOISE_TILES` 1, between the hold-up's
+documented silence and the dart's 2), which keeps the three ways off the board ordered by
+what they cost to use.
+
 ---
 
 ## Orderlies, the Sack Lunch, and the hold-up

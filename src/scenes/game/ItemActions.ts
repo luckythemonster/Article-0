@@ -3,7 +3,7 @@ import { Cover } from "../../entities/Cover";
 import { DeployedItem } from "../../entities/DeployedItem";
 import type { Laser } from "../../entities/Laser";
 import type { Enforcer } from "../../entities/Enforcer";
-import type { Orderly } from "../../entities/Orderly";
+import { Orderly } from "../../entities/Orderly";
 import type { Player } from "../../entities/Player";
 import { playVfx, ELECTRONICS_SPARK, EMP_BLAST, IMPACT } from "../../entities/Vfx";
 import type { AlertState } from "../../systems/AlertState";
@@ -35,6 +35,9 @@ import {
   STUN_ROUND_REACH_TILES,
   STUN_ROUNDS_ITEM,
   THERMAL_GEL_ITEM,
+  HOLD_UP_ARC_DEGREES,
+  PLAYER_MELEE_NOISE_TILES,
+  PLAYER_MELEE_REACH_TILES,
   WEAPON_ARC_DEGREES,
 } from "../../systems/EntityStats";
 import type { NoiseEvents } from "./NoiseEvents";
@@ -58,6 +61,15 @@ import type { NoiseEvents } from "./NoiseEvents";
  * staple can reach. Was the bare `0.5` written out at three call sites.
  */
 const WEAPON_ARC_COS = Math.cos((WEAPON_ARC_DEGREES * Math.PI) / 360);
+
+/**
+ * Cos of the half-angle of {@link HOLD_UP_ARC_DEGREES} — the narrower, aimed arc.
+ *
+ * The takedown borrows the hold-up's arc rather than the weapons' because it is the
+ * same kind of act: something you do to one named person at contact range, not
+ * something you point down a corridor.
+ */
+const HOLD_UP_ARC_COS = Math.cos((HOLD_UP_ARC_DEGREES * Math.PI) / 360);
 
 /** Getters for everything `create()` rebinds per level. */
 export interface ItemWorld {
@@ -246,12 +258,76 @@ export class ItemActions {
    * the same shot rather than fighting over which one the dart "really" hit.
    * Firing makes a small noise.
    */
-  private fireStunDart(): void {
+  /**
+   * Rowan's bare-handed takedown — the unarmed half of the `[Q]` verb.
+   *
+   * **[Q] is one verb with two halves, and which one you get is decided by what you
+   * are carrying**, not by a second key: holding a weapon it is the hold-up, empty-
+   * handed it is this. See {@link PLAYER_MELEE_REACH_TILES} for why they read as the
+   * same idea. The practical argument for it is that the hold-up needs a weapon Rowan
+   * may never find, and a stealth game whose only close-quarters answer is one the
+   * player cannot reach has no close-quarters answer at all.
+   *
+   * Aimed rather than sprayed, so it borrows {@link HOLD_UP_ARC_DEGREES} (90°) rather
+   * than the weapons' 120°: with two orderlies abreast, which one goes down should be a
+   * choice you made. Unlike the dart it breaks no cover — a forearm is not a projectile
+   * — and unlike the hold-up it is not silent, because a scuffle is not a whisper.
+   *
+   * Returns false when nothing was in front of him, so the caller can leave the press
+   * unspent rather than burning the cooldown on air.
+   */
+  takedown(): boolean {
     const player = this.w.player();
     const ts = this.w.tileSize();
-    const reachPx = STUN_ROUND_REACH_TILES * ts;
+    if (!this.putDownNearest(PLAYER_MELEE_REACH_TILES * ts, HOLD_UP_ARC_COS)) return false;
+    // Same price as the dart: putting a man on the floor is the least compliant thing
+    // in the building however you do it, and charging less for the quieter method would
+    // make conduct a tax on equipment rather than on conduct.
+    this.w.conduct().violate("HOSTILE", FLAG_HOSTILE);
+    this.w.noise().emitAt(player.x, player.y, PLAYER_MELEE_NOISE_TILES * ts);
+    getAudio().pickup();
+    return true;
+  }
+
+  /**
+   * Puts down the nearest person in front of Rowan, and reports whether it found one.
+   *
+   * Shared by the Stun Rounds dart and the bare-handed takedown, which differ only in
+   * their reach and their arc: both pick one body, both prefer the nearer of an orderly
+   * and a human guard, and both leave silicates alone. Written once because the *rule*
+   * is one rule — a dart and a forearm answer the same question about who is in front
+   * of you — and two copies would drift the moment either reach was retuned.
+   *
+   * **Silicates are excluded**, for the reason humans are excluded from the EMP: a dart
+   * is a chemical and there is nothing in a sentry for it to act on, and a man does not
+   * wrestle one to the floor either. The EMP stays their answer.
+   *
+   * A human guard is as valid a target as an orderly, and has to be: on `main1` both
+   * patrols are people, so without it neither verb has anything to hit on the first
+   * level of the game and the whole takedown-and-stash loop is unreachable there.
+   */
+  private putDownNearest(reachPx: number, arcCos: number): boolean {
+    const ts = this.w.tileSize();
+    const victim = this.nearestPerson(reachPx, arcCos);
+    if (!victim) return false;
+    if (victim instanceof Orderly) victim.stun(STUN_ROUND_DURATION);
+    else victim.putDown(STUN_ROUND_DURATION);
+    playVfx(this.w.scene, IMPACT, victim.x, victim.y, ts);
+    return true;
+  }
+
+  /**
+   * The one person a takedown or a dart would land on, or undefined for empty air.
+   *
+   * Side-effect free, so the `[Q]` prompt can ask the same question the verb will ask
+   * without putting anybody on the floor to find out. Offering a verb the press would
+   * then decline is the failure mode this exists to avoid.
+   */
+  nearestPerson(reachPx: number, arcCos: number): Orderly | Enforcer | undefined {
+    const player = this.w.player();
     const fx = Math.cos(player.facing);
     const fy = Math.sin(player.facing);
+
     let target: Orderly | undefined;
     let bestDist = Infinity;
     for (const orderly of this.w.orderlies()) {
@@ -260,18 +336,13 @@ export class ItemActions {
       const dist = len(dx, dy);
       if (dist > reachPx || dist === 0) continue;
       // Only orderlies roughly in front of Rowan — see WEAPON_ARC_DEGREES.
-      if ((dx * fx + dy * fy) / dist < WEAPON_ARC_COS) continue;
+      if ((dx * fx + dy * fy) / dist < arcCos) continue;
       if (dist < bestDist) {
         bestDist = dist;
         target = orderly;
       }
     }
-    // A human guard is as dartable as an orderly, and has to be: on `main1` both
-    // patrols are people, so without this the dart has nothing to hit there and
-    // the whole takedown-and-stash loop is unreachable on the first level of the
-    // game. Silicates are excluded for the same reason humans are excluded from
-    // the EMP — a dart is a chemical, and there is nothing in a silicate for it
-    // to act on.
+
     let guardTarget: Enforcer | undefined;
     let bestGuardDist = Infinity;
     for (const guard of this.w.guards()) {
@@ -280,7 +351,7 @@ export class ItemActions {
       const dy = guard.y - player.y;
       const dist = len(dx, dy);
       if (dist > reachPx || dist === 0) continue;
-      if ((dx * fx + dy * fy) / dist < WEAPON_ARC_COS) continue;
+      if ((dx * fx + dy * fy) / dist < arcCos) continue;
       if (dist < bestGuardDist) {
         bestGuardDist = dist;
         guardTarget = guard;
@@ -289,13 +360,22 @@ export class ItemActions {
 
     // The nearer of the two wins. One dart, one body — resolving both would let a
     // single shot clear a room whenever an orderly happened to stand behind a guard.
-    if (guardTarget && bestGuardDist < bestDist) {
-      guardTarget.putDown(STUN_ROUND_DURATION);
-      playVfx(this.w.scene, IMPACT, guardTarget.x, guardTarget.y, ts);
-    } else {
-      target?.stun(STUN_ROUND_DURATION);
-      if (target) playVfx(this.w.scene, IMPACT, target.x, target.y, ts);
-    }
+    if (guardTarget && bestGuardDist < bestDist) return guardTarget;
+    return target;
+  }
+
+  /** The person a bare-handed `[Q]` would take down right now, if any. */
+  takedownCandidate(): Orderly | Enforcer | undefined {
+    return this.nearestPerson(PLAYER_MELEE_REACH_TILES * this.w.tileSize(), HOLD_UP_ARC_COS);
+  }
+
+  private fireStunDart(): void {
+    const player = this.w.player();
+    const ts = this.w.tileSize();
+    const reachPx = STUN_ROUND_REACH_TILES * ts;
+    const fx = Math.cos(player.facing);
+    const fy = Math.sin(player.facing);
+    this.putDownNearest(reachPx, WEAPON_ARC_COS);
 
     let cover: Cover | undefined;
     let bestCoverDist = Infinity;

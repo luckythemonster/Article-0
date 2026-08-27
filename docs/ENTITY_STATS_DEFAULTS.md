@@ -44,7 +44,8 @@ which of the two it is; wrap it in `paced()` only if it's a rate of motion.
 
 | Group | Constant in `EntityStats.ts` |
 | --- | --- |
-| Guards and drones | `ENFORCER_DEFAULTS`, `ENFORCER_FIRE_NOISE_TILES` |
+| Guards and drones | `ENFORCER_DEFAULTS`, `ENFORCER_FIRE_NOISE_TILES`, `GUARD_MELEE_*` |
+| Who may fire, and when | `EnforcerStats.armed`, `ARMED_POSTS_PER_LEVEL`, `FIREARMS_AUTHORIZATION_DELAY` |
 | Human security guards | `SECURITY_GUARD_DEFAULTS`, read by `securityGuardStatsFor` |
 | Putting a body down and hiding it | `LOCKER_STASH_TIME`, `CARRY_SPEED_MULTIPLIER`, `BODY_PICKUP_TILES`, `EMP_SHUTDOWN_DURATION`, `EMP_SHUTDOWN_TILES` |
 | Cameras | `SENSOR_DEFAULTS` (thermal radius and network radius are shared with guards) |
@@ -53,7 +54,7 @@ which of the two it is; wrap it in `paced()` only if it's a rate of motion.
 | Terminals, chests | `TERMINAL_DEFAULTS`, `CHEST_DEFAULTS` (incl. the default loot) |
 | Rowan | `PLAYER_DEFAULTS`, `PLAYER_WALK_TILES` |
 | Item effects | `FLASHLIGHT_*`, `CHAFF_EMP_*`, `THERMAL_GEL_SECONDS`, `RATION_HEAL`, `STUN_ROUND_*`, `STAPLER_*` |
-| Aimed actions and the hold-up | `WEAPON_ARC_DEGREES`, `HOLD_UP_*`, `ESCORT_*` |
+| Aimed actions, the takedown and the hold-up | `WEAPON_ARC_DEGREES`, `PLAYER_MELEE_*`, `HOLD_UP_*`, `ESCORT_*` |
 | The Sack Lunch and sanitation | `SACK_LUNCH_*`, `SANITATION_*`, `RATION_SPOOF_SECONDS`, `OPENED_RATION_*` |
 | The three act bosses | `VENT4_DEFAULTS`, `SMAC_DEFAULTS`, `RELAY_DEFAULTS` |
 
@@ -61,9 +62,9 @@ For the full member list of any of these, see
 [`TYPE_REFERENCE.md`](TYPE_REFERENCE.md) — it is generated from the sources, so it cannot
 drift.
 
-## Two relationships worth knowing before you retune
+## Relationships worth knowing before you retune
 
-Most numbers here stand alone. Two do not, and both are asserted by
+Most numbers here stand alone. These do not, and all of them are asserted by
 `EntityStats.test.ts` — which is the only place both halves of each are in scope.
 
 **Enforcer pace against Rowan's.** `patrolSpeed` (1.6) sits just above a sneak
@@ -81,6 +82,28 @@ longer `auditDelay`, a genuinely zero `thermalRadius`, a smaller
 `turnRate` is deliberately held level — a man turns his head faster than a sentry
 rotates a camera crown, and dropping that too would make him trivially flankable
 on top of everything else.
+
+**The stagger against the two purge speeds.** `GUARD_MELEE_STAGGER_MULTIPLIER` (0.55)
+puts a staggered sprint at 3.2 × 1.6 × 0.55 = **2.82 tiles/s**, which lands deliberately
+*between* a security guard's `purgeSpeed` (2.6) and an enforcer's (3.0). So a staggered
+Rowan still out-runs a man with a stick and does not out-run a sentry — the humans hurt
+you, the silicates take you in. Raising it past ~0.59 lets him sprint clear of a sentry
+mid-stagger and deletes the prod-into-capture sequence; lowering it lets a security guard
+run him down, which he should never do.
+
+**The stagger against the capture.** `GUARD_MELEE_STAGGER_SECONDS` (0.5) is held under
+`PLAYER_DEFAULTS.captureTime` (0.7), and `ENFORCER_DEFAULTS.meleeRange` (1.6) is held
+*above* `captureRadius` (1.3). Together those mean the prod lands before the seizure and
+one prod can never on its own hold Rowan inside the window that ends the run — you have to
+eat two. Inverting either turns a single connection into a coin-flip death.
+
+**Firearms against the alert clock.** `FIREARMS_AUTHORIZATION_DELAY` (6) must stay under
+`AlertState`'s own `ALERT_DURATION` (8) or weapons could never be released at all, and
+above 0 or they are released instantly. See
+[Design notes](DESIGN_NOTES.md#firearms-are-restricted-not-absent) for the two gates a
+shot has to pass, and `ARMED_POSTS_PER_LEVEL` for the headcount ceiling — that one is
+enforced in `src/map/ArmedPosts.ts`, not here, because scarcity is a property of the
+roster rather than of any one body.
 
 ## Inventory
 
