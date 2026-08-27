@@ -12,6 +12,13 @@
  *      blandest, most obviously-compliant phrasing strips that payload — so a
  *      text can be perfectly Q0 yet fail the override. That tension is the puzzle.
  *
+ * The UI (`src/ui/ComplianceView.ts`) never states which correction carries the
+ * payload — only each correction's label text hints at it, the same way the
+ * fiction would. TRANSMIT unlocks as soon as the text is Q0-compliant, whether
+ * or not the payload survived, and committing it is real: a compliant-but-
+ * payload-incomplete transmit is a genuine wrong answer, not a blocked one, and
+ * the terminal it came from is destroyed rather than left retriable.
+ *
  * This module is pure (no DOM, no Phaser) so the validator is unit-testable and
  * the same `PuzzleState` drives both the in-game scene and the standalone demo.
  */

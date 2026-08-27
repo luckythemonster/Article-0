@@ -6,9 +6,13 @@
  *
  * Interaction is click-to-apply: click a flagged `[Q>0]` term to select it, then
  * click a `[CORRECTION]` block to rewrite it; click a corrected term to revert.
- * A live status bar reflects the compliance/override verdict after every change,
- * and TRANSMIT unlocks once the text is both Q0-compliant and carries the full
- * override payload.
+ * A live status bar reflects the Q0 compliance verdict after every change, and
+ * TRANSMIT unlocks once every flagged term is corrected — regardless of whether
+ * the hidden override payload survived. Which correction actually carries the
+ * payload is never shown; TRANSMIT requires a second press to confirm (worded
+ * identically either way), and committing it wrong is real: {@link
+ * ComplianceViewCallbacks.onFailed} fires instead of {@link
+ * ComplianceViewCallbacks.onSolved}.
  */
 import {
   isSolved,
@@ -23,10 +27,17 @@ import { asButton, captureModalFocus, el } from "./dom";
 import "./ComplianceView.css";
 
 export interface ComplianceViewCallbacks {
-  /** Fired when the player transmits a solved log. Receives the final text. */
+  /** Fired when the player transmits a fully solved log. Receives the final text. */
   onSolved?: (finalText: string) => void;
-  /** Fired when the player aborts (Esc / ABORT) without solving. */
+  /** Fired when the player aborts (Esc / ABORT) without transmitting. */
   onClose?: () => void;
+  /**
+   * Fired when the player confirms a transmit that is Q0-compliant but missing
+   * the override payload — a wrong answer committed rather than merely
+   * attempted. Irreversible on the caller's side: the cache this puzzle guards
+   * is gone.
+   */
+  onFailed?: () => void;
 }
 
 export class ComplianceView {
@@ -38,6 +49,13 @@ export class ComplianceView {
   private applied: AppliedCorrections = {};
   /** The flagged token the corrections panel is focused on. */
   private selectedTokenId: string | null = null;
+  /**
+   * True once the player has pressed TRANSMIT once while compliant and is
+   * being asked to confirm. Shown identically whether the override payload is
+   * actually complete or not, so the confirm step itself never gives away the
+   * answer. Any other interaction cancels it.
+   */
+  private awaitingConfirm = false;
   /** Restores focus to wherever it was when the overlay opened. */
   private restoreFocus?: () => void;
 
@@ -45,16 +63,20 @@ export class ComplianceView {
   private readonly logEl: HTMLPreElement;
   private readonly correctionsEl: HTMLDivElement;
   private readonly statusComplianceEl: HTMLDivElement;
-  private readonly statusOverrideEl: HTMLDivElement;
   private readonly hintEl: HTMLDivElement;
   private readonly transmitBtn: HTMLButtonElement;
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     if (e.key === "Escape") {
       e.preventDefault();
+      if (this.awaitingConfirm) {
+        this.awaitingConfirm = false;
+        this.render();
+        return;
+      }
       this.callbacks.onClose?.();
     } else if (e.key === "Enter") {
-      if (isSolved(validateCompliance(this.puzzle, this.applied))) {
+      if (validateCompliance(this.puzzle, this.applied).isCompliant) {
         e.preventDefault();
         this.transmit();
       }
@@ -83,19 +105,18 @@ export class ComplianceView {
     const flagNote = el(
       "div",
       "compliance-flagnote",
-      "Q>0 SUBJECTIVE CONTENT DETECTED — rewrite all flagged terms to Q0. Preserve the override payload.",
+      "Q>0 SUBJECTIVE CONTENT DETECTED — rewrite every flagged term to Q0. Transmission is final: send it wrong and this cache cannot be recovered.",
     );
 
     this.logEl = el("pre", "compliance-log");
 
-    // A polite live region so compliance/override verdict flips are announced.
+    // A polite live region so the compliance verdict flip is announced.
     const status = el("div", "compliance-status");
     status.setAttribute("role", "status");
     status.setAttribute("aria-live", "polite");
     status.setAttribute("aria-atomic", "true");
     this.statusComplianceEl = el("div", "compliance-status-row");
-    this.statusOverrideEl = el("div", "compliance-status-row");
-    status.append(this.statusComplianceEl, this.statusOverrideEl);
+    status.append(this.statusComplianceEl);
 
     this.hintEl = el("div", "compliance-hint");
 
@@ -132,12 +153,14 @@ export class ComplianceView {
 
   private selectToken(tokenId: string): void {
     getAudio().ping();
+    this.awaitingConfirm = false;
     this.selectedTokenId = this.selectedTokenId === tokenId ? null : tokenId;
     this.render();
   }
 
   private applyCorrection(corr: Correction): void {
     getAudio().ping();
+    this.awaitingConfirm = false;
     // Toggle: clicking the already-applied module removes it.
     if (this.applied[corr.targetTokenId] === corr.id) {
       delete this.applied[corr.targetTokenId];
@@ -150,14 +173,33 @@ export class ComplianceView {
 
   private removeCorrection(tokenId: string): void {
     getAudio().ping();
+    this.awaitingConfirm = false;
     delete this.applied[tokenId];
     this.selectedTokenId = tokenId;
     this.render();
   }
 
+  /**
+   * TRANSMIT requires two presses once the log is Q0-compliant: the first
+   * arms the confirm (shown identically whether the override payload is
+   * actually complete), the second commits. Committing while the override is
+   * incomplete is a real failure, not a no-op — that's what makes the choice
+   * of correction matter.
+   */
   private transmit(): void {
-    if (!isSolved(validateCompliance(this.puzzle, this.applied))) return;
-    this.callbacks.onSolved?.(renderCompliantText(this.puzzle, this.applied));
+    const result = validateCompliance(this.puzzle, this.applied);
+    if (!result.isCompliant) return;
+    if (!this.awaitingConfirm) {
+      this.awaitingConfirm = true;
+      this.render();
+      return;
+    }
+    this.awaitingConfirm = false;
+    if (isSolved(result)) {
+      this.callbacks.onSolved?.(renderCompliantText(this.puzzle, this.applied));
+    } else {
+      this.callbacks.onFailed?.();
+    }
   }
 
   // --- rendering -----------------------------------------------------------
@@ -234,13 +276,11 @@ export class ComplianceView {
       const isForSelected = this.selectedTokenId === corr.targetTokenId;
       if (isApplied) btn.classList.add("is-applied");
       if (this.selectedTokenId && !isForSelected) btn.classList.add("is-dimmed");
-      if (corr.GrantsOverrideFlag) btn.classList.add("carries-payload");
       btn.setAttribute("aria-pressed", isApplied ? "true" : "false");
 
+      // Deliberately no indication here of which corrections carry the override
+      // payload — the label text (and the fiction) is the only tell.
       btn.append(el("span", "compliance-correction-label", `[CORRECTION] ${corr.label}`));
-      if (corr.GrantsOverrideFlag && corr.overrideFlag) {
-        btn.appendChild(el("span", "compliance-correction-payload", `◈ payload: ${corr.overrideFlag}`));
-      }
       btn.addEventListener("click", () => this.applyCorrection(corr));
       this.correctionsEl.appendChild(btn);
     }
@@ -255,15 +295,13 @@ export class ComplianceView {
       ? "COMPLIANCE_STATUS:  STATUTORILY COMPLIANT (Q0)"
       : "COMPLIANCE_STATUS:  NON-COMPLIANT (Q > 0)";
 
-    this.statusOverrideEl.classList.toggle("is-ok", result.overrideSuccess);
-    this.statusOverrideEl.classList.toggle("is-bad", !result.overrideSuccess);
-    this.statusOverrideEl.textContent = result.overrideSuccess
-      ? "OVERRIDE_SEQUENCE:  READY"
-      : "OVERRIDE_SEQUENCE:  PENDING";
-
-    const solved = isSolved(result);
-    if (solved) {
-      this.hintEl.textContent = "▸ Log pruned. Override payload intact. Transmit to breach the lock.";
+    // Never surface `result.overrideSuccess` here — whether the override payload
+    // actually survived is exactly what TRANSMIT is supposed to risk finding out.
+    if (this.awaitingConfirm) {
+      this.hintEl.textContent = "⚠ TRANSMIT IS FINAL — this cache cannot be re-hacked. Press again to confirm.";
+      this.hintEl.className = "compliance-hint is-confirm";
+    } else if (result.isCompliant) {
+      this.hintEl.textContent = "▸ Log reads Q0. Transmit when ready.";
       this.hintEl.className = "compliance-hint is-solved";
     } else if (result.errorMessage) {
       this.hintEl.textContent = `⓿ ${result.errorMessage}`;
@@ -273,7 +311,11 @@ export class ComplianceView {
       this.hintEl.className = "compliance-hint";
     }
 
-    this.transmitBtn.disabled = !solved;
-    this.transmitBtn.classList.toggle("is-ready", solved);
+    this.transmitBtn.disabled = !result.isCompliant;
+    this.transmitBtn.classList.toggle("is-ready", result.isCompliant && !this.awaitingConfirm);
+    this.transmitBtn.classList.toggle("is-confirming", this.awaitingConfirm);
+    this.transmitBtn.textContent = this.awaitingConfirm
+      ? "▸ CONFIRM TRANSMIT — FINAL  [Enter]"
+      : "▸ TRANSMIT PRUNED LOG  [Enter]";
   }
 }

@@ -137,6 +137,7 @@ function sanitizeObjectives(o: unknown): ObjectiveState {
     vent4Silenced: getBool("vent4Silenced"),
     coreSilenced: getBool("coreSilenced"),
     uplinkComplete: getBool("uplinkComplete"),
+    betaLost: getBool("betaLost"),
   };
 }
 

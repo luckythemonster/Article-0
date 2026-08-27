@@ -24,17 +24,22 @@ import { HoldTarget, HOLD_BAR_CYAN } from "./HoldTarget";
  * done, don't tint"), leaving a breached terminal looking identical to one still
  * being worked. Passing no clip name forces the {@link HACKED_GREEN} fallback tint
  * instead, over whichever `IN_USE` frame is showing — the same marker an object
- * with no art at all gets. `DESTROYED` (`status_light` runs to ERROR) is a
- * separate mechanic with no game logic behind it yet, so it is left unplayed.
+ * with no art at all gets. `DESTROYED` (`status_light` runs to ERROR) is the art
+ * for {@link Terminal.brick} — the compliance puzzle's wrong-answer consequence —
+ * with the same {@link BRICKED_RED} fallback tint for a terminal with no art.
  */
 
 /** Untouched: the art's idle frames, no bar, no tint. */
 const CLIP_IDLE = "IDLE";
 /** Being worked on, and — once tinted green — breached: the art's in-use frames. */
 const CLIP_HACKING = "IN_USE";
+/** Permanently destroyed — see {@link Terminal.brick}. */
+const CLIP_DESTROYED = "DESTROYED";
 
 /** The tint a finished hack gets, art or no art — see the class doc above. */
 const HACKED_GREEN = 0x5effa0;
+/** The tint a bricked terminal gets, art or no art — see {@link Terminal.brick}. */
+const BRICKED_RED = 0xff5c6a;
 export class Terminal {
   readonly tileX: number;
   readonly tileY: number;
@@ -43,6 +48,7 @@ export class Terminal {
   readonly stats: TerminalStats;
 
   private hacked = false;
+  private bricked = false;
   private readonly hold: HoldTarget;
 
   constructor(scene: Phaser.Scene, tile: GameTile, tileSize: number) {
@@ -85,10 +91,24 @@ export class Terminal {
    * Reverts a completed breach so the terminal can be hacked again. Used when a
    * log-cache breach launches the compliance puzzle and the player aborts it —
    * the mission-critical log must stay recoverable, so the terminal is re-armed.
+   * A no-op once bricked: that terminal is gone for the run.
    */
   reopen(): void {
+    if (this.bricked) return;
     this.hacked = false;
     this.hold.reset(CLIP_IDLE);
+  }
+
+  /**
+   * Permanently destroys the terminal — the compliance puzzle's wrong-answer
+   * consequence. Never hackable or reopenable again: `hacked` stays true so the
+   * normal "already hacked" checks (the interaction scan, `hack()`) keep
+   * excluding it with no changes needed there.
+   */
+  brick(): void {
+    this.bricked = true;
+    this.hacked = true;
+    this.hold.settle(BRICKED_RED, CLIP_DESTROYED);
   }
 
   /** Called when the player isn't hacking this frame — decays partial progress. */

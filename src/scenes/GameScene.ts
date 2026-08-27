@@ -618,6 +618,7 @@ export class GameScene extends Phaser.Scene {
         warpTargets: () => this.debugWarpLevels(),
         warpTo: (levelName) => this.debugWarp(levelName),
         giveItem: (name) => this.debugGiveItem(name),
+        forceFailNearestTerminal: () => this.debugForceFailNearestTerminal(),
       });
     }
 
@@ -627,6 +628,11 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.fadeIn(FADE_MS, 5, 7, 10);
 
     this.restoreRunState();
+    // Needs `this.objectives` populated, which is why this runs after
+    // restoreRunState rather than alongside the other terminal designation
+    // calls above — betaLost isn't known until the run's objectives are read
+    // back from the registry/save.
+    this.hacks.reapplyLostBeta();
 
     // The third visibility state: tiles already surveyed, painted back over the
     // darkness wherever sight no longer reaches them. Built here rather than
@@ -931,6 +937,7 @@ export class GameScene extends Phaser.Scene {
           onOpen: () => {
             this.registry.remove("complianceSolved");
             this.registry.remove("complianceClosed");
+            this.registry.remove("complianceFailed");
           },
         },
         qualia: {
@@ -982,11 +989,20 @@ export class GameScene extends Phaser.Scene {
    * Polls the compliance overlay's outcome while it's open (the sim update below
    * never runs behind it). Solving it runs the normal breach effect — logs
    * recovered + nearby doors released; aborting re-arms the terminal so the
-   * mission-critical log stays recoverable.
+   * mission-critical log stays recoverable; a wrong-but-committed transmit
+   * destroys the terminal instead.
+   *
+   * God mode (debug) downgrades a "failed" outcome to "closed": the terminal is
+   * safely re-armed instead of bricked, the same way it already blocks the
+   * HP and capture fail paths. This can't be folded into that per-frame
+   * neutralization block (`this.debug?.godMode` further down) because the
+   * brick happens once, here, rather than continuously — there is nothing to
+   * "undo after the fact" the way restoring HP undoes a frame of damage.
    */
   private updateComplianceOverlay(): void {
-    const result = this.overlays.pollResult("complianceSolved", "complianceClosed");
+    let result = this.overlays.pollResult("complianceSolved", "complianceClosed", "complianceFailed");
     if (!result) return;
+    if (result === "failed" && this.debug?.godMode) result = "closed";
     this.hacks.settleOverlay("compliance", result);
   }
 
@@ -2282,6 +2298,29 @@ export class GameScene extends Phaser.Scene {
     if (isConsumable(name) && countConsumables(inv) >= MAX_CONSUMABLES) return;
     inv.push(name);
     this.registry.set("inventory", inv);
+  }
+
+  /**
+   * Debug cheat: applies the compliance puzzle's wrong-transmit consequence to
+   * whichever terminal on this level is nearest the player, without opening or
+   * playing the minigame. Unlike the real `[E] Hack` scan, this doesn't skip
+   * already-hacked terminals or cap the range — a tester wants to be able to
+   * target ALPHA or BETA specifically by standing near it, hacked or not.
+   */
+  private debugForceFailNearestTerminal(): void {
+    const ts = this.tileSize;
+    const ptx = this.player.x / ts;
+    const pty = this.player.y / ts;
+    let nearest: Terminal | undefined;
+    let nearestDist = Infinity;
+    for (const term of this.terminals) {
+      const d = len(term.x / ts - ptx, term.y / ts - pty);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearest = term;
+      }
+    }
+    if (nearest) this.hacks.debugForceFail(nearest);
   }
 
   /** Fades to black, then restarts this scene on the destination level/tile. */
