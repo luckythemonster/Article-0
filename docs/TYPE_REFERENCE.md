@@ -4447,12 +4447,12 @@ whichever flag while the overlay is up and stops this scene.
 
 #### `DebugOverlay` — class
 
-`src/scenes/game/DebugOverlay.ts:94`
+`src/scenes/game/DebugOverlay.ts:101`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `enabled` | `enabled: boolean` | Master switch: the debug panel is shown and the debug hotkeys respond. |
-| `godMode` | `godMode = false` | Invincibility — blocks both death paths (HP depletion and capture). |
+| `godMode` | `godMode = false` | Invincibility — blocks every fail path: HP depletion, capture, and a wrong compliance transmit (bricking a terminal). See `GameScene.updateComplianceOverlay` for the last one; it can't be neutralized post-hoc like the other two since it's a one-shot event rather than a per-frame meter. |
 | `noClip` | `noClip = false` | No-clip — the player's wall/door colliders are disabled. |
 | `worldDraw` | `worldDraw = false` | World-space debug draw: LOS rays, blocked tiles, detection tint. |
 | `frozenWorld` | `frozenWorld = false` | Freeze-world: halts guards, cameras, hazards, alert and capture. |
@@ -4541,7 +4541,7 @@ each frame.
 | `create` | `create(): void` |  |
 | `update` | `update(_time: number, delta: number): void` |  |
 
-*Plus 111 private members.*
+*Plus 112 private members.*
 
 <a id="class-interactprompt"></a>
 
@@ -4754,11 +4754,12 @@ is up and stops this scene.
 | `onComplete` | `onComplete(terminal: Terminal): void` | A completed hold-to-hack. A log-cache breach opens the Doctrinal Compliance minigame — solving it recovers EIRA-7's logs — and a rack opens the Qualia Phase-Lock bypass, while every other terminal fires its effect immediately. |
 | `isQualiaRack` | `isQualiaRack(terminal: Terminal): boolean` | A terminal is a silicate server rack if authored so, or promoted per level. |
 | `settleOverlay` | `settleOverlay(which: "compliance" \| "qualia", result: "solved" \| "closed" \| "failed"): void` | Settles a minigame overlay: applying the breach on a solve, re-arming the terminal on an abort so the mission-critical log stays recoverable, and destroying it on a wrong-but-committed transmit (compliance only — qualia never reports "failed"). All three outcomes resolve through one path rather than duplicated per overlay, so which pending terminal is claimed can't drift between them. |
+| `debugForceFail` | `debugForceFail(terminal: Terminal): void` | Debug-only: applies the compliance puzzle's wrong-transmit consequence to any terminal directly, without playing the minigame. Lets a tester confirm the bricked art, the journal entry, and — for the crawlspace terminal — that the loss survives a checkpoint reload, without having to solve the puzzle wrong on purpose each time. |
 | `reapplyLostBeta` | `reapplyLostBeta(): void` | Re-bricks the crawlspace BETA terminal on level build if a previous visit already lost it — `Terminal.bricked` is runtime-only and rebuilt fresh by `LevelBuilder` on every level entry, so without this a checkpoint reload (e.g. after a capture) would quietly hand back a fresh, hackable BETA. |
 | `designateQualiaRack` | `designateQualiaRack(): void` | Promotes the terminal nearest the player's arrival point to a silicate server rack, so breaching it launches the Qualia Phase-Lock bypass. Prefers a plain terminal, but the shipped map types every terminal as a log-cache, so it will retype the nearest log-cache instead — never the last one, since the mission needs a log-cache to recover EIRA-7's logs. Skipped when the level already authors an explicit `qualia_rack` terminal or has no terminal to spare. |
 | `designateLogCacheNodes` | `designateLogCacheNodes(): void` | Designates one of this level's plain log-caches as node ALPHA. The shipped map types all thirteen of its terminals `LOG_CACHE` and puts every one of them on the start deck, so ALPHA cannot be authoring — it is picked here, the same way `designateQualiaRack` promotes a rack. BETA is not: it is a terminal the engine places in the crawlspace (`src/map/LogCacheBeta.ts`) carrying its type directly, because there is no terminal down there to promote. Runs after `designateQualiaRack` so it can never claim the terminal that one took. |
 
-*Plus 5 private members.*
+*Plus 6 private members.*
 
 <a id="class-titlescene"></a>
 
@@ -4937,6 +4938,7 @@ the moment the scene rebuilt one.
 | `warpTargets` | `() => string[]` | Level names the warp keys map to, in key order. |
 | `warpTo` | `(levelName: string) => void` | Restart the scene on another level. |
 | `giveItem` | `(name: string) => void` | Grants one unit of an item, for testing weapons/items without playing to their chest. |
+| `forceFailNearestTerminal` | `() => void` | Applies the compliance puzzle's wrong-transmit consequence to the nearest terminal directly, for testing the bricked art / journal entry / BETA persistence without solving the minigame wrong on purpose. A no-op if there is no terminal on this level. |
 
 <a id="interface-debugworld"></a>
 
@@ -6624,7 +6626,7 @@ GameScene.
 | [CoverBody](#interface-coverbody) | interface | `src/map/TileBake.ts:430` |
 | [DebugHost](#interface-debughost) | interface | `src/scenes/game/DebugOverlay.ts:67` |
 | [DebugHud](#class-debughud) | class | `src/ui/DebugHud.ts:65` |
-| [DebugOverlay](#class-debugoverlay) | class | `src/scenes/game/DebugOverlay.ts:94` |
+| [DebugOverlay](#class-debugoverlay) | class | `src/scenes/game/DebugOverlay.ts:101` |
 | [DebugSnapshot](#interface-debugsnapshot) | interface | `src/ui/DebugHud.ts:26` |
 | [DebugUnitView](#interface-debugunitview) | interface | `src/ui/DebugHud.ts:17` |
 | [DebugWorld](#interface-debugworld) | interface | `src/scenes/game/DebugOverlay.ts:43` |

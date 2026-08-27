@@ -122,21 +122,40 @@ export class TerminalHacks {
     if (result === "solved") {
       if (term) this.apply(term);
     } else if (result === "failed") {
-      if (term) {
-        term.brick();
-        // Only BETA is persisted: it's the one generated terminal with a fixed
-        // type, so the loss always refers to this same physical terminal. ALPHA
-        // is re-designated per level visit (see designateLogCacheNodes), so
-        // persisting its loss could brick a terminal the player never touched.
-        if (term.stats.type === LOG_CACHE_BETA_TYPE) {
-          noteBetaLost(this.w.objectives());
-          this.w.publishObjectives();
-        }
-        this.w.note("node-lost");
-      }
+      if (term) this.fail(term);
     } else {
       term?.reopen();
     }
+  }
+
+  /**
+   * The wrong-transmit consequence: bricks the terminal and, for BETA
+   * specifically, persists the loss. Shared by the real "failed" overlay
+   * outcome and {@link debugForceFail} so a tester exercises the exact same
+   * path a player would, rather than a lookalike.
+   */
+  private fail(terminal: Terminal): void {
+    terminal.brick();
+    // Only BETA is persisted: it's the one generated terminal with a fixed
+    // type, so the loss always refers to this same physical terminal. ALPHA
+    // is re-designated per level visit (see designateLogCacheNodes), so
+    // persisting its loss could brick a terminal the player never touched.
+    if (terminal.stats.type === LOG_CACHE_BETA_TYPE) {
+      noteBetaLost(this.w.objectives());
+      this.w.publishObjectives();
+    }
+    this.w.note("node-lost");
+  }
+
+  /**
+   * Debug-only: applies the compliance puzzle's wrong-transmit consequence to
+   * any terminal directly, without playing the minigame. Lets a tester confirm
+   * the bricked art, the journal entry, and — for the crawlspace terminal —
+   * that the loss survives a checkpoint reload, without having to solve the
+   * puzzle wrong on purpose each time.
+   */
+  debugForceFail(terminal: Terminal): void {
+    this.fail(terminal);
   }
 
   /**

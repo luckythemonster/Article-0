@@ -103,4 +103,16 @@ describe("TerminalHacks — compliance failure and BETA persistence", () => {
     expect(objectives.betaLost).toBeUndefined();
     expect((beta as any).bricked).toBe(false);
   });
+
+  it("debugForceFail applies the same consequence as a real wrong transmit, without an overlay in flight", () => {
+    const objectives = initialObjectives();
+    const beta = terminal(LOG_CACHE_BETA_TYPE);
+    const hacks = new TerminalHacks(world(objectives, [beta]));
+
+    // No onComplete()/pending overlay at all — this is the debug shortcut's whole point.
+    hacks.debugForceFail(beta);
+
+    expect((beta as any).bricked).toBe(true);
+    expect(objectives.betaLost).toBe(true);
+  });
 });
