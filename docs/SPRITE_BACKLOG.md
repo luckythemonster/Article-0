@@ -242,26 +242,33 @@ Still outstanding as redraws: **`battery.png`** and **`thermal_gel.png`**, both 
 the legacy 256px art. Still missing entirely: `stun_rounds.png`, `log_alpha.png`,
 `log_beta.png` (and see the note about their `ITEM_ICON_PATHS` lines below).
 
-### The two bezels — on disk, wrong size, not wired
+### The two bezels — one mounted, one still wrong-size
 
-Both arrived in the UI zip and **neither can be used as drawn**, because
-`src/render/uiScale.ts` requires UI art to be authored at the size it appears:
+The original `radar bezel.aseprite` (`public/assets/ui/icons/`, 160x160) and
+`UI-VITALS-BEZEL.aseprite` (128x128) both arrived off-size and neither could be
+used as drawn, since `src/render/uiScale.ts` requires UI art to be authored at
+the size it appears.
 
-| source | is | needs to be | ratio as drawn |
-|---|---|---|---|
-| `radar bezel.aseprite` | 160x160 | **96x96** | 0.6 — fails |
-| `UI-VITALS-BEZEL.aseprite` | 128x128 | **80x80** | 0.625 — fails |
+**The radar half is done.** A proper 96x96 redraw landed as
+`public/assets/ui/radar/radar_bezel.aseprite` and is now cut by
+`tools/radar/build_radar_bezel.py` into `public/assets/ui/radar/bezel.png` — the
+path `ui-radar-bezel` was already pointing at in `UI_TEXTURES`, so no code
+changed. The old 160x160 `icons/radar bezel.aseprite` is superseded and can be
+ignored (or removed, on its own).
 
-Redraw at those sizes and both drop straight in: `ui-radar-bezel` is already in
-`UI_TEXTURES` pointing at `assets/ui/radar/bezel.png`, and `ui-vitals-bezel` still
-needs the one manifest line described in Priority 2 below.
+The new source turned out to carry more than chrome: a `DIRECTION INDICATORS`
+group with eight compass layers (`north`, `northeast`, ...), tagged across
+`SCANNING`/`LOUD_SOURCE`/`MEDIUM_SOURCE`/`QUIET_SOURCE`/`JAMMED` frames with
+per-direction `PING`/`BLINK`/`LOUD`/`MEDIUM`/`QUIET` cels — a noise-source
+bearing-and-loudness readout. `src/systems/Radar.ts` has no concept of a noise
+source to drive that with today, so only the static `bezel` layer is cut; the
+eight direction layers are drawn and waiting on that game system, the same
+"waiting on a call site" state the four unwired world sprites are in above.
 
-Worth knowing before redrawing: the radar source's tags are
-`SILENT`/`QUIET`/`MEDIUM`/`LOUD`/`JAMMED`, which is a *noise readout* rather than
-plain chrome — `JAMMED` is the state `src/systems/Radar.ts` already has. Wiring
-those would be more than a drop-in and wants deciding on its own. The vitals source
-carries a `pulse_meter` and a `label` layer plus a `NO_SOUND` tag, and its `BEZEL`
-and `RADAR_WELL` layers are hidden.
+**The vitals half is still open.** `UI-VITALS-BEZEL.aseprite` needs a 80x80
+redraw the same way; `ui-vitals-bezel` still needs the one manifest line
+described in Priority 2 below. Its source carries a `pulse_meter` and a `label`
+layer plus a `NO_SOUND` tag, and its `BEZEL` and `RADAR_WELL` layers are hidden.
 
 ---
 
@@ -331,9 +338,9 @@ bundle and its `ITEM_ICON_PATHS` line is wired.
 
 ## Priority 2 — the two round instruments
 
-The HUD has two circular scopes and they are deliberately a matched pair — both
-currently draw as a plain 2px `--c-border-cool` circle. Art can add bezel depth,
-tick marks, a bearing scale, screw heads.
+The HUD has two circular scopes and they are deliberately a matched pair. The
+radar now draws its mounted ring art; the bio-integrity dial still draws as a
+plain 2px `--c-border-cool` circle pending its own redraw.
 
 | | radar | bio-integrity dial |
 |---|---|---|
@@ -342,7 +349,7 @@ tick marks, a bearing scale, screw heads.
 | drawn radius | 46 | 40 |
 | texture key | `ui-radar-bezel` | `ui-vitals-bezel` |
 | path | `public/assets/ui/radar/bezel.png` | *see warning below* |
-| art on disk? | yes, but **160×160** — redraw at 96 | yes, but **128×128** — redraw at 80 |
+| art on disk? | **yes, mounted** — 96×96, built by `tools/radar/build_radar_bezel.py` | yes, but **128×128** — redraw at 80 |
 | code needed? | **no** — already in the manifest | **yes, one line** |
 
 **The interior of both must be transparent.** Each scope's contents are drawn on a
