@@ -149,6 +149,9 @@
 .compliance-hint.is-solved {
   color: var(--c-cyan);
 }
+.compliance-hint.is-confirm {
+  color: var(--c-amber);
+}
 
 /* --- corrections panel --- */
 .compliance-corrections-head {
@@ -191,14 +194,6 @@
 .compliance-correction-label {
   font-weight: bold;
 }
-.compliance-correction-payload {
-  font-size: 10px;
-  color: var(--c-amber);
-  letter-spacing: 0.5px;
-}
-.compliance-correction.is-applied .compliance-correction-payload {
-  color: var(--c-green);
-}
 
 /* --- actions --- */
 .compliance-actions {
@@ -240,11 +235,27 @@
 .compliance-btn--transmit.is-ready:hover {
   background: var(--c-cyan-bright);
 }
+.compliance-btn--transmit.is-confirming {
+  color: var(--c-bg-panel);
+  background: var(--c-amber);
+  border-color: var(--c-amber);
+  cursor: pointer;
+  animation: compliance-pulse-warn 0.9s infinite ease-in-out;
+}
+.compliance-btn--transmit.is-confirming:hover {
+  background: var(--c-amber);
+}
 
 @keyframes compliance-pulse {
   0% { box-shadow: 0 0 0 0 rgba(57, 211, 255, 0.5); }
   70% { box-shadow: 0 0 0 8px rgba(57, 211, 255, 0); }
   100% { box-shadow: 0 0 0 0 rgba(57, 211, 255, 0); }
+}
+
+@keyframes compliance-pulse-warn {
+  0% { box-shadow: 0 0 0 0 rgba(255, 176, 74, 0.6); }
+  70% { box-shadow: 0 0 0 8px rgba(255, 176, 74, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 176, 74, 0); }
 }
 
 /* --- keyboard focus --- */
@@ -263,7 +274,8 @@
    convey the same state. Honour a reduced-motion preference by stilling them. */
 @media (prefers-reduced-motion: reduce) {
   .compliance-token.is-flagged,
-  .compliance-btn--transmit.is-ready {
+  .compliance-btn--transmit.is-ready,
+  .compliance-btn--transmit.is-confirming {
     animation: none;
   }
   .compliance-token,

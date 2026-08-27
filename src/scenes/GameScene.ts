@@ -931,6 +931,7 @@ export class GameScene extends Phaser.Scene {
           onOpen: () => {
             this.registry.remove("complianceSolved");
             this.registry.remove("complianceClosed");
+            this.registry.remove("complianceFailed");
           },
         },
         qualia: {
@@ -982,10 +983,11 @@ export class GameScene extends Phaser.Scene {
    * Polls the compliance overlay's outcome while it's open (the sim update below
    * never runs behind it). Solving it runs the normal breach effect — logs
    * recovered + nearby doors released; aborting re-arms the terminal so the
-   * mission-critical log stays recoverable.
+   * mission-critical log stays recoverable; a wrong-but-committed transmit
+   * destroys the terminal instead.
    */
   private updateComplianceOverlay(): void {
-    const result = this.overlays.pollResult("complianceSolved", "complianceClosed");
+    const result = this.overlays.pollResult("complianceSolved", "complianceClosed", "complianceFailed");
     if (!result) return;
     this.hacks.settleOverlay("compliance", result);
   }

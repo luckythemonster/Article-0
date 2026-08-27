@@ -105,20 +105,26 @@ export class TerminalHacks {
   }
 
   /**
-   * Settles a minigame overlay: applying the breach on a solve, and re-arming the
-   * terminal on an abort so the mission-critical log stays recoverable.
+   * Settles a minigame overlay: applying the breach on a solve, re-arming the
+   * terminal on an abort so the mission-critical log stays recoverable, and
+   * destroying it on a wrong-but-committed transmit (compliance only — qualia
+   * never reports "failed").
    *
-   * Both overlays resolve identically — the only thing that differs is which
-   * pending terminal is claimed — so they share one path rather than two copies
-   * that could drift on the re-arm.
+   * All three outcomes resolve through one path rather than duplicated per
+   * overlay, so which pending terminal is claimed can't drift between them.
    */
-  settleOverlay(which: "compliance" | "qualia", result: "solved" | "closed"): void {
+  settleOverlay(which: "compliance" | "qualia", result: "solved" | "closed" | "failed"): void {
     const term = which === "compliance" ? this.pendingCompliance : this.pendingQualia;
     if (which === "compliance") this.pendingCompliance = undefined;
     else this.pendingQualia = undefined;
     this.w.overlays().set(which, false);
     if (result === "solved") {
       if (term) this.apply(term);
+    } else if (result === "failed") {
+      if (term) {
+        term.brick();
+        this.w.note("node-lost");
+      }
     } else {
       term?.reopen();
     }

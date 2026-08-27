@@ -46,10 +46,12 @@ export class ComplianceScene extends Phaser.Scene {
 
     this.view = new ComplianceView(veil, this.puzzle, {
       // GameScene consumes these flags while the overlay is up: it plays the
-      // breach sound and runs the unlock effect on solve, and re-arms the
-      // terminal on abort. This scene only signals the outcome.
+      // breach sound and runs the unlock effect on solve, re-arms the
+      // terminal on abort, and destroys it on a wrong transmit. This scene
+      // only signals the outcome.
       onSolved: () => this.registry.set("complianceSolved", true),
       onClose: () => this.registry.set("complianceClosed", true),
+      onFailed: () => this.registry.set("complianceFailed", true),
     });
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.teardownDom());

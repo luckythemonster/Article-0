@@ -751,7 +751,7 @@ Half-extents of the pressing body, in tiles.
 
 #### `ComplianceResult` — interface
 
-`src/systems/Compliance.ts:67`
+`src/systems/Compliance.ts:74`
 
 The verdict returned by `validateCompliance`.
 
@@ -833,7 +833,7 @@ One held, distinct consumable type, with its position in the display list.
 
 #### `Correction` — interface
 
-`src/systems/Compliance.ts:35`
+`src/systems/Compliance.ts:42`
 
 An approved substitute block. `GrantsOverrideFlag` (named per the design spec)
 marks a correction that also carries an override-payload key; `overrideFlag`
@@ -982,7 +982,7 @@ field nothing acts on is how the codebase accumulated dead content in the first 
 
 #### `JournalEntry` — interface
 
-`src/systems/Journal.ts:43`
+`src/systems/Journal.ts:44`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -994,7 +994,7 @@ field nothing acts on is how the codebase accumulated dead content in the first 
 
 #### `JournalState` — interface
 
-`src/systems/Journal.ts:360`
+`src/systems/Journal.ts:380`
 
 Serializable journal progress: the ids Rowan has written, in unlock order.
 
@@ -1063,7 +1063,7 @@ Inputs the visibility rules read — all of it state the run already keeps.
 
 #### `LogToken` — interface
 
-`src/systems/Compliance.ts:20`
+`src/systems/Compliance.ts:27`
 
 One tokenized block of the raw log. Violation blocks are the editable ones.
 
@@ -1336,7 +1336,7 @@ One solid face the body can hold itself against.
 
 #### `PuzzleState` — interface
 
-`src/systems/Compliance.ts:50`
+`src/systems/Compliance.ts:57`
 
 A complete puzzle instance.
 
@@ -2015,7 +2015,7 @@ type AlertPhase = "INFILTRATION" | "ALERT" | "EVASION";
 
 #### `AppliedCorrections` — type
 
-`src/systems/Compliance.ts:64`
+`src/systems/Compliance.ts:71`
 
 Which correction (by id) is currently applied to each token (by id).
 
@@ -2101,7 +2101,7 @@ Every entry Rowan can write. A closed union rather than free strings so a
 typo'd unlock site fails the build instead of silently never firing.
 
 ```ts
-type JournalEntryId = | "orders" | "arrival-main1" | "arrival-duct1" | "arrival-duct2" | "arrival-main2" | "supply" | "hands-up" | "flagged" | "we" | "the-cache" | "node-alpha" | "node-beta" | "certified" | "vent4" | "arrival-roof" | "the-core" | "the-relay" | "the-uplink";
+type JournalEntryId = | "orders" | "arrival-main1" | "arrival-duct1" | "arrival-duct2" | "arrival-main2" | "supply" | "hands-up" | "flagged" | "we" | "the-cache" | "node-alpha" | "node-beta" | "node-lost" | "certified" | "vent4" | "arrival-roof" | "the-core" | "the-relay" | "the-uplink";
 ```
 
 <a id="type-lexiconcategory"></a>
@@ -2942,7 +2942,7 @@ per-frame data, and reuses the same thermal short-range sense.
 
 #### `Terminal` — class
 
-`src/entities/Terminal.ts:38`
+`src/entities/Terminal.ts:43`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -2954,10 +2954,11 @@ per-frame data, and reuses the same thermal short-range sense.
 | `constructor` | `constructor(scene: Phaser.Scene, tile: GameTile, tileSize: number)` |  |
 | `isHacked` | `get isHacked(): boolean` |  |
 | `hack` | `hack(dt: number): boolean` | Advances the hack while the player holds interact. Returns true on the exact frame the hack completes (so the scene can fire the effect once). |
-| `reopen` | `reopen(): void` | Reverts a completed breach so the terminal can be hacked again. Used when a log-cache breach launches the compliance puzzle and the player aborts it — the mission-critical log must stay recoverable, so the terminal is re-armed. |
+| `reopen` | `reopen(): void` | Reverts a completed breach so the terminal can be hacked again. Used when a log-cache breach launches the compliance puzzle and the player aborts it — the mission-critical log must stay recoverable, so the terminal is re-armed. A no-op once bricked: that terminal is gone for the run. |
+| `brick` | `brick(): void` | Permanently destroys the terminal — the compliance puzzle's wrong-answer consequence. Never hackable or reopenable again: `hacked` stays true so the normal "already hacked" checks (the interaction scan, `hack()`) keep excluding it with no changes needed there. |
 | `idle` | `idle(dt: number): void` | Called when the player isn't hacking this frame — decays partial progress. |
 
-*Plus 2 private members.*
+*Plus 3 private members.*
 
 <a id="class-vent4boss"></a>
 
@@ -4607,7 +4608,7 @@ each frame.
 | `minigameOpen` | `get minigameOpen(): boolean` | True while a minigame is up; those suppress the pause and codec hotkeys. |
 | `set` | `set(id: OverlayId, open: boolean): void` | Opens or closes one overlay. A no-op if it is already in that state. |
 | `resync` | `resync(): void` | Republishes the suspended flag without changing anything. Needed after a scene restart out of an overlay — a load from the pause menu — where the flags reset to false but nobody told UIScene, leaving its input gate stuck closed. |
-| `pollResult` | `pollResult(solvedKey: string, closedKey: string): "solved" \| "closed" \| null` | Reads and clears a minigame's outcome from the registry. Both minigames are DOM overlays with no handle on the scene, so they post their result to the registry and it is collected here. The sim update never runs while one is open, which is why this has to be polled from the branch that handles the overlay rather than from the normal frame. |
+| `pollResult` | `pollResult(solvedKey: string, closedKey: string, failedKey?: string): "solved" \| "closed" \| "failed" \| null` | Reads and clears a minigame's outcome from the registry. Both minigames are DOM overlays with no handle on the scene, so they post their result to the registry and it is collected here. The sim update never runs while one is open, which is why this has to be polled from the branch that handles the overlay rather than from the normal frame. `failedKey` is optional: only the compliance puzzle can be committed wrong, so the qualia overlay keeps polling with just the two outcomes. |
 
 *Plus 1 private member.*
 
@@ -4751,7 +4752,7 @@ is up and stops this scene.
 | `features` | `features(): MissionFeatures` | Which acts this map furnished — see `missionFeatures`. Resolved once per scene rather than per call. The four flags behind it are written by `BootScene` before the first frame and never change during a run, so reading them out of the registry every frame was five lookups and two allocations (the object, plus the closure inside `missionFeatures`) to re-derive a constant — on every level, including the ones with none of these acts on them. |
 | `onComplete` | `onComplete(terminal: Terminal): void` | A completed hold-to-hack. A log-cache breach opens the Doctrinal Compliance minigame — solving it recovers EIRA-7's logs — and a rack opens the Qualia Phase-Lock bypass, while every other terminal fires its effect immediately. |
 | `isQualiaRack` | `isQualiaRack(terminal: Terminal): boolean` | A terminal is a silicate server rack if authored so, or promoted per level. |
-| `settleOverlay` | `settleOverlay(which: "compliance" \| "qualia", result: "solved" \| "closed"): void` | Settles a minigame overlay: applying the breach on a solve, and re-arming the terminal on an abort so the mission-critical log stays recoverable. Both overlays resolve identically — the only thing that differs is which pending terminal is claimed — so they share one path rather than two copies that could drift on the re-arm. |
+| `settleOverlay` | `settleOverlay(which: "compliance" \| "qualia", result: "solved" \| "closed" \| "failed"): void` | Settles a minigame overlay: applying the breach on a solve, re-arming the terminal on an abort so the mission-critical log stays recoverable, and destroying it on a wrong-but-committed transmit (compliance only — qualia never reports "failed"). All three outcomes resolve through one path rather than duplicated per overlay, so which pending terminal is claimed can't drift between them. |
 | `designateQualiaRack` | `designateQualiaRack(): void` | Promotes the terminal nearest the player's arrival point to a silicate server rack, so breaching it launches the Qualia Phase-Lock bypass. Prefers a plain terminal, but the shipped map types every terminal as a log-cache, so it will retype the nearest log-cache instead — never the last one, since the mission needs a log-cache to recover EIRA-7's logs. Skipped when the level already authors an explicit `qualia_rack` terminal or has no terminal to spare. |
 | `designateLogCacheNodes` | `designateLogCacheNodes(): void` | Designates one of this level's plain log-caches as node ALPHA. The shipped map types all thirteen of its terminals `LOG_CACHE` and puts every one of them on the start deck, so ALPHA cannot be authoring — it is picked here, the same way `designateQualiaRack` promotes a rack. BETA is not: it is a terminal the engine places in the crawlspace (`src/map/LogCacheBeta.ts`) carrying its type directly, because there is no terminal down there to promote. Runs after `designateQualiaRack` so it can never claim the terminal that one took. |
 
@@ -5580,7 +5581,7 @@ two things this boss does that nothing else in the game does:
 
 #### `ComplianceView` — class
 
-`src/ui/ComplianceView.ts:32`
+`src/ui/ComplianceView.ts:43`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -5996,12 +5997,13 @@ Everything the transmission depends on, gathered by the caller.
 
 #### `ComplianceViewCallbacks` — interface
 
-`src/ui/ComplianceView.ts:25`
+`src/ui/ComplianceView.ts:29`
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `onSolved` *(opt)* | `(finalText: string) => void` | Fired when the player transmits a solved log. Receives the final text. |
-| `onClose` *(opt)* | `() => void` | Fired when the player aborts (Esc / ABORT) without solving. |
+| `onSolved` *(opt)* | `(finalText: string) => void` | Fired when the player transmits a fully solved log. Receives the final text. |
+| `onClose` *(opt)* | `() => void` | Fired when the player aborts (Esc / ABORT) without transmitting. |
+| `onFailed` *(opt)* | `() => void` | Fired when the player confirms a transmit that is Q0-compliant but missing the override payload — a wrong answer committed rather than merely attempted. Irreversible on the caller's side: the cache this puzzle guards is gone. |
 
 <a id="interface-conestyle"></a>
 
@@ -6572,7 +6574,7 @@ GameScene.
 | [AlertState](#class-alertstate) | class | `src/systems/AlertState.ts:21` |
 | [Anomalies](#class-anomalies) | class | `src/scenes/game/Anomalies.ts:44` |
 | [AnomalyWorld](#interface-anomalyworld) | interface | `src/scenes/game/Anomalies.ts:34` |
-| [AppliedCorrections](#type-appliedcorrections) | type | `src/systems/Compliance.ts:64` |
+| [AppliedCorrections](#type-appliedcorrections) | type | `src/systems/Compliance.ts:71` |
 | [AudioDirector](#class-audiodirector) | class | `src/systems/AudioDirector.ts:46` |
 | [BadgeState](#type-badgestate) | type | `src/ui/NetworkPanel.ts:103` |
 | [BakedPlane](#interface-bakedplane) | interface | `src/map/TileBake.ts:176` |
@@ -6599,10 +6601,10 @@ GameScene.
 | [CollisionGrid](#class-collisiongrid) | class | `src/systems/CollisionGrid.ts:80` |
 | [ComplianceBand](#type-complianceband) | type | `src/systems/Vent4Core.ts:25` |
 | [ComplianceData](#interface-compliancedata) | interface | `src/scenes/ComplianceScene.ts:8` |
-| [ComplianceResult](#interface-complianceresult) | interface | `src/systems/Compliance.ts:67` |
+| [ComplianceResult](#interface-complianceresult) | interface | `src/systems/Compliance.ts:74` |
 | [ComplianceScene](#class-compliancescene) | class | `src/scenes/ComplianceScene.ts:23` |
-| [ComplianceView](#class-complianceview) | class | `src/ui/ComplianceView.ts:32` |
-| [ComplianceViewCallbacks](#interface-complianceviewcallbacks) | interface | `src/ui/ComplianceView.ts:25` |
+| [ComplianceView](#class-complianceview) | class | `src/ui/ComplianceView.ts:43` |
+| [ComplianceViewCallbacks](#interface-complianceviewcallbacks) | interface | `src/ui/ComplianceView.ts:29` |
 | [ComponentData](#interface-componentdata) | interface | `src/map/types.ts:224` |
 | [ConductBreach](#type-conductbreach) | type | `src/systems/Conduct.ts:26` |
 | [ConductInput](#interface-conductinput) | interface | `src/systems/Conduct.ts:46` |
@@ -6613,7 +6615,7 @@ GameScene.
 | [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:831` |
 | [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:870` |
 | [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:20` |
-| [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:35` |
+| [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:42` |
 | [CountKind](#type-countkind) | type | `src/ui/NetworkPanel.ts:29` |
 | [Cover](#class-cover) | class | `src/entities/Cover.ts:18` |
 | [CoverBoards](#interface-coverboards) | interface | `src/systems/CoverPoints.ts:15` |
@@ -6705,9 +6707,9 @@ GameScene.
 | [ItemActions](#class-itemactions) | class | `src/scenes/game/ItemActions.ts:89` |
 | [ItemInfo](#interface-iteminfo) | interface | `src/systems/ItemCatalog.ts:48` |
 | [ItemWorld](#interface-itemworld) | interface | `src/scenes/game/ItemActions.ts:63` |
-| [JournalEntry](#interface-journalentry) | interface | `src/systems/Journal.ts:43` |
+| [JournalEntry](#interface-journalentry) | interface | `src/systems/Journal.ts:44` |
 | [JournalEntryId](#type-journalentryid) | type | `src/systems/Journal.ts:23` |
-| [JournalState](#interface-journalstate) | interface | `src/systems/Journal.ts:360` |
+| [JournalState](#interface-journalstate) | interface | `src/systems/Journal.ts:380` |
 | [Kind](#type-kind) | type | `src/entities/Vent4Boss.ts:358` |
 | [KnownLevel](#type-knownlevel) | type | `src/map/types.ts:339` |
 | [Laser](#class-laser) | class | `src/entities/Laser.ts:58` |
@@ -6723,7 +6725,7 @@ GameScene.
 | [LightStats](#interface-lightstats) | interface | `src/systems/EntityStats.ts:82` |
 | [Locker](#class-locker) | class | `src/entities/Locker.ts:37` |
 | [LockerResult](#type-lockerresult) | type | `src/entities/Locker.ts:117` |
-| [LogToken](#interface-logtoken) | interface | `src/systems/Compliance.ts:20` |
+| [LogToken](#interface-logtoken) | interface | `src/systems/Compliance.ts:27` |
 | [LureSpec](#interface-lurespec) | interface | `src/systems/Deployables.ts:49` |
 | [LureWorld](#interface-lureworld) | interface | `src/systems/Deployables.ts:70` |
 | [MANUAL_SLOTS](#const-manual-slots) | const | `src/systems/SaveGame.ts:29` |
@@ -6784,7 +6786,7 @@ GameScene.
 | [PressureSubStation](#class-pressuresubstation) | class | `src/entities/PressureSubStation.ts:43` |
 | [PromptAnchor](#interface-promptanchor) | interface | `src/scenes/game/InteractPrompt.ts:61` |
 | [PromptCandidates](#interface-promptcandidates) | interface | `src/scenes/game/InteractPrompt.ts:32` |
-| [PuzzleState](#interface-puzzlestate) | interface | `src/systems/Compliance.ts:50` |
+| [PuzzleState](#interface-puzzlestate) | interface | `src/systems/Compliance.ts:57` |
 | [QualiaLockConfig](#interface-qualialockconfig) | interface | `src/systems/QualiaLock.ts:46` |
 | [QualiaLockData](#interface-qualialockdata) | interface | `src/scenes/QualiaLockScene.ts:8` |
 | [QualiaLockScene](#class-qualialockscene) | class | `src/scenes/QualiaLockScene.ts:25` |
@@ -6858,7 +6860,7 @@ GameScene.
 | [SurrenderResult](#interface-surrenderresult) | interface | `src/systems/Surrender.ts:61` |
 | [SurrenderWorld](#interface-surrenderworld) | interface | `src/systems/Surrender.ts:33` |
 | [Target](#type-target) | type | `src/scenes/game/ItemActions.ts:349` |
-| [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:38` |
+| [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:43` |
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:336` |
 | [TerminalHacks](#class-terminalhacks) | class | `src/scenes/game/TerminalHacks.ts:52` |
 | [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:327` |
