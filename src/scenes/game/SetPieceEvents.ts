@@ -79,24 +79,35 @@ export class SetPieceEvents implements EncountersCallbacks {
       case Vent4State.PHASE_1_SWEEP:
         audio.setSuction(false);
         audio.setPurge(false);
+        audio.setTrack("vent4Theme");
         break;
       case Vent4State.PHASE_2_VACUUM:
         audio.setSuction(true);
         audio.setPurge(false);
+        audio.setTrack("vent4Theme");
         break;
       case Vent4State.JAMMED:
         audio.setSuction(false);
         audio.jamClunk();
+        // The turbine is choking, not calming down — the theme it was already
+        // playing carries the phase it will fall back into when the jam clears.
+        audio.setTrack("vent4Theme");
         break;
       case Vent4State.PHASE_3_PURGE:
         audio.setSuction(false);
         audio.setPurge(true);
         audio.ping();
+        // The one moment the arena's own theme gives way: 259 BPM over the
+        // thermal purge, for as long as the purge lasts.
+        audio.setTrack("vent4Freakout");
         break;
       case Vent4State.DEFEATED: {
         audio.setSuction(false);
         audio.setPurge(false);
         audio.vent4Shutdown();
+        // Back to the facility's own theme, under a room that has stopped
+        // trying to kill him — the arena is somewhere to walk out of now.
+        audio.setTrack("articleZeroTheme");
         const registry = this.w.scene.registry;
         const inv = (registry.get("inventory") as string[] | undefined) ?? [];
         if (!inv.includes(CERT_ITEM)) {

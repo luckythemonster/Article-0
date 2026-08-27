@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@arwes/frames": "1.0.0-next.25020502",
+    "beepbox": "^4.2.0",
     "motion": "10.18.0",
     "phaser": "^3.80.1",
     "sam-js": "^0.3.1"

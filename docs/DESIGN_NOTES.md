@@ -303,6 +303,59 @@ notice the game gives.
 
 ---
 
+## The score
+
+Four BeepBox songs (`public/assets/music/`) are the game's music, and they are *played*
+rather than *played back*: the `beepbox` package is the composer's own synthesiser, and
+`src/systems/MusicStream.ts` drives it a buffer at a time into the game's mixer. Nothing
+is rendered to an audio file. That keeps the songs editable — a re-export from beepbox.co
+over the JSON is the whole edit loop — and keeps the repo free of the several megabytes
+of binary that four rendered tracks would cost. It also keeps one property the audio has
+had from the start: everything you hear, the silicate voices included, is generated at
+runtime.
+
+### The synth is driven, not asked to play
+
+`Synth.play()` is deliberately unused. It builds an `AudioContext` of its own and wires a
+processor straight to its destination, which would put the score outside the master gain —
+so a muted player would still hear the music, and the pause menu's volume slider would
+govern the door chime but not the theme. Instead the stream owns its own processor node on
+the context the rest of the game mixes into. Same reasoning, and the same trap, as
+`AudioDirector.bark` not calling SAM's `speak()`.
+
+The processor's buffer is 8192 samples where BeepBox picks 2048. A buffer costs 3-6ms to
+render once things are warm, but the first time each instrument sounds the engine compiles
+a synthesis function for it, and those spikes measured up to ~92ms. 8192 samples is 171ms
+of budget and swallows them; 4096 is 85ms and would not. The latency that buys is
+irrelevant — nothing in the score is a sound effect, and the crossfades ride a gain node,
+which stays sample-accurate whatever the buffer length.
+
+### The exported loop markers are ignored
+
+Every one of the four exports carries the loop brackets where the composer left them in
+the editor, not where the song ends. Honoured literally, `article-zero-theme` plays eight
+bars and then loops six of its thirty-eight forever, and the other twenty-four never
+sound. So `soundingBarCount` (`src/systems/MusicSongs.ts`) loops each song whole instead,
+from bar 0 to the last bar that holds a pattern — the last bar rather than the bar count
+because three of the four exports carry empty bars off the end, and looping those would
+hang nine seconds of silence off every pass of a boss fight.
+
+### A song is the calm layer, not a fifth one on top
+
+The mixer already had two continuous layers, a sneaking pad and a red-alert klaxon,
+crossfading with the mesh's state. The score does not stack on that: while a song plays
+the pad drops to nothing and the *song* takes the duck, quietening as the facility starts
+looking and sitting well under the klaxon once it is hunting. The alert still reads as an
+alert, and there is only ever one thing carrying the mood. Where no song is mapped — the
+Act III vault, which has no theme of its own — or where one failed to load, the pad comes
+back and the mixer behaves exactly as it did before there was a score.
+
+Which song plays where is `trackForLevel`, plus one exception: the VENT-4 arena swaps its
+theme for `vent-4-freakout` while the boss is in its purge phase, because that phase is
+the fight's escalation and the 259 BPM track was written for it.
+
+---
+
 ## What the player keeps
 
 **The journal** (`src/systems/Journal.ts`) is Rowan's counter-archive, and the point of

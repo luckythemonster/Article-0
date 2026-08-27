@@ -23,7 +23,7 @@ Before you push, run the gate yourself:
 npx tsc --noEmit && npx vitest run
 ```
 
-The suite is fast (~9s) and currently **853 tests across 67 files, all passing**.
+The suite is fast (~9s) and currently **988 tests across 79 files, all passing**.
 A drop in that count means you broke something rather than that the suite shrank.
 
 CI (`.github/workflows/ci.yml`) runs `npm run build`, `npm test`, and a check that
@@ -101,6 +101,12 @@ consumed twice. Splitting that chain would undo the thing it exists to do.
 
 These are the ones that bite. Each has burned someone already.
 
+- **The four songs in `public/assets/music/` are BeepBox exports, committed verbatim** —
+  the same posture as the map. Edit one at [beepbox.co](https://www.beepbox.co) and
+  re-export over the file; do not hand-edit the JSON, and do not re-indent it. They are
+  played at runtime by `beepbox`'s own synthesiser (`src/systems/MusicStream.ts`), so a
+  song that will not load is a silent fallback to the synthesised drones plus one console
+  warning — not a crash.
 - **Never hand-edit `public/assets/edplay.json`.** It is the tile editor's export,
   committed verbatim and served as-is. Everything the engine adds is built at boot by
   cloning tiles the map already places (`src/map/generate.ts`).
