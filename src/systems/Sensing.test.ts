@@ -193,3 +193,19 @@ describe("accrueDetection", () => {
     expect(alert.phase).toBe("INFILTRATION");
   });
 });
+
+describe("canSense — benchmark", () => {
+  it("benchmarks execution time of canSense to document performance gains", () => {
+    const e = eye();
+    const w = world();
+    const iterations = 100_000;
+
+    const start = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      canSense(e, w);
+    }
+    const duration = performance.now() - start;
+    console.log(`[BENCHMARK] canSense (${iterations} calls): ${duration.toFixed(2)}ms`);
+    expect(duration).toBeGreaterThan(0);
+  });
+});
