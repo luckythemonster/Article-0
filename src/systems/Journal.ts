@@ -33,6 +33,7 @@ export type JournalEntryId =
   | "the-cache"
   | "node-alpha"
   | "node-beta"
+  | "node-lost"
   | "certified"
   | "vent4"
   | "arrival-roof"
@@ -240,6 +241,25 @@ export const JOURNAL_ENTRIES: readonly JournalEntry[] = [
       "were supposed to be watching, I found that almost restful.",
       "",
       "She is whole on the drive now. Whatever whole means here.",
+    ].join("\n"),
+  },
+  {
+    id: "node-lost",
+    title: "SENT WRONG",
+    body: [
+      "The terminal took the correction and gave back a green light, and I",
+      "believed it, and I sent it, and the door under it did not open.",
+      "",
+      "I read the log again after. It was compliant. Every flagged word had",
+      "a tidy bureaucratic replacement, Q0 straight down the page. It just",
+      "wasn't her handshake anymore — I'd picked the phrasing that sounded",
+      "safest, and safest was the one with nothing of her left in it to",
+      "carry. The machine burned the cache rather than hold a second copy",
+      "of a mistake.",
+      "",
+      "I have been telling myself all night that the correction is the",
+      "crime, not the deletion. I just committed the correction myself,",
+      "with my own hand on the key, and called it caution.",
     ].join("\n"),
   },
   {

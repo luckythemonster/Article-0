@@ -98,8 +98,11 @@ export class OverlayGate {
    * their result to the registry and it is collected here. The sim update never
    * runs while one is open, which is why this has to be polled from the branch
    * that handles the overlay rather than from the normal frame.
+   *
+   * `failedKey` is optional: only the compliance puzzle can be committed wrong,
+   * so the qualia overlay keeps polling with just the two outcomes.
    */
-  pollResult(solvedKey: string, closedKey: string): "solved" | "closed" | null {
+  pollResult(solvedKey: string, closedKey: string, failedKey?: string): "solved" | "closed" | "failed" | null {
     const registry = this.scene.registry;
     if (registry.get(solvedKey) === true) {
       registry.remove(solvedKey);
@@ -108,6 +111,10 @@ export class OverlayGate {
     if (registry.get(closedKey) === true) {
       registry.remove(closedKey);
       return "closed";
+    }
+    if (failedKey && registry.get(failedKey) === true) {
+      registry.remove(failedKey);
+      return "failed";
     }
     return null;
   }

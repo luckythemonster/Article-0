@@ -36,6 +36,20 @@ export interface ObjectiveState {
   coreSilenced?: boolean;
   /** The rooftop uplink reached 100% — the run's terminal beat. */
   uplinkComplete?: boolean;
+  /**
+   * The crawlspace BETA terminal was destroyed by a wrong compliance transmit
+   * (`TerminalHacks.settleOverlay`'s "failed" branch). Unlike a plain
+   * `log_cache` terminal, BETA is generated once with a fixed type rather than
+   * re-designated per level visit, so this always refers to that one physical
+   * terminal — persisted here (rather than left to the terminal's own runtime
+   * state) so the loss survives a checkpoint reload instead of quietly
+   * un-bricking on the next level rebuild. There is no `alphaLost` twin: ALPHA
+   * is dynamically promoted from whichever plain log-cache terminal is nearest
+   * on each level, so a persisted loss could brick a terminal the player never
+   * touched — and `logsRecovered` doesn't need ALPHA specifically anyway (see
+   * {@link logsComplete}).
+   */
+  betaLost?: boolean;
 }
 
 /**
@@ -108,6 +122,11 @@ export function noteTerminalHacked(state: ObjectiveState, terminalType: string):
   if (terminalType === LOG_CACHE_ALPHA_TYPE) state.alphaRecovered = true;
   if (terminalType === LOG_CACHE_BETA_TYPE) state.betaRecovered = true;
   state.logsRecovered = true;
+}
+
+/** Marks the BETA terminal destroyed by a wrong compliance transmit. See {@link ObjectiveState.betaLost}. */
+export function noteBetaLost(state: ObjectiveState): void {
+  state.betaLost = true;
 }
 
 /** Marks VENT-4 shut down (optional objective — doesn't gate the win). */

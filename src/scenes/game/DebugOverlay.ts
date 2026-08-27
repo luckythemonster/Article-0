@@ -77,6 +77,13 @@ export interface DebugHost {
   warpTo: (levelName: string) => void;
   /** Grants one unit of an item, for testing weapons/items without playing to their chest. */
   giveItem: (name: string) => void;
+  /**
+   * Applies the compliance puzzle's wrong-transmit consequence to the nearest
+   * terminal directly, for testing the bricked art / journal entry / BETA
+   * persistence without solving the minigame wrong on purpose. A no-op if
+   * there is no terminal on this level.
+   */
+  forceFailNearestTerminal: () => void;
 }
 
 /**
@@ -94,7 +101,12 @@ const DEBUG_ENABLED_KEY = "debugEnabled";
 export class DebugOverlay {
   /** Master switch: the debug panel is shown and the debug hotkeys respond. */
   enabled: boolean;
-  /** Invincibility — blocks both death paths (HP depletion and capture). */
+  /**
+   * Invincibility — blocks every fail path: HP depletion, capture, and a wrong
+   * compliance transmit (bricking a terminal). See `GameScene.updateComplianceOverlay`
+   * for the last one; it can't be neutralized post-hoc like the other two since
+   * it's a one-shot event rather than a per-frame meter.
+   */
   godMode = false;
   /** No-clip — the player's wall/door colliders are disabled. */
   noClip = false;
@@ -122,6 +134,7 @@ export class DebugOverlay {
     prevItem: Phaser.Input.Keyboard.Key;
     nextItem: Phaser.Input.Keyboard.Key;
     give: Phaser.Input.Keyboard.Key;
+    forceFail: Phaser.Input.Keyboard.Key;
   };
 
   /**
@@ -153,6 +166,7 @@ export class DebugOverlay {
       prevItem: kb.addKey(K.OPEN_BRACKET),
       nextItem: kb.addKey(K.CLOSED_BRACKET),
       give: kb.addKey(K.I),
+      forceFail: kb.addKey(K.B),
     };
   }
 
@@ -177,6 +191,7 @@ export class DebugOverlay {
     if (Phaser.Input.Keyboard.JustDown(k.prevItem)) this.stepSelectedItem(-1);
     if (Phaser.Input.Keyboard.JustDown(k.nextItem)) this.stepSelectedItem(1);
     if (Phaser.Input.Keyboard.JustDown(k.give)) this.host.giveItem(this.selectedItem);
+    if (Phaser.Input.Keyboard.JustDown(k.forceFail)) this.host.forceFailNearestTerminal();
 
     const warps = this.host.warpTargets();
     for (let i = 0; i < k.warp.length && i < warps.length; i++) {

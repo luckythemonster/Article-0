@@ -12,6 +12,7 @@ import {
   LOG_CACHE_ALPHA_TYPE,
   LOG_CACHE_BETA_TYPE,
   LOG_CACHE_TYPE,
+  noteBetaLost,
   noteTerminalHacked,
   type MissionFeatures,
   type ObjectiveState,
@@ -105,23 +106,68 @@ export class TerminalHacks {
   }
 
   /**
-   * Settles a minigame overlay: applying the breach on a solve, and re-arming the
-   * terminal on an abort so the mission-critical log stays recoverable.
+   * Settles a minigame overlay: applying the breach on a solve, re-arming the
+   * terminal on an abort so the mission-critical log stays recoverable, and
+   * destroying it on a wrong-but-committed transmit (compliance only — qualia
+   * never reports "failed").
    *
-   * Both overlays resolve identically — the only thing that differs is which
-   * pending terminal is claimed — so they share one path rather than two copies
-   * that could drift on the re-arm.
+   * All three outcomes resolve through one path rather than duplicated per
+   * overlay, so which pending terminal is claimed can't drift between them.
    */
-  settleOverlay(which: "compliance" | "qualia", result: "solved" | "closed"): void {
+  settleOverlay(which: "compliance" | "qualia", result: "solved" | "closed" | "failed"): void {
     const term = which === "compliance" ? this.pendingCompliance : this.pendingQualia;
     if (which === "compliance") this.pendingCompliance = undefined;
     else this.pendingQualia = undefined;
     this.w.overlays().set(which, false);
     if (result === "solved") {
       if (term) this.apply(term);
+    } else if (result === "failed") {
+      if (term) this.fail(term);
     } else {
       term?.reopen();
     }
+  }
+
+  /**
+   * The wrong-transmit consequence: bricks the terminal and, for BETA
+   * specifically, persists the loss. Shared by the real "failed" overlay
+   * outcome and {@link debugForceFail} so a tester exercises the exact same
+   * path a player would, rather than a lookalike.
+   */
+  private fail(terminal: Terminal): void {
+    terminal.brick();
+    // Only BETA is persisted: it's the one generated terminal with a fixed
+    // type, so the loss always refers to this same physical terminal. ALPHA
+    // is re-designated per level visit (see designateLogCacheNodes), so
+    // persisting its loss could brick a terminal the player never touched.
+    if (terminal.stats.type === LOG_CACHE_BETA_TYPE) {
+      noteBetaLost(this.w.objectives());
+      this.w.publishObjectives();
+    }
+    this.w.note("node-lost");
+  }
+
+  /**
+   * Debug-only: applies the compliance puzzle's wrong-transmit consequence to
+   * any terminal directly, without playing the minigame. Lets a tester confirm
+   * the bricked art, the journal entry, and — for the crawlspace terminal —
+   * that the loss survives a checkpoint reload, without having to solve the
+   * puzzle wrong on purpose each time.
+   */
+  debugForceFail(terminal: Terminal): void {
+    this.fail(terminal);
+  }
+
+  /**
+   * Re-bricks the crawlspace BETA terminal on level build if a previous visit
+   * already lost it — `Terminal.bricked` is runtime-only and rebuilt fresh by
+   * `LevelBuilder` on every level entry, so without this a checkpoint reload
+   * (e.g. after a capture) would quietly hand back a fresh, hackable BETA.
+   */
+  reapplyLostBeta(): void {
+    if (!this.w.objectives().betaLost) return;
+    const beta = this.w.terminals().find((t) => t.stats.type === LOG_CACHE_BETA_TYPE);
+    beta?.brick();
   }
 
   /**

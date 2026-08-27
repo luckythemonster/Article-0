@@ -32,6 +32,11 @@ function start(): void {
       banner.onclick = null;
       window.setTimeout(start, 700);
     },
+    onFailed: () => {
+      banner.textContent = "✖ OVERRIDE INCOMPLETE — cache lost. (click to replay)";
+      banner.className = "demo-banner is-aborted is-replayable";
+      banner.onclick = start;
+    },
   });
 }
 
