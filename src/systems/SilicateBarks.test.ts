@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { allBarkLines, barkFor, VOICE_PRESETS } from "./SilicateBarks";
+import { allBarkLines, barkFor, decideBark, VOICE_PRESETS, type SilicateVoice } from "./SilicateBarks";
 import type { GuardState } from "../entities/Enforcer";
+
+/** `decideBark` for a silicate with no cooldown left — the ordinary case. */
+function speaks(prev: GuardState | null, next: GuardState, cooldown = 0) {
+  return decideBark(prev, next, cooldown, 0, true);
+}
 
 describe("barkFor — what a silicate says", () => {
   it("says nothing on PATROL", () => {
@@ -59,6 +64,76 @@ describe("the lines themselves", () => {
 
   it("lists each line once, so nothing is rendered twice at boot", () => {
     expect(new Set(allBarkLines()).size).toBe(allBarkLines().length);
+  });
+});
+
+describe("decideBark — whether a change speaks", () => {
+  it("speaks on entering a state that has lines", () => {
+    const { line, latch } = speaks("PATROL", "ALERT");
+    expect(line).toBe(barkFor("ALERT", 0));
+    expect(latch).toBe(true);
+  });
+
+  it("says nothing when the state has not changed", () => {
+    expect(speaks("ALERT", "ALERT").line).toBeUndefined();
+  });
+
+  it("speaks on the first change of a guard's life, from no previous state", () => {
+    expect(speaks(null, "SUSPICIOUS").line).toBeTruthy();
+  });
+
+  it("latches PATROL silently — there is nothing to come back for", () => {
+    const { line, latch } = speaks("ALERT", "PATROL");
+    expect(line).toBeUndefined();
+    expect(latch).toBe(true);
+  });
+
+  it("latches a human security guard silently, in every state", () => {
+    for (const state of ["CAUTIOUS", "SUSPICIOUS", "ALERT", "SEARCHING"] as GuardState[]) {
+      const { line, latch } = decideBark("PATROL", state, 0, 0, false);
+      expect(line).toBeUndefined();
+      expect(latch).toBe(true);
+    }
+  });
+
+  it("defers a line held back by the cooldown instead of eating it", () => {
+    // The bug this replaces: the caller recorded the new state before checking
+    // the cooldown, so a suppressed line was marked said and never came out —
+    // during exactly the alert cascade the cooldown exists for.
+    const held = speaks("PATROL", "ALERT", 2.5);
+    expect(held.line).toBeUndefined();
+    expect(held.latch).toBe(false);
+
+    // `latch: false` means the caller leaves `prev` alone, so the same question
+    // is asked again — and answered once the cooldown has run out.
+    expect(speaks("PATROL", "ALERT", 0).line).toBeTruthy();
+  });
+
+  it("does not defer a silence that had no line to give", () => {
+    // A cooldown must not turn "nothing to say" into "say it later".
+    expect(speaks("ALERT", "PATROL", 3).latch).toBe(true);
+    expect(decideBark("PATROL", "ALERT", 3, 0, false).latch).toBe(true);
+  });
+});
+
+describe("the bark cache contract", () => {
+  it("keys every line in every voice the way AudioDirector looks it up", () => {
+    // `AudioDirector.bark` reads `${voice}:${line}` out of a map its warm-up
+    // filled from these two lists. If they ever came apart the failure would be
+    // silence, which is the one failure the feature cannot report.
+    const keys = new Set<string>();
+    for (const voice of Object.keys(VOICE_PRESETS) as SilicateVoice[]) {
+      for (const line of allBarkLines()) keys.add(`${voice}:${line}`);
+    }
+    expect(keys.size).toBe(allBarkLines().length * Object.keys(VOICE_PRESETS).length);
+
+    for (const state of ["CAUTIOUS", "SUSPICIOUS", "ALERT", "SEARCHING"] as GuardState[]) {
+      for (let roll = 0; roll <= 1; roll += 0.05) {
+        const line = barkFor(state, roll)!;
+        expect(keys.has(`enforcer:${line}`)).toBe(true);
+        expect(keys.has(`drone:${line}`)).toBe(true);
+      }
+    }
   });
 });
 
