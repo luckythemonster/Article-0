@@ -2818,6 +2818,7 @@ stays sharper for a while afterward (CAUTIOUS), pursues a confirmed sighting
 | `isCarryable` | `get isCarryable(): boolean` | A body that can be picked up: down, and not already put away. |
 | `moveTo` | `moveTo(x: number, y: number): void` | Moves a carried body with the carrier. |
 | `update` | `update(dt: number, ctx: EnforcerContext): EnforcerAttackResult \| undefined` |  |
+| `canWitness` | `canWitness(ctx: EnforcerContext): boolean` | Whether this guard could catch the player doing something *right now* — awake, on its feet, and with a clear sense of the player at its current position/facing. Used for point-in-time "caught in the act" checks (e.g. picking up a body) that can't wait for this guard's own next update — mirrors the stashed/down gating `update` applies before it would ever call `sense`. |
 | `collisionRadiusTiles` | `get collisionRadiusTiles(): number` | Collision radius in tiles — read by the debug overlay. |
 | `patrolRoute` | `get patrolRoute(): readonly PathNode[]` | This guard's patrol waypoints, for the debug overlay. |
 | `plannedPath` | `get plannedPath(): readonly PathNode[]` | The remaining leg of the path being walked, for the debug overlay. |
@@ -2994,6 +2995,7 @@ frightened.
 | `escortTo` | `escortTo(x: number, y: number): void` | Marches a surrendered orderly toward a point this frame — the standoff position ahead of the player, recomputed from Rowan's facing every frame by the scene. A no-op on anyone not currently at gunpoint, so a stray call can't push a man around who never put his hands up. |
 | `distract` | `distract(sx: number, sy: number): boolean` | Lures the orderly to inspect a nearby noise (a player's knock): it leaves its wander, walks over, pauses, then drifts back. A no-op while stunned, already startled by witnessing the player, or busy with a spill — a knock does not out-rank an actual work order. Returns whether the override took. The refusals above are the only place those rules are written down, so a caller that needs somebody who will *actually* come — `GameScene.updateBreakerResets`, picking an orderly to reset a thrown breaker — asks by calling rather than by re-deriving them from the public getters and drifting. |
 | `update` | `update(dt: number, ctx: OrderlyContext): boolean` | True on the exact frame the orderly first spots the player. |
+| `canWitness` | `canWitness(ctx: OrderlyContext): boolean` | Whether this orderly could catch the player doing something *right now* — conscious, not already startled or surrendered, and with a clear line of sight. Used for point-in-time "caught in the act" checks (e.g. picking up a body) that can't wait for this orderly's own next update tick — mirrors the `frozen` gating `update` applies before it would ever call `witnessCheck`/`canSee`. |
 | `setStashed` | `setStashed(on: boolean): void` | Puts the body out of sight, or takes it back out. The one thing that stops an unconscious orderly being an anomaly. While stashed he is hidden, frozen, and dropped from every list the scene builds over the cast — see `GameScene.stashables` for the five of them — so a patrol walks past the locker without noticing anything. The stun/pin timer keeps ticking down inside the locker. A body does not stay unconscious because it is in a box, and letting the timer freeze would turn stashing into a permanent removal — which is a much stronger verb than this is meant to be, and would make the Stun Rounds a lethal weapon by the back door. |
 | `isStashed` | `get isStashed(): boolean` | True while out of sight in a locker. |
 | `isCarryable` | `get isCarryable(): boolean` | A body that can be picked up: down, and not already put away. Surrender is deliberately not enough. A man with his hands up is conscious and looking at you, and picking him up would read as an abduction the fiction has no verb for — the hold-up already covers "make him come with you", and it covers it by walking him there on his own feet. |
@@ -4781,7 +4783,7 @@ each frame.
 | `create` | `create(): void` |  |
 | `update` | `update(_time: number, delta: number): void` |  |
 
-*Plus 118 private members.*
+*Plus 119 private members.*
 
 <a id="class-interactprompt"></a>
 
