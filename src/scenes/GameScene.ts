@@ -627,6 +627,11 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.fadeIn(FADE_MS, 5, 7, 10);
 
     this.restoreRunState();
+    // Needs `this.objectives` populated, which is why this runs after
+    // restoreRunState rather than alongside the other terminal designation
+    // calls above — betaLost isn't known until the run's objectives are read
+    // back from the registry/save.
+    this.hacks.reapplyLostBeta();
 
     // The third visibility state: tiles already surveyed, painted back over the
     // darkness wherever sight no longer reaches them. Built here rather than

@@ -260,6 +260,11 @@ describe("SaveGame", () => {
     expect(loaded?.objectives.vent4Silenced).toBe(true);
   });
 
+  it("round-trips a lost BETA node, so the loss survives a checkpoint reload", () => {
+    saveGame("auto", { ...sample, objectives: { logsRecovered: false, betaLost: true } });
+    expect(loadGame("auto")?.objectives.betaLost).toBe(true);
+  });
+
   it("safeguards against prototype/constructor pollution in explored, journal and objectives sub-states", () => {
     const maliciousPayload = {
       version: 2,

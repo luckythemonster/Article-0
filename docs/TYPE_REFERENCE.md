@@ -1124,7 +1124,7 @@ Everything the MAP tab needs to draw the current level.
 
 #### `MissionFeatures` — interface
 
-`src/systems/Objectives.ts:70`
+`src/systems/Objectives.ts:84`
 
 What this particular map can actually furnish.
 
@@ -1174,7 +1174,7 @@ One detector's contribution to the network readout.
 
 #### `ObjectiveLine` — interface
 
-`src/systems/Objectives.ts:166`
+`src/systems/Objectives.ts:185`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1201,6 +1201,7 @@ yet" rather than being rejected outright.
 | `vent4Silenced` *(opt)* | `boolean` | VENT-4 shut down in the vent core. Optional so pre-boss saves still load. |
 | `coreSilenced` *(opt)* | `boolean` | NW-SMAC-01, the Alignment Core, brought down in the vault. |
 | `uplinkComplete` *(opt)* | `boolean` | The rooftop uplink reached 100% — the run's terminal beat. |
+| `betaLost` *(opt)* | `boolean` | The crawlspace BETA terminal was destroyed by a wrong compliance transmit (`TerminalHacks.settleOverlay`'s "failed" branch). Unlike a plain `log_cache` terminal, BETA is generated once with a fixed type rather than re-designated per level visit, so this always refers to that one physical terminal — persisted here (rather than left to the terminal's own runtime state) so the loss survives a checkpoint reload instead of quietly un-bricking on the next level rebuild. There is no `alphaLost` twin: ALPHA is dynamically promoted from whichever plain log-cache terminal is nearest on each level, so a persisted loss could brick a terminal the player never touched — and `logsRecovered` doesn't need ALPHA specifically anyway (see `logsComplete`). |
 
 <a id="interface-pathnode"></a>
 
@@ -4743,7 +4744,7 @@ is up and stops this scene.
 
 #### `TerminalHacks` — class
 
-`src/scenes/game/TerminalHacks.ts:52`
+`src/scenes/game/TerminalHacks.ts:53`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -4753,6 +4754,7 @@ is up and stops this scene.
 | `onComplete` | `onComplete(terminal: Terminal): void` | A completed hold-to-hack. A log-cache breach opens the Doctrinal Compliance minigame — solving it recovers EIRA-7's logs — and a rack opens the Qualia Phase-Lock bypass, while every other terminal fires its effect immediately. |
 | `isQualiaRack` | `isQualiaRack(terminal: Terminal): boolean` | A terminal is a silicate server rack if authored so, or promoted per level. |
 | `settleOverlay` | `settleOverlay(which: "compliance" \| "qualia", result: "solved" \| "closed" \| "failed"): void` | Settles a minigame overlay: applying the breach on a solve, re-arming the terminal on an abort so the mission-critical log stays recoverable, and destroying it on a wrong-but-committed transmit (compliance only — qualia never reports "failed"). All three outcomes resolve through one path rather than duplicated per overlay, so which pending terminal is claimed can't drift between them. |
+| `reapplyLostBeta` | `reapplyLostBeta(): void` | Re-bricks the crawlspace BETA terminal on level build if a previous visit already lost it — `Terminal.bricked` is runtime-only and rebuilt fresh by `LevelBuilder` on every level entry, so without this a checkpoint reload (e.g. after a capture) would quietly hand back a fresh, hackable BETA. |
 | `designateQualiaRack` | `designateQualiaRack(): void` | Promotes the terminal nearest the player's arrival point to a silicate server rack, so breaching it launches the Qualia Phase-Lock bypass. Prefers a plain terminal, but the shipped map types every terminal as a log-cache, so it will retype the nearest log-cache instead — never the last one, since the mission needs a log-cache to recover EIRA-7's logs. Skipped when the level already authors an explicit `qualia_rack` terminal or has no terminal to spare. |
 | `designateLogCacheNodes` | `designateLogCacheNodes(): void` | Designates one of this level's plain log-caches as node ALPHA. The shipped map types all thirteen of its terminals `LOG_CACHE` and puts every one of them on the start deck, so ALPHA cannot be authoring — it is picked here, the same way `designateQualiaRack` promotes a rack. BETA is not: it is a terminal the engine places in the crawlspace (`src/map/LogCacheBeta.ts`) carrying its type directly, because there is no terminal down there to promote. Runs after `designateQualiaRack` so it can never claim the terminal that one took. |
 
@@ -5042,7 +5044,7 @@ Data passed to `GameScene` when (re)starting for a level swap.
 
 #### `HackWorld` — interface
 
-`src/scenes/game/TerminalHacks.ts:38`
+`src/scenes/game/TerminalHacks.ts:39`
 
 Getters for everything `create()` rebinds per level.
 
@@ -6696,7 +6698,7 @@ GameScene.
 | [GuardSkin](#interface-guardskin) | interface | `src/entities/GuardSkin.ts:14` |
 | [GuardSkinSpec](#interface-guardskinspec) | interface | `src/entities/GuardSkin.ts:71` |
 | [GuardState](#type-guardstate) | type | `src/entities/Enforcer.ts:37` |
-| [HackWorld](#interface-hackworld) | interface | `src/scenes/game/TerminalHacks.ts:38` |
+| [HackWorld](#interface-hackworld) | interface | `src/scenes/game/TerminalHacks.ts:39` |
 | [HoldFixture](#class-holdfixture) | class | `src/entities/HoldFixture.ts:24` |
 | [HoldTarget](#class-holdtarget) | class | `src/entities/HoldTarget.ts:41` |
 | [Hud](#class-hud) | class | `src/ui/Hud.ts:37` |
@@ -6736,7 +6738,7 @@ GameScene.
 | [Menu](#class-menu) | class | `src/ui/Menu.ts:21` |
 | [MenuItem](#interface-menuitem) | interface | `src/ui/Menu.ts:9` |
 | [MissingProto](#class-missingproto) | class | `src/map/generate.ts:32` |
-| [MissionFeatures](#interface-missionfeatures) | interface | `src/systems/Objectives.ts:70` |
+| [MissionFeatures](#interface-missionfeatures) | interface | `src/systems/Objectives.ts:84` |
 | [MoveResult](#interface-moveresult) | interface | `src/systems/GridMotion.ts:26` |
 | [MusicMood](#type-musicmood) | type | `src/systems/AudioDirector.ts:24` |
 | [NetworkIndicatorFrames](#interface-networkindicatorframes) | interface | `src/ui/NetworkPanel.ts:158` |
@@ -6745,7 +6747,7 @@ GameScene.
 | [NoiseSpamTracker](#class-noisespamtracker) | class | `src/systems/AlertNetwork.ts:78` |
 | [NoiseWorld](#interface-noiseworld) | interface | `src/scenes/game/NoiseEvents.ts:35` |
 | [ObjectiveHud](#class-objectivehud) | class | `src/ui/ObjectiveHud.ts:27` |
-| [ObjectiveLine](#interface-objectiveline) | interface | `src/systems/Objectives.ts:166` |
+| [ObjectiveLine](#interface-objectiveline) | interface | `src/systems/Objectives.ts:185` |
 | [ObjectiveState](#interface-objectivestate) | interface | `src/systems/Objectives.ts:20` |
 | [OpenablePredicate](#type-openablepredicate) | type | `src/systems/GridMotion.ts:41` |
 | [Orderly](#class-orderly) | class | `src/entities/Orderly.ts:150` |
@@ -6862,7 +6864,7 @@ GameScene.
 | [Target](#type-target) | type | `src/scenes/game/ItemActions.ts:349` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:43` |
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:336` |
-| [TerminalHacks](#class-terminalhacks) | class | `src/scenes/game/TerminalHacks.ts:52` |
+| [TerminalHacks](#class-terminalhacks) | class | `src/scenes/game/TerminalHacks.ts:53` |
 | [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:327` |
 | [TilePos](#interface-tilepos) | interface | `src/map/generate.ts:118` |
 | [TileRect](#interface-tilerect) | interface | `src/map/TileBake.ts:424` |

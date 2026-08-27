@@ -12,6 +12,7 @@ import {
   LOG_CACHE_ALPHA_TYPE,
   LOG_CACHE_BETA_TYPE,
   LOG_CACHE_TYPE,
+  noteBetaLost,
   noteTerminalHacked,
   type MissionFeatures,
   type ObjectiveState,
@@ -123,11 +124,31 @@ export class TerminalHacks {
     } else if (result === "failed") {
       if (term) {
         term.brick();
+        // Only BETA is persisted: it's the one generated terminal with a fixed
+        // type, so the loss always refers to this same physical terminal. ALPHA
+        // is re-designated per level visit (see designateLogCacheNodes), so
+        // persisting its loss could brick a terminal the player never touched.
+        if (term.stats.type === LOG_CACHE_BETA_TYPE) {
+          noteBetaLost(this.w.objectives());
+          this.w.publishObjectives();
+        }
         this.w.note("node-lost");
       }
     } else {
       term?.reopen();
     }
+  }
+
+  /**
+   * Re-bricks the crawlspace BETA terminal on level build if a previous visit
+   * already lost it — `Terminal.bricked` is runtime-only and rebuilt fresh by
+   * `LevelBuilder` on every level entry, so without this a checkpoint reload
+   * (e.g. after a capture) would quietly hand back a fresh, hackable BETA.
+   */
+  reapplyLostBeta(): void {
+    if (!this.w.objectives().betaLost) return;
+    const beta = this.w.terminals().find((t) => t.stats.type === LOG_CACHE_BETA_TYPE);
+    beta?.brick();
   }
 
   /**
