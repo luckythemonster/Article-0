@@ -358,21 +358,35 @@ describe("sightDistances optimization parity and benchmark", () => {
       sightDistances(g, originX, originY, maxTiles, dirs, out);
     }
 
-    // Benchmark Fallback Path
-    const startFallback = performance.now();
-    for (let i = 0; i < iterations; i++) {
-      sightDistances(g, originX, originY, maxTiles, strippedDirs, out);
-    }
-    const endFallback = performance.now();
-    const fallbackTime = endFallback - startFallback;
+    // Time each path several times and keep its *best* round.
+    //
+    // The warm-up above removes the JIT asymmetry but not the runner's. One
+    // timed window per path is still one scheduler preemption away from
+    // inverting the result, which is exactly what happened on CI run 490 while
+    // 489 passed on the same executable code — the two commits differed only by
+    // a doc comment. A second benchmark elsewhere in that run inverted too.
+    //
+    // Contention can only ever make a sample slower, never faster, so the
+    // minimum across rounds is both the estimate closest to the true cost and
+    // the one a spike cannot corrupt. This does not soften the assertion: a
+    // fast path that is genuinely slower has a slower minimum too, and still
+    // fails. Both paths pay the same closure overhead, so the comparison stays
+    // like-for-like.
+    const rounds = 5;
+    const bestOf = (run: () => void): number => {
+      let best = Infinity;
+      for (let r = 0; r < rounds; r++) {
+        const start = performance.now();
+        for (let i = 0; i < iterations; i++) run();
+        best = Math.min(best, performance.now() - start);
+      }
+      return best;
+    };
 
-    // Benchmark Fast Path
-    const startFast = performance.now();
-    for (let i = 0; i < iterations; i++) {
-      sightDistances(g, originX, originY, maxTiles, dirs, out);
-    }
-    const endFast = performance.now();
-    const fastTime = endFast - startFast;
+    const fallbackTime = bestOf(() =>
+      sightDistances(g, originX, originY, maxTiles, strippedDirs, out),
+    );
+    const fastTime = bestOf(() => sightDistances(g, originX, originY, maxTiles, dirs, out));
 
     const speedup = fallbackTime / (fastTime || 1);
     console.log(`[BENCHMARK] Fallback path: ${fallbackTime.toFixed(2)}ms, Fast path: ${fastTime.toFixed(2)}ms (Speedup: ${speedup.toFixed(2)}x)`);
