@@ -547,7 +547,7 @@ at 32×32, the same 2× reduction `security_node1` gets from the same source siz
    Access Chit is not wired up, so it cannot be used as a key.
 6. **Guards don't hear footsteps.** `playerNoise` is only consumed by VENT-4's grate check;
    guards learn about noise from discrete events, each with its own radius in tiles — dart 2,
-   chest 3, stapler 3, door 4, knock 5, orderly alarm 6, breaker 7, gunfire 8. Quiet vs loud
+   chest 3, stapler 3, door 4, knock 5, gunfire 6, orderly alarm 6, breaker 7. Quiet vs loud
    flooring does nothing.
 7. **Unlit levels are genuinely dark.** Darkness is opaque and clipped to line of sight, so
    a level with no `light_sources` board is navigable only by flashlight and radar. Four of

@@ -252,10 +252,17 @@ export const EMP_SHUTDOWN_TILES = 2.2;
 /**
  * Radius (tiles) a pursuing guard's shot carries.
  *
- * The loudest thing in the game, and further than a door (4) on purpose: gunfire
- * is what turns one guard's problem into the room's.
+ * Well past a door (4) — gunfire is what turns one guard's problem into the
+ * room's — but deliberately short of a thrown breaker (7).
+ *
+ * These three values (with the dart's 2 and the stapler's 3) were unit-confused
+ * until recently: they were written as 0..1 scalars and multiplied by the tile
+ * size as though they were tile counts, so a shot carried half a tile and was
+ * heard by nobody. There is therefore no play-tested history behind this number
+ * — 6 is a deliberately conservative first pass at a value that was previously
+ * inert, and it wants tuning against a combat-heavy level rather than trusting.
  */
-export const ENFORCER_FIRE_NOISE_TILES = 8;
+export const ENFORCER_FIRE_NOISE_TILES = 6;
 
 export function lightStatsFor(components: ComponentData[]): LightStats {
   return {
