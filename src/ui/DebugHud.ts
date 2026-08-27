@@ -52,6 +52,8 @@ export interface DebugSnapshot {
   captureTime: number;
   level: string;
   alertPhase: AlertPhase;
+  /** The song playing, or `"none"` — see `src/systems/MusicSongs.ts`. */
+  track: string;
   units: DebugUnitView[];
 }
 
@@ -135,6 +137,7 @@ export class DebugHud {
         `hp     ${Math.round(view.hp)}/${view.maxHp}`,
         `capture ${view.capture.toFixed(2)}/${view.captureTime.toFixed(2)}`,
         `alert  ${view.alertPhase}`,
+        `track  ${view.track}`,
         `god ${flag(view.godMode)}  no-clip ${flag(view.noClip)}  world ${flag(view.worldDraw)}`,
         `freeze ${flag(view.frozenWorld)}  dark ${flag(!view.darknessOff)}`,
         (view.compliant

@@ -8,6 +8,7 @@ import type { ConductState } from "../../systems/Conduct";
 import type { DetectionSystem } from "../../systems/DetectionSystem";
 import { colliderRect, hasPlainCollider } from "../../map/footprint";
 import { blockingLayerNames, type GameLevel } from "../../map/types";
+import { getAudio } from "../../systems/AudioDirector";
 import { CERT_ITEM, PLAYER_DEFAULTS } from "../../systems/EntityStats";
 import { catalogedNames } from "../../systems/ItemCatalog";
 import type { DebugSnapshot } from "../../ui/DebugHud";
@@ -390,6 +391,7 @@ export class DebugOverlay {
       captureTime: PLAYER_DEFAULTS.captureTime,
       level: w.levelName,
       alertPhase: w.alert.phase,
+      track: getAudio().getTrack() ?? "none",
       units: [
         ...w.guards.map((e, i) => ({ label: `G${i}`, detection: e.detection })),
         ...w.sensors.map((s, i) => ({ label: `S${i}`, detection: s.detection })),

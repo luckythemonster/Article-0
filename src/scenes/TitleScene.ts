@@ -5,6 +5,7 @@ import { hasAnySave, newestSave } from "../systems/SaveGame";
 import { FONT_DISPLAY, FONT_MONO } from "../ui/fonts";
 import { onResize } from "../ui/resize";
 import { UI, hex } from "../ui/hudTheme";
+import { getAudio } from "../systems/AudioDirector";
 
 /**
  * The title screen. Boots first after the map has parsed and offers the entry
@@ -17,6 +18,11 @@ export class TitleScene extends Phaser.Scene {
 
   create(): void {
     setMode(this.registry, "TITLE");
+    // The main theme, which carries on into the run itself — a title screen that
+    // hands over to silence would say the game had two scores rather than one.
+    // Nothing is audible until the first keypress: the context is gesture-gated,
+    // and the menu needs a keypress anyway.
+    getAudio().setTrack("articleZeroTheme");
     this.cameras.main.setBackgroundColor(UI.bgVoid);
 
     const veil = this.add.rectangle(0, 0, 10, 10, hex(UI.bgVoid), 0.6).setOrigin(0, 0).setScrollFactor(0);
