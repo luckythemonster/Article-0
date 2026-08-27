@@ -126,14 +126,19 @@ export function canSense(eye: Eye, ctx: SensingWorld): boolean {
   const dist2 = dx * dx + dy * dy;
 
   const plane = eye.plane ?? 0;
-  const hasLos = (): boolean =>
-    grid.hasLineOfSight(
-      eye.x / tileSize,
-      eye.y / tileSize,
-      player.x / tileSize,
-      player.y / tileSize,
+  // Optimization: Lazy line-of-sight evaluation using reciprocal tile size (1 / tileSize)
+  // to replace 4 floating-point divisions per LOS check with faster multiplications.
+  let invTileSize = 0;
+  const hasLos = (): boolean => {
+    if (invTileSize === 0) invTileSize = 1 / tileSize;
+    return grid.hasLineOfSight(
+      eye.x * invTileSize,
+      eye.y * invTileSize,
+      player.x * invTileSize,
+      player.y * invTileSize,
       plane,
     );
+  };
 
   // Thermal: close-range body heat betrays the player even outside the cone.
   const thermalPx = ctx.thermalRadiusMultiplier(eye.thermalTiles) * tileSize;
