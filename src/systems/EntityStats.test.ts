@@ -8,6 +8,11 @@ import {
   ARMED_POSTS_PER_LEVEL,
   chestStatsFor,
   CHEST_DEFAULTS,
+  doorIsLocked,
+  doorOpensWith,
+  isKeycard,
+  keycardName,
+  keycardNumber,
   KNOWN_ITEMS,
   parseItemList,
   resolveItemName,
@@ -47,6 +52,7 @@ import {
   WEAPON_ARC_DEGREES,
 } from "./EntityStats";
 import type { ComponentData } from "../map/types";
+import type { DoorStats } from "./EntityStats";
 
 describe("enforcerStatsFor — ranged attack fields", () => {
   it("falls back to the engine defaults when the map carries no fire tuning", () => {
@@ -358,9 +364,23 @@ describe("resolveItemName", () => {
   });
 
   it("returns undefined for a name with no engine meaning", () => {
-    // `main1` authors "Key1". Doors lock on a numeric field and nothing reads an
-    // inventory item as a key, so granting it would park an inert string in KEY ITEMS.
-    expect(resolveItemName("Key1")).toBeUndefined();
+    expect(resolveItemName("Bag of Holding")).toBeUndefined();
+    expect(resolveItemName("")).toBeUndefined();
+  });
+
+  it("reads the map's key spellings as keycards", () => {
+    // `main1` authors "Key1". It was dropped on the floor until keycards existed —
+    // now it is a real credential, whatever the door numbering turns out to want.
+    expect(resolveItemName("Key1")).toBe(keycardName(1));
+    expect(resolveItemName("Key 2")).toBe(keycardName(2));
+    expect(resolveItemName("keycard03")).toBe(keycardName(3));
+  });
+
+  it("refuses key-shaped names that name no clearance", () => {
+    // A door with `key: 0` is unlocked, so Keycard 0 would open nothing by definition.
+    expect(resolveItemName("Keycard 0")).toBeUndefined();
+    expect(resolveItemName("Key")).toBeUndefined();
+    expect(resolveItemName("Keyfoo")).toBeUndefined();
   });
 });
 
@@ -372,10 +392,16 @@ describe("chestStatsFor — loot from either schema", () => {
     ]);
   });
 
-  it("drops authored names the game does not know, keeping the rest", () => {
+  it("resolves every name main1 authors, keycard included", () => {
     expect(chestStatsFor(authoredChest('"StunRounds", "Battery", "Key1", "Medkit"')).items).toEqual(
-      [STUN_ROUNDS_ITEM, BATTERY_ITEM, RATION_PACK_ITEM],
+      [STUN_ROUNDS_ITEM, BATTERY_ITEM, keycardName(1), RATION_PACK_ITEM],
     );
+  });
+
+  it("still drops authored names the game does not know", () => {
+    expect(chestStatsFor(authoredChest('"Battery", "Bag of Holding"')).items).toEqual([
+      BATTERY_ITEM,
+    ]);
   });
 
   it("falls back to the default table for a chest with no loot field at all", () => {
@@ -383,7 +409,9 @@ describe("chestStatsFor — loot from either schema", () => {
   });
 
   it("treats a list of nothing but unknown names as unset rather than as an empty chest", () => {
-    expect(chestStatsFor(authoredChest('"Key1", "Key2"')).items).toEqual([...CHEST_DEFAULTS.items]);
+    expect(chestStatsFor(authoredChest('"Nonsense", "Also Nonsense"')).items).toEqual([
+      ...CHEST_DEFAULTS.items,
+    ]);
   });
 
   it("lets engine-written slots win over an inherited items list", () => {
@@ -405,14 +433,15 @@ describe("chestStatsFor — loot from either schema", () => {
     // Filtering it would silently drop the vent core's flavour loot.
     //
     // Per-slot: a blank slot takes *that slot's* default rather than emptying the chest —
-    // which is why `VentCoreLevel` fills all three deliberately.
+    // which is why `VentCoreLevel` fills all three deliberately. The default table is two
+    // entries since the Access Chit became a keycard, so the third slot has nothing to
+    // fall back to and drops out.
     const generated: ComponentData[] = [
       { type: "chest", values: { item1: "Anything At All", item2: "", item3: "" } },
     ];
     expect(chestStatsFor(generated).items).toEqual([
       "Anything At All",
-      CHEST_DEFAULTS.items[1],
-      CHEST_DEFAULTS.items[2],
+      ...CHEST_DEFAULTS.items.slice(1),
     ]);
   });
 });
@@ -436,5 +465,55 @@ describe("KNOWN_ITEMS", () => {
 
   it("covers every consumable", () => {
     for (const name of CONSUMABLE_ORDER) expect(resolveItemName(name)).toBe(name);
+  });
+});
+
+describe("Keycards and the doors they answer", () => {
+  const door = (key: number, state = "closed"): DoorStats => ({
+    key,
+    state,
+    operationNoise: 4,
+  });
+
+  it("names a card per clearance, and reads the number back", () => {
+    expect(keycardName(2)).toBe("Keycard 2");
+    expect(keycardNumber(keycardName(7))).toBe(7);
+    expect(isKeycard(keycardName(1))).toBe(true);
+    expect(isKeycard(STUN_ROUNDS_ITEM)).toBe(false);
+  });
+
+  it("opens an unlocked door for anybody, empty-handed", () => {
+    expect(doorOpensWith(door(0), [])).toBe(true);
+  });
+
+  it("refuses a keyed door to a man with no card", () => {
+    expect(doorOpensWith(door(2), [])).toBe(false);
+    expect(doorOpensWith(door(2), [STUN_ROUNDS_ITEM])).toBe(false);
+  });
+
+  it("opens a keyed door to the matching clearance only", () => {
+    expect(doorOpensWith(door(2), [keycardName(2)])).toBe(true);
+    // Every locked door on the shipped map is key 2, and main1 authors a Keycard 1 —
+    // so this mismatch is the one the player actually meets.
+    expect(doorOpensWith(door(2), [keycardName(1)])).toBe(false);
+    expect(doorOpensWith(door(2), [keycardName(3)])).toBe(false);
+  });
+
+  it("keeps a sealed door sealed however well equipped he is", () => {
+    // `LOCKED` with no id names no clearance, so no card can answer it. A terminal
+    // hack is the only way through, and it force-opens without consulting any of this.
+    const sealed = door(0, "locked");
+    expect(doorIsLocked(sealed)).toBe(true);
+    expect(doorOpensWith(sealed, [keycardName(1), keycardName(2)])).toBe(false);
+  });
+
+  it("does not care what order the bag is in", () => {
+    expect(doorOpensWith(door(2), [STUN_ROUNDS_ITEM, keycardName(2), BATTERY_ITEM])).toBe(true);
+  });
+
+  it("treats a keyed door as locked even when its state says closed", () => {
+    // The two fields are independent: a key alone locks it.
+    expect(doorIsLocked(door(2, "closed"))).toBe(true);
+    expect(doorIsLocked(door(0, "closed"))).toBe(false);
   });
 });

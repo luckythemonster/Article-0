@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { catalogedNames, itemInfo } from "./ItemCatalog";
 import {
   CHEST_DEFAULTS,
+  keycardName,
   CONSUMABLE_ORDER,
   KNOWN_ITEMS,
   LOG_ALPHA_ITEM,
@@ -65,5 +66,25 @@ describe("ItemCatalog", () => {
 
   it("returns undefined for an unknown name instead of throwing", () => {
     expect(itemInfo("Bag of Holding")).toBeUndefined();
+  });
+
+  it("describes a keycard of any clearance, without an entry per number", () => {
+    // Keycards are an open-ended family — a map may lock a door on any id — so they
+    // are described dynamically rather than catalogued. Copy still has to be real:
+    // an item the player holds and the menu cannot explain is the gap this file exists
+    // to close.
+    for (const clearance of [1, 2, 5, 42]) {
+      const info = itemInfo(keycardName(clearance));
+      expect(info, `no description for clearance ${clearance}`).toBeDefined();
+      expect(info!.blurb.length).toBeGreaterThan(0);
+      expect(info!.effect).toContain(String(clearance));
+    }
+  });
+
+  it("keeps keycards out of the catalogue itself", () => {
+    // The exactness check above compares against KNOWN_ITEMS, and neither list can
+    // hold an open-ended family. If a keycard ever lands in CATALOG, one number got
+    // special-cased and the rest quietly stopped being described.
+    expect(catalogedNames().some((n) => n.startsWith("Keycard"))).toBe(false);
   });
 });

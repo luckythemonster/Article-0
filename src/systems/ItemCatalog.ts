@@ -16,9 +16,10 @@
  */
 
 import {
-  ACCESS_CHIT_ITEM,
   BATTERY_ITEM,
   CERT_ITEM,
+  keycardName,
+  keycardNumber,
   CHAFF_EMP_DURATION,
   CHAFF_EMP_RADIUS_TILES,
   CHAFF_PACK_ITEM,
@@ -114,11 +115,6 @@ const CATALOG: Record<string, ItemInfo> = {
       `Toggle with [L]. Drains over ${FLASHLIGHT_DRAIN_SECONDS}s of use; ` +
       `the beam multiplies detection by ${FLASHLIGHT_DETECTION_MULTIPLIER}×.`,
   },
-  [ACCESS_CHIT_ITEM]: {
-    name: ACCESS_CHIT_ITEM,
-    blurb: "Somebody's door credential, left in a supply crate. Nobody reported it missing, which tells you what it opens.",
-    effect: "Passive. Opens keyed doors.",
-  },
   [EIRA7_LOG_ITEM]: {
     name: EIRA7_LOG_ITEM,
     blurb:
@@ -165,7 +161,32 @@ const CATALOG: Record<string, ItemInfo> = {
 
 /** Description for a held item, or `undefined` for a name this build doesn't know. */
 export function itemInfo(name: string): ItemInfo | undefined {
-  return CATALOG[name];
+  const catalogued = CATALOG[name];
+  if (catalogued) return catalogued;
+  // Keycards are described rather than catalogued, because the family is open-ended:
+  // a map can lock a door on any clearance, and the card that answers it has to have
+  // copy without anyone having written an entry for that number. See `keycardName`.
+  const clearance = keycardNumber(name);
+  return clearance === undefined ? undefined : keycardInfo(clearance);
+}
+
+/**
+ * Copy for a keycard of any clearance.
+ *
+ * The blurb leans on the number rather than around it: a numbered credential is the
+ * facility saying, in a form you can hold, exactly how much of itself it will let you
+ * into — which is the same argument the Q0 cert makes about what its holder *lacks*.
+ */
+function keycardInfo(clearance: number): ItemInfo {
+  const name = keycardName(clearance);
+  return {
+    name,
+    blurb:
+      `Clearance ${clearance}, printed on the card so the door doesn't have to ask and ` +
+      "the man holding it doesn't have to wonder. Somebody was issued this and then " +
+      "stopped needing it, and the manifest has not caught up.",
+    effect: `Passive. Opens doors keyed to clearance ${clearance}. Not spent on use.`,
+  };
 }
 
 /** Every catalogued item name — used by the tests to assert nothing ships blank. */

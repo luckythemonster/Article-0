@@ -552,8 +552,10 @@ at 32×32, the same 2× reduction `security_node1` gets from the same source siz
   - **A field you leave null is not empty.** The editor substitutes the `Chest`
     structure's own `DefaultValues`, so a chest that looks blank in the editor arrives
     carrying whatever that default says — today `"Medkit", "Battery`, closing quote and
-    all. `CHEST_DEFAULTS` (`["Medkit", "Battery", "Access Chit"]`) is therefore a
-    last-resort fallback that the shipped map never actually reaches.
+    all. `CHEST_DEFAULTS` (`["Medkit", "Battery"]`) is therefore a last-resort fallback
+    that the shipped map never actually reaches. It deliberately holds **no** keycard: a
+    numbered credential has to match a door somebody authored, and a default table cannot
+    know which — seeding one would be placement dressed up as a default.
 - **`power_grid.Target` names a TileDef `ref`, not a tile.** Every placed fixture
   sharing that ref goes out together, which is the whole point: the shipped
   `breaker_main1` targets `light_overhead1`, and the map places fifty of those, so
@@ -578,11 +580,21 @@ at 32×32, the same 2× reduction `security_node1` gets from the same source siz
    `Boards[0]`, falling back to the file's own `Width`/`Height`. Make board 0 full-size.
 4. **A tile on `doors` without a `door` component is silently decorative.** No collider,
    no grid entry, no interaction — just art.
-5. **A locked door with no terminal in range is impassable.** `key !== 0` or
-   `state === "LOCKED"` locks a door, and only a terminal hack within 6 tiles opens it. The
-   Access Chit is not wired up, so it cannot be used as a key — which is also why a chest
-   authored with a key-shaped name like `"Key1"` yields nothing: there is no inventory item
-   any door reads.
+5. **A locked door needs a matching keycard, or a terminal within 6 tiles.** `key !== 0`
+   or `state === "LOCKED"` locks a door. `key = N` names a *clearance*, and Rowan opens
+   that door by hand while carrying **`Keycard N`** — author it into a chest as `"Keycard 2"`
+   (or `"Key2"`; the reader is forgiving about spelling and spacing). `state = "LOCKED"`
+   with **no** `key` names no clearance, so nothing but a terminal hack will ever open it —
+   use it for doors you mean to seal, not for doors you mean to gate.
+
+   Guards are unaffected either way: a keycard door is a chokepoint for them too, and they
+   never carry one.
+
+   **On the shipped map this is currently a dead end worth knowing about.** All six locked
+   doors are `key = 2`, none has a terminal within the unlock radius, and the only key the
+   map authors is `main1`'s `"Key1"` — so nothing opens them yet. Placing a Keycard 2 is a
+   deliberate open decision, not an oversight; see `src/map/DoorKeys.test.ts`, which pins
+   that state so it changes on purpose.
 6. **Guards don't hear footsteps.** `playerNoise` is only consumed by VENT-4's grate check;
    guards learn about noise from discrete events, each with its own radius in tiles — dart 2,
    chest 3, stapler 3, door 4, knock 5, gunfire 6, orderly alarm 6, breaker 7. Quiet vs loud

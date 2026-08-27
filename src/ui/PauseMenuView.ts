@@ -8,7 +8,7 @@ import { JOURNAL_ENTRIES, type JournalState } from "../systems/Journal";
 import { lexiconByCategory, lexiconEntry, type LexiconContext } from "../systems/Lexicon";
 import { itemInfo } from "../systems/ItemCatalog";
 import { ROOF_ARRAY_LEVEL } from "../map/RoofArrayLevel";
-import { flashlightIconPath, ITEM_ICON_PATHS, nativeIconPath } from "../systems/ItemIcons";
+import { itemIconPath, nativeIconPath } from "../systems/ItemIcons";
 import {
   objectiveLines,
   type MissionFeatures,
@@ -419,8 +419,10 @@ export class PauseMenuView {
         return;
       }
       const header = el("div", "pause-detail-header");
-      const iconPath =
-        name === FLASHLIGHT_ITEM ? flashlightIconPath(this.snap.active.flashlightOn) : ITEM_ICON_PATHS[name!];
+      // Through the resolver, not the flat map: the flashlight varies with its toggle
+      // and keycards are an open-ended family, so indexing `ITEM_ICON_PATHS` here would
+      // silently drop the art for both.
+      const iconPath = itemIconPath(name!, this.snap.active.flashlightOn);
       if (iconPath) {
         const icon = document.createElement("img");
         icon.className = "pause-detail-icon";

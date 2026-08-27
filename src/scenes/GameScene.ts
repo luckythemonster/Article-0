@@ -1805,14 +1805,16 @@ export class GameScene extends Phaser.Scene {
 
     // Doors watch for whoever walks up, so their indicator can scan or refuse
     // before the interact prompt appears. Every door, not `nearestDoor` — that
-    // is filtered to `isManual`, which excludes exactly the locked ones whose
-    // denial light is the most worth showing.
+    // is filtered to the ones he can actually open, which excludes exactly the
+    // locked ones whose denial light is the most worth showing.
     const doorTileX = this.player.x / this.tileSize;
     const doorTileY = this.player.y / this.tileSize;
+    // What he is carrying decides whether a keycard door reads SCAN or LOCKED.
+    const doorInventory = (this.registry.get("inventory") as string[] | undefined) ?? [];
     // After the player has moved this frame, so a carried body rides on his
     // current position rather than last frame's.
     this.updateCarry();
-    for (const door of this.doors) door.senseProximity(doorTileX, doorTileY);
+    for (const door of this.doors) door.senseProximity(doorTileX, doorTileY, doorInventory);
 
     // Lasers: crossing an active beam/scan zone instantly trips the alarm.
     let laserTripped = false;
@@ -2043,6 +2045,9 @@ export class GameScene extends Phaser.Scene {
     const interactDown = this.keys.interact.isDown && !heldUp;
     const interactJust = Phaser.Input.Keyboard.JustDown(this.keys.interact) && !heldUp;
 
+    // Read once for the frame: the encounter hold and the door loop below both want it.
+    const inventory = (this.registry.get("inventory") as string[] | undefined) ?? [];
+
     // --- The vent-core/vault/roof encounter, whichever is live (hold E) ---
     const encounter = this.encounters.handleInteract(
       dt,
@@ -2050,7 +2055,7 @@ export class GameScene extends Phaser.Scene {
       pty,
       interactDown,
       interactJust,
-      (this.registry.get("inventory") as string[] | undefined) ?? [],
+      inventory,
     );
     if (encounter.unauthorized) this.conduct.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED);
 
@@ -2133,7 +2138,10 @@ export class GameScene extends Phaser.Scene {
     let nearestDoor: Door | undefined;
     let nearestDoorDist = Infinity;
     for (const door of this.doors) {
-      if (!door.isManual) continue;
+      // `opensWith`, not `isManual`: a keycard door is one he can work if he is
+      // carrying the card. The guards' own check deliberately stays on `isManual` —
+      // see `guardOperableDoorAt`.
+      if (!door.opensWith(inventory)) continue;
       const d = len(door.tileX + 0.5 - ptx, door.tileY + 0.5 - pty);
       if (d <= INTERACT_RANGE && d < nearestDoorDist) {
         nearestDoorDist = d;
@@ -2356,6 +2364,10 @@ export class GameScene extends Phaser.Scene {
    *
    * Locked doors are excluded — a keycard door is a chokepoint for the guards
    * too, and a terminal hack is the only thing that releases it.
+   *
+   * **Deliberately `isManual` rather than `opensWith`.** The player's chain moved to
+   * the latter when keycards arrived; this one must not follow it, or every guard on
+   * the level would open keycard doors on the strength of what *Rowan* is carrying.
    */
   private guardOperableDoorAt(tileX: number, tileY: number): Door | null {
     return this.doors.find((d) => d.isManual && d.covers(tileX, tileY)) ?? null;
@@ -2397,7 +2409,7 @@ export class GameScene extends Phaser.Scene {
         }
         continue;
       }
-      // Key items (Access Chit, EIRA-7 log) and equipment: always stored, uncapped.
+      // Key items (keycards, EIRA-7 log) and equipment: always stored, uncapped.
       inv.push(item);
     }
 
