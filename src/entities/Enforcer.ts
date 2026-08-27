@@ -14,9 +14,9 @@ import { shadowShapeFor, type ShadowShape } from "../render/shadowShape";
 import { type GuardSkin } from "./GuardSkin";
 import { DIRS_8, nearestDirection, type Dir8 } from "./directions";
 import { ENFORCER_SKIN } from "./EnforcerAnimations";
-import { alertMarker, speechMarker } from "./markers";
+import { alertMarker, speechMarker, AUDIBLE_LINE_DEPTH } from "./markers";
 import { getAudio } from "../systems/AudioDirector";
-import { barkFor, type SilicateVoice } from "../systems/SilicateBarks";
+import { decideBark, type SilicateVoice } from "../systems/SilicateBarks";
 import { len, withinOrEqual } from "../systems/distance";
 import { workDoors } from "./doorWork";
 
@@ -379,7 +379,8 @@ export class Enforcer {
     this.shadow = shadowShapeFor(skin.collider, skin.displayTiles, tileSize);
     this.body.play(skin.animKey("south"));
     this.bang = alertMarker(scene, this.x, this.y, tileSize);
-    this.speech = speechMarker(scene, this.x, this.y, tileSize);
+    // Above the darkness, unlike the "!" beside it — see `AUDIBLE_LINE_DEPTH`.
+    this.speech = speechMarker(scene, this.x, this.y, tileSize, AUDIBLE_LINE_DEPTH);
   }
 
   /**
@@ -397,17 +398,31 @@ export class Enforcer {
    * talking about itself and they are voiced by a formant synthesiser; putting
    * them in a person's mouth would erase the distinction the whole run is about.
    * He is silent for now rather than borrowing a voice that is not his.
+   *
+   * Whether a change speaks lives in {@link decideBark}, not here — the rules
+   * are the interesting part and this class cannot be unit-tested. What the two
+   * silent answers mean is the subtlety: `latch` false is a line held back by
+   * the cooldown, so the record of the last spoken state is deliberately *not*
+   * moved on and the next frame asks again. This used to record it either way,
+   * which quietly ate every bark the cooldown deferred.
    */
   private barkOnStateChange(dt: number): void {
     this.barkCooldown = Math.max(0, this.barkCooldown - dt);
     const state = this.state;
     if (state === this.barkedState) return;
-    this.barkedState = state;
-    if (!this.isSilicate || this.barkCooldown > 0) return;
 
-    const line = barkFor(state, Math.random());
-    if (!line) {
-      this.speech.setVisible(false);
+    const { line, latch } = decideBark(
+      this.barkedState,
+      state,
+      this.barkCooldown,
+      Math.random(),
+      this.isSilicate,
+    );
+    if (latch) this.barkedState = state;
+    if (line === undefined) {
+      // Settled silence (`PATROL`, or a guard who is not a silicate) drops
+      // whatever the last line left on screen. A deferred one leaves it alone.
+      if (latch) this.speech.setVisible(false);
       return;
     }
     this.barkCooldown = Enforcer.BARK_COOLDOWN;

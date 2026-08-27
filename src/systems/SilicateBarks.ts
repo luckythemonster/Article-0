@@ -90,3 +90,59 @@ export function barkFor(state: GuardState, roll: number): string | undefined {
 export function allBarkLines(): string[] {
   return [...new Set(Object.values(LINES).flat())];
 }
+
+/**
+ * What a guard should do about having just entered a new state.
+ *
+ * Two fields rather than one, because "say nothing" has two meanings that must
+ * not be confused. See {@link decideBark}.
+ */
+export interface BarkDecision {
+  /** The line to speak now, or undefined when this change produces none. */
+  line?: string;
+  /**
+   * Whether to record `next` as spoken-for.
+   *
+   * False means "come back to this" — the guard is still in a state it owes a
+   * line for, and the caller must leave its record of the last spoken state
+   * alone so the next frame asks again.
+   */
+  latch: boolean;
+}
+
+/**
+ * Whether entering `next` speaks, and whether that answer is final.
+ *
+ * Pure, and given the roll rather than taking one, for the same reason
+ * {@link barkFor} is: this is the whole trigger, and it belongs somewhere a test
+ * can name the line it expects without an `AudioContext` or a Phaser scene.
+ *
+ * The distinction the `latch` field exists for is a bug this replaces. The
+ * caller used to record the new state *before* checking the cooldown, so a line
+ * held back by it was marked as already-said and never came out — and the
+ * cooldown's whole purpose is the case where several guards enter `ALERT`
+ * within a few frames of each other, which is exactly when it was eating them.
+ * A suppressed line is deferred, not dropped: it speaks as soon as the cooldown
+ * clears, provided the guard is still in the state that earned it.
+ *
+ * The two silent answers are therefore different. `PATROL` (and any state with
+ * no lines) and a non-silicate speaker are *settled* silences — there is nothing
+ * to come back for, so they latch. A cooldown is a *pending* one.
+ */
+export function decideBark(
+  prev: GuardState | null,
+  next: GuardState,
+  cooldownLeft: number,
+  roll: number,
+  silicate: boolean,
+): BarkDecision {
+  // Nothing changed: no line, and the caller's record already says `next`.
+  if (prev === next) return { latch: true };
+  // A human security guard is silent here, and permanently so — these lines are
+  // the apparatus talking about itself. See `Enforcer.barkOnStateChange`.
+  if (!silicate) return { latch: true };
+  const line = barkFor(next, roll);
+  if (line === undefined) return { latch: true };
+  if (cooldownLeft > 0) return { latch: false };
+  return { line, latch: true };
+}

@@ -45,6 +45,26 @@ one-tile-thick wall, which read as seeing through it. The offset is constant rat
 angle sweeps, and the discontinuity sawtoothed the shadow edge over a full tile along
 flat walls.
 
+### A silicate's spoken line is the one thing the darkness does not swallow
+
+Every overhead marker sits at depth 600, under the opaque overlay at 700, and the `!` is
+there on purpose: it reports that a guard can see *you*, which is a fact about a lit
+sightline, so hiding it in the dark costs nothing and showing it through a wall would give
+a position away for free.
+
+A silicate's bark is the opposite kind of thing. It is a **sound** — it plays at full
+volume from anywhere on the level, because the whole point is the callout out of the room
+you are not looking at — and the text over the guard's head exists so a muted player gets
+the same information. At depth 600 the darkness painted over exactly the off-screen guard
+the bark is for, so a muted player had no channel at all. It renders at
+`AUDIBLE_LINE_DEPTH` (`src/entities/markers.ts`) instead, above the overlay.
+
+That does hand a muted player a *position* the sound alone does not carry, since the mix
+is mono. Accepted deliberately: the alternative on offer was silence.
+
+Orderlies keep depth 600. A muttered reprimand is a local, in-view event with no sound
+standing behind it.
+
 ### Thermal detection was already in the map
 
 Guards and cameras have a short 360° heat sense (`ThermalDetectionRadius`, default 2
@@ -150,6 +170,14 @@ before walking back to its route.
 
 **Guards shut their own doors.** An open door is an *anomaly* the patrol investigates, so
 leaving their own doors ajar would have them investigating themselves.
+
+**A door blocks until it has finished opening.** Collision used to clear on the frame
+`setOpen` was called, so a door was passable for the whole 1350ms of its open sequence —
+750ms of granted-access indicator on a leaf that has not moved, then 600ms of travel —
+while still drawn shut. `doorBlocks` (`src/entities/doorGeometry.ts`) makes settled-open
+the only passable state. It is felt only by the player, who is the only thing colliding
+with a door's Arcade body: guards read the grid, and `Pathfinder` already prices a
+shut-but-openable door at `DOOR_STEP_COST` rather than treating it as wall.
 
 **Bodies are circles that slide.** `GridMotion.ts` does circle-vs-grid collision with wall
 sliding for everything that isn't an Arcade body, replacing a single centre-point test

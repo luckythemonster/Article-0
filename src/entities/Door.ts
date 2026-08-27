@@ -1,5 +1,6 @@
 import Phaser from "phaser";
-import { colliderRect, footprintCells } from "../map/footprint";
+import { footprintCells } from "../map/footprint";
+import { doorBlocks, doorSeating } from "./doorGeometry";
 import type { GameTile, SpriteFrame } from "../map/types";
 import type { CollisionGrid } from "../systems/CollisionGrid";
 import { doorStatsFor, glassStatsFor, isGlass, type DoorStats } from "../systems/EntityStats";
@@ -64,26 +65,23 @@ const DOOR_DEPTH = 405;
  * later, a keycard) opens it.
  *
  * **The body is a zone sized by `colliderRect`, not the sprite.** It used to ride
- * on the sprite — `setDisplaySize(footprint) + refreshBody()` — which was wrong
- * twice over, and both ways showed in play:
+ * on the sprite — `setDisplaySize(footprint) + refreshBody()` — which covered the
+ * raw `colSpan x rowSpan` footprint and ignored the tile's authored
+ * `ColliderPadding`. Every shipped door def carries some: the north-south defs
+ * inset `{Bottom: 0.4}`, so the lower 12.8px of a doorway that should be walkable
+ * was solid, and the east-west defs inset `{Left: 0.2, Right: 0.2}`, so a
+ * 19.2px-wide body was 32. `colliderRect` in `src/map/footprint.ts` exists
+ * precisely to apply that padding, and `src/map/TileBake.ts` has always routed
+ * padded *walls* through it — this class was the one collider path that never
+ * called it.
  *
- * - It covered the raw `colSpan x rowSpan` footprint, ignoring the tile's
- *   authored `ColliderPadding`. Every shipped door def carries some: the
- *   north-south defs inset `{Bottom: 0.4}`, so the lower 12.8px of a doorway that
- *   should be walkable was solid, and the east-west defs inset
- *   `{Left: 0.2, Right: 0.2}`, so a 19.2px-wide body was 32. `colliderRect` in
- *   `src/map/footprint.ts` exists precisely to apply that padding, and
- *   `src/map/TileBake.ts` has always routed padded *walls* through it — this
- *   class was the one collider path that never called it.
- * - It followed the art. `useBottomSeating` below reseats east-west doors so they
- *   stand in their jambs, and `refreshBody()` dragged the collider along, while
- *   `this.cells` went on using the authored `offsetY`. On the shipped 1x1.5 defs
- *   that is a 12px disagreement between the box the player hits and the cells
- *   that block pathing, sight and radar.
- *
- * Giving collision its own zone fixes both and decouples the two for good: the
- * sprite is free to be reseated or rescaled by an animation (`playClip` re-asserts
- * `setDisplaySize` after every `play()`) without collision noticing.
+ * Its own zone also frees the sprite to be rescaled by an animation (`playClip`
+ * re-asserts `setDisplaySize` after every `play()`) without collision noticing.
+ * What it must *not* be free to do is stand somewhere else: the pass that
+ * introduced the zone also decoupled its vertical seating from the art's, which
+ * left the solid box 12px below the drawn door on every east-west def. Both now
+ * come from one call to `doorSeating` in `src/entities/doorGeometry.ts`, which
+ * is also where the reasoning and the tests for it live.
  *
  * **Glazed** doors are the exception to blocking sight: the map's glass doors carry a
  * `glass` component alongside their `door` one, and clear glazing stops you walking
@@ -131,15 +129,36 @@ const DOOR_DEPTH = 405;
  * stretched art). North-south doors' art is exactly one tile tall, where
  * centred and bottom-aligned land in the same place, so this only ever
  * affects the east-west pair, and only once their art has actually loaded —
- * the map-tile fallback keeps the centred seating it was authored for.
+ * the map-tile fallback keeps the centred seating it was authored for. The
+ * collider is seated off the same call, so it goes wherever the art goes.
  *
- * **The open/closed transition is cosmetic only.** `setOpen` still flips the
- * collision grid and the Arcade body the instant it is called, exactly as
- * before art existed — a guard's `doorWork.ts` timing, the noise system, and
- * every pathing cost all assume that. The slide just plays over it, so for a
- * few frames the sprite can be mid-travel while the tile is already fully
- * passable. Gating passability on the animation instead would ripple into all
- * three systems, which is well past "mount the sprites".
+ * **A door blocks for as long as it is in the way, opening included.** It used
+ * to be the other way round: `setOpen` flipped the collision grid and the Arcade
+ * body the instant it was called and the slide merely played over the top, so a
+ * door you had just tapped was passable for the whole 1350ms of `OPEN_SEQUENCE`
+ * — 750ms of `UNLOCKED` indicator on a door that has not moved, then 600ms of
+ * travel — while still drawn shut. Passability now comes from `doorBlocks` in
+ * `src/entities/doorGeometry.ts` and only clears when the slide finishes.
+ *
+ * Nothing else had to move for that, which is worth recording because the fear
+ * of it is why the first pass left the bug in:
+ *
+ * - **The player** is the only thing that collides with a door's Arcade body
+ *   (`GameScene` builds one collider, `player.sprite` against `doorBodies`), so
+ *   this is felt exactly where it was asked for and nowhere else.
+ * - **Guards** never touch that body. They read the grid, and `Pathfinder`
+ *   already routes through a shut-but-openable door at `DOOR_STEP_COST` rather
+ *   than treating it as wall — so a cell that stays blocked through the slide
+ *   costs a guard nothing, and `workDoors` holds its `heldDoor` across those
+ *   frames rather than trying to open it twice.
+ * - **Re-pathing** gets quieter, not noisier: `CollisionGrid.setBlocked`
+ *   early-returns when a cell is already in the state asked for, so holding the
+ *   block through the slide means one `revision` bump at the end instead of one
+ *   at the start.
+ *
+ * `isOpen` deliberately still reports what the door was *told* to be, which is
+ * what the noise ping, the anomaly scan, the interact prompt and `doorWork.ts`
+ * all mean by it. {@link isSolid} is the physical answer.
  */
 export class Door {
   readonly tileX: number;
@@ -201,23 +220,12 @@ export class Door {
 
     // Horizontal centre of the footprint, in pixels (cell centre + authored offset).
     const cx = (tile.x + 0.5) * tileSize + tile.offsetX;
-    // The map's own `Anchor`/`OffsetY` metadata (folded into `tile.offsetY` by
-    // the exporter — see `footprintCentre`'s doc comment) seats the *old*
-    // art correctly: that art was pre-squished into a single 32px cell and
-    // stretched symmetrically over the footprint, so centring it was right.
-    // The hand-drawn east-west art is not stretched — it's drawn natively at
-    // 48px, taller than the 32px cell its tile occupies, with the door
-    // standing on the floor rather than floating centred in a box. So when
-    // that art is actually what's going to be shown, its footprint's bottom
-    // edge is pinned to the bottom of the door's own tile instead. North-south
-    // doors' art is exactly one tile tall, where centred and bottom-aligned are
-    // the same position, so this only ever moves the east-west pair — and only
-    // when their art is there to move; the map-tile fallback keeps the
-    // exporter's centred seating, since that's still the art it's tuned for.
-    const useBottomSeating = eastWest && hasEntitySprite(scene, this.art);
-    const cy = useBottomSeating
-      ? (tile.y + 1) * tileSize - this.displayH / 2
-      : (tile.y + 0.5) * tileSize + tile.offsetY;
+    // One seating for the art and the collider — see `doorSeating`, which owns
+    // both the bottom-seating rule for east-west art and the reason the solid
+    // box has to ride along with it. The map-tile fallback keeps the exporter's
+    // centred seating, since that's still the art it's tuned for.
+    const seating = doorSeating(tile, tileSize, eastWest && hasEntitySprite(scene, this.art));
+    const cy = seating.centreY;
 
     // A static *sprite*, not the plain image the map-tile-only rendering used —
     // the body/collision semantics are identical either way, but only a sprite
@@ -236,8 +244,9 @@ export class Door {
 
     // The body is its own zone, built from the tile's authored collider rather
     // than from the sprite — the same `colliderRect` -> `add.zone` route
-    // `buildWallBodies` in `src/map/TileBake.ts` takes for a padded wall.
-    const rect = colliderRect(tile, tileSize);
+    // `buildWallBodies` in `src/map/TileBake.ts` takes for a padded wall, seated
+    // on the same centre line as the art above.
+    const rect = seating.collider;
     this.collider = scene.add.zone(rect.x + rect.w / 2, rect.y + rect.h / 2, rect.w, rect.h);
     scene.physics.add.existing(this.collider, true);
 
@@ -252,8 +261,20 @@ export class Door {
     return this.collider;
   }
 
+  /** What the door was last *told* to be. See the class doc, and {@link isSolid}. */
   get isOpen(): boolean {
     return this.open;
+  }
+
+  /**
+   * Whether the door is physically in the way right now.
+   *
+   * True while shut, and while a slide is running in either direction — an
+   * opening door is still a door until its travel finishes. This is what drives
+   * both the Arcade body and the grid; `isOpen` is the commanded state.
+   */
+  get isSolid(): boolean {
+    return doorBlocks(this.open, this.sliding);
   }
 
   /** Whether the player may open this by hand (adjacent tap). */
@@ -287,8 +308,15 @@ export class Door {
    *
    * Only the flag changing does any work, so this is a comparison and an early
    * return on all but the two frames a crossing actually happens on.
+   *
+   * It also carries the slide watchdog, for having the one hook that already
+   * runs over every door every frame. Now that an opening door is solid until
+   * its `animationcomplete` fires, a slide that never gets there — a scene
+   * paused mid-travel, a listener lost to an interruption — would wall a doorway
+   * off permanently. Cheap: a boolean and a flag Phaser already maintains.
    */
   senseProximity(playerTileX: number, playerTileY: number): void {
+    if (this.sliding && !this.image.anims.isPlaying) this.settle();
     const dx = this.tileX + 0.5 - playerTileX;
     const dy = this.tileY + 0.5 - playerTileY;
     const near = dx * dx + dy * dy <= DOOR_SENSE_TILES * DOOR_SENSE_TILES;
@@ -304,25 +332,34 @@ export class Door {
    * appears that way — no slide played for a change that never happened.
    */
   private applyState(changed = false): void {
-    // Grid: closed doors block their whole footprint; open doors clear it. Glazed doors
-    // stay transparent to sight the whole time, closed or not.
-    for (const c of this.cells) this.grid.setBlocked(c.x, c.y, !this.open, this.seeThrough);
-
-    const body = this.collider.body as Phaser.Physics.Arcade.StaticBody;
-    body.enable = !this.open;
-
     if (hasEntitySprite(this.image.scene, this.art)) {
       if (changed) this.playSlide();
       else this.refreshClip();
-      return;
+    } else {
+      // No art on disk (or it hasn't loaded) — the original map-tile-frame swap.
+      const frame = this.open ? this.openFrame : this.closedFrame;
+      if (frame) {
+        this.image.setTexture(frame.textureKey, frame.frameKey);
+        this.image.setDisplaySize(this.displayW, this.displayH);
+      }
     }
+    // *After* the sprite, because `playSlide` is what raises `sliding`, and an
+    // opening door stays solid for as long as that flag is up. With no art there
+    // is no slide, so this still flips instantly, exactly as it always did.
+    this.applyCollision();
+  }
 
-    // No art on disk (or it hasn't loaded) — the original map-tile-frame swap.
-    const frame = this.open ? this.openFrame : this.closedFrame;
-    if (frame) {
-      this.image.setTexture(frame.textureKey, frame.frameKey);
-      this.image.setDisplaySize(this.displayW, this.displayH);
-    }
+  /**
+   * Points the grid and the Arcade body at {@link isSolid}.
+   *
+   * Called on every state change and again when a slide finishes — the second
+   * call is the one that actually opens the doorway. Glazed doors stay
+   * transparent to sight the whole time, blocking or not.
+   */
+  private applyCollision(): void {
+    const solid = this.isSolid;
+    for (const c of this.cells) this.grid.setBlocked(c.x, c.y, solid, this.seeThrough);
+    (this.collider.body as Phaser.Physics.Arcade.StaticBody).enable = solid;
   }
 
   /**
@@ -365,6 +402,10 @@ export class Door {
    * Plays the one-shot travel, then settles into the loop for wherever it
    * landed — re-resolved on completion rather than captured up front, since the
    * player can walk out of range while the door is still moving.
+   *
+   * The completion is load-bearing now, not just cosmetic: it is the moment an
+   * opening door stops being solid. {@link settle} is that moment, and
+   * {@link senseProximity} watches for a slide that never reaches it.
    */
   private playSlide(): void {
     const sprite = this.image;
@@ -380,9 +421,22 @@ export class Door {
     this.playClip(key);
     sprite.once("animationcomplete", (anim: Phaser.Animations.Animation) => {
       if (anim.key !== key) return;
-      this.sliding = false;
-      this.refreshClip();
+      this.settle();
     });
+  }
+
+  /**
+   * Ends a slide: the door has arrived, so it is whatever it was told to be.
+   *
+   * Collision before the clip, because the clip is what the player sees and the
+   * collision is what they walk into — and `refreshClip` starts an animation,
+   * which would otherwise make the watchdog's "is anything playing" test true
+   * again before the doorway had actually opened.
+   */
+  private settle(): void {
+    this.sliding = false;
+    this.applyCollision();
+    this.refreshClip();
   }
 
   /**

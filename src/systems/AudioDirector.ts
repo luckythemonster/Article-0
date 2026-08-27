@@ -67,6 +67,15 @@ class AudioDirector {
    */
   private readonly barks = new Map<string, AudioBuffer>();
   private barksReady = false;
+  /**
+   * One reciter per voice, built on first use and kept.
+   *
+   * Shared by the warm-up pass and the on-demand fallback in {@link bark}, so
+   * neither has to stand up a formant synthesiser of its own.
+   */
+  private readonly reciters = new Map<SilicateVoice, SamJs>();
+  /** So a broken SAM says so once rather than every time a guard changes state. */
+  private samWarned = false;
 
   constructor() {
     const Ctor: typeof AudioContext | undefined =
@@ -111,12 +120,18 @@ class AudioDirector {
    * one) or when SAM fails on a line — a guard that cannot be heard still shows
    * its line on the speech marker, so the bark degrades to text rather than to
    * nothing.
+   *
+   * A line the warm-up does not already hold is rendered here rather than
+   * skipped. That is a backstop, not the normal path: one line is a few
+   * milliseconds against the whole set's ~100ms, and paying it beats the
+   * alternative this replaces, where any warm-up that had not run — or had run
+   * and failed — meant permanent silence with nothing on the console to say so.
    */
   bark(line: string, voice: SilicateVoice): void {
     if (!this.ctx || !this.master) return;
     void this.ctx.resume();
     this.ensureBarks();
-    const buffer = this.barks.get(`${voice}:${line}`);
+    const buffer = this.barks.get(`${voice}:${line}`) ?? this.render(voice, line);
     if (!buffer) return;
     const src = this.ctx.createBufferSource();
     src.buffer = buffer;
@@ -142,33 +157,71 @@ class AudioDirector {
    */
   private ensureBarks(): void {
     if (this.barksReady || !this.ctx) return;
-    this.barksReady = true;
     const lines = allBarkLines();
     for (const voice of Object.keys(VOICE_PRESETS) as SilicateVoice[]) {
-      let sam: SamJs;
-      try {
-        sam = new SamJs(VOICE_PRESETS[voice]);
-      } catch {
-        return;
-      }
-      for (const line of lines) {
-        try {
-          const rendered = sam.buf32(line);
-          // `buf32` is typed `Float32Array | Boolean` — it returns `false` for a
-          // line its reciter cannot make phonemes of.
-          if (!(rendered instanceof Float32Array) || rendered.length === 0) continue;
-          const buffer = this.ctx.createBuffer(1, rendered.length, SAM_SAMPLE_RATE);
-          // Copied element-wise rather than through `copyToChannel`, whose type
-          // insists on a `Float32Array<ArrayBuffer>` while SAM's is declared over
-          // the wider `ArrayBufferLike`. A few thousand samples once per line at
-          // boot is not worth a cast that would outlive the reason for it.
-          buffer.getChannelData(0).set(rendered);
-          this.barks.set(`${voice}:${line}`, buffer);
-        } catch {
-          // One bad line must not cost the rest of the set.
-        }
-      }
+      for (const line of lines) this.render(voice, line);
     }
+    // Set *after* the sweep, not before it. The flag used to go up first, so a
+    // SAM that threw on the very first voice latched the whole feature off for
+    // the session — silently, since nothing logged. Latching unconditionally
+    // here is still safe because recovery no longer depends on this pass: a
+    // line the sweep failed to produce is retried, on its own, by {@link bark}.
+    this.barksReady = true;
+  }
+
+  /**
+   * Renders one line in one voice into the cache, and returns it.
+   *
+   * `undefined` when there is no context, when SAM cannot build the voice, or
+   * when its reciter cannot make phonemes of the line — all of which are the
+   * caller's cue to fall back to text.
+   */
+  private render(voice: SilicateVoice, line: string): AudioBuffer | undefined {
+    if (!this.ctx) return undefined;
+    const key = `${voice}:${line}`;
+    const cached = this.barks.get(key);
+    if (cached) return cached;
+    try {
+      let sam = this.reciters.get(voice);
+      if (!sam) {
+        sam = new SamJs(VOICE_PRESETS[voice]);
+        this.reciters.set(voice, sam);
+      }
+      const rendered = sam.buf32(line);
+      // `buf32` is typed `Float32Array | Boolean` — it returns `false` for a
+      // line its reciter cannot make phonemes of.
+      if (!(rendered instanceof Float32Array) || rendered.length === 0) {
+        this.warnSam(`SAM produced no audio for ${key}`);
+        return undefined;
+      }
+      const buffer = this.ctx.createBuffer(1, rendered.length, SAM_SAMPLE_RATE);
+      // Copied element-wise rather than through `copyToChannel`, whose type
+      // insists on a `Float32Array<ArrayBuffer>` while SAM's is declared over
+      // the wider `ArrayBufferLike`. A few thousand samples once per line at
+      // boot is not worth a cast that would outlive the reason for it.
+      buffer.getChannelData(0).set(rendered);
+      this.barks.set(key, buffer);
+      return buffer;
+    } catch (err) {
+      // One bad line must not cost the rest of the set.
+      this.warnSam(`SAM failed on ${key}: ${String(err)}`);
+      return undefined;
+    }
+  }
+
+  /**
+   * Says once, on the console, that the silicate voice is not working.
+   *
+   * Every failure in here is caught and degrades to text on purpose, which is
+   * right for the player and was hopeless for anyone trying to find out why the
+   * facility had gone quiet: three bare `catch` blocks meant a broken SAM looked
+   * exactly like a SAM nobody had triggered. Once per session, because a guard
+   * changing state must not be able to flood the console.
+   */
+  private warnSam(message: string): void {
+    if (this.samWarned) return;
+    this.samWarned = true;
+    console.warn(`[AudioDirector] silicate barks are degrading to text — ${message}`);
   }
 
   /** The player's current audio preference. */
