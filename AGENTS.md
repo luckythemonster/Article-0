@@ -23,7 +23,7 @@ Before you push, run the gate yourself:
 npx tsc --noEmit && npx vitest run
 ```
 
-The suite is fast (~9s) and currently **988 tests across 79 files, all passing**.
+The suite is fast (~12s) and currently **1022 tests across 81 files, all passing**.
 A drop in that count means you broke something rather than that the suite shrank.
 
 CI (`.github/workflows/ci.yml`) runs `npm run build`, `npm test`, and a check that

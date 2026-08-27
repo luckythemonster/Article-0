@@ -47,6 +47,7 @@ export const CONTROLS: readonly ControlBinding[] = [
   { key: "F", action: "Shared Field — once charged, merge and become undetectable", hint: "F shared-field" },
   { key: "R", action: "Knock — lure guards and orderlies to a wall" },
   { key: "Q", action: "Hold up — with a weapon, aim at an orderly: hands up, silent, and he walks ahead of you" },
+  { key: "Q", action: "Take down — empty-handed, at arm's length: puts an orderly or a guard on the floor" },
   { key: ", / .", action: "Cycle the selected consumable", hint: ", . cycle item" },
   { key: "Enter", action: "Use the selected consumable", hint: "Enter use item" },
   { key: "C", action: "Open the EIRA-7 codec", hint: "C codec" },

@@ -21,13 +21,14 @@ import { SpriteAtlas } from "../map/SpriteAtlas";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { DetectionSystem } from "../systems/DetectionSystem";
 import { AlertState } from "../systems/AlertState";
+import { FirearmsAuthorization } from "../systems/Firearms";
 import { TransitionGraph } from "../systems/TransitionGraph";
 import { buildRadarSnapshot, emptyRadarSnapshot } from "../systems/Radar";
 import { Player, type InputState } from "../entities/Player";
 import {
   Enforcer,
   type EnforcerContext,
-  type EnforcerFireResult,
+  type EnforcerAttackResult,
 } from "../entities/Enforcer";
 import { Orderly } from "../entities/Orderly";
 import { DeployedItem } from "../entities/DeployedItem";
@@ -75,6 +76,7 @@ import {
   GAME_SPEED,
   isConsumable,
   ENFORCER_FIRE_NOISE_TILES,
+  GUARD_MELEE_NOISE_TILES,
   ESCORT_STANDOFF_TILES,
   HOLD_UP_GRACE_SECONDS,
   MAX_CONSUMABLES,
@@ -84,6 +86,7 @@ import {
   RATION_HEAL,
   RATION_PACK_ITEM,
   STAPLER_FIELD_MAX_CHARGES,
+  PLAYER_MELEE_COOLDOWN,
   STAPLER_ITEM,
   STARTING_INVENTORY,
   BODY_PICKUP_TILES,
@@ -276,6 +279,12 @@ export class GameScene extends Phaser.Scene {
   private grid!: CollisionGrid;
   private detection!: DetectionSystem;
   private alert = new AlertState();
+  /**
+   * Whether the facility has released firearms. Sits beside {@link alert} because it
+   * is the same kind of thing — base-wide escalation state, not a property of any
+   * guard — and it is driven straight off the alert phase each frame.
+   */
+  private firearms = new FirearmsAuthorization();
   /** Anti-exploit: escalates repeated noise pings in the same area straight to ALERT. */
   private noiseSpam = new NoiseSpamTracker();
   /**
@@ -395,6 +404,10 @@ export class GameScene extends Phaser.Scene {
    * the aim does.
    */
   private holdUpCandidate = false;
+  /** Seconds until Rowan can attempt another bare-handed takedown — see `[Q]` above. */
+  private takedownCooldownLeft = 0;
+  /** True while an empty-handed `[Q]` would land on somebody — drives the prompt. */
+  private takedownCandidate = false;
   /** The level's line-of-sight view, built once in `create` rather than per frame. */
   private surrenderWorld!: SurrenderWorld;
   /** Whether Rowan currently reads to the facility as compliant staff. */
@@ -699,6 +712,7 @@ export class GameScene extends Phaser.Scene {
       tileSize: this.tileSize,
       detection: this.detection,
       alert: this.alert,
+      firearms: this.firearms,
       flashlightOn: () => this.activeItems.flashlightBeamActive,
       thermalMasked: () => this.activeItems.thermalMasked,
       rationOpened: () => this.activeItems.sackLunchOpened,
@@ -812,6 +826,7 @@ export class GameScene extends Phaser.Scene {
     this.breakers = [];
     this.power.reset();
     this.alert = new AlertState();
+    this.firearms = new FirearmsAuthorization();
     this.noiseSpam = new NoiseSpamTracker();
     this.noiseLog.clear();
     this.sharedField = new SharedField();
@@ -819,6 +834,7 @@ export class GameScene extends Phaser.Scene {
     // the deck is rebuilt by the restart this method exists to service. Without this
     // the new level would open with a weapon pointed at a destroyed sprite.
     this.holdUp = new SurrenderAim<Orderly>();
+    this.takedownCooldownLeft = 0;
     // Conduct metrics are per *run*, not per level, and a level change is a
     // scene.restart() — so they ride the registry rather than resetting here.
     this.conduct = new ConductState(
@@ -1216,17 +1232,42 @@ export class GameScene extends Phaser.Scene {
    */
   private updateHoldUp(dt: number): void {
     const inventory = (this.registry.get("inventory") as string[] | undefined) ?? [];
+    const armed = canHoldUp(inventory);
     // `inputLocked` releases the hold rather than merely ignoring the key: the roof's
     // discharge is the run's authored ending, and a hostage must not stay frozen
     // through the tribunal because a finger was still on Q.
-    const aiming =
-      this.keys.holdUp.isDown && canHoldUp(inventory) && !this.encounters.inputLocked;
+    const aiming = this.keys.holdUp.isDown && armed && !this.encounters.inputLocked;
+
+    // The unarmed half of the same key. A *tap*, unlike the hold-up's held aim, because
+    // the two are different shapes of action: one is a posture Rowan maintains, the
+    // other is a thing he does once.
+    //
+    // `JustDown` is a **consuming** read, so it is evaluated unconditionally and masked
+    // afterwards — the same discipline `updateInteractions` uses on [E], and for the
+    // same reason. Guarding the call itself would bank the press while a weapon was in
+    // hand and spend it on the frame after Rowan dropped one.
+    const takedownJust = Phaser.Input.Keyboard.JustDown(this.keys.holdUp);
+    this.takedownCooldownLeft = Math.max(0, this.takedownCooldownLeft - dt);
+    if (
+      takedownJust &&
+      !armed &&
+      !this.encounters.inputLocked &&
+      this.takedownCooldownLeft <= 0 &&
+      this.items.takedown()
+    ) {
+      // Charged only for a press that connected — see `ItemActions.takedown`, which
+      // reports false for empty air rather than burning the cooldown on it.
+      this.takedownCooldownLeft = PLAYER_MELEE_COOLDOWN;
+    }
 
     const r = this.holdUp.update(dt, aiming, this.player, this.orderlies, this.surrenderWorld);
     // Set even when nothing is held — it is what lets the prompt offer the verb
     // before the player has thought to press the key. Gated on carrying a weapon,
     // because advertising an action Rowan cannot perform is worse than silence.
-    this.holdUpCandidate = r.candidate !== null && canHoldUp(inventory);
+    this.holdUpCandidate = r.candidate !== null && armed;
+    // Only asked when it could be offered — the scan walks every orderly and guard on
+    // the deck, and there is no reason to pay for it while a weapon is in hand.
+    this.takedownCandidate = !armed && this.items.takedownCandidate() !== undefined;
     const target = r.target;
     if (!target) return;
 
@@ -1470,6 +1511,9 @@ export class GameScene extends Phaser.Scene {
     this.updateEntityShadows();
 
     this.alert.update(frozen ? 0 : dt);
+    // After the alert, so a phase that ended this frame stands the weapons down on the
+    // same frame rather than one late.
+    this.firearms.update(frozen ? 0 : dt, this.alert.phase);
     if (this.alert.phase === "ALERT" && phaseBefore !== "ALERT") {
       getAudio().ping();
       this.note("flagged");
@@ -1717,13 +1761,13 @@ export class GameScene extends Phaser.Scene {
 
     for (const e of this.guards) {
       const before = e.detection;
-      const fired = e.update(dt, ctx);
+      const attacked = e.update(dt, ctx);
       maxDetection = Math.max(maxDetection, e.detection);
       // A fresh full sighting alerts networked guards within reach.
       if (before < 1 && e.detection >= 1) {
         this.noise.broadcast(e.x, e.y, e.stats.alertNetworkRadius);
       }
-      if (fired) this.resolveGuardFire(fired);
+      if (attacked) this.resolveGuardAttack(attacked);
     }
     this.tickFireTracers(dt);
 
@@ -1789,18 +1833,62 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Applies a pursuing guard's shot: walks the line toward the player, tile
-   * step by tile step, and if it crosses a live destructible cover tile first,
-   * that breaks instead of the player taking the hit — the payoff for the
-   * mechanic existing at all. Otherwise the player takes the damage.
+   * Applies whatever a pursuing guard did this frame.
+   *
+   * The two kinds are genuinely different events rather than one event with a flag —
+   * see {@link EnforcerAttackResult} — so this dispatches rather than branching inside
+   * a shared body. On most runs only the melee arm is ever reached.
+   */
+  private resolveGuardAttack(attack: EnforcerAttackResult): void {
+    if (attack.kind === "melee") {
+      this.resolveGuardMelee(attack);
+      return;
+    }
+    this.resolveGuardShot(attack);
+  }
+
+  /**
+   * A guard's contact strike — the default answer, and the one nearly every alert ends in.
+   *
+   * **Deliberately not the shot's body with a flag set.** A strike has no flight path, so
+   * there is nothing to trace it through: a hostage cannot be hit by it, destructible cover
+   * cannot stop it, and there is no line to draw. Running the raycast anyway would let the
+   * crate Rowan is standing behind eat a blow delivered at arm's length.
+   *
+   * The stagger is what makes it more than chip damage. Damage is gated behind
+   * `Player.takeDamage`'s hit cooldown; the stagger is not (see `Player.stagger`), so a
+   * guard who keeps connecting keeps Rowan slow even across frames where the damage is
+   * suppressed — which is exactly how a silicate walks him into the capture that ends
+   * the run.
+   */
+  private resolveGuardMelee(attack: EnforcerAttackResult): void {
+    const ts = this.tileSize;
+    this.player.takeDamage(attack.damage);
+    this.player.stagger();
+    this.cameras.main.flash(90, 200, 200, 255);
+    // A scuffle, not a report — see GUARD_MELEE_NOISE_TILES for why the gap to
+    // gunfire's 6 tiles is the mechanical argument for the facility preferring hands.
+    this.noise.emitAt(attack.originX, attack.originY, GUARD_MELEE_NOISE_TILES * ts);
+  }
+
+  /**
+   * A shot from one of the facility's few armed posts, once weapons have been released.
+   *
+   * Walks the line toward the player, tile step by tile step, and if it crosses a live
+   * destructible cover tile first, that breaks instead of the player taking the hit —
+   * the payoff for the mechanic existing at all. Otherwise the player takes the damage.
    *
    * A hostage marched into the line is the other thing that can be in the way, and
    * this is the point of marching one: he takes it. He is not cover, though, so he
    * gets his own pass rather than joining the tile walk — a man is at a pixel
    * position rather than on a tile, and he stops being a shield the moment he is hit,
    * because a stun ends the surrender and with it the hold.
+   *
+   * The body is unchanged from when every guard did this. What changed is how rarely
+   * it runs: see `Enforcer.pursue` and `src/systems/Firearms.ts` for the two
+   * independent gates that now stand in front of it.
    */
-  private resolveGuardFire(shot: EnforcerFireResult): void {
+  private resolveGuardShot(shot: EnforcerAttackResult): void {
     const ts = this.tileSize;
     const dx = shot.targetX - shot.originX;
     const dy = shot.targetY - shot.originY;
@@ -2196,7 +2284,15 @@ export class GameScene extends Phaser.Scene {
     );
     // Advertise the verb, but only into a slot nothing nearer wanted: a door in your
     // face outranks a hint about somebody across the room.
-    if (!this.prompts.visible && this.holdUpCandidate) this.prompts.set("[Q] Hold up", this.player);
+    //
+    // Which of `[Q]`'s two halves is offered follows the same rule the key does — armed
+    // holds a man up, empty-handed takes him down — so the prompt is never advertising
+    // the wrong one. The takedown's reach is a third of the hold-up's, so an unarmed
+    // Rowan sees it only once he has actually walked in.
+    if (!this.prompts.visible) {
+      if (this.holdUpCandidate) this.prompts.set("[Q] Hold up", this.player);
+      else if (this.takedownCandidate) this.prompts.set("[Q] Take down", this.player);
+    }
   }
 
   /**

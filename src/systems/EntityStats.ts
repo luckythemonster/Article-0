@@ -40,12 +40,31 @@ export interface EnforcerStats {
   turnRate: number; // degrees/second
   auditDelay: number; // seconds in cone before full detection
   alertNetworkRadius: number;
-  /** Reach of the pursuing-guard ranged attack, in tiles. */
+  /**
+   * Whether this guard carries a firearm at all.
+   *
+   * **False is the default, and the default is the restriction.** A gun needs two
+   * gates to go off: this flag, and a base-wide release
+   * ({@link ./Firearms.FirearmsAuthorization}). Neither alone is enough, which is
+   * what keeps a firearm an escalation the building reaches for rather than the
+   * thing every body on the roster is holding.
+   *
+   * The per-level complement is capped at {@link ARMED_POSTS_PER_LEVEL} where the
+   * cast is spawned, so setting this true on a map board cannot flood a level.
+   */
+  armed: boolean;
+  /** Reach of the pursuing-guard ranged attack, in tiles. Only fires when {@link armed}. */
   fireRange: number;
   /** Seconds between shots. */
   fireCooldown: number;
   /** Bio-integrity damage per shot that reaches the player. */
   fireDamage: number;
+  /** Reach of the pursuing-guard contact attack, in tiles — the default answer. */
+  meleeRange: number;
+  /** Seconds between strikes. */
+  meleeCooldown: number;
+  /** Bio-integrity damage per strike. */
+  meleeDamage: number;
 }
 
 /**
@@ -74,9 +93,21 @@ export const ENFORCER_DEFAULTS: EnforcerStats = {
   turnRate: 120,
   auditDelay: 0.9,
   alertNetworkRadius: 7,
+  armed: false,
   fireRange: 4.5,
   fireCooldown: 1.6,
   fireDamage: 12,
+  // A silicate's prod, and the numbers say what a silicate is for.
+  //
+  // `meleeRange` 1.6 sits deliberately *outside* `PLAYER_DEFAULTS.captureRadius`
+  // (1.3): the prod is the setup and the seizure is the finish, so the reach that
+  // staggers Rowan has to be the one he feels first. `meleeDamage` 8 is under the
+  // security guard's 10 for the same reason the capture exists at all — an
+  // enforcer is trying to recover an asset, not destroy one. See
+  // {@link GUARD_MELEE_STAGGER_SECONDS} for why one prod can't hold him there.
+  meleeRange: 1.6,
+  meleeCooldown: 1.3,
+  meleeDamage: 8,
 };
 
 export interface LightStats {
@@ -123,9 +154,13 @@ export function enforcerStatsFor(components: ComponentData[]): EnforcerStats {
     turnRate: paced(num(components, "enforcer", "TurnRate", ENFORCER_DEFAULTS.turnRate)),
     auditDelay: num(components, "enforcer", "AuditDelay", ENFORCER_DEFAULTS.auditDelay),
     alertNetworkRadius: num(components, "enforcer", "AlertNetworkRadius", ENFORCER_DEFAULTS.alertNetworkRadius),
+    armed: flag(components, "enforcer", "Armed"),
     fireRange: num(components, "enforcer", "FireRange", ENFORCER_DEFAULTS.fireRange),
     fireCooldown: num(components, "enforcer", "FireCooldown", ENFORCER_DEFAULTS.fireCooldown),
     fireDamage: num(components, "enforcer", "FireDamage", ENFORCER_DEFAULTS.fireDamage),
+    meleeRange: num(components, "enforcer", "MeleeRange", ENFORCER_DEFAULTS.meleeRange),
+    meleeCooldown: num(components, "enforcer", "MeleeCooldown", ENFORCER_DEFAULTS.meleeCooldown),
+    meleeDamage: num(components, "enforcer", "MeleeDamage", ENFORCER_DEFAULTS.meleeDamage),
   };
 }
 
@@ -143,7 +178,14 @@ export function enforcerStatsFor(components: ComponentData[]): EnforcerStats {
  *   authored: {@link num} reads a map-side 0 as "unset" and falls back here.
  * - **`alertNetworkRadius` 4** against 7 — he radios the mesh, he is not *on* it.
  * - **`fireDamage` 8** against 12, and **`purgeSpeed` 2.6** against 3.0 — worse
- *   shot, slower legs, kit that was not built into him.
+ *   shot, slower legs, kit that was not built into him. The shot is moot in
+ *   practice: he is never {@link EnforcerStats.armed}, and the cap that decides
+ *   who is only ever considers enforcers.
+ * - **`meleeDamage` 10** against the enforcer's 8, at **`meleeRange` 1.2**
+ *   against 1.6 and **`meleeCooldown` 1.5** against 1.3 — he hits harder,
+ *   reaches shorter and swings slower. A man with a stick does more damage per
+ *   connection than a sentry's prod and gets fewer of them, and unlike a
+ *   silicate he has no capture to follow it with: this is his whole answer.
  *
  * `turnRate` is the one field held level with the enforcer's: a man turns his
  * head faster than a sentry rotates a camera crown, and dropping it too would
@@ -158,9 +200,13 @@ export const SECURITY_GUARD_DEFAULTS: EnforcerStats = {
   turnRate: 120,
   auditDelay: 1.4,
   alertNetworkRadius: 4,
+  armed: false,
   fireRange: 3.8,
   fireCooldown: 1.9,
   fireDamage: 8,
+  meleeRange: 1.2,
+  meleeCooldown: 1.5,
+  meleeDamage: 10,
 };
 
 /**
@@ -183,9 +229,13 @@ export function securityGuardStatsFor(components: ComponentData[]): EnforcerStat
     turnRate: paced(num(components, "enforcer", "TurnRate", d.turnRate)),
     auditDelay: num(components, "enforcer", "AuditDelay", d.auditDelay),
     alertNetworkRadius: num(components, "enforcer", "AlertNetworkRadius", d.alertNetworkRadius),
+    armed: flag(components, "enforcer", "Armed"),
     fireRange: num(components, "enforcer", "FireRange", d.fireRange),
     fireCooldown: num(components, "enforcer", "FireCooldown", d.fireCooldown),
     fireDamage: num(components, "enforcer", "FireDamage", d.fireDamage),
+    meleeRange: num(components, "enforcer", "MeleeRange", d.meleeRange),
+    meleeCooldown: num(components, "enforcer", "MeleeCooldown", d.meleeCooldown),
+    meleeDamage: num(components, "enforcer", "MeleeDamage", d.meleeDamage),
   };
 }
 
@@ -264,6 +314,81 @@ export const EMP_SHUTDOWN_TILES = 2.2;
  */
 export const ENFORCER_FIRE_NOISE_TILES = 6;
 
+/**
+ * Radius (tiles) a guard's contact strike carries.
+ *
+ * A scuffle, not a report. Under a door (4) and far under gunfire (6), and that gap
+ * is the mechanical reason the facility prefers hands: putting someone down quietly
+ * is the whole argument for a prod over a sidearm, and a building that has decided
+ * its subjects are assets to be recovered has every reason to make that argument.
+ *
+ * It is deliberately *not* zero. A fight is the loudest thing two bodies can do
+ * without a weapon, and a nearby patrol should get the chance to wander over.
+ */
+export const GUARD_MELEE_NOISE_TILES = 1.5;
+
+/**
+ * Seconds Rowan moves at {@link GUARD_MELEE_STAGGER_MULTIPLIER} after a strike lands.
+ *
+ * **Held under {@link PLAYER_DEFAULTS}`.captureTime` (0.7) on purpose.** A silicate's
+ * prod reaches 1.6 tiles and its capture closes at 1.3, so a stagger that outlasted the
+ * capture window would make a single connection a death sentence — walk into one prod,
+ * lose the run. At 0.5 the stagger expires with time to spare and you have to eat a
+ * second one, which turns the sequence into a mistake you can see coming rather than a
+ * coin flip. Asserted in `EntityStats.test.ts`, the only place both halves are in scope.
+ */
+export const GUARD_MELEE_STAGGER_SECONDS = 0.5;
+
+/**
+ * Move-speed multiplier while staggered.
+ *
+ * **It lands exactly between the two purge speeds, and that is the whole choice.** A
+ * staggered sprint is 3.2 × 1.6 × 0.55 = 2.82 tiles/s, against a security guard's
+ * `purgeSpeed` 2.6 and an enforcer's 3.0. So for the half-second it lasts:
+ *
+ * | staggered by | outcome |
+ * |---|---|
+ * | a human guard (2.6) | Rowan still out-runs him — the strike is damage and pressure, and that is all a man with a stick gets |
+ * | a silicate (3.0) | the sentry gains on him — which is how a prod feeds the capture that ends the run |
+ *
+ * That asymmetry is the same one the rest of the cast is built on: the humans hurt
+ * you, the silicates take you in. Tuning this up past ~0.59 would let Rowan sprint
+ * clear of a sentry mid-stagger and quietly delete the prod-into-capture sequence;
+ * tuning it down would let a security guard run him down, which he should never do.
+ * Both edges are asserted in `EntityStats.test.ts`.
+ *
+ * Above a sneak's 0.45 throughout, so a stagger is never worse than crouching.
+ *
+ * Multiplied against the stance multipliers rather than replacing them, so crouching
+ * while staggered is still slower than standing while staggered.
+ */
+export const GUARD_MELEE_STAGGER_MULTIPLIER = 0.55;
+
+/**
+ * Seconds of sustained full ALERT before the facility releases firearms.
+ *
+ * The gate that makes a gun an *event*. `Enforcer.pursue` has always been reachable
+ * only at ALERT, so "guns during an alert" was already the rule and nobody could feel
+ * it; this is the rule that bites. Under `AlertState`'s own `ALERT_DURATION` (8) so a
+ * refreshed sighting can carry a guard past it, but long enough that breaking line of
+ * sight — the thing a stealth game is asking you to do — denies it outright.
+ *
+ * A player who plays well may finish a run without ever hearing a shot. That is the
+ * intended outcome, not a failure of the tuning.
+ */
+export const FIREARMS_AUTHORIZATION_DELAY = 6;
+
+/**
+ * How many guards on a level may carry a firearm.
+ *
+ * The hard ceiling on the second gate. One per level, and only ever a purpose-built
+ * enforcer — a drone is too small to mount one and the human security staff are not
+ * issued them. Applied where the cast is spawned rather than where stats are read,
+ * because scarcity is a property of the roster, not of any one body: without a cap
+ * here, a map that set `Armed` on four boards would quietly undo the whole thing.
+ */
+export const ARMED_POSTS_PER_LEVEL = 1;
+
 export function lightStatsFor(components: ComponentData[]): LightStats {
   return {
     radius: num(components, "light_source", "Radius", LIGHT_DEFAULTS.radius),
@@ -287,6 +412,29 @@ export function str(
   const c = components.find((x) => x.type === type);
   const raw = c?.values[field];
   return raw !== undefined && raw !== "" ? raw : fallback;
+}
+
+/**
+ * Reads a boolean field from a component. Absent, blank or `0` all read as false.
+ *
+ * The map leaves tuning at 0 and {@link num} treats a `0` as *unset* — which is why
+ * you cannot author a genuine zero anywhere in this file. For a boolean that
+ * restriction costs nothing, because unset and false are the same answer: a field
+ * nobody filled in is a permission nobody granted. This is a separate reader rather
+ * than `num(...) !== 0` so that the coincidence is written down where it applies,
+ * instead of looking like a bug the next person tidies up.
+ *
+ * Anything else parses as a number and is true when non-zero, so a board can say
+ * `1` or `true` and mean it.
+ */
+export function flag(components: ComponentData[], type: string, field: string): boolean {
+  const c = components.find((x) => x.type === type);
+  const raw = c?.values[field];
+  if (raw === undefined || raw === "") return false;
+  if (raw.toLowerCase() === "true") return true;
+  if (raw.toLowerCase() === "false") return false;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed !== 0;
 }
 
 export interface DoorStats {
@@ -704,6 +852,37 @@ export const STAPLER_FIELD_MAX_CHARGES = 3;
  * codebase rather than the third anonymous one.
  */
 export const WEAPON_ARC_DEGREES = 120;
+
+// --- Close quarters: the takedown and the hold-up --------------------------
+
+/**
+ * Reach (tiles) of Rowan's bare-handed takedown.
+ *
+ * **[Q] is one verb with two halves, picked by what he is carrying.** Holding a
+ * weapon, it is the hold-up ({@link HOLD_UP_REACH_TILES}); empty-handed, it is this.
+ * Overloading the key rather than spending a new one is what keeps the two readable
+ * as the same idea — closing on a person instead of firing at one — and it means the
+ * player is never left with a trigger as his only answer, which matters because the
+ * hold-up needs a weapon he may not have found.
+ *
+ * A third of the hold-up's 3 tiles, and under an orderly's own sight range, because
+ * the trade is the point: pointing something at a man works from across the room, and
+ * putting hands on him means walking all the way in with nothing in them.
+ */
+export const PLAYER_MELEE_REACH_TILES = 1.1;
+
+/** Seconds between takedown attempts — a scuffle Rowan has to recover from. */
+export const PLAYER_MELEE_COOLDOWN = 0.9;
+
+/**
+ * Radius (tiles) of the noise a takedown makes.
+ *
+ * The three ways off the board stay ordered by what they cost to use: a hold-up is
+ * silent and buys only passage, this is 1 tile and takes a man down for good, and the
+ * dart is 2 and does it from five tiles away. Paying a little noise to skip the dart
+ * you don't have is the trade this verb exists to offer.
+ */
+export const PLAYER_MELEE_NOISE_TILES = 1.0;
 
 // --- The hold-up ----------------------------------------------------------
 

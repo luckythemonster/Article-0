@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import type { ComponentData } from "../map/types";
 import { CollisionGrid } from "../systems/CollisionGrid";
 import { AlertState, type AlertPhase } from "../systems/AlertState";
+import type { FirearmsAuthorization } from "../systems/Firearms";
 import type { DeployedLure } from "../systems/Deployables";
 import { enforcerStatsFor, type EnforcerStats } from "../systems/EntityStats";
 import { moveCirclePx } from "../systems/GridMotion";
@@ -36,8 +37,22 @@ import { workDoors } from "./doorWork";
  */
 export type GuardState = "PATROL" | "CAUTIOUS" | "SUSPICIOUS" | "ALERT" | "SEARCHING";
 
-/** A shot fired by a pursuing guard this frame — the scene applies its effects. */
-export interface EnforcerFireResult {
+/**
+ * An attack made by a pursuing guard this frame — the scene applies its effects.
+ *
+ * **`kind` is the whole point of this type.** A guard's default answer is `"melee"`:
+ * he closes and puts hands on you. A `"shot"` needs two independent permissions —
+ * an {@link ../systems/EntityStats.EnforcerStats}`.armed` guard and a facility that
+ * has released weapons ({@link ../systems/Firearms.FirearmsAuthorization}) — so on a
+ * quiet run this variant is never constructed at all.
+ *
+ * The two resolve differently and the difference is not cosmetic: a shot travels, so
+ * the scene traces it through hostages and destructible cover and draws a tracer; a
+ * strike is contact, so nothing can intervene between the guard and Rowan and there
+ * is no line to draw. See `GameScene.resolveGuardAttack`.
+ */
+export interface EnforcerAttackResult {
+  kind: "melee" | "shot";
   originX: number;
   originY: number;
   targetX: number;
@@ -122,6 +137,14 @@ export interface EnforcerContext {
   /** Scales a guard's thermalRadius stat (in tiles) — 0 while Thermal Gel is active. */
   thermalRadiusMultiplier: (baseTiles: number) => number;
   alert: AlertState;
+  /**
+   * Whether the facility has released firearms this frame.
+   *
+   * Read only by {@link Enforcer.pursue}, and only for a guard that carries one at
+   * all. Base-wide rather than per-guard because that is what it models: a building
+   * deciding the situation warrants weapons, not a man deciding he has had enough.
+   */
+  firearms: FirearmsAuthorization;
   /** Opened doors/chests, EMP'd devices, and stunned orderlies visible this frame. */
   anomalies?: GuardAnomaly[];
   /**
@@ -259,6 +282,7 @@ export class Enforcer {
   private prevPhase: AlertPhase = "INFILTRATION";
   /** Seconds until the pursuing-guard ranged attack (see {@link pursue}) can fire again. */
   private fireCooldownLeft = 0;
+  private meleeCooldownLeft = 0;
   private cautiousTimer = 0;
   private investigation: Investigation | null = null;
   private inspectTimer = 0;
@@ -502,7 +526,7 @@ export class Enforcer {
     this.eye.y = y;
   }
 
-  update(dt: number, ctx: EnforcerContext): EnforcerFireResult | undefined {
+  update(dt: number, ctx: EnforcerContext): EnforcerAttackResult | undefined {
     const { tileSize, grid } = ctx;
 
     // Stashed: nothing to draw, think or sense. The shutdown clock still runs —
@@ -525,14 +549,14 @@ export class Enforcer {
       return undefined;
     }
 
-    let fired: EnforcerFireResult | undefined;
+    let attacked: EnforcerAttackResult | undefined;
     if (ctx.alert.phase === "ALERT") {
       if (this.state !== "ALERT") this.clearPath();
       this.state = "ALERT";
       this.investigation = null;
       this.searchTargets = [];
       this.pendingNoise = null;
-      fired = this.pursue(dt, ctx);
+      attacked = this.pursue(dt, ctx);
     } else if (ctx.alert.phase === "EVASION") {
       this.pendingNoise = null;
       if (this.prevPhase !== "EVASION") this.beginSearch(ctx);
@@ -572,7 +596,7 @@ export class Enforcer {
     this.speech.setPosition(this.x, this.y - tileSize * 1.35);
     this.bang.setPosition(this.x, this.y - tileSize);
     this.bang.setVisible(this.detection > 0.66 || ctx.alert.phase === "ALERT" || this.state === "SUSPICIOUS");
-    return fired;
+    return attacked;
   }
 
   /** PATROL/CAUTIOUS/SUSPICIOUS handling while the base is calm. */
@@ -898,32 +922,66 @@ export class Enforcer {
    * chase tight and reactive — but straight-lining a remembered one is what used
    * to wedge guards against the corner they lost you behind.
    *
-   * While it has a sightline and is close enough, it also fires rather than
-   * closing distance — the guard's answer to the destructible cover the
-   * player can also break with the Stun Rounds/Stapler triggers.
+   * **Closing is the default; firing is the exception.** Every guard used to draw
+   * and shoot the instant the base woke up, which made the answer to a patrol a
+   * question of cover rather than of distance. Now a guard walks Rowan down and
+   * strikes at contact reach, and the only way to be shot at is to stand in front
+   * of one of the facility's very few armed posts long enough for it to be given
+   * permission ({@link ../systems/Firearms.FirearmsAuthorization}).
+   *
+   * That flips what the player is being asked to do. `purgeSpeed` is deliberately
+   * under a walk (see {@link ../systems/EntityStats.ENFORCER_DEFAULTS}), so against
+   * a melee guard *walking away denies the attack outright* — the chase became a
+   * problem you solve with your legs instead of a wall.
    */
-  private pursue(dt: number, ctx: EnforcerContext): EnforcerFireResult | undefined {
+  private pursue(dt: number, ctx: EnforcerContext): EnforcerAttackResult | undefined {
     const { tileSize, alert } = ctx;
     this.scanOffset = 0;
     this.fireCooldownLeft = Math.max(0, this.fireCooldownLeft - dt);
+    this.meleeCooldownLeft = Math.max(0, this.meleeCooldownLeft - dt);
 
     if (this.sense(ctx)) {
       this.clearPath();
       const ang = Math.atan2(ctx.player.y - this.y, ctx.player.x - this.x);
       this.faceToward(ang, dt);
       const distPx = len(ctx.player.x - this.x, ctx.player.y - this.y);
-      if (distPx <= this.stats.fireRange * tileSize && this.fireCooldownLeft <= 0) {
+
+      // Checked before the strike, and deliberately **without consulting pathing**.
+      // That is what covers the case melee cannot: a guard with a clean sightline and
+      // nothing walkable between him and Rowan — across a stairwell gap, or through
+      // the map's glass, which blocks movement but not sight (see DESIGN_NOTES,
+      // "Glazing"). Closing is not an option there, so an armed post that has been
+      // released to fire is the only thing that can act at all. Every other guard in
+      // that spot holds its cone, which is the correct outcome rather than a gap:
+      // being unreachable *should* be safe from all but the facility's rarest bodies.
+      if (this.canFire(ctx) && distPx <= this.stats.fireRange * tileSize && this.fireCooldownLeft <= 0) {
         this.fireCooldownLeft = this.stats.fireCooldown;
         // Holds position to fire rather than closing distance this frame — reads as
         // the guard planting and aiming rather than a bullet fired mid-stride.
-        return {
-          originX: this.x,
-          originY: this.y,
-          targetX: ctx.player.x,
-          targetY: ctx.player.y,
-          damage: this.stats.fireDamage,
-        };
+        return this.attack("shot", ctx, this.stats.fireDamage);
       }
+
+      const inReach = distPx <= this.stats.meleeRange * tileSize;
+      if (inReach && this.meleeCooldownLeft <= 0) {
+        this.meleeCooldownLeft = this.stats.meleeCooldown;
+        return this.attack("melee", ctx, this.stats.meleeDamage);
+      }
+
+      // **Whether a guard keeps walking once he is in reach is the difference between
+      // the two bodies**, and it is the mechanical half of "the humans hurt you, the
+      // silicates take you in".
+      //
+      // A man plants at his own reach and works from there. He has no seizure to follow
+      // the strike with, so closing further would only have him shoving through Rowan —
+      // `moveCirclePx` collides with the grid, not with the cast.
+      //
+      // A sentry keeps coming, because for it the strike is the *setup*: its reach
+      // (1.6) is deliberately outside `PLAYER_DEFAULTS.captureRadius` (1.3), so the
+      // prod lands on the way in and the stagger it leaves is what makes the last third
+      // of a tile hard to give back. A silicate that planted at 1.6 would never reach
+      // the radius it exists to reach, and the capture would be unreachable in a chase.
+      if (inReach && !this.isSilicate) return undefined;
+
       this.step(ctx, ang, this.stats.purgeSpeed * tileSize * dt);
       return undefined;
     }
@@ -936,6 +994,34 @@ export class Enforcer {
       this.sweepCone(dt, CAUTIOUS_TURN_MULTIPLIER);
     }
     return undefined;
+  }
+
+  /**
+   * Whether this guard may put a shot downrange right now.
+   *
+   * **Both gates, every frame.** A firearm needs a guard issued one *and* a facility
+   * that has released them; either alone is silence. Re-read per frame rather than
+   * latched on the guard, because the authorization is base-wide state that can
+   * stand down underneath him mid-chase.
+   */
+  private canFire(ctx: EnforcerContext): boolean {
+    return this.stats.armed && ctx.firearms.authorized;
+  }
+
+  /** Packs one attack for the scene to resolve. See {@link EnforcerAttackResult}. */
+  private attack(
+    kind: EnforcerAttackResult["kind"],
+    ctx: EnforcerContext,
+    damage: number,
+  ): EnforcerAttackResult {
+    return {
+      kind,
+      originX: this.x,
+      originY: this.y,
+      targetX: ctx.player.x,
+      targetY: ctx.player.y,
+      damage,
+    };
   }
 
   // --- Path following ------------------------------------------------------

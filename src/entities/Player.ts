@@ -13,6 +13,8 @@ import {
   ESCORT_SPEED_MULTIPLIER,
   PLAYER_DEFAULTS,
   CARRY_SPEED_MULTIPLIER,
+  GUARD_MELEE_STAGGER_MULTIPLIER,
+  GUARD_MELEE_STAGGER_SECONDS,
   PLAYER_WALK_TILES,
   PRESS_FLUSH_PULL,
   PRESS_LEAN_SECONDS,
@@ -116,6 +118,7 @@ export class Player {
   hp = PLAYER_DEFAULTS.maxHp;
   /** Seconds of invulnerability remaining after the last hit. */
   private hitCooldownLeft = 0;
+  private staggerLeft = 0;
 
   /**
    * True only once *fully* crouched — not during the lower/rise transitions.
@@ -178,6 +181,27 @@ export class Player {
     this.hp = Math.max(0, this.hp - amount);
     this.hitCooldownLeft = PLAYER_DEFAULTS.hitCooldown;
     return true;
+  }
+
+  /**
+   * Slows Rowan for {@link GUARD_MELEE_STAGGER_SECONDS} — a guard's strike connecting.
+   *
+   * Separate from {@link takeDamage} and deliberately **not** behind its hit-cooldown:
+   * the two model different things. Damage is gated so a hazard cannot drain the bar in
+   * a frame; the stagger is the guard buying himself the ground he needs to keep hitting
+   * you, and refreshing it on a blow that landed is the correct behaviour.
+   *
+   * It is the whole reason a silicate's prod is dangerous — see
+   * {@link GUARD_MELEE_STAGGER_SECONDS} for why one of them cannot on its own hold Rowan
+   * inside the capture window that ends the run.
+   */
+  stagger(seconds: number = GUARD_MELEE_STAGGER_SECONDS): void {
+    this.staggerLeft = Math.max(this.staggerLeft, seconds);
+  }
+
+  /** True while a guard's strike still has him off balance — read by the HUD. */
+  get staggered(): boolean {
+    return this.staggerLeft > 0;
   }
 
   /** Restores bio-integrity, capped at {@link maxHp} (Medkit). */
@@ -250,7 +274,12 @@ export class Player {
             : running
               ? 1.6
               : 1;
-    const speed = this.walkSpeed * stanceMul;
+    // Multiplied onto the stance rather than replacing it: a staggered crouch should
+    // still be slower than a staggered stand, and the stance ladder is tuned against
+    // guard speeds that this must not quietly re-order.
+    this.staggerLeft = Math.max(0, this.staggerLeft - dt);
+    const speed =
+      this.walkSpeed * stanceMul * (this.staggerLeft > 0 ? GUARD_MELEE_STAGGER_MULTIPLIER : 1);
 
     let sliding = false;
     if (this.press) {
