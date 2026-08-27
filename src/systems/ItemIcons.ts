@@ -3,8 +3,9 @@
  * absent here (Stun Rounds, the two LOG_CACHE fragments) render without an icon.
  */
 import {
-  ACCESS_CHIT_ITEM,
   BATTERY_ITEM,
+  FLASHLIGHT_ITEM,
+  keycardNumber,
   CERT_ITEM,
   CHAFF_PACK_ITEM,
   EIRA7_LOG_ITEM,
@@ -21,7 +22,6 @@ export const ITEM_ICON_PATHS: Record<string, string> = {
   [RATION_PACK_ITEM]: "assets/icons/medkit.png",
   [BATTERY_ITEM]: "assets/icons/battery.png",
   [EIRA7_LOG_ITEM]: "assets/icons/disk.png",
-  [ACCESS_CHIT_ITEM]: "assets/icons/access_chit.png",
   [SACK_LUNCH_ITEM]: "assets/icons/sack_lunch.png",
   // The one entry with no 256px original behind it: `rail_stapler.png` was drawn
   // native, so only the `assets/ui/icons/` half of the pair below exists. If that
@@ -34,6 +34,37 @@ export const ITEM_ICON_PATHS: Record<string, string> = {
 /** The flashlight's icon depends on its toggle state, so it isn't in the flat map. */
 export function flashlightIconPath(on: boolean): string {
   return on ? "assets/icons/flashlight-on.png" : "assets/icons/flashlight-off.png";
+}
+
+/**
+ * The icon for a keycard of any clearance.
+ *
+ * Every clearance shares one image today. The art does not have to: this file is cut
+ * from `keycard icon.aseprite`, which carries **five** numbered `clearance_level`
+ * frames, and `tools/icons/build_icons.py` says in as many words that the other four
+ * were "drawn and waiting for a mechanic" because nothing carried a clearance to pick
+ * them by. Something does now — wiring them is one `Spec(outputs={0..4})` line there
+ * plus a lookup here, and it needs Aseprite to regenerate the PNGs.
+ *
+ * The filename still says `access_chit` because it is a *generated* artefact: renaming
+ * the output means re-running that script, which is the same blocker.
+ */
+export function keycardIconPath(_clearance: number): string {
+  return "assets/icons/access_chit.png";
+}
+
+/**
+ * The icon for a held item, or `undefined` for one with no art.
+ *
+ * The flat map cannot answer for every item — the flashlight varies with its toggle and
+ * keycards are an open-ended family — so callers go through here rather than indexing
+ * {@link ITEM_ICON_PATHS} directly and missing the dynamic cases.
+ */
+export function itemIconPath(name: string, flashlightOn = false): string | undefined {
+  if (name === FLASHLIGHT_ITEM) return flashlightIconPath(flashlightOn);
+  const clearance = keycardNumber(name);
+  if (clearance !== undefined) return keycardIconPath(clearance);
+  return ITEM_ICON_PATHS[name];
 }
 
 /**

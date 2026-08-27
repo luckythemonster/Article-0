@@ -450,6 +450,34 @@ export const DOOR_DEFAULTS = {
   operationNoise: 4,
 } as const;
 
+/**
+ * Whether a door refuses to be opened by hand without a credential.
+ *
+ * Two ways to say it and they mean different things: a non-zero `key` names the
+ * clearance that answers it, while `state: "locked"` with no id is sealed outright —
+ * there is no card that could name it, so only a terminal hack gets through.
+ *
+ * Pulled out of `Door`'s constructor so the rule can be tested without standing up a
+ * Phaser scene, per the headless-systems split.
+ */
+export function doorIsLocked(stats: DoorStats): boolean {
+  return stats.key !== 0 || stats.state === "locked";
+}
+
+/**
+ * Whether whoever holds `inventory` can open this door by hand.
+ *
+ * A keycard does not *unlock* anything — the door is unchanged, and the same door
+ * answers differently to two people. That is why this takes the inventory rather than
+ * mutating state, and why `Door.isManual` (which guards read) stays a property of the
+ * door alone: routing patrols through here would open keycard doors for every guard on
+ * the level on the strength of what Rowan is carrying.
+ */
+export function doorOpensWith(stats: DoorStats, inventory: readonly string[]): boolean {
+  if (!doorIsLocked(stats)) return true;
+  return stats.key !== 0 && inventory.includes(keycardName(stats.key));
+}
+
 export function doorStatsFor(components: ComponentData[]): DoorStats {
   return {
     key: num(components, "door", "key", 0),
@@ -610,11 +638,17 @@ export const CHEST_DEFAULTS = {
    * rather than by accident: those two chests are the only thing that depends on
    * stray quotes being stripped rather than being taken literally.
    *
-   * Kept at three because the slot schema has three, and ordered so that since unlit
-   * space became genuinely opaque a Battery outranks Stun Rounds — light is
-   * load-bearing, stunning an Orderly bystander is a convenience.
+   * Ordered so that since unlit space became genuinely opaque a Battery outranks Stun
+   * Rounds — light is load-bearing, stunning an Orderly bystander is a convenience.
+   *
+   * **Two entries, not three, since the Access Chit became a keycard.** The slot schema
+   * has three and the third was the chit, which opened nothing; a keycard is not a
+   * drop-in replacement for it, because a *numbered* credential has to match a door
+   * somebody authored and a default table cannot know which. Seeding one here would put
+   * the same clearance in every unauthored chest on every map — placement dressed up as
+   * a default. A chest that wants to hand out a keycard should say which.
    */
-  items: ["Medkit", "Battery", "Access Chit"],
+  items: ["Medkit", "Battery"],
 } as const;
 
 export function chestStatsFor(components: ComponentData[]): ChestStats {
@@ -858,8 +892,47 @@ export const STARTING_INVENTORY: readonly string[] = [SACK_LUNCH_ITEM];
 /** Equipment: the toggleable flashlight (does not count against the consumable cap). */
 export const FLASHLIGHT_ITEM = "Flashlight";
 
-/** Key item: a door-access credential (does not count against the consumable cap). */
-export const ACCESS_CHIT_ITEM = "Access Chit";
+/**
+ * Key item: a numbered door credential (does not count against the consumable cap).
+ *
+ * **Keycards are the one open-ended item family**, so they are a *function* rather than
+ * a constant and cannot join {@link KNOWN_ITEMS}: a map may lock a door on any id it
+ * likes, and the matching card has to exist without anyone having declared it. That is
+ * why {@link resolveItemName} carries a pattern branch and `ItemCatalog`/`ItemIcons`
+ * both answer for keycards dynamically instead of holding an entry each.
+ *
+ * They replaced the Access Chit, which promised "opens keyed doors" in its catalogue
+ * copy and never did — nothing in the engine read it, while doors have always locked on
+ * a *numeric* {@link DoorStats.key}. `Door`'s own class doc anticipated the fix
+ * ("only a terminal hack, or, later, a keycard"), and so did the art: the icon is cut
+ * from `keycard icon.aseprite`, whose five `clearance_level` frames were drawn waiting
+ * for items that carry a number.
+ *
+ * **"Keycard" rather than "Key"** because that is what the rest of the codebase already
+ * says — {@link DoorStats.key} documents itself as a keycard id, and
+ * `GameScene.guardOperableDoorAt` calls these keycard doors. The shipped map's authored
+ * `"Key1"` is the outlier; {@link resolveItemName} accepts that spelling as *input*
+ * without adopting it.
+ */
+export function keycardName(clearance: number): string {
+  return `Keycard ${clearance}`;
+}
+
+/** The clearance a keycard name carries, or `undefined` if it isn't one. */
+export function keycardNumber(name: string): number | undefined {
+  // `key`, `keycard`, any spacing, and leading zeros — the map hand-authors these.
+  const m = /^\s*(?:key|keycard)\s*0*(\d+)\s*$/i.exec(name);
+  if (!m) return undefined;
+  const n = Number(m[1]);
+  // A door with `key: 0` is *unlocked*, so a Keycard 0 would be a credential for
+  // nothing. Rejecting it here keeps that impossible rather than merely useless.
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+/** True when a name is a keycard of any clearance. */
+export function isKeycard(name: string): boolean {
+  return keycardNumber(name) !== undefined;
+}
 
 /** Key item: a recovered EIRA-7 mission log (does not count against the consumable cap). */
 export const EIRA7_LOG_ITEM = "EIRA-7 Cached Log";
@@ -1131,7 +1204,6 @@ export const KNOWN_ITEMS: readonly string[] = [
   STUN_ROUNDS_ITEM,
   SACK_LUNCH_ITEM,
   FLASHLIGHT_ITEM,
-  ACCESS_CHIT_ITEM,
   EIRA7_LOG_ITEM,
   CERT_ITEM,
   STAPLER_ITEM,
@@ -1175,6 +1247,11 @@ export function parseItemList(raw: string): string[] {
  * description and no effect.
  */
 export function resolveItemName(raw: string): string | undefined {
+  // Keycards first, and by pattern rather than by lookup: they are open-ended, so
+  // {@link KNOWN_ITEMS} cannot list them. This is also what turns `main1`'s authored
+  // `"Key1"` into a real item — it was dropped on the floor until keycards existed.
+  const clearance = keycardNumber(raw);
+  if (clearance !== undefined) return keycardName(clearance);
   const key = itemKey(raw);
   return KNOWN_ITEMS.find((name) => itemKey(name) === key);
 }

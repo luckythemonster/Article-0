@@ -113,7 +113,7 @@ roster rather than of any one body.
 - **`MAX_CONSUMABLES` is 8** — a cap on total units held, not on distinct types.
 - **Key items are uncapped, and defined as the complement of `CONSUMABLE_ORDER`** rather
   than their own allowlist (`isKeyItem`). Anything the game grants that isn't a
-  consumable — Flashlight, Access Chit, EIRA-7 Log, Rail-Stapler, the Q0 compliance cert,
+  consumable — Flashlight, keycards, EIRA-7 Log, Rail-Stapler, the Q0 compliance cert,
   the two log-cache halves — shows up under KEY ITEMS automatically. See
   [Design notes](DESIGN_NOTES.md#held-items-are-the-complement-of-the-consumables-list)
   for why that matters.

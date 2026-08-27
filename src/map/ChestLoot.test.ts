@@ -3,7 +3,13 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { EdplayLoader, type ParsedMap } from "./EdplayLoader";
 import { planFor } from "./MapPlan";
 import { appendVentCore } from "./VentCoreLevel";
-import { chestStatsFor, CHEST_DEFAULTS, STAPLER_ITEM, STUN_ROUNDS_ITEM } from "../systems/EntityStats";
+import {
+  chestStatsFor,
+  CHEST_DEFAULTS,
+  keycardName,
+  STAPLER_ITEM,
+  STUN_ROUNDS_ITEM,
+} from "../systems/EntityStats";
 import type { EdPlayFile } from "./types";
 
 /**
@@ -51,10 +57,10 @@ describe("Chest loot — the real shipped map", () => {
     expect(loot.get("main2")).toEqual(["EMP Grenade", "Medkit", "Thermal Gel", "Battery"]);
   });
 
-  it("normalises main1's spacing variant and drops its non-item", () => {
-    // Authored `"StunRounds", "Battery", "Key1", "Medkit"`. `Key1` has no engine meaning:
-    // doors lock on a numeric field and nothing reads an inventory item as a key.
-    expect(loot.get("main1")).toEqual(["Stun Rounds", "Battery", "Medkit"]);
+  it("normalises main1's authored spellings, keycard included", () => {
+    // Authored `"StunRounds", "Battery", "Key1", "Medkit"`. `Key1` was dropped on the
+    // floor until keycards existed; it is now a real numbered credential.
+    expect(loot.get("main1")).toEqual(["Stun Rounds", "Battery", keycardName(1), "Medkit"]);
   });
 
   it("puts Stun Rounds within reach on the first level, which is what enables the hold-up", () => {

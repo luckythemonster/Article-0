@@ -291,6 +291,32 @@ projectile) and it is not silent (`PLAYER_MELEE_NOISE_TILES` 1, between the hold
 documented silence and the dart's 2), which keeps the three ways off the board ordered by
 what they cost to use.
 
+### Keycards are numbered, and the number is the whole item
+
+The Access Chit's catalogue copy promised "Passive. Opens keyed doors" and nothing in the
+engine ever read it. Doors have always locked on a *numeric* `key` — `DoorStats` calls it a
+keycard id — so the credential that answers one has to carry a number too. **`Keycard N`
+opens a door whose `key` is N**, permanently, and is otherwise inert.
+
+Two things about the shape of it:
+
+- **Keycards are the one open-ended item family.** A map may lock a door on any clearance,
+  so the matching card has to exist without anyone having declared it. That is why they are
+  a function rather than a constant, why `KNOWN_ITEMS` cannot list them, and why
+  `ItemCatalog` and `ItemIcons` answer for them dynamically instead of holding an entry
+  each. `resolveItemName` reads them by pattern, which is what finally makes `main1`'s
+  authored `"Key1"` a real item rather than a string the loader dropped.
+- **`Door.isManual` is the guards' question, `Door.opensWith` is the player's.**
+  `guardOperableDoorAt` reads the first to decide what a patrol may work for itself. Making
+  it inventory-aware — the obvious refactor — would hand every guard on the level whatever
+  Rowan is carrying. The rule itself lives headless in `doorOpensWith` so it can be tested
+  without a Phaser scene.
+
+A card does not *unlock* anything: `locked` stays `readonly`, and the same door answers
+differently to two people standing in front of it. A door authored `LOCKED` with no id names
+no clearance and is sealed outright — terminal hacks force-open regardless, as they always
+have.
+
 **"A weapon Rowan may never find" was, at the time, literally true of every run.** Two
 bugs meant no weapon was obtainable in normal play on the shipped map: the engine read a
 chest loot schema (`item1/2/3`) that the map does not author, so all six chests silently

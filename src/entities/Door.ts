@@ -3,7 +3,14 @@ import { footprintCells } from "../map/footprint";
 import { doorBlocks, doorSeating } from "./doorGeometry";
 import type { GameTile, SpriteFrame } from "../map/types";
 import type { CollisionGrid } from "../systems/CollisionGrid";
-import { doorStatsFor, glassStatsFor, isGlass, type DoorStats } from "../systems/EntityStats";
+import {
+  doorIsLocked,
+  doorOpensWith,
+  doorStatsFor,
+  glassStatsFor,
+  isGlass,
+  type DoorStats,
+} from "../systems/EntityStats";
 import {
   clipFrames,
   ensureEntityAnim,
@@ -61,8 +68,10 @@ const DOOR_DEPTH = 405;
  *
  * Closed, it blocks the player (an Arcade static body) and every grid cell the
  * footprint spans (so it also blocks radar and enforcer pathing). Opening clears
- * both. A door with a non-zero `key` is *locked* — only a terminal hack (or,
- * later, a keycard) opens it.
+ * both. A door with a non-zero `key` is *locked*: a terminal hack force-opens it
+ * regardless, and Rowan opens it by hand only while carrying the matching keycard
+ * — see {@link opensWith}. A door authored `LOCKED` with **no** id is sealed
+ * outright, since there is no credential that could name it.
  *
  * **The body is a zone sized by `colliderRect`, not the sprite.** It used to ride
  * on the sprite — `setDisplaySize(footprint) + refreshBody()` — which covered the
@@ -188,13 +197,15 @@ export class Door {
   private sliding = false;
   /** Whether the player is within {@link DOOR_SENSE_TILES} of this door. */
   private playerNear = false;
+  /** Whether the player standing there carries what this door asks for. */
+  private playerAdmitted = false;
 
   constructor(scene: Phaser.Scene, tile: GameTile, tileSize: number, grid: CollisionGrid) {
     this.tileX = tile.x;
     this.tileY = tile.y;
     this.grid = grid;
     this.stats = doorStatsFor(tile.components);
-    this.locked = this.stats.key !== 0 || this.stats.state === "locked";
+    this.locked = doorIsLocked(this.stats);
     this.seeThrough = isGlass(tile.components) && !glassStatsFor(tile.components).visionBlock;
     this.open = this.stats.state === "open";
 
@@ -277,9 +288,32 @@ export class Door {
     return doorBlocks(this.open, this.sliding);
   }
 
-  /** Whether the player may open this by hand (adjacent tap). */
+  /**
+   * Whether this door takes no credential at all.
+   *
+   * **Not the player's question — the *guards'*.** `GameScene.guardOperableDoorAt`
+   * reads this to decide what a patrol may work for itself, and a keycard door is a
+   * chokepoint for them too. Teaching it about inventory would hand every guard on
+   * the level whatever Rowan is carrying, so the player's path goes through
+   * {@link opensWith} instead and this stays a property of the door alone.
+   */
   get isManual(): boolean {
     return !this.locked;
+  }
+
+  /**
+   * Whether whoever is holding `inventory` can open this by hand.
+   *
+   * A keycard does not *unlock* the door — {@link locked} stays `readonly`, because
+   * the door has not changed. It says this opener is carrying the credential the door
+   * asks for, which is why the answer is a function of who is standing there rather
+   * than state anybody mutates.
+   *
+   * A `state: "locked"` door with `key: 0` names no clearance, so nothing opens it by
+   * hand however well equipped Rowan is; a terminal hack is the only way through.
+   */
+  opensWith(inventory: readonly string[]): boolean {
+    return doorOpensWith(this.stats, inventory);
   }
 
   /** True when this door's footprint covers the given tile. */
@@ -315,13 +349,19 @@ export class Door {
    * paused mid-travel, a listener lost to an interruption — would wall a doorway
    * off permanently. Cheap: a boolean and a flag Phaser already maintains.
    */
-  senseProximity(playerTileX: number, playerTileY: number): void {
+  senseProximity(playerTileX: number, playerTileY: number, inventory: readonly string[]): void {
     if (this.sliding && !this.image.anims.isPlaying) this.settle();
     const dx = this.tileX + 0.5 - playerTileX;
     const dy = this.tileY + 0.5 - playerTileY;
     const near = dx * dx + dy * dy <= DOOR_SENSE_TILES * DOOR_SENSE_TILES;
-    if (near === this.playerNear) return;
+    // Short-circuited on `locked` so an ordinary door costs the same comparison it
+    // always did — only a door that actually asks for a credential scans the bag.
+    const admits = !this.locked || this.opensWith(inventory);
+    // Both, because picking a keycard up while already standing at the door has to
+    // turn the denial light off without the player stepping away and back.
+    if (near === this.playerNear && admits === this.playerAdmitted) return;
     this.playerNear = near;
+    this.playerAdmitted = admits;
     // Mid-slide the sprite is busy, and `refreshClip` on completion will pick
     // up whatever the flag says by then.
     if (!this.sliding) this.refreshClip();
@@ -371,7 +411,9 @@ export class Door {
    * scanning them, refusing them, or nothing at all because no one is there.
    */
   private closedTag(): string {
-    if (this.playerNear) return this.locked ? "LOCKED" : "SCAN";
+    // Off `playerAdmitted`, not `locked`: a door refusing a man who is holding its own
+    // keycard is the indicator telling him something untrue.
+    if (this.playerNear) return this.playerAdmitted ? "SCAN" : "LOCKED";
     return "IDLE";
   }
 
