@@ -44,7 +44,7 @@ which of the two it is; wrap it in `paced()` only if it's a rate of motion.
 
 | Group | Constant in `EntityStats.ts` |
 | --- | --- |
-| Guards and drones | `ENFORCER_DEFAULTS`, `ENFORCER_FIRE_NOISE` |
+| Guards and drones | `ENFORCER_DEFAULTS`, `ENFORCER_FIRE_NOISE_TILES` |
 | Human security guards | `SECURITY_GUARD_DEFAULTS`, read by `securityGuardStatsFor` |
 | Putting a body down and hiding it | `LOCKER_STASH_TIME`, `CARRY_SPEED_MULTIPLIER`, `BODY_PICKUP_TILES`, `EMP_SHUTDOWN_DURATION`, `EMP_SHUTDOWN_TILES` |
 | Cameras | `SENSOR_DEFAULTS` (thermal radius and network radius are shared with guards) |
