@@ -291,6 +291,19 @@ projectile) and it is not silent (`PLAYER_MELEE_NOISE_TILES` 1, between the hold
 documented silence and the dart's 2), which keeps the three ways off the board ordered by
 what they cost to use.
 
+**"A weapon Rowan may never find" was, at the time, literally true of every run.** Two
+bugs meant no weapon was obtainable in normal play on the shipped map: the engine read a
+chest loot schema (`item1/2/3`) that the map does not author, so all six chests silently
+yielded the default table; and the vent core's supply chest — the one holding the
+Rail-Stapler — was drawn by the author but never given its `chest` component, so nothing
+ever made it searchable. `canHoldUp()` was never true, neither weapon could fire, and
+VENT-4's capacitor phase was unreachable outside the debug give-item cheat.
+
+Both are fixed (`chestLoot` in `EntityStats.ts`, `furnishVentCoreChest` in
+`AdoptAuthored.ts`), so the hold-up half of `[Q]` is now genuinely reachable — Stun Rounds
+sit in `main1`'s first chest. The takedown keeps earning its place regardless: it is what
+Rowan has before he finds anything, and on any route that skips the chests.
+
 ---
 
 ## Orderlies, the Sack Lunch, and the hold-up

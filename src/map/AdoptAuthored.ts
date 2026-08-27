@@ -1,4 +1,5 @@
 import { transitionClassOf } from "../systems/TransitionGraph";
+import { VENT_CORE_CHEST_LOOT } from "../systems/EntityStats";
 import type { GameLevel, GameMap, GameTile } from "./types";
 import {
   ensureLayer,
@@ -177,6 +178,40 @@ export function graftExtractionEntrance(map: GameMap, extraction: string | null)
  * turbine to fight and sub-stations to depressurise. Without those the caller
  * reports no VENT-4 rather than an objective the player cannot complete.
  */
+/**
+ * Give the arena's supply chest the component it was authored without.
+ *
+ * The author *did* place the chest: `vent_core`'s `items` board carries one tile at
+ * (32, 12) — `item_chest5`, with real chest art, an `empty` state frame and a collider.
+ * What it has is no `DataComponents` at all, so `indexFixtures` (which gates on
+ * `has(t, "chest")`) walked straight past it and the Rail-Stapler behind it was
+ * unobtainable in normal play. Without the Stapler, VENT-4's JAMMED phase has nothing
+ * to answer it, and the boss's third phase could not be reached outside the debug cheat.
+ *
+ * So this **adds the missing component and changes nothing else** — no clone, no
+ * donor prototype, no move. The tile is already the chest the author drew; borrowing
+ * another level's chest tile to stand in for it would throw away their sprite and
+ * collider to reproduce what is already here.
+ *
+ * Loot comes from {@link ../systems/EntityStats.VENT_CORE_CHEST_LOOT}, shared with the generated arena so
+ * the two paths cannot drift, and is written to the `item1/2/3` slots rather than the
+ * `items` list — see `chestLoot` in `EntityStats.ts` for why the slots have to win.
+ *
+ * **Author beats engine**, the same rule the rest of this module works under: a map
+ * that wired its own chest up keeps its own loot, and one that placed no marker at
+ * all gets nothing rather than a chest somewhere nobody chose.
+ */
+function furnishVentCoreChest(level: GameLevel): void {
+  const board = level.layers.find((l) => l.name === "items");
+  const spot = board?.tiles[0];
+  if (!board || !spot) return;
+  if (board.tiles.some((t) => t.components.some((c) => c.type === "chest"))) return;
+  board.tiles[0] = {
+    ...spot,
+    components: [...spot.components, { type: "chest", values: { ...VENT_CORE_CHEST_LOOT } }],
+  };
+}
+
 export function adoptVentCore(level: GameLevel): boolean {
   // The turbine the arena is built around: v0.2 authored one chassis on a board
   // called `VENT-4`, v0.4 authors a pair of turbines on `vents`. Two turbines
@@ -223,6 +258,10 @@ export function adoptVentCore(level: GameLevel): boolean {
   fillIfEmpty(level, "pitons", () => markers("piton", spreadAround(hub, 4, 9, open, Math.PI / 4)));
   fillIfEmpty(level, "drips", () => markers("drip", spreadAround(hub, 3, 5, open)));
   fillIfEmpty(level, "grates", () => markers("grate", spreadAround(hub, 12, 7, open)));
+
+  // After the gates above: an arena that isn't fightable has already returned, and a
+  // chest whose Rail-Stapler answers a boss that isn't there would be furniture.
+  furnishVentCoreChest(level);
 
   return true;
 }

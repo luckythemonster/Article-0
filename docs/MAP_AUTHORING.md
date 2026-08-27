@@ -432,7 +432,7 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
 | `terminal` | `type`, `HackTime` | `password`; `AlertOnFail` is parsed into `TerminalStats` but unused — there is no hack-fail path for it to attach to |
 | `light_source` | `Radius`, `DetectionMultiplier`, `type` (`flicker` in the value → pulses) | `LightOn` — a fixture authored "off" still lights; use a breaker if you want it switchable |
 | `cover` | `type` (`low` → crouch to hide, `high` → hides standing), `ThermalBleed`, `Destructible` | — |
-| `chest` | `InteractionTime`, `NoiseOnOpen`, `item1/2/3` | `state` |
+| `chest` | `InteractionTime`, `NoiseOnOpen`, `items`, `item1/2/3` | `state` |
 | `human` | `Job` (`SECURITY` → enforcer, `ORDERLY` → orderly) | `QScore`, `Class`, `Behavior` |
 | `silicate` | presence (→ drone) | every field |
 | `enemyspawn` | presence (→ a sentry) | `spawnTime`, `type` — there is no wave system |
@@ -531,8 +531,29 @@ at 32×32, the same 2× reduction `security_node1` gets from the same source siz
   - `qualia_rack` → opens the Qualia Phase-Lock bypass. Optional; if no terminal is typed
     this way the engine promotes one per level.
   - anything else → a plain terminal whose hack releases doors within 6 tiles.
-- **`chest` item slots** left blank fall back to
-  `["Medkit", "Battery", "Access Chit"]` (`CHEST_DEFAULTS`).
+- **A chest's loot can be written two ways, and the engine reads both.** The tile
+  editor's `Chest` structure carries a single **`items`** string — a quoted,
+  comma-separated list, `"Battery", "EMP Grenade"` — and that is what every chest on the
+  shipped map uses. The engine's own generators instead write **`item1` / `item2` /
+  `item3`**, one name per slot.
+
+  **Slots win where both are present.** Cloning a chest from another tile inherits that
+  tile's `items` string whether or not anyone wanted it, so a generated chest has to be
+  able to say what it means and be believed.
+
+  Two more things worth knowing before you author loot:
+
+  - **Names are resolved against the items the game knows** (`KNOWN_ITEMS`), ignoring
+    case and spacing — which is why `main1`'s `"StunRounds"` correctly yields Stun
+    Rounds. **A name nothing recognises is dropped**, not granted: `main1` also authors
+    `"Key1"`, and an unknown string would otherwise sit in the player's KEY ITEMS all run
+    with no icon, no description and no effect. If an item you authored doesn't appear,
+    check its spelling against `KNOWN_ITEMS` first.
+  - **A field you leave null is not empty.** The editor substitutes the `Chest`
+    structure's own `DefaultValues`, so a chest that looks blank in the editor arrives
+    carrying whatever that default says — today `"Medkit", "Battery`, closing quote and
+    all. `CHEST_DEFAULTS` (`["Medkit", "Battery", "Access Chit"]`) is therefore a
+    last-resort fallback that the shipped map never actually reaches.
 - **`power_grid.Target` names a TileDef `ref`, not a tile.** Every placed fixture
   sharing that ref goes out together, which is the whole point: the shipped
   `breaker_main1` targets `light_overhead1`, and the map places fifty of those, so
@@ -559,7 +580,9 @@ at 32×32, the same 2× reduction `security_node1` gets from the same source siz
    no grid entry, no interaction — just art.
 5. **A locked door with no terminal in range is impassable.** `key !== 0` or
    `state === "LOCKED"` locks a door, and only a terminal hack within 6 tiles opens it. The
-   Access Chit is not wired up, so it cannot be used as a key.
+   Access Chit is not wired up, so it cannot be used as a key — which is also why a chest
+   authored with a key-shaped name like `"Key1"` yields nothing: there is no inventory item
+   any door reads.
 6. **Guards don't hear footsteps.** `playerNoise` is only consumed by VENT-4's grate check;
    guards learn about noise from discrete events, each with its own radius in tiles — dart 2,
    chest 3, stapler 3, door 4, knock 5, gunfire 6, orderly alarm 6, breaker 7. Quiet vs loud
