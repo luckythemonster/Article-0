@@ -833,6 +833,20 @@ export class Orderly {
     return grid.hasLineOfSight(this.x / tileSize, this.y / tileSize, player.x / tileSize, player.y / tileSize);
   }
 
+  /**
+   * Whether this orderly could catch the player doing something *right now* —
+   * conscious, not already startled or surrendered, and with a clear line of
+   * sight. Used for point-in-time "caught in the act" checks (e.g. picking up
+   * a body) that can't wait for this orderly's own next update tick — mirrors
+   * the `frozen` gating {@link update} applies before it would ever call
+   * {@link witnessCheck}/{@link canSee}.
+   */
+  canWitness(ctx: OrderlyContext): boolean {
+    if (this.isStashed || this.isImmobilized) return false;
+    if (this.state === "WITNESSED" || this.state === "SURRENDERED") return false;
+    return this.canSee(ctx);
+  }
+
   /** Keeps the "!" and the speech line pinned overhead, and says what the state is. */
   private syncMarkers(ctx: OrderlyContext): void {
     const ts = ctx.tileSize;

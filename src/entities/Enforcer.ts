@@ -1191,6 +1191,19 @@ export class Enforcer {
     return canSense(this.eye, ctx);
   }
 
+  /**
+   * Whether this guard could catch the player doing something *right now* —
+   * awake, on its feet, and with a clear sense of the player at its current
+   * position/facing. Used for point-in-time "caught in the act" checks (e.g.
+   * picking up a body) that can't wait for this guard's own next update —
+   * mirrors the stashed/down gating {@link update} applies before it would
+   * ever call {@link sense}.
+   */
+  canWitness(ctx: EnforcerContext): boolean {
+    if (this.stashed || this.isDown) return false;
+    return this.sense(ctx);
+  }
+
   private updateDetection(dt: number, ctx: EnforcerContext): void {
     this.detection = accrueDetection(
       this.detection,
