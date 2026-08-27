@@ -107,6 +107,7 @@ import {
 } from "../systems/Objectives";
 import { Vent4State } from "../systems/Vent4Core";
 import { ROOF_ARRAY_LEVEL } from "../map/RoofArrayLevel";
+import { trackForLevel } from "../systems/MusicSongs";
 import { Encounters } from "./game/Encounters";
 import { blockingLayerNames, isInteractTransition } from "../map/types";
 import { linkAt, movingToward, planeLinksFor, type PlaneLink } from "../systems/PlaneLinks";
@@ -495,6 +496,12 @@ export class GameScene extends Phaser.Scene {
 
     this.level =
       this.map.levels.find((l) => l.name === this.levelName) ?? this.map.levels[0];
+
+    // The score follows the level. Every transition restarts this scene, so this
+    // one call covers arriving, warping and reloading a save alike — and asking
+    // for the track that is already playing is a no-op, so walking back into a
+    // level does not re-cut its song.
+    getAudio().setTrack(trackForLevel(this.level.name));
 
     const worldW = this.level.width * this.tileSize;
     const worldH = this.level.height * this.tileSize;
@@ -1047,6 +1054,9 @@ export class GameScene extends Phaser.Scene {
   private abortToTitle(): void {
     this.overlays.set("pause", false);
     getAudio().setMood("none");
+    // No `setTrack(null)`: TitleScene sets the main theme in its own `create`, so
+    // whatever the abandoned run was playing crossfades into it. Cutting to
+    // silence here would only put a hole between the two.
     setMode(this.registry, "TITLE");
     this.scene.stop("UIScene");
     this.scene.start("TitleScene");
@@ -1065,12 +1075,14 @@ export class GameScene extends Phaser.Scene {
     this.player.sprite.setVelocity(0, 0);
     this.physics.pause();
     getAudio().setMood("none");
+    getAudio().setTrack(null);
   }
 
   /** Ends the run: stops play + HUD and shows the outcome scene. */
   private endRun(mode: GameMode, sceneKey: string): void {
     setMode(this.registry, mode);
     getAudio().setMood("none");
+    getAudio().setTrack(null);
     if (mode === "ALIGNED") getAudio().capture();
     else if (mode === "TRIBUNAL") {
       // The sting belongs to TribunalScene, which plays it as the record comes up.

@@ -1,14 +1,22 @@
 /**
- * Adaptive audio, synthesised with the Web Audio API so the game ships no audio
- * assets (none exist in the repo). Two continuous music layers — a calm
- * "sneaking" pad and a pulsed "red alert" klaxon — crossfade with the alert
- * mood, and short enveloped tones cover the gameplay SFX. EIRA-7's presence is
- * felt as a faint 37 Hz sub under the calm layer (her carrier-wave signature).
+ * Adaptive audio, synthesised end to end — the game ships no recorded sound.
+ * Short enveloped tones cover the gameplay SFX, and above them sit two kinds of
+ * music: the score, four BeepBox songs played live by BeepBox's own synthesiser
+ * ({@link AudioDirector.setTrack}, `src/systems/MusicStream.ts`), and the two
+ * continuous drones that came before it — a calm "sneaking" pad and a pulsed
+ * "red alert" klaxon. EIRA-7's presence is felt as a faint 37 Hz sub under the
+ * calm layer (her carrier-wave signature).
  *
- * The one exception to "no assets" is not an asset either: silicate barks are
- * synthesised too, by SAM — the 1982 Commodore 64 formant synthesiser, via the
- * `sam-js` port — and rendered to buffers that play through this same mixer. See
- * {@link AudioDirector.bark} and `src/systems/SilicateBarks.ts`.
+ * A song, while one is playing, *is* the calm bed: the pad drops to nothing
+ * under it and the mood ducks the song in its place, while the klaxon still
+ * rises over the top so a full alert reads as one. Where no song is mapped — the
+ * Act III vault — or where one failed to load, the pad comes back and the mixer
+ * behaves as it did before there was a score.
+ *
+ * The silicate barks are synthesised too, by SAM — the 1982 Commodore 64 formant
+ * synthesiser, via the `sam-js` port — and rendered to buffers that play through
+ * this same mixer. See {@link AudioDirector.bark} and
+ * `src/systems/SilicateBarks.ts`.
  *
  * Volume and mute come from {@link ./Settings} — loaded at construction and
  * written back whenever the pause menu's SETTINGS tab changes them.
@@ -20,6 +28,8 @@
 import SamJs from "sam-js";
 import { DEFAULT_SETTINGS, loadSettings, normalizeSettings, saveSettings, type Settings } from "./Settings";
 import { allBarkLines, VOICE_PRESETS, type SilicateVoice } from "./SilicateBarks";
+import { MUSIC_TRACKS, type BeepBoxSongJson, type MusicTrackId } from "./MusicSongs";
+import type { MusicStream } from "./MusicStream";
 
 export type MusicMood = "calm" | "search" | "alert" | "none";
 
@@ -43,6 +53,28 @@ const SAM_SAMPLE_RATE = 22050;
 /** How loud a bark sits under the music, before the master gain. */
 const BARK_GAIN = 0.9;
 
+/** How loud a song sits in the mix, before the mood's duck and the master gain. */
+const MUSIC_GAIN = 0.6;
+
+/** The crossfade between two songs, and the fade in or out of one, in seconds. */
+const MUSIC_FADE = 1.2;
+
+/**
+ * What each mood does to the three music layers.
+ *
+ * The pad and klaxon columns are what the mixer has always done. The `song`
+ * column is the duck: a track keeps the floor to itself while Rowan is unseen,
+ * gives ground as the facility starts looking, and sits well under the klaxon
+ * once it is hunting — loud enough to still be there, quiet enough that the
+ * alert is what the player hears.
+ */
+const MOOD_MIX: Record<MusicMood, { calm: number; alert: number; song: number }> = {
+  calm: { calm: 0.5, alert: 0, song: 1 },
+  search: { calm: 0.2, alert: 0.18, song: 0.75 },
+  alert: { calm: 0.05, alert: 0.5, song: 0.35 },
+  none: { calm: 0, alert: 0, song: 0 },
+};
+
 class AudioDirector {
   private readonly ctx?: AudioContext;
   private readonly master?: GainNode;
@@ -51,6 +83,29 @@ class AudioDirector {
   private alertGain?: GainNode;
   private started = false;
   private mood: MusicMood | null = null;
+  private track: MusicTrackId | null = null;
+  private stream?: MusicStream;
+  /**
+   * Every song fetched this session, parsed once and kept.
+   *
+   * A track can be left and come back to — the VENT-4 theme either side of the
+   * freakout, the main theme either side of both — and the JSON is ~40KB that
+   * has already been paid for. What is *not* kept is the `MusicStream` built
+   * from it: that owns a running processor node, so a track that is not playing
+   * does not have one.
+   */
+  private readonly songs = new Map<MusicTrackId, BeepBoxSongJson>();
+  /**
+   * Which {@link setTrack} call is the current one.
+   *
+   * The fetch is async and the player is not waiting for it — walking into the
+   * VENT-4 arena and straight back out asks for two tracks inside a second. The
+   * token is how a load that lands after the request it belongs to was
+   * superseded knows to drop what it built instead of starting it.
+   */
+  private trackToken = 0;
+  /** So a missing or broken score says so once rather than on every level load. */
+  private musicWarned = false;
   private noiseBuffer?: AudioBuffer;
   private suctionGain?: GainNode;
   private suctionOn = false;
@@ -249,11 +304,121 @@ class AudioDirector {
     this.ensureMusic();
     if (mood === this.mood) return;
     this.mood = mood;
-    const [calm, alert] =
-      mood === "calm" ? [0.5, 0] : mood === "search" ? [0.2, 0.18] : mood === "alert" ? [0.05, 0.5] : [0, 0];
-    const ramp = mood === "alert" ? 0.25 : 1.2;
-    this.ramp(this.calmGain, calm, ramp);
-    this.ramp(this.alertGain, alert, ramp);
+    // Faster into an alert than out of one: the klaxon is information, and
+    // information that arrives over a second and a half has already cost the
+    // player the thing it was warning them about.
+    this.applyMix(mood === "alert" ? 0.25 : MUSIC_FADE);
+  }
+
+  /**
+   * Plays the score's `track`, crossfading out whatever was playing; `null`
+   * stops the music.
+   *
+   * Safe to call every level load with the same track — the second call is an
+   * equality check, so a scene restart does not re-cut the song. The song itself
+   * is fetched on first use rather than at boot: the title screen only needs one
+   * of the four, and the other three are ~110KB the player may never reach.
+   *
+   * Degrades to the synthesised drones, loudly on the console and silently in
+   * the game, if there is no audio context, if the fetch fails, or if the JSON
+   * will not build a song.
+   */
+  setTrack(track: MusicTrackId | null): void {
+    if (track === this.track) return;
+    this.track = track;
+    if (!this.ctx || !this.master) return;
+    this.retire(this.stream);
+    this.stream = undefined;
+    // The pad comes back the moment the song goes, rather than after the fetch
+    // below resolves — so stopping the music leaves the mixer as it was.
+    this.applyMix(MUSIC_FADE);
+    if (!track) return;
+    void this.startTrack(track, ++this.trackToken);
+  }
+
+  /**
+   * Loads a track and starts it, unless a later {@link setTrack} got there first.
+   *
+   * The synthesiser is imported here rather than at the top of the file: it is
+   * ~385KB that the title screen does not need before it draws, and this is the
+   * first moment anything actually wants a song. Vite splits it into its own
+   * chunk on the strength of that.
+   */
+  private async startTrack(track: MusicTrackId, token: number): Promise<void> {
+    const json = await this.loadSong(track);
+    if (!json || token !== this.trackToken || !this.ctx || !this.master) return;
+    try {
+      const { MusicStream } = await import("./MusicStream");
+      if (token !== this.trackToken || !this.ctx || !this.master) return;
+      this.stream = new MusicStream(this.ctx, this.master, json);
+      this.applyMix(MUSIC_FADE);
+    } catch (err) {
+      this.warnMusic(`${MUSIC_TRACKS[track].title} would not start: ${String(err)}`);
+    }
+  }
+
+  /** Which song is playing, for the debug overlay. */
+  getTrack(): MusicTrackId | null {
+    return this.track;
+  }
+
+  /**
+   * Ramps all three music layers to the current mood and track.
+   *
+   * One place rather than one per caller, because the levels are not
+   * independent: what the pad should be doing depends on whether a song is
+   * playing, and what the song should be doing depends on the mood.
+   */
+  private applyMix(seconds: number): void {
+    // A track can start before any mood has been set — the title screen never
+    // sets one — and the title screen is not an alert.
+    const mix = MOOD_MIX[this.mood ?? "calm"];
+    this.ramp(this.calmGain, this.stream ? 0 : mix.calm, seconds);
+    this.ramp(this.alertGain, mix.alert, seconds);
+    this.ramp(this.stream?.gain, MUSIC_GAIN * mix.song, seconds);
+  }
+
+  /** Fades a song out and then tears its processor node down. */
+  private retire(stream: MusicStream | undefined): void {
+    if (!stream) return;
+    this.ramp(stream.gain, 0, MUSIC_FADE);
+    // Stopped rather than left silent: an idle stream still renders its song
+    // into a buffer nobody hears, and two of those would be two songs' worth of
+    // CPU spent on one that has already gone.
+    window.setTimeout(() => stream.stop(), MUSIC_FADE * 1000 + 200);
+  }
+
+  /** The song behind a track — fetched and parsed once, then remembered. */
+  private async loadSong(track: MusicTrackId): Promise<BeepBoxSongJson | undefined> {
+    const cached = this.songs.get(track);
+    if (cached) return cached;
+    const { path, title } = MUSIC_TRACKS[track];
+    try {
+      const res = await fetch(path);
+      if (!res.ok) {
+        this.warnMusic(`${title} is missing at ${path} (${res.status})`);
+        return undefined;
+      }
+      const json = (await res.json()) as BeepBoxSongJson;
+      this.songs.set(track, json);
+      return json;
+    } catch (err) {
+      this.warnMusic(`${title} would not load: ${String(err)}`);
+      return undefined;
+    }
+  }
+
+  /**
+   * Says once, on the console, that the score is not playing.
+   *
+   * Same posture as {@link warnSam}: the game keeps running on the drones it had
+   * before, and the one line is there so that "the music never started" is
+   * something a developer can find out rather than guess at.
+   */
+  private warnMusic(message: string): void {
+    if (this.musicWarned) return;
+    this.musicWarned = true;
+    console.warn(`[AudioDirector] the score is degrading to the synth drones — ${message}`);
   }
 
   door(): void {

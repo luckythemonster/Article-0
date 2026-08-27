@@ -8,14 +8,14 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 
 | Area | Enums | Classes | Interfaces | Type aliases | Constants | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| [Systems](#systems) | 3 | 20 | 84 | 21 | 6 | 134 |
+| [Systems](#systems) | 3 | 21 | 86 | 22 | 6 | 138 |
 | [Entities](#entities) | 0 | 20 | 23 | 18 | 3 | 64 |
 | [Map](#map) | 0 | 4 | 37 | 4 | 1 | 46 |
 | [Scenes](#scenes) | 0 | 23 | 24 | 2 | 0 | 49 |
 | [UI](#ui) | 0 | 22 | 26 | 5 | 6 | 59 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **91** | **197** | **50** | **16** | **357** |
+| **All** | **3** | **92** | **199** | **51** | **16** | **361** |
 
 ## Conventions
 
@@ -268,7 +268,7 @@ const RUN_KEYS = [ "inventory", "selectedConsumable", "staplerFieldCharges", "ob
 
 #### `AudioDirector` — class *(module-private)*
 
-`src/systems/AudioDirector.ts:46`
+`src/systems/AudioDirector.ts:78`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -277,6 +277,8 @@ const RUN_KEYS = [ "inventory", "selectedConsumable", "staplerFieldCharges", "ob
 | `getSettings` | `getSettings(): Settings` | The player's current audio preference. |
 | `applySettings` | `applySettings(next: Settings): void` | Applies a volume/mute preference to the master gain and persists it. Set directly rather than ramped: this is driven by a slider the player is dragging, and a 20ms ramp per input event stacks into audible zipper noise. |
 | `setMood` | `setMood(mood: MusicMood): void` | Crossfades the music layers to match the current alert mood. |
+| `setTrack` | `setTrack(track: MusicTrackId \| null): void` | Plays the score's `track`, crossfading out whatever was playing; `null` stops the music. Safe to call every level load with the same track — the second call is an equality check, so a scene restart does not re-cut the song. The song itself is fetched on first use rather than at boot: the title screen only needs one of the four, and the other three are ~110KB the player may never reach. Degrades to the synthesised drones, loudly on the console and silently in the game, if there is no audio context, if the fetch fails, or if the JSON will not build a song. |
+| `getTrack` | `getTrack(): MusicTrackId \| null` | Which song is playing, for the debug overlay. |
 | `door` | `door(): void` |  |
 | `hack` | `hack(): void` |  |
 | `ping` | `ping(): void` |  |
@@ -292,7 +294,7 @@ const RUN_KEYS = [ "inventory", "selectedConsumable", "staplerFieldCharges", "ob
 | `setSuction` | `setSuction(on: boolean): void` | The vacuum-surge wind layer: looped noise through a low rumble filter on its own gain, independent of the mood crossfade. |
 | `setPurge` | `setPurge(on: boolean): void` | The thermal-purge drone: a throbbing 55 Hz saw on its own gain. |
 
-*Plus 25 private members.*
+*Plus 35 private members.*
 
 <a id="class-binaryheap"></a>
 
@@ -459,6 +461,21 @@ Headless, per the `src/systems/` rule: no Phaser, no DOM, driven by `(dt, phase)
 | `reset` | `reset(): void` | Back to RESTRICTED. A fresh run, a loaded save, or the end of an alert cycle. |
 
 *Plus 2 private members.*
+
+<a id="class-musicstream"></a>
+
+#### `MusicStream` — class
+
+`src/systems/MusicStream.ts:38`
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `gain` | `readonly gain: GainNode` | The level to mix this song in at — the mood crossfade's handle on it. |
+| `loopBars` | `readonly loopBars: number` | How many bars of the song this stream loops — its own, not the export's. See `./MusicSongs.soundingBarCount` for why those differ. |
+| `constructor` | `constructor(ctx: AudioContext, destination: AudioNode, json: BeepBoxSongJson)` | Builds the song and starts rendering it, silently — the caller ramps `gain` up. Throws if the context cannot make a processor node, which is the caller's cue to go back to the synthesised drones. |
+| `stop` | `stop(): void` | Stops rendering and unhooks the node. The callback is cleared as well as disconnected: a disconnected processor stops being pulled, but dropping the reference is what lets the synth — and the song behind it — be collected rather than kept alive by the graph. |
+
+*Plus 4 private members.*
 
 <a id="class-noiselog"></a>
 
@@ -809,6 +826,24 @@ not be confused. See `decideBark`.
 | --- | --- | --- |
 | `line` *(opt)* | `string` | The line to speak now, or undefined when this change produces none. |
 | `latch` | `boolean` | Whether to record `next` as spoken-for. False means "come back to this" — the guard is still in a state it owes a line for, and the caller must leave its record of the last spoken state alone so the next frame asks again. |
+
+<a id="interface-beepboxsongjson"></a>
+
+#### `BeepBoxSongJson` — interface
+
+`src/systems/MusicSongs.ts:60`
+
+As much of a BeepBox export as this module needs to read.
+
+A channel's `sequence` is one entry per bar naming the pattern that plays in
+it, and `0` means "no pattern" — which is what `soundingBarCount` counts
+from.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `format` *(opt)* | `string` |  |
+| `version` *(opt)* | `number` |  |
+| `channels` *(opt)* | `readonly { readonly sequence?: readonly number[] }[]` |  |
 
 <a id="interface-bodyextent"></a>
 
@@ -1260,6 +1295,17 @@ Result of a `moveCircle` step.
 | `y` | `number` |  |
 | `blockedX` | `boolean` | True when the requested X movement was refused by a wall. |
 | `blockedY` | `boolean` | True when the requested Y movement was refused by a wall. |
+
+<a id="interface-musictrack"></a>
+
+#### `MusicTrack` — interface
+
+`src/systems/MusicSongs.ts:19`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `title` | `readonly title: string` | The composer's own title — for the console and the debug overlay. |
+| `path` | `readonly path: string` | Served out of `public/`, fetched the first time the track is asked for. |
 
 <a id="interface-networkunit"></a>
 
@@ -2238,10 +2284,22 @@ type LexiconCategory = "LAW" | "APPARATUS" | "PERSONS" | "PLACES" | "MATERIEL";
 
 #### `MusicMood` — type
 
-`src/systems/AudioDirector.ts:24`
+`src/systems/AudioDirector.ts:34`
 
 ```ts
 type MusicMood = "calm" | "search" | "alert" | "none";
+```
+
+<a id="type-musictrackid"></a>
+
+#### `MusicTrackId` — type
+
+`src/systems/MusicSongs.ts:17`
+
+The four songs, keyed by the moment each was written for.
+
+```ts
+type MusicTrackId = "articleZeroTheme" | "vent4Theme" | "vent4Freakout" | "roofFinale";
 ```
 
 <a id="type-openablepredicate"></a>
@@ -4626,7 +4684,7 @@ whichever flag while the overlay is up and stops this scene.
 
 #### `DebugOverlay` — class
 
-`src/scenes/game/DebugOverlay.ts:101`
+`src/scenes/game/DebugOverlay.ts:102`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -4707,7 +4765,7 @@ rather than death: the record simply shows that no subject was harmed.
 
 #### `GameScene` — class
 
-`src/scenes/GameScene.ts:192` · `extends Phaser.Scene`
+`src/scenes/GameScene.ts:193` · `extends Phaser.Scene`
 
 The playable scene. Renders one level's tile art in board z-order, builds the
 wall collision, spawns the player and guards, and drives the stealth systems
@@ -4947,7 +5005,7 @@ is up and stops this scene.
 
 #### `TitleScene` — class
 
-`src/scenes/TitleScene.ts:13` · `extends Phaser.Scene`
+`src/scenes/TitleScene.ts:14` · `extends Phaser.Scene`
 
 The title screen. Boots first after the map has parsed and offers the entry
 into a run. (A "Continue" item is added once save/load exists — Phase E.)
@@ -5102,7 +5160,7 @@ The live contents of a level, handed back to the scene to drive.
 
 #### `DebugHost` — interface
 
-`src/scenes/game/DebugOverlay.ts:67`
+`src/scenes/game/DebugOverlay.ts:68`
 
 The scene-level effects the cheats reach for.
 
@@ -5126,7 +5184,7 @@ the moment the scene rebuilt one.
 
 #### `DebugWorld` — interface
 
-`src/scenes/game/DebugOverlay.ts:43`
+`src/scenes/game/DebugOverlay.ts:44`
 
 What the overlay needs from the scene, supplied fresh each frame.
 
@@ -5214,7 +5272,7 @@ independent of `Lighting`'s. `reload` swaps in the new level's mask.
 
 #### `GameSceneData` — interface *(module-private)*
 
-`src/scenes/GameScene.ts:137`
+`src/scenes/GameScene.ts:138`
 
 Data passed to `GameScene` when (re)starting for a level swap.
 
@@ -5794,7 +5852,7 @@ two things this boss does that nothing else in the game does:
 
 #### `DebugHud` — class
 
-`src/ui/DebugHud.ts:65`
+`src/ui/DebugHud.ts:67`
 
 A developer inspector panel: FPS, player position, cheat flags, alert phase,
 and per-unit detection. Pinned to the top-right of the (unzoomed) UIScene and
@@ -6284,6 +6342,7 @@ the registry under the `"debug"` key each frame (dev builds only).
 | `captureTime` | `number` |  |
 | `level` | `string` |  |
 | `alertPhase` | `AlertPhase` |  |
+| `track` | `string` | The song playing, or `"none"` — see `src/systems/MusicSongs.ts`. |
 | `units` | `DebugUnitView[]` |  |
 
 <a id="interface-debugunitview"></a>
@@ -6796,10 +6855,11 @@ GameScene.
 | [AnomalyWorld](#interface-anomalyworld) | interface | `src/scenes/game/Anomalies.ts:34` |
 | [AppliedCorrections](#type-appliedcorrections) | type | `src/systems/Compliance.ts:71` |
 | [ArmableGuard](#interface-armableguard) | interface | `src/map/ArmedPosts.ts:5` |
-| [AudioDirector](#class-audiodirector) | class | `src/systems/AudioDirector.ts:46` |
+| [AudioDirector](#class-audiodirector) | class | `src/systems/AudioDirector.ts:78` |
 | [BadgeState](#type-badgestate) | type | `src/ui/NetworkPanel.ts:103` |
 | [BakedPlane](#interface-bakedplane) | interface | `src/map/TileBake.ts:176` |
 | [BarkDecision](#interface-barkdecision) | interface | `src/systems/SilicateBarks.ts:100` |
+| [BeepBoxSongJson](#interface-beepboxsongjson) | interface | `src/systems/MusicSongs.ts:60` |
 | [BinaryHeap](#class-binaryheap) | class | `src/systems/Pathfinder.ts:286` |
 | [BioMonitor](#class-biomonitor) | class | `src/ui/BioMonitor.ts:76` |
 | [BlockedAt](#type-blockedat) | type | `src/map/TileBake.ts:58` |
@@ -6842,12 +6902,12 @@ GameScene.
 | [Cover](#class-cover) | class | `src/entities/Cover.ts:18` |
 | [CoverBoards](#interface-coverboards) | interface | `src/systems/CoverPoints.ts:15` |
 | [CoverBody](#interface-coverbody) | interface | `src/map/TileBake.ts:430` |
-| [DebugHost](#interface-debughost) | interface | `src/scenes/game/DebugOverlay.ts:67` |
-| [DebugHud](#class-debughud) | class | `src/ui/DebugHud.ts:65` |
-| [DebugOverlay](#class-debugoverlay) | class | `src/scenes/game/DebugOverlay.ts:101` |
+| [DebugHost](#interface-debughost) | interface | `src/scenes/game/DebugOverlay.ts:68` |
+| [DebugHud](#class-debughud) | class | `src/ui/DebugHud.ts:67` |
+| [DebugOverlay](#class-debugoverlay) | class | `src/scenes/game/DebugOverlay.ts:102` |
 | [DebugSnapshot](#interface-debugsnapshot) | interface | `src/ui/DebugHud.ts:26` |
 | [DebugUnitView](#interface-debugunitview) | interface | `src/ui/DebugHud.ts:17` |
-| [DebugWorld](#interface-debugworld) | interface | `src/scenes/game/DebugOverlay.ts:43` |
+| [DebugWorld](#interface-debugworld) | interface | `src/scenes/game/DebugOverlay.ts:44` |
 | [DeployableKind](#type-deployablekind) | type | `src/systems/Deployables.ts:22` |
 | [DeployedItem](#class-deployeditem) | class | `src/entities/DeployedItem.ts:35` |
 | [DeployedLure](#interface-deployedlure) | interface | `src/systems/Deployables.ts:32` |
@@ -6912,8 +6972,8 @@ GameScene.
 | [GameMap](#interface-gamemap) | interface | `src/map/types.ts:301` |
 | [GameMode](#type-gamemode) | type | `src/systems/GameState.ts:20` |
 | [GameOverScene](#class-gameoverscene) | class | `src/scenes/GameOverScene.ts:13` |
-| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:192` |
-| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:137` |
+| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:193` |
+| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:138` |
 | [GameTile](#interface-gametile) | interface | `src/map/types.ts:230` |
 | [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:332` |
 | [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:470` |
@@ -6965,7 +7025,10 @@ GameScene.
 | [MissingProto](#class-missingproto) | class | `src/map/generate.ts:32` |
 | [MissionFeatures](#interface-missionfeatures) | interface | `src/systems/Objectives.ts:84` |
 | [MoveResult](#interface-moveresult) | interface | `src/systems/GridMotion.ts:26` |
-| [MusicMood](#type-musicmood) | type | `src/systems/AudioDirector.ts:24` |
+| [MusicMood](#type-musicmood) | type | `src/systems/AudioDirector.ts:34` |
+| [MusicStream](#class-musicstream) | class | `src/systems/MusicStream.ts:38` |
+| [MusicTrack](#interface-musictrack) | interface | `src/systems/MusicSongs.ts:19` |
+| [MusicTrackId](#type-musictrackid) | type | `src/systems/MusicSongs.ts:17` |
 | [NetworkIndicatorFrames](#interface-networkindicatorframes) | interface | `src/ui/NetworkPanel.ts:158` |
 | [NetworkUnit](#interface-networkunit) | interface | `src/systems/AlertNetwork.ts:5` |
 | [NoiseEvents](#class-noiseevents) | class | `src/scenes/game/NoiseEvents.ts:54` |
@@ -7097,7 +7160,7 @@ GameScene.
 | [TilePos](#interface-tilepos) | interface | `src/map/generate.ts:118` |
 | [TileRect](#interface-tilerect) | interface | `src/map/TileBake.ts:424` |
 | [TileStamper](#class-tilestamper) | class | `src/map/TileBake.ts:245` |
-| [TitleScene](#class-titlescene) | class | `src/scenes/TitleScene.ts:13` |
+| [TitleScene](#class-titlescene) | class | `src/scenes/TitleScene.ts:14` |
 | [TraceState](#interface-tracestate) | interface | `src/ui/ekg.ts:195` |
 | [Transition](#interface-transition) | interface | `src/map/types.ts:458` |
 | [TransitionClass](#type-transitionclass) | type | `src/systems/TransitionGraph.ts:63` |

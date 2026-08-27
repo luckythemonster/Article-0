@@ -223,11 +223,15 @@ carry them to the Lattice uplink.
 - **The Tribunal (the ending).** There is one, and it is not a win screen.
 
 Act III and Act IV both have structure worth knowing before you fight them — see
-[Design notes: The acts](docs/DESIGN_NOTES.md#the-acts). Adaptive audio (synthesised with
-the Web Audio API — no assets) crossfades a sneaking pad and a red-alert klaxon with the
-mesh's state, with SFX on the key beats. Silicates speak too, in SAM's 1982 formant
-voice — flat compliance-speak rather than shouting, because a silicate talks as the
-apparatus rather than as itself.
+[Design notes: The acts](docs/DESIGN_NOTES.md#the-acts). The audio is synthesised end to
+end — nothing recorded ships. Four **BeepBox** songs are the score, played live by
+BeepBox's own synthesiser and mapped to where they belong (the main theme on the title
+screen and through the facility, one apiece for the VENT-4 arena, its purge phase, and
+the roof); under and over them the mixer still crossfades a sneaking pad and a red-alert
+klaxon with the mesh's state, so a full alert ducks the music and raises the klaxon. SFX
+land on the key beats. Silicates speak too, in SAM's 1982 formant voice — flat
+compliance-speak rather than shouting, because a silicate talks as the apparatus rather
+than as itself.
 
 ## Architecture
 
@@ -256,7 +260,9 @@ The whole pipeline lives in `src/`:
   tracked separately), `GridMotion`, `Pathfinder` (8-connected A*, radius-aware,
   string-pulled), `DetectionSystem`, `AlertState`, `Conduct`, `TransitionGraph`, `Radar`,
   `AlertNetwork`, `EntityStats`, `SilicateBarks` (what a silicate says, and in which of
-  the two voices), and the record-keeping (`Journal`, `Lexicon`, `Explored`, `SaveGame`).
+  the two voices), `MusicSongs` (which song plays where, and how much of it loops), and
+  the record-keeping (`Journal`, `Lexicon`, `Explored`, `SaveGame`). `AudioDirector` and
+  `MusicStream` live here too and are the exceptions to "headless" — they need Web Audio.
 
 The gameplay numbers live in `EntityStats.ts`, because the map author left the per-entity
 fields at their defaults — override any of them in the map and the engine uses that value
@@ -271,6 +277,8 @@ public/assets/          edplay.json + spritesheet_0.png — the tile editor's ex
                         source of truth
 public/assets/vfx/      one-shot effect frame sequences
                         (the cast has no art on disk — see src/entities/CastArt.ts)
+public/assets/music/    the four BeepBox songs, committed as exported — the score's
+                        source of truth, played at runtime rather than rendered
 src/main.ts         boot: load assets, parse map, generate the extra acts,
                     start scenes
 src/map/            format types, loader, sprite atlas; generate.ts + the six
@@ -310,6 +318,15 @@ tools/typeref/      generates docs/TYPE_REFERENCE.md (text.ts holds the pure
 
 `motion` is listed in `dependencies` but never imported directly — it is a
 required `peerDependency` of `@arwes/frames`. Removing it breaks the install.
+
+`beepbox` is BeepBox's own synthesiser (MIT, John Nesky), and the game drives it rather
+than shipping audio: `public/assets/music/*.json` are the composer's exports, and
+`src/systems/MusicStream.ts` renders one into a processor node feeding the same master
+gain as everything else — so the pause menu's volume and mute govern the score. Editing a
+song means opening its JSON at [beepbox.co](https://www.beepbox.co), changing it there and
+re-exporting over the file; nothing in the repo generates them. The package's own
+`Synth.play()` is deliberately not used — it would build a second `AudioContext` wired
+straight to the speakers, past the mixer.
 
 `sam-js` is the vanilla-JS port of **SAM**, the 1982 Commodore 64 Software Automatic
 Mouth, and it is what silicates speak with (`src/systems/SilicateBarks.ts` picks the
