@@ -220,6 +220,13 @@ export class GameScene extends Phaser.Scene {
    * and the scene has no reason to know which. See `src/entities/Locker.ts`.
    */
   private carried: StashedBody | null = null;
+  /**
+   * Set the frame a body is lifted, so `updateWorld` can check whether anyone
+   * saw it happen once this frame's sensing context is built — pickup runs in
+   * `updateInteractions`, before `refreshSensing`, so the check can't be done
+   * inline at the pickup site.
+   */
+  private caughtLifting = false;
   private chests: Chest[] = [];
   private breakers: Breaker[] = [];
   /**
@@ -1503,6 +1510,22 @@ export class GameScene extends Phaser.Scene {
     // keep in sync.
     const frozen = (this.debug?.frozenWorld ?? false) || this.dyingFor !== null;
     const ctx = this.refreshSensing(concealed, compliant, thermalConcealed);
+    // Getting caught in the act: a body lifted in front of a guard or orderly
+    // who can actually see the player this frame is an unmissable tell, so it
+    // escalates straight to a red alert rather than waiting on that witness's
+    // own next detection tick or anomaly scan.
+    if (this.caughtLifting) {
+      this.caughtLifting = false;
+      const seen =
+        !frozen &&
+        (this.guards.some((g) => g.canWitness(ctx)) || this.orderlies.some((o) => o.canWitness(ctx)));
+      if (seen) {
+        this.alert.reportSighting(
+          Math.floor(this.player.x / this.tileSize),
+          Math.floor(this.player.y / this.tileSize),
+        );
+      }
+    }
     const maxDetection = this.tickWorld(dt, ctx, frozen);
     // After `tickWorld`, which is where the bodies were moved for the frame — a shadow
     // placed before it would trail the feet it belongs to by one. Unconditional even
@@ -2228,6 +2251,7 @@ export class GameScene extends Phaser.Scene {
           this.carried = null;
         } else {
           this.carried = bodyToLift!;
+          this.caughtLifting = true;
         }
       } else if (vaultTo) {
         adjacentClaimedTap = true;
