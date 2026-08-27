@@ -8,14 +8,14 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 
 | Area | Enums | Classes | Interfaces | Type aliases | Constants | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| [Systems](#systems) | 3 | 17 | 83 | 20 | 6 | 129 |
-| [Entities](#entities) | 0 | 20 | 22 | 18 | 3 | 63 |
+| [Systems](#systems) | 3 | 17 | 84 | 20 | 6 | 130 |
+| [Entities](#entities) | 0 | 20 | 23 | 18 | 3 | 64 |
 | [Map](#map) | 0 | 4 | 36 | 4 | 1 | 45 |
 | [Scenes](#scenes) | 0 | 23 | 24 | 2 | 0 | 49 |
 | [UI](#ui) | 0 | 22 | 26 | 3 | 5 | 56 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **88** | **194** | **47** | **15** | **347** |
+| **All** | **3** | **88** | **196** | **47** | **15** | **349** |
 
 ## Conventions
 
@@ -273,7 +273,7 @@ const RUN_KEYS = [ "inventory", "selectedConsumable", "staplerFieldCharges", "ob
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `constructor` | `constructor()` |  |
-| `bark` | `bark(line: string, voice: SilicateVoice): void` | Speaks one silicate line. **Not `sam.speak()`.** That builds its own `AudioContext` and plays straight to the speakers, which would sail past the master gain and mean a muted player still heard every bark. Rendering to a buffer and playing it through the same mixer as everything else is what makes the pause menu's volume slider and mute govern it like they govern the door and the klaxon. A no-op when there is no audio context (headless, or a browser that refused one) or when SAM fails on a line — a guard that cannot be heard still shows its line on the speech marker, so the bark degrades to text rather than to nothing. |
+| `bark` | `bark(line: string, voice: SilicateVoice): void` | Speaks one silicate line. **Not `sam.speak()`.** That builds its own `AudioContext` and plays straight to the speakers, which would sail past the master gain and mean a muted player still heard every bark. Rendering to a buffer and playing it through the same mixer as everything else is what makes the pause menu's volume slider and mute govern it like they govern the door and the klaxon. A no-op when there is no audio context (headless, or a browser that refused one) or when SAM fails on a line — a guard that cannot be heard still shows its line on the speech marker, so the bark degrades to text rather than to nothing. A line the warm-up does not already hold is rendered here rather than skipped. That is a backstop, not the normal path: one line is a few milliseconds against the whole set's ~100ms, and paying it beats the alternative this replaces, where any warm-up that had not run — or had run and failed — meant permanent silence with nothing on the console to say so. |
 | `getSettings` | `getSettings(): Settings` | The player's current audio preference. |
 | `applySettings` | `applySettings(next: Settings): void` | Applies a volume/mute preference to the master gain and persists it. Set directly rather than ramped: this is driven by a slider the player is dragging, and a 20ms ramp per input event stacks into audible zipper noise. |
 | `setMood` | `setMood(mood: MusicMood): void` | Crossfades the music layers to match the current alert mood. |
@@ -292,7 +292,7 @@ const RUN_KEYS = [ "inventory", "selectedConsumable", "staplerFieldCharges", "ob
 | `setSuction` | `setSuction(on: boolean): void` | The vacuum-surge wind layer: looped noise through a low rumble filter on its own gain, independent of the mood crossfade. |
 | `setPurge` | `setPurge(on: boolean): void` | The thermal-purge drone: a throbbing 55 Hz saw on its own gain. |
 
-*Plus 21 private members.*
+*Plus 25 private members.*
 
 <a id="class-binaryheap"></a>
 
@@ -710,6 +710,22 @@ Everything the alert-network HUD needs to draw one frame.
 | `converging` | `number` | Mobile units converging on the last-known tile (0 unless combat-aware). |
 | `target` | `{ x: number; y: number } \| null` | Last known player tile, or null when the network has lost the trail. |
 | `countdown` | `number` | Seconds until the network relaxes to the next-calmer phase. |
+
+<a id="interface-barkdecision"></a>
+
+#### `BarkDecision` — interface
+
+`src/systems/SilicateBarks.ts:100`
+
+What a guard should do about having just entered a new state.
+
+Two fields rather than one, because "say nothing" has two meanings that must
+not be confused. See `decideBark`.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `line` *(opt)* | `string` | The line to speak now, or undefined when this change produces none. |
+| `latch` | `boolean` | Whether to record `next` as spoken-for. False means "come back to this" — the guard is still in a state it owes a line for, and the caller must leave its record of the last spoken state alone so the next frame asks again. |
 
 <a id="interface-bodyextent"></a>
 
@@ -2449,7 +2465,7 @@ actor — a spill an Orderly has a reason to walk over and deal with.
 
 #### `Door` — class
 
-`src/entities/Door.ts:144`
+`src/entities/Door.ts:163`
 
 An interactive door, sized and placed from the map's authoring data.
 
@@ -2468,26 +2484,23 @@ both. A door with a non-zero `key` is *locked* — only a terminal hack (or,
 later, a keycard) opens it.
 
 **The body is a zone sized by `colliderRect`, not the sprite.** It used to ride
-on the sprite — `setDisplaySize(footprint) + refreshBody()` — which was wrong
-twice over, and both ways showed in play:
+on the sprite — `setDisplaySize(footprint) + refreshBody()` — which covered the
+raw `colSpan x rowSpan` footprint and ignored the tile's authored
+`ColliderPadding`. Every shipped door def carries some: the north-south defs
+inset `{Bottom: 0.4}`, so the lower 12.8px of a doorway that should be walkable
+was solid, and the east-west defs inset `{Left: 0.2, Right: 0.2}`, so a
+19.2px-wide body was 32. `colliderRect` in `src/map/footprint.ts` exists
+precisely to apply that padding, and `src/map/TileBake.ts` has always routed
+padded *walls* through it — this class was the one collider path that never
+called it.
 
-- It covered the raw `colSpan x rowSpan` footprint, ignoring the tile's
-  authored `ColliderPadding`. Every shipped door def carries some: the
-  north-south defs inset `{Bottom: 0.4}`, so the lower 12.8px of a doorway that
-  should be walkable was solid, and the east-west defs inset
-  `{Left: 0.2, Right: 0.2}`, so a 19.2px-wide body was 32. `colliderRect` in
-  `src/map/footprint.ts` exists precisely to apply that padding, and
-  `src/map/TileBake.ts` has always routed padded *walls* through it — this
-  class was the one collider path that never called it.
-- It followed the art. `useBottomSeating` below reseats east-west doors so they
-  stand in their jambs, and `refreshBody()` dragged the collider along, while
-  `this.cells` went on using the authored `offsetY`. On the shipped 1x1.5 defs
-  that is a 12px disagreement between the box the player hits and the cells
-  that block pathing, sight and radar.
-
-Giving collision its own zone fixes both and decouples the two for good: the
-sprite is free to be reseated or rescaled by an animation (`playClip` re-asserts
-`setDisplaySize` after every `play()`) without collision noticing.
+Its own zone also frees the sprite to be rescaled by an animation (`playClip`
+re-asserts `setDisplaySize` after every `play()`) without collision noticing.
+What it must *not* be free to do is stand somewhere else: the pass that
+introduced the zone also decoupled its vertical seating from the art's, which
+left the solid box 12px below the drawn door on every east-west def. Both now
+come from one call to `doorSeating` in `src/entities/doorGeometry.ts`, which
+is also where the reasoning and the tests for it live.
 
 **Glazed** doors are the exception to blocking sight: the map's glass doors carry a
 `glass` component alongside their `door` one, and clear glazing stops you walking
@@ -2535,15 +2548,36 @@ to (that metadata was tuned for the old pre-squished, symmetrically
 stretched art). North-south doors' art is exactly one tile tall, where
 centred and bottom-aligned land in the same place, so this only ever
 affects the east-west pair, and only once their art has actually loaded —
-the map-tile fallback keeps the centred seating it was authored for.
+the map-tile fallback keeps the centred seating it was authored for. The
+collider is seated off the same call, so it goes wherever the art goes.
 
-**The open/closed transition is cosmetic only.** `setOpen` still flips the
-collision grid and the Arcade body the instant it is called, exactly as
-before art existed — a guard's `doorWork.ts` timing, the noise system, and
-every pathing cost all assume that. The slide just plays over it, so for a
-few frames the sprite can be mid-travel while the tile is already fully
-passable. Gating passability on the animation instead would ripple into all
-three systems, which is well past "mount the sprites".
+**A door blocks for as long as it is in the way, opening included.** It used
+to be the other way round: `setOpen` flipped the collision grid and the Arcade
+body the instant it was called and the slide merely played over the top, so a
+door you had just tapped was passable for the whole 1350ms of `OPEN_SEQUENCE`
+— 750ms of `UNLOCKED` indicator on a door that has not moved, then 600ms of
+travel — while still drawn shut. Passability now comes from `doorBlocks` in
+`src/entities/doorGeometry.ts` and only clears when the slide finishes.
+
+Nothing else had to move for that, which is worth recording because the fear
+of it is why the first pass left the bug in:
+
+- **The player** is the only thing that collides with a door's Arcade body
+  (`GameScene` builds one collider, `player.sprite` against `doorBodies`), so
+  this is felt exactly where it was asked for and nowhere else.
+- **Guards** never touch that body. They read the grid, and `Pathfinder`
+  already routes through a shut-but-openable door at `DOOR_STEP_COST` rather
+  than treating it as wall — so a cell that stays blocked through the slide
+  costs a guard nothing, and `workDoors` holds its `heldDoor` across those
+  frames rather than trying to open it twice.
+- **Re-pathing** gets quieter, not noisier: `CollisionGrid.setBlocked`
+  early-returns when a cell is already in the state asked for, so holding the
+  block through the slide means one `revision` bump at the end instead of one
+  at the start.
+
+`isOpen` deliberately still reports what the door was *told* to be, which is
+what the noise ping, the anomaly scan, the interact prompt and `doorWork.ts`
+all mean by it. `isSolid` is the physical answer.
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -2554,14 +2588,15 @@ three systems, which is well past "mount the sprites".
 | `seeThrough` | `readonly seeThrough: boolean` | Clear glazing: blocks movement while closed, but never line of sight. |
 | `constructor` | `constructor(scene: Phaser.Scene, tile: GameTile, tileSize: number, grid: CollisionGrid)` |  |
 | `body` | `get body(): Phaser.GameObjects.Zone` | The Arcade body used for player collision. |
-| `isOpen` | `get isOpen(): boolean` |  |
+| `isOpen` | `get isOpen(): boolean` | What the door was last *told* to be. See the class doc, and `isSolid`. |
+| `isSolid` | `get isSolid(): boolean` | Whether the door is physically in the way right now. True while shut, and while a slide is running in either direction — an opening door is still a door until its travel finishes. This is what drives both the Arcade body and the grid; `isOpen` is the commanded state. |
 | `isManual` | `get isManual(): boolean` | Whether the player may open this by hand (adjacent tap). |
 | `covers` | `covers(tileX: number, tileY: number): boolean` | True when this door's footprint covers the given tile. |
 | `setOpen` | `setOpen(open: boolean): boolean` | Opens/closes the door. Returns true if it changed state. |
 | `toggle` | `toggle(): boolean` |  |
-| `senseProximity` | `senseProximity(playerTileX: number, playerTileY: number): void` | Tells the door where the player is, so its indicator can react. Driven per frame from `GameScene.tickWorld` over *every* door, not the scene's `nearestDoor` — that one is filtered to `isManual`, which excludes exactly the locked doors whose denial light is the most worth showing. Only the flag changing does any work, so this is a comparison and an early return on all but the two frames a crossing actually happens on. |
+| `senseProximity` | `senseProximity(playerTileX: number, playerTileY: number): void` | Tells the door where the player is, so its indicator can react. Driven per frame from `GameScene.tickWorld` over *every* door, not the scene's `nearestDoor` — that one is filtered to `isManual`, which excludes exactly the locked doors whose denial light is the most worth showing. Only the flag changing does any work, so this is a comparison and an early return on all but the two frames a crossing actually happens on. It also carries the slide watchdog, for having the one hook that already runs over every door every frame. Now that an opening door is solid until its `animationcomplete` fires, a slide that never gets there — a scene paused mid-travel, a listener lost to an interruption — would wall a doorway off permanently. Cheap: a boolean and a flag Phaser already maintains. |
 
-*Plus 19 private members.*
+*Plus 21 private members.*
 
 <a id="class-drone"></a>
 
@@ -3027,6 +3062,19 @@ and remains the correct behaviour for a caller that has no doors.
 | --- | --- | --- |
 | `isOperableDoor` *(opt)* | `(tileX: number, tileY: number) => boolean` | True when this tile holds a door staff may work — unlocked, and not a wall. |
 | `setDoorOpen` *(opt)* | `(tileX: number, tileY: number, open: boolean) => void` | Opens or closes a door being worked. |
+
+<a id="interface-doorseating"></a>
+
+#### `DoorSeating` — interface
+
+`src/entities/doorGeometry.ts:37`
+
+Where a door's art and its collider sit, in pixels.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `centreY` | `number` | Centre y for the sprite *and* the collider — they are the same number. |
+| `collider` | `Rect` | The solid rectangle, already moved onto `centreY`. |
 
 <a id="interface-doorwalker"></a>
 
@@ -6576,6 +6624,7 @@ GameScene.
 | [AudioDirector](#class-audiodirector) | class | `src/systems/AudioDirector.ts:46` |
 | [BadgeState](#type-badgestate) | type | `src/ui/NetworkPanel.ts:103` |
 | [BakedPlane](#interface-bakedplane) | interface | `src/map/TileBake.ts:176` |
+| [BarkDecision](#interface-barkdecision) | interface | `src/systems/SilicateBarks.ts:100` |
 | [BinaryHeap](#class-binaryheap) | class | `src/systems/Pathfinder.ts:286` |
 | [BioMonitor](#class-biomonitor) | class | `src/ui/BioMonitor.ts:76` |
 | [BlockedAt](#type-blockedat) | type | `src/map/TileBake.ts:58` |
@@ -6632,9 +6681,10 @@ GameScene.
 | [Dir8](#type-dir8) | type | `src/entities/directions.ts:31` |
 | [DIRS_8](#const-dirs-8) | const | `src/entities/directions.ts:20` |
 | [DisplayFootprint](#type-displayfootprint) | type | `src/entities/EntitySprites.ts:113` |
-| [Door](#class-door) | class | `src/entities/Door.ts:144` |
+| [Door](#class-door) | class | `src/entities/Door.ts:163` |
 | [DOOR_DEFAULTS](#const-door-defaults) | const | `src/systems/EntityStats.ts:289` |
 | [DoorAccess](#interface-dooraccess) | interface | `src/entities/doorWork.ts:47` |
+| [DoorSeating](#interface-doorseating) | interface | `src/entities/doorGeometry.ts:37` |
 | [DoorStats](#interface-doorstats) | interface | `src/systems/EntityStats.ts:280` |
 | [DoorWalker](#interface-doorwalker) | interface | `src/entities/doorWork.ts:30` |
 | [Drone](#class-drone) | class | `src/entities/Drone.ts:14` |
