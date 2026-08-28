@@ -10,7 +10,6 @@ import { findPath, smoothPath, type PathNode } from "../systems/Pathfinder";
 import type { PatrolRoute } from "../systems/PatrolRoute";
 import { accrueDetection, canSense, type Eye } from "../systems/Sensing";
 import { angleDiff } from "../systems/angles";
-import { drawVisionCone, GUARD_CONE } from "../ui/VisionCone";
 import { shadowShapeFor, type ShadowShape } from "../render/shadowShape";
 import { type GuardSkin } from "./GuardSkin";
 import { DIRS_8, nearestDirection, type Dir8 } from "./directions";
@@ -26,9 +25,9 @@ import { workDoors } from "./doorWork";
  * phase (which stays the base-wide ALERT/EVASION/INFILTRATION authority for
  * network broadcasts and the HUD):
  *
- *  - **PATROL**    — default route navigation and vision-cone sweep.
+ *  - **PATROL**    — default route navigation and idle scanning sweep.
  *  - **CAUTIOUS**  — elevated alertness after finishing a search or an empty
- *                    investigation: faster cone sweep, faster detection fill.
+ *                    investigation: faster scanning sweep, faster detection fill.
  *  - **SUSPICIOUS**— investigating a specific noise origin or anomaly.
  *  - **ALERT**     — confirmed sighting; pursuing and (via the network) pulling
  *                    in nearby guards. Mirrors global phase "ALERT".
@@ -189,7 +188,15 @@ interface Investigation {
   anomalyKey?: string;
 }
 
-const RAY_COUNT = 24;
+/**
+ * Body tint while a guard is down — EMP'd or darted.
+ *
+ * A cold slate rather than one of the alert ambers below, because it is saying the
+ * opposite thing: those four mark how *awake* a guard is, this one marks that it
+ * isn't. Applied together with a paused scan animation by the down branch of
+ * {@link Enforcer.update}, which owns the whole look.
+ */
+const DOWN_TINT = 0x5c6b7a;
 
 const INSPECT_DURATION = 3.0; // seconds paused in SUSPICIOUS at the investigation target
 const CAUTIOUS_DURATION = 20; // seconds a guard stays CAUTIOUS after searching/investigating
@@ -217,11 +224,18 @@ const SCAN_SWEEP_ARC = Phaser.Math.DegToRad(50);
 type FollowResult = "moving" | "arrived" | "unreachable";
 
 /**
- * A patrolling guard with a wall-clipped vision cone and a per-guard
- * detection meter. Behaviour is shared by every guard type (the map's
- * `enforcers` and `drones` boards both carry the same `enforcer` component
- * schema) — only the sprite ({@link GuardSkin}) differs, so reskins like
- * {@link Drone} subclass this and pass their own skin.
+ * A patrolling guard with a wall-clipped field of view and a per-guard
+ * detection meter.
+ *
+ * The field of view is **not drawn** — see `docs/DESIGN_NOTES.md` and
+ * {@link ../ui/VisionCone}; the developer overlay is the only thing that renders
+ * it. What the player reads instead is the sprite's facing, the `!`, the body
+ * tint and the radar tick.
+ *
+ * Behaviour is shared by every guard type (the map's `enforcers` and `drones`
+ * boards both carry the same `enforcer` component schema) — only the sprite
+ * ({@link GuardSkin}) differs, so reskins like {@link Drone} subclass this and
+ * pass their own skin.
  *
  * Layered on the global {@link AlertState} phase, each guard also tracks its
  * own {@link GuardState}: it investigates noises and anomalies (SUSPICIOUS),
@@ -232,8 +246,8 @@ export class Enforcer {
   readonly stats: EnforcerStats;
   detection = 0; // 0..1
   /**
-   * Where the guard is *looking* — the vision cone's axis, and what the radar
-   * and detection tests read. Distinct from {@link moveDir}: the guard's body
+   * Where the guard is *looking* — the field-of-view axis, and what the radar
+   * tick and the detection tests read. Distinct from {@link moveDir}: the guard's body
    * glides along its path while the camera-arms sweep, which is exactly what
    * the patrol-scan art depicts.
    */
@@ -267,7 +281,6 @@ export class Enforcer {
   private downTimer = 0;
   /** Out of sight in a locker — see {@link setStashed}. */
   private stashed = false;
-  private readonly cone: Phaser.GameObjects.Graphics;
   private readonly body: Phaser.GameObjects.Sprite;
   private readonly bang: Phaser.GameObjects.Text;
   /** The spoken line, shown as text so a muted player gets the same information. */
@@ -395,7 +408,6 @@ export class Enforcer {
       plane: this.plane,
     };
 
-    this.cone = scene.add.graphics().setDepth(400);
     this.body = scene.add.sprite(this.x, this.y, skin.frameKey("south", 0)).setDepth(450);
     this.body.setScale((tileSize * skin.displayTiles) / skin.sourceSize);
     // Per skin rather than per class, so the drone's low splayed chassis gets its own
@@ -503,7 +515,6 @@ export class Enforcer {
     if (on) {
       this.bang.setVisible(false);
       this.speech.setVisible(false);
-      this.cone.clear();
     }
   }
 
@@ -527,7 +538,7 @@ export class Enforcer {
   }
 
   update(dt: number, ctx: EnforcerContext): EnforcerAttackResult | undefined {
-    const { tileSize, grid } = ctx;
+    const { tileSize } = ctx;
 
     // Stashed: nothing to draw, think or sense. The shutdown clock still runs —
     // see `setStashed` — so this ticks it before bailing out.
@@ -537,16 +548,29 @@ export class Enforcer {
     }
 
     // Down: inert on the floor, blind, and not walking anywhere.
-    // The cone is cleared rather than merely narrowed, because a dark cone is
-    // the whole visual difference between a stopped guard and a stopped guard
-    // that can still see you.
+    //
+    // The stopped scan animation and the {@link DOWN_TINT} are load-bearing, not
+    // decoration. They are the whole visual difference between a stopped guard and
+    // a stopped guard that can still see you — a difference the drawn vision cone
+    // used to carry by going dark, and nothing draws the cone any more. The sprite
+    // is the same standing frame set either way, so the body has to say it.
+    //
+    // Both are re-asserted here every frame rather than set once in `putDown`,
+    // for the same reason the live path below re-asserts its own tint every
+    // frame: this branch is the single owner of how a downed guard looks, so no
+    // other writer can leave it half-applied, and a second `putDown` on an
+    // already-down guard costs nothing.
     if (this.downTimer > 0) {
       this.downTimer = Math.max(0, this.downTimer - dt);
       this.detection = 0;
-      this.cone.clear();
       this.body.setPosition(this.x, this.y);
       this.bang.setVisible(false);
-      return undefined;
+      this.body.setTint(DOWN_TINT);
+      this.body.anims.pause();
+      if (this.downTimer > 0) return undefined;
+      // Back on its feet this frame. The tint needs no explicit clear — the live
+      // path below writes one every frame — but the animation does.
+      this.body.anims.resume();
     }
 
     let attacked: EnforcerAttackResult | undefined;
@@ -571,11 +595,10 @@ export class Enforcer {
     this.prevPhase = ctx.alert.phase;
 
     this.updateDetection(dt, ctx);
-    this.drawCone(grid, tileSize);
 
-    // The body faces where it is *going*, the cone faces where it is looking.
+    // The body faces where it is *going*, the eyes face where it is looking.
     // Driving the sprite off `facing` would flip it between neighbouring
-    // 8-direction frames every time the cone swept past a 45° boundary, which
+    // 8-direction frames every time the scan swept past a 45° boundary, which
     // reads as the whole chassis twitching rather than the arms panning.
     const dir = nearestDirection(this.isMoving() ? this.moveDir : this.facing);
     if (dir !== this.dir) {
@@ -1216,24 +1239,6 @@ export class Enforcer {
       this.state === "CAUTIOUS" ? CAUTIOUS_DETECTION_MULTIPLIER : 1,
     );
   }
-
-  /** Draws the wall-clipped vision cone as a fan of rays. */
-  private drawCone(grid: CollisionGrid, tileSize: number): void {
-    drawVisionCone(
-      this.cone,
-      grid,
-      this.x,
-      this.y,
-      this.facing,
-      this.stats.sightAngle,
-      this.stats.sightRange,
-      tileSize,
-      this.detection,
-      GUARD_CONE,
-      RAY_COUNT,
-    );
-  }
-
 
   /** Collision radius in tiles — read by the debug overlay. */
   get collisionRadiusTiles(): number {

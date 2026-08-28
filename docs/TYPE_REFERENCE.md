@@ -2783,13 +2783,20 @@ drone's `GuardSkin` wired into the shared AI core.
 
 #### `Enforcer` — class
 
-`src/entities/Enforcer.ts:231`
+`src/entities/Enforcer.ts:245`
 
-A patrolling guard with a wall-clipped vision cone and a per-guard
-detection meter. Behaviour is shared by every guard type (the map's
-`enforcers` and `drones` boards both carry the same `enforcer` component
-schema) — only the sprite (`GuardSkin`) differs, so reskins like
-`Drone` subclass this and pass their own skin.
+A patrolling guard with a wall-clipped field of view and a per-guard
+detection meter.
+
+The field of view is **not drawn** — see `docs/DESIGN_NOTES.md` and
+`../ui/VisionCone`; the developer overlay is the only thing that renders
+it. What the player reads instead is the sprite's facing, the `!`, the body
+tint and the radar tick.
+
+Behaviour is shared by every guard type (the map's `enforcers` and `drones`
+boards both carry the same `enforcer` component schema) — only the sprite
+(`GuardSkin`) differs, so reskins like `Drone` subclass this and
+pass their own skin.
 
 Layered on the global `AlertState` phase, each guard also tracks its
 own `GuardState`: it investigates noises and anomalies (SUSPICIOUS),
@@ -2800,7 +2807,7 @@ stays sharper for a while afterward (CAUTIOUS), pursues a confirmed sighting
 | --- | --- | --- |
 | `stats` | `readonly stats: EnforcerStats` |  |
 | `detection` | `detection = 0` |  |
-| `facing` | `facing: number` | Where the guard is *looking* — the vision cone's axis, and what the radar and detection tests read. Distinct from `moveDir`: the guard's body glides along its path while the camera-arms sweep, which is exactly what the patrol-scan art depicts. |
+| `facing` | `facing: number` | Where the guard is *looking* — the field-of-view axis, and what the radar tick and the detection tests read. Distinct from `moveDir`: the guard's body glides along its path while the camera-arms sweep, which is exactly what the patrol-scan art depicts. |
 | `state` | `state: GuardState = "PATROL"` |  |
 | `x` | `x: number` | Pixel position. Public because the scene reads it constantly — radar blips, network alerts, cornering checks, the debug overlay — and a `position` getter returning `{ x, y }` minted a throwaway object on every one of those reads, several times per guard per frame. Same convention as `Player`. |
 | `y` | `y: number` |  |
@@ -2824,7 +2831,7 @@ stays sharper for a while afterward (CAUTIOUS), pursues a confirmed sighting
 | `plannedPath` | `get plannedPath(): readonly PathNode[]` | The remaining leg of the path being walked, for the debug overlay. |
 | `hearNoise` | `hearNoise(intensity: number, sx: number, sy: number): void` | Reacts to a nearby noise (e.g. a door operating): the guard turns to look toward the source and grows suspicious, but detection is capped below full so sound alone never trips a hard ALERT — it still takes line of sight to confirm. Also queues the origin for a LOS-aware investigation (pivot if already in clear sight, walk over if obstructed) the next time this guard is free to act on it. `intensity` is 0..1 (louder/closer = higher); `sx,sy` are pixels. |
 
-*Plus 67 private members.*
+*Plus 65 private members.*
 
 <a id="class-holdfixture"></a>
 
@@ -3117,10 +3124,10 @@ the tuning schema the `security_guard_*` boards actually carry — see
 
 #### `Sensor` — class
 
-`src/entities/Sensor.ts:37`
+`src/entities/Sensor.ts:43`
 
 A fixed optical security camera — the `security` board's stationary answer to
-a patrolling guard. It never moves: the cone sweeps back and forth around a
+a patrolling guard. It never moves: its cone sweeps back and forth around a
 mounted facing (inferred from the surrounding walls, since the tiles carry no
 facing data), clipped against walls like a guard's, and fills a per-camera
 detection meter while the player is in view with clear line of sight. Reaching
@@ -3128,6 +3135,14 @@ full detection reports a sighting to the alert FSM exactly as a guard does.
 
 Shares the guard `EnforcerContext` so the scene drives it with the same
 per-frame data, and reuses the same thermal short-range sense.
+
+**The sweep is not drawn.** It used to lay a cyan wedge across the room, which
+gave away both the camera and the safe line past it — see `docs/DESIGN_NOTES.md`.
+The housing art has four cardinals and is mounted at `baseFacing`, so it
+cannot turn; the live swept angle reads off the radar instead, where every
+camera plots as a `fixed` unit with a facing tick that reddens past 0.66
+(`systems/Radar.ts`, `ui/Radar.ts`). That puts the information behind a ten-tile
+radius that jams during ALERT, rather than on the floor for free.
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -3140,7 +3155,7 @@ per-frame data, and reuses the same thermal short-range sense.
 | `constructor` | `constructor( scene: Phaser.Scene, tile: GameTile, tileSize: number, grid: CollisionGrid, plane = 0, )` |  |
 | `update` | `update(dt: number, ctx: EnforcerContext): void` |  |
 
-*Plus 7 private members.*
+*Plus 6 private members.*
 
 <a id="class-terminal"></a>
 
@@ -3287,7 +3302,7 @@ is live, so it lives here rather than three times.
 
 #### `EnforcerAttackResult` — interface
 
-`src/entities/Enforcer.ts:54`
+`src/entities/Enforcer.ts:53`
 
 An attack made by a pursuing guard this frame — the scene applies its effects.
 
@@ -3315,7 +3330,7 @@ is no line to draw. See `GameScene.resolveGuardAttack`.
 
 #### `EnforcerContext` — interface
 
-`src/entities/Enforcer.ts:106`
+`src/entities/Enforcer.ts:105`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3359,7 +3374,7 @@ is no line to draw. See `GameScene.resolveGuardAttack`.
 
 #### `GuardAnomaly` — interface
 
-`src/entities/Enforcer.ts:94`
+`src/entities/Enforcer.ts:93`
 
 An environmental anomaly a guard's vision cone can notice.
 
@@ -3438,7 +3453,7 @@ The tuning that actually differs between one guard's art and another's.
 
 #### `Investigation` — interface *(module-private)*
 
-`src/entities/Enforcer.ts:182`
+`src/entities/Enforcer.ts:181`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3650,7 +3665,7 @@ type EntitySpriteId = | "terminal" | "terminal-substation" | "security-camera" |
 
 #### `FollowResult` — type *(module-private)*
 
-`src/entities/Enforcer.ts:217`
+`src/entities/Enforcer.ts:224`
 
 What a single `Enforcer.followPath` step achieved.
 
@@ -3662,15 +3677,15 @@ type FollowResult = "moving" | "arrived" | "unreachable";
 
 #### `GuardState` — type
 
-`src/entities/Enforcer.ts:38`
+`src/entities/Enforcer.ts:37`
 
 A per-guard behaviour state, layered on top of the global `AlertState`
 phase (which stays the base-wide ALERT/EVASION/INFILTRATION authority for
 network broadcasts and the HUD):
 
- - **PATROL**    — default route navigation and vision-cone sweep.
+ - **PATROL**    — default route navigation and idle scanning sweep.
  - **CAUTIOUS**  — elevated alertness after finishing a search or an empty
-                   investigation: faster cone sweep, faster detection fill.
+                   investigation: faster scanning sweep, faster detection fill.
  - **SUSPICIOUS**— investigating a specific noise origin or anomaly.
  - **ALERT**     — confirmed sighting; pursuing and (via the network) pulling
                    in nearby guards. Mirrors global phase "ALERT".
@@ -3807,7 +3822,7 @@ type OrderlyState = "WANDER" | "INSPECT" | "SANITATION" | "SURRENDERED" | "WITNE
 
 #### `PersonAnomalyKind` — type
 
-`src/entities/Enforcer.ts:77`
+`src/entities/Enforcer.ts:76`
 
 An anomaly that is a *person*, in a state no orderly ever puts themselves in:
 dropped by a dart, stapled to a wall, or standing with their hands up.
@@ -4689,7 +4704,7 @@ whichever flag while the overlay is up and stops this scene.
 
 #### `DebugOverlay` — class
 
-`src/scenes/game/DebugOverlay.ts:102`
+`src/scenes/game/DebugOverlay.ts:103`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -4708,7 +4723,7 @@ whichever flag while the overlay is up and stops this scene.
 | `draw` | `draw(w: DebugWorld): void` | Draws the world-space overlay: blocked tiles, detection tint, LOS, navigation. |
 | `snapshot` | `snapshot(w: DebugWorld): DebugSnapshot` | Snapshot of live state for the DebugHud (published to the registry). |
 
-*Plus 6 private members.*
+*Plus 8 private members.*
 
 <a id="class-encounters"></a>
 
@@ -5165,7 +5180,7 @@ The live contents of a level, handed back to the scene to drive.
 
 #### `DebugHost` — interface
 
-`src/scenes/game/DebugOverlay.ts:68`
+`src/scenes/game/DebugOverlay.ts:69`
 
 The scene-level effects the cheats reach for.
 
@@ -5189,7 +5204,7 @@ the moment the scene rebuilt one.
 
 #### `DebugWorld` — interface
 
-`src/scenes/game/DebugOverlay.ts:44`
+`src/scenes/game/DebugOverlay.ts:45`
 
 What the overlay needs from the scene, supplied fresh each frame.
 
@@ -5857,7 +5872,7 @@ two things this boss does that nothing else in the game does:
 
 #### `DebugHud` — class
 
-`src/ui/DebugHud.ts:67`
+`src/ui/DebugHud.ts:76`
 
 A developer inspector panel: FPS, player position, cheat flags, alert phase,
 and per-unit detection. Pinned to the top-right of the (unzoomed) UIScene and
@@ -6272,7 +6287,7 @@ Everything the transmission depends on, gathered by the caller.
 
 #### `ConeStyle` — interface
 
-`src/ui/VisionCone.ts:29`
+`src/ui/VisionCone.ts:35`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -6316,7 +6331,7 @@ on `K` — it shipped on `N` and shared it with no-clip.
 
 #### `DebugSnapshot` — interface
 
-`src/ui/DebugHud.ts:26`
+`src/ui/DebugHud.ts:35`
 
 Live game state published by `GameScene` for the debug panel. Written to
 the registry under the `"debug"` key each frame (dev builds only).
@@ -6362,6 +6377,7 @@ A named unit and its current detection level (0..1).
 | --- | --- | --- |
 | `label` | `string` |  |
 | `detection` | `number` |  |
+| `inert` *(opt)* | `string` | Why this unit is not sensing, if it isn't — "down", "stashed", "disabled". Worth a column because none of it is otherwise legible from the panel, and since the vision cones left the world it isn't especially legible *in* the world either: a downed guard reads as a paused, slate-tinted body and that is all. Absent while the unit is live and sensing normally. |
 
 <a id="interface-encounterbandframe"></a>
 
@@ -6898,7 +6914,7 @@ GameScene.
 | [ConductMetrics](#interface-conductmetrics) | interface | `src/systems/Conduct.ts:95` |
 | [ConductState](#class-conductstate) | class | `src/systems/Conduct.ts:112` |
 | [ConductView](#interface-conductview) | interface | `src/systems/Conduct.ts:246` |
-| [ConeStyle](#interface-conestyle) | interface | `src/ui/VisionCone.ts:29` |
+| [ConeStyle](#interface-conestyle) | interface | `src/ui/VisionCone.ts:35` |
 | [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:1265` |
 | [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:1304` |
 | [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:20` |
@@ -6907,12 +6923,12 @@ GameScene.
 | [Cover](#class-cover) | class | `src/entities/Cover.ts:18` |
 | [CoverBoards](#interface-coverboards) | interface | `src/systems/CoverPoints.ts:15` |
 | [CoverBody](#interface-coverbody) | interface | `src/map/TileBake.ts:430` |
-| [DebugHost](#interface-debughost) | interface | `src/scenes/game/DebugOverlay.ts:68` |
-| [DebugHud](#class-debughud) | class | `src/ui/DebugHud.ts:67` |
-| [DebugOverlay](#class-debugoverlay) | class | `src/scenes/game/DebugOverlay.ts:102` |
-| [DebugSnapshot](#interface-debugsnapshot) | interface | `src/ui/DebugHud.ts:26` |
+| [DebugHost](#interface-debughost) | interface | `src/scenes/game/DebugOverlay.ts:69` |
+| [DebugHud](#class-debughud) | class | `src/ui/DebugHud.ts:76` |
+| [DebugOverlay](#class-debugoverlay) | class | `src/scenes/game/DebugOverlay.ts:103` |
+| [DebugSnapshot](#interface-debugsnapshot) | interface | `src/ui/DebugHud.ts:35` |
 | [DebugUnitView](#interface-debugunitview) | interface | `src/ui/DebugHud.ts:17` |
-| [DebugWorld](#interface-debugworld) | interface | `src/scenes/game/DebugOverlay.ts:44` |
+| [DebugWorld](#interface-debugworld) | interface | `src/scenes/game/DebugOverlay.ts:45` |
 | [DeployableKind](#type-deployablekind) | type | `src/systems/Deployables.ts:22` |
 | [DeployedItem](#class-deployeditem) | class | `src/entities/DeployedItem.ts:35` |
 | [DeployedLure](#interface-deployedlure) | interface | `src/systems/Deployables.ts:32` |
@@ -6953,9 +6969,9 @@ GameScene.
 | [EncounterInteractResult](#interface-encounterinteractresult) | interface | `src/entities/EncounterTypes.ts:11` |
 | [Encounters](#class-encounters) | class | `src/scenes/game/Encounters.ts:70` |
 | [EncountersCallbacks](#interface-encounterscallbacks) | interface | `src/scenes/game/Encounters.ts:50` |
-| [Enforcer](#class-enforcer) | class | `src/entities/Enforcer.ts:231` |
-| [EnforcerAttackResult](#interface-enforcerattackresult) | interface | `src/entities/Enforcer.ts:54` |
-| [EnforcerContext](#interface-enforcercontext) | interface | `src/entities/Enforcer.ts:106` |
+| [Enforcer](#class-enforcer) | class | `src/entities/Enforcer.ts:245` |
+| [EnforcerAttackResult](#interface-enforcerattackresult) | interface | `src/entities/Enforcer.ts:53` |
+| [EnforcerContext](#interface-enforcercontext) | interface | `src/entities/Enforcer.ts:105` |
 | [EnforcerStats](#interface-enforcerstats) | interface | `src/systems/EntityStats.ts:34` |
 | [ENTITY_SPRITES](#const-entity-sprites) | const | `src/entities/EntitySprites.ts:138` |
 | [EntityIndex](#interface-entityindex) | interface | `src/map/EntityIndex.ts:71` |
@@ -6971,7 +6987,7 @@ GameScene.
 | [FirearmsAuthorization](#class-firearmsauthorization) | class | `src/systems/Firearms.ts:34` |
 | [FirearmsPosture](#type-firearmsposture) | type | `src/systems/Firearms.ts:10` |
 | [FlashlightBeam](#interface-flashlightbeam) | interface | `src/ui/Lighting.ts:107` |
-| [FollowResult](#type-followresult) | type | `src/entities/Enforcer.ts:217` |
+| [FollowResult](#type-followresult) | type | `src/entities/Enforcer.ts:224` |
 | [GameLayer](#interface-gamelayer) | interface | `src/map/types.ts:279` |
 | [GameLevel](#interface-gamelevel) | interface | `src/map/types.ts:286` |
 | [GameMap](#interface-gamemap) | interface | `src/map/types.ts:301` |
@@ -6982,12 +6998,12 @@ GameScene.
 | [GameTile](#interface-gametile) | interface | `src/map/types.ts:230` |
 | [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:332` |
 | [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:498` |
-| [GuardAnomaly](#interface-guardanomaly) | interface | `src/entities/Enforcer.ts:94` |
+| [GuardAnomaly](#interface-guardanomaly) | interface | `src/entities/Enforcer.ts:93` |
 | [GuardKind](#type-guardkind) | type | `src/map/EntityIndex.ts:46` |
 | [GuardRoute](#interface-guardroute) | interface | `src/map/EntityIndex.ts:50` |
 | [GuardSkin](#interface-guardskin) | interface | `src/entities/GuardSkin.ts:14` |
 | [GuardSkinSpec](#interface-guardskinspec) | interface | `src/entities/GuardSkin.ts:71` |
-| [GuardState](#type-guardstate) | type | `src/entities/Enforcer.ts:38` |
+| [GuardState](#type-guardstate) | type | `src/entities/Enforcer.ts:37` |
 | [HackWorld](#interface-hackworld) | interface | `src/scenes/game/TerminalHacks.ts:39` |
 | [HoldFixture](#class-holdfixture) | class | `src/entities/HoldFixture.ts:24` |
 | [HoldTarget](#class-holdtarget) | class | `src/entities/HoldTarget.ts:41` |
@@ -6995,7 +7011,7 @@ GameScene.
 | [InputState](#interface-inputstate) | interface | `src/entities/Player.ts:541` |
 | [InteractPrompt](#class-interactprompt) | class | `src/scenes/game/InteractPrompt.ts:177` |
 | [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:23` |
-| [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:182` |
+| [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:181` |
 | [ItemActions](#class-itemactions) | class | `src/scenes/game/ItemActions.ts:101` |
 | [ItemInfo](#interface-iteminfo) | interface | `src/systems/ItemCatalog.ts:51` |
 | [ItemWorld](#interface-itemworld) | interface | `src/scenes/game/ItemActions.ts:75` |
@@ -7064,7 +7080,7 @@ GameScene.
 | [PauseRequest](#type-pauserequest) | type | `src/systems/PauseState.ts:29` |
 | [PauseScene](#class-pausescene) | class | `src/scenes/PauseScene.ts:32` |
 | [PauseSnapshot](#interface-pausesnapshot) | interface | `src/ui/PauseMenuView.ts:39` |
-| [PersonAnomalyKind](#type-personanomalykind) | type | `src/entities/Enforcer.ts:77` |
+| [PersonAnomalyKind](#type-personanomalykind) | type | `src/entities/Enforcer.ts:76` |
 | [PlaneLink](#interface-planelink) | interface | `src/systems/PlaneLinks.ts:50` |
 | [PlaneLinkKind](#type-planelinkkind) | type | `src/systems/PlaneLinks.ts:47` |
 | [PlaneOverlay](#class-planeoverlay) | class | `src/ui/PlaneOverlay.ts:37` |
@@ -7122,7 +7138,7 @@ GameScene.
 | [SensingContext](#class-sensingcontext) | class | `src/scenes/game/SensingContext.ts:51` |
 | [SensingDeps](#interface-sensingdeps) | interface | `src/scenes/game/SensingContext.ts:26` |
 | [SensingWorld](#interface-sensingworld) | interface | `src/systems/Sensing.ts:60` |
-| [Sensor](#class-sensor) | class | `src/entities/Sensor.ts:37` |
+| [Sensor](#class-sensor) | class | `src/entities/Sensor.ts:43` |
 | [SensorStats](#interface-sensorstats) | interface | `src/systems/EntityStats.ts:536` |
 | [SetPieceEvents](#class-setpieceevents) | class | `src/scenes/game/SetPieceEvents.ts:67` |
 | [SetPieceWorld](#interface-setpieceworld) | interface | `src/scenes/game/SetPieceEvents.ts:50` |

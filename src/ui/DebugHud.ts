@@ -17,6 +17,15 @@ const PANEL_BG = `${UI.bgPanel}cc`;
 export interface DebugUnitView {
   label: string;
   detection: number;
+  /**
+   * Why this unit is not sensing, if it isn't — "down", "stashed", "disabled".
+   *
+   * Worth a column because none of it is otherwise legible from the panel, and
+   * since the vision cones left the world it isn't especially legible *in* the
+   * world either: a downed guard reads as a paused, slate-tinted body and that
+   * is all. Absent while the unit is live and sensing normally.
+   */
+  inert?: string;
 }
 
 /**
@@ -125,7 +134,7 @@ export class DebugHud {
     const flag = (on: boolean): string => (on ? "ON" : "off");
     const facingDeg = Math.round(Phaser.Math.RadToDeg(view.facing));
     const units = view.units
-      .map((u) => `  ${u.label} ${u.detection.toFixed(2)}`)
+      .map((u) => `  ${u.label} ${u.detection.toFixed(2)}${u.inert ? ` ${u.inert}` : ""}`)
       .join("\n");
 
     this.panel.setText(
