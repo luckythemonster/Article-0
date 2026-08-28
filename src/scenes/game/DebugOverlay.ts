@@ -13,6 +13,7 @@ import { CERT_ITEM, PLAYER_DEFAULTS } from "../../systems/EntityStats";
 import { catalogedNames } from "../../systems/ItemCatalog";
 import type { DebugSnapshot } from "../../ui/DebugHud";
 import type { Lighting } from "../../ui/Lighting";
+import { CAMERA_CONE, CONE_RAYS, GUARD_CONE, traceCone } from "../../ui/VisionCone";
 import type { EntityShadows } from "../../ui/EntityShadows";
 
 /**
@@ -296,6 +297,8 @@ export class DebugOverlay {
       }
     }
 
+    this.drawSensingGeometry(g, w, ts);
+
     // Line of sight from the player to each guard (green = clear, red = blocked).
     const ptx = w.player.x / ts;
     const pty = w.player.y / ts;
@@ -306,6 +309,87 @@ export class DebugOverlay {
     }
 
     this.drawGuardNavigation(g, w.guards, ts);
+  }
+
+  /**
+   * Every guard's and camera's field of view, plus the 360° heat sense inside it.
+   *
+   * The shipped game draws no vision cones at all — see `docs/DESIGN_NOTES.md` for
+   * why. This is where they went, and it is deliberately not the same readout
+   * behind a key. The old wedges showed the *cone* and nothing else, so the
+   * thermal radius — a real detection region, 2 tiles by default, that catches a
+   * player the wedge was nowhere near — never appeared at all. Drawing both is the
+   * point of doing this here: as a tuning surface it should show what
+   * `Sensing.canSense` tests, not a subset of it.
+   *
+   * It is still geometry rather than a verdict. `canSense` also short-circuits on
+   * compliance, concealment and a plane mismatch, none of which have a shape; the
+   * detection numbers in the debug panel are where those show up.
+   *
+   * Everything batches into the overlay's one shared Graphics, which is what
+   * {@link traceCone} exists for — a `clear()` per cone would wipe the blocked
+   * tiles and collider bounds drawn above it.
+   */
+  private drawSensingGeometry(
+    g: Phaser.GameObjects.Graphics,
+    w: DebugWorld,
+    ts: number,
+  ): void {
+    // Guards: skip the ones canSense would refuse outright, so what is drawn is
+    // what is live. `update` bails on both before it ever reaches a sense check.
+    for (const e of w.guards) {
+      if (e.isStashed || e.isDown) continue;
+      g.fillStyle(GUARD_CONE.color, GUARD_CONE.alpha);
+      traceCone(
+        g,
+        w.grid,
+        e.x,
+        e.y,
+        e.facing,
+        e.stats.sightAngle,
+        e.stats.sightRange,
+        ts,
+        CONE_RAYS,
+      );
+      this.strokeThermal(g, e.x, e.y, e.stats.thermalRadius * ts, GUARD_CONE.color);
+    }
+
+    for (const s of w.sensors) {
+      if (s.stats.state === "disabled") continue;
+      g.fillStyle(CAMERA_CONE.color, CAMERA_CONE.alpha);
+      traceCone(
+        g,
+        w.grid,
+        s.x,
+        s.y,
+        s.facing,
+        s.stats.sightAngle,
+        s.stats.detectionRange,
+        ts,
+        CONE_RAYS,
+      );
+      this.strokeThermal(g, s.x, s.y, s.stats.thermalRadius * ts, CAMERA_CONE.color);
+    }
+  }
+
+  /**
+   * The 360° heat sense as a ring.
+   *
+   * Stroked rather than filled because it overlaps the cone at the eye, and two
+   * translucent fills stacking there would read as a hotter cone rather than as a
+   * second sense. A zero radius — which is every human `SecurityGuard` — draws
+   * nothing, which is the honest answer.
+   */
+  private strokeThermal(
+    g: Phaser.GameObjects.Graphics,
+    x: number,
+    y: number,
+    radiusPx: number,
+    color: number,
+  ): void {
+    if (radiusPx <= 0) return;
+    g.lineStyle(1, color, 0.5);
+    g.strokeCircle(x, y, radiusPx);
   }
 
   /**
@@ -393,8 +477,16 @@ export class DebugOverlay {
       alertPhase: w.alert.phase,
       track: getAudio().getTrack() ?? "none",
       units: [
-        ...w.guards.map((e, i) => ({ label: `G${i}`, detection: e.detection })),
-        ...w.sensors.map((s, i) => ({ label: `S${i}`, detection: s.detection })),
+        ...w.guards.map((e, i) => ({
+          label: `G${i}`,
+          detection: e.detection,
+          inert: e.isStashed ? "stashed" : e.isDown ? "down" : undefined,
+        })),
+        ...w.sensors.map((s, i) => ({
+          label: `S${i}`,
+          detection: s.detection,
+          inert: s.stats.state === "disabled" ? "disabled" : undefined,
+        })),
       ],
     };
   }

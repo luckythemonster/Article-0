@@ -3,7 +3,6 @@ import type { GameTile } from "../map/types";
 import type { CollisionGrid } from "../systems/CollisionGrid";
 import { paced, sensorStatsFor, type SensorStats } from "../systems/EntityStats";
 import { accrueDetection, canSense, type Eye } from "../systems/Sensing";
-import { CAMERA_CONE, drawVisionCone } from "../ui/VisionCone";
 import { nearestCardinal } from "./directions";
 import {
   CAMERA_DISPLAY_TILES,
@@ -17,7 +16,6 @@ import type { EnforcerContext } from "./Enforcer";
 /** The hand-drawn housing, when `assets/sprites/security-camera.png` is on disk. */
 const CAMERA_ART: EntitySpriteId = "security-camera";
 
-const RAY_COUNT = 20;
 /** Half-arc (degrees) the mounted camera pans its cone across. */
 const SWEEP_ARC = 55;
 /** Pan oscillation speed (radians of phase per second). */
@@ -25,7 +23,7 @@ const SWEEP_SPEED = paced(0.7);
 
 /**
  * A fixed optical security camera — the `security` board's stationary answer to
- * a patrolling guard. It never moves: the cone sweeps back and forth around a
+ * a patrolling guard. It never moves: its cone sweeps back and forth around a
  * mounted facing (inferred from the surrounding walls, since the tiles carry no
  * facing data), clipped against walls like a guard's, and fills a per-camera
  * detection meter while the player is in view with clear line of sight. Reaching
@@ -33,6 +31,14 @@ const SWEEP_SPEED = paced(0.7);
  *
  * Shares the guard {@link EnforcerContext} so the scene drives it with the same
  * per-frame data, and reuses the same thermal short-range sense.
+ *
+ * **The sweep is not drawn.** It used to lay a cyan wedge across the room, which
+ * gave away both the camera and the safe line past it — see `docs/DESIGN_NOTES.md`.
+ * The housing art has four cardinals and is mounted at {@link baseFacing}, so it
+ * cannot turn; the live swept angle reads off the radar instead, where every
+ * camera plots as a `fixed` unit with a facing tick that reddens past 0.66
+ * (`systems/Radar.ts`, `ui/Radar.ts`). That puts the information behind a ten-tile
+ * radius that jams during ALERT, rather than on the floor for free.
  */
 export class Sensor {
   readonly stats: SensorStats;
@@ -45,7 +51,6 @@ export class Sensor {
   private readonly baseFacing: number;
   private sweepPhase = Phaser.Math.FloatBetween(0, Math.PI * 2);
 
-  private readonly cone: Phaser.GameObjects.Graphics;
   /**
    * The drawn fallback housing, and only that.
    *
@@ -83,7 +88,6 @@ export class Sensor {
       plane,
     };
 
-    this.cone = scene.add.graphics().setDepth(400);
     if (hasEntitySprite(scene, CAMERA_ART)) {
       this.addHousingSprite(scene, tileSize);
     } else {
@@ -93,10 +97,7 @@ export class Sensor {
   }
 
   update(dt: number, ctx: EnforcerContext): void {
-    if (this.stats.state === "disabled") {
-      this.cone.clear();
-      return;
-    }
+    if (this.stats.state === "disabled") return;
     // Pan the cone back and forth around the mounted facing.
     this.sweepPhase += dt * SWEEP_SPEED;
     this.facing =
@@ -110,20 +111,6 @@ export class Sensor {
       dt,
       this.stats.detectionDelay,
       ctx,
-    );
-
-    drawVisionCone(
-      this.cone,
-      ctx.grid,
-      this.x,
-      this.y,
-      this.facing,
-      this.stats.sightAngle,
-      this.stats.detectionRange,
-      ctx.tileSize,
-      this.detection,
-      CAMERA_CONE,
-      RAY_COUNT,
     );
   }
 

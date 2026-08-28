@@ -72,6 +72,51 @@ tiles) that catches the player just outside the cone at close range, line-of-sig
 and defeated by heat-blocking cover (`Enforcer.canSee`, `DetectionSystem.thermalBleedAt`).
 This wired up a field the map had carried all along and nothing had ever read.
 
+### Vision cones are not drawn
+
+Guards and cameras used to lay a translucent wedge across the floor — amber for a guard,
+cyan for a camera — clipped against walls and flipping red past 0.66 detection. They are
+gone. Two reasons, and they compound:
+
+**It gave away position.** The wedge is drawn from the eye out to `sightRange`, so it
+spills through a doorway and around a corner into space the player *can* see, announcing a
+guard the player has no line of sight to. The darkness overlay sits at depth 700 and hid
+the guard; the cone sat at 400 and did not hide its own far end. A stealth game that
+punishes you for not knowing where the guard is should not then tell you.
+
+**It gave away the answer.** A drawn detection boundary makes optimal play trivial: walk
+the edge, at zero risk, with no read of the guard required and no cost to being wrong. The
+thing the cone was there to make legible is the thing it removed.
+
+It was also lying in three places, because the drawn shape was never the shape `canSense`
+tests. It kept drawing at full strength while detection was already short-circuited on
+compliance (cleared at any range), on concealment, and on a plane mismatch — and it never
+drew the 360° thermal sense above, which is a real detection region the player could walk
+into with the wedge nowhere near them.
+
+What carries the information now is what was always there: the 8-direction patrol-scan art
+(the arms point where the guard is looking), the `!` at the same 0.66 the cone used to go
+red at, the CAUTIOUS/SUSPICIOUS/ALERT body tints, the 1.8× scan speed while combat-aware,
+the barks, the threat meter — and the radar, where every guard *and camera* plots with a
+facing tick. That last one is the deliberate trade: a field of view is still readable, but
+only within ten tiles, and only until ALERT jams the feed.
+
+Two consequences worth knowing before you undo any of this:
+
+- **A downed guard needs its own visual.** The cone going dark used to be the *only*
+  difference between a stopped guard and a stopped guard that can still see you — the
+  sprite is the same standing frame set either way. `Enforcer.putDown` now pauses the scan
+  animation and applies `DOWN_TINT`; `update` takes both off on the frame the timer
+  empties. Don't remove them without putting something else there.
+- **Searchlights and boss beams keep their cones.** `RoofRelay` lamps are literal emitted
+  light, and an invisible beam reads as a bug rather than as difficulty. `BossCore`'s audit
+  beams and VENT-4's rotor sweep are arena-scale attack telegraphs; hiding those makes
+  those fights guesswork, not stealth.
+
+The renderer survives in `src/ui/VisionCone.ts` for exactly those, plus the developer
+overlay (`` ` `` then `V`), which draws cones *and* thermal rings for every live guard and
+camera — the honest geometry, so the numbers stay tunable.
+
 ---
 
 ## Concealment and compliance

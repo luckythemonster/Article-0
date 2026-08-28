@@ -71,7 +71,7 @@ warps; visit with `?debug=0` to turn it back off.
 | `` ` `` (backtick) | Toggle debug mode. Turning it off clears every cheat and hides the panel. |
 | G | God mode — blocks every fail path: bio-integrity loss, capture, and a wrong Doctrinal Compliance transmit (bricking a terminal) |
 | N | No-clip — walk through walls and doors |
-| V | World overlay — guard patrol routes and live A* paths, collision circles, line-of-sight rays, blocked tiles, and detection hot spots |
+| V | World overlay — **vision cones and thermal rings for every live guard and camera**, plus patrol routes and live A* paths, collision circles, line-of-sight rays, blocked tiles, and detection hot spots |
 | O | Darkness off — hide the lighting / line-of-sight overlay and read the level at full brightness |
 | 1–9 | Warp to the map's levels in board order, with any generated ones last — for the shipped map that's `main1` / `duct1` / `duct2` / `secret1` / `vent_core` / `main2` / `main2vault` / `secret2` / `roof_array` (resets the alert; keeps your HP) |
 | `[` / `]` | Cycle the give-item selection through every item the game knows about (weapons, consumables, key items) |
@@ -104,9 +104,13 @@ before committing, and a guard on the far side can see you just as well, with no
 warn you first. **Terminals** are hacked by holding **E** while adjacent, and finishing
 releases every door in the surrounding sector.
 
-**Detection and the alert.** Walk into a guard's yellow vision cone with a clear line of
-sight and the detection meter fills; fill it completely and the base goes to **ALERT**
-(the cone turns red, a `!` appears, guards converge on your last known position). A guard
+**Detection and the alert.** Guards have a cone of vision, and **nothing draws it**. Step
+into one with a clear line of sight and the detection meter fills; fill it completely and
+the base goes to **ALERT** (a `!` appears over the guard, it flushes red, guards converge
+on your last known position). Reading a guard is the game: which way the scanner arms are
+pointing, how fast they're sweeping, the amber tint that says it's already suspicious, and
+the radar tick if you're close enough to have one. There is no drawn line to walk along —
+that was the whole problem with drawing it. A guard
 chases you while it can see you and paths to your last known tile the moment it can't,
 then sweeps the search points around it before returning to its patrol. Break line of
 sight and the alert decays back through **EVASION** to **INFILTRATION**. Standing in a
@@ -165,16 +169,21 @@ beam alone. It drains in about 45 seconds of continuous use and gives you away b
 while lit (1.8× detection), so spend it in bursts — a **Battery** from a chest refills it.
 
 **The radar** (top-right) is a Soliton-style minimap: a world-aligned circular plan view
-showing nearby walls and guards (yellow, red once they're close to spotting you) within a
-fixed radius, with your own facing as a cyan arrow at the centre. It's disabled during
-**ALERT** — the feed reads `JAMMED` — so you lose the safety net exactly when guards are
-actively hunting.
+showing nearby walls, guards and cameras (yellow, red once they're close to spotting you)
+within a fixed radius, with your own facing as a cyan arrow at the centre. Each blip
+carries a tick along the direction that unit is *currently looking* — which, since no cone
+is drawn in the world, makes the radar the only place a field of view is legible at all.
+It's disabled during **ALERT** — the feed reads `JAMMED` — so you lose that read exactly
+when guards are actively hunting, which is the price of it.
 
-**Cameras, heat, and the network.** Fixed **security cameras** watch key rooms: each
-sweeps a wall-clipped cone back and forth, and stepping into one with a clear sightline
-trips the alarm just like a guard. On top of their cones, guards *and* cameras have a
-short-range **thermal** sense — get within a couple of tiles and your body heat gives you
-away even outside the cone, though crouching in cover still hides you. A confirmed
+**Cameras, heat, and the network.** Fixed **security cameras** watch key rooms: each pans a
+wall-clipped cone back and forth, and stepping into one with a clear sightline trips the
+alarm just like a guard. Their sweep isn't drawn either, and the housing doesn't turn with
+it — the radar tick is where you read which way a camera is looking right now, so a camera
+you're too far from to have on radar is one you have to have learned. On top of their
+cones, guards *and* cameras have a short-range **thermal** sense — get within a couple of
+tiles and your body heat gives you away even outside the cone, though crouching in cover
+still hides you. A confirmed
 sighting ripples through the **alert network**: the unit that spots you rallies every
 guard within its network radius, so one camera lighting up can pull a whole patrol toward
 you. The top-left **NETWORK** readout tracks status, how many units are online, spotting
@@ -252,7 +261,7 @@ The whole pipeline lives in `src/`:
   collision, spawns entities, and drives the systems each frame. `UIScene` is a parallel,
   unzoomed overlay for the HUD.
 - **`src/entities/`** — the things in the world: `Player`, `Enforcer`/`Drone`/`SecurityGuard`
-  (A*-routed patrol, wall-clipped vision cone, per-guard detection meter, sharing one
+  (A*-routed patrol, wall-clipped cone of vision, per-guard detection meter, sharing one
   implementation via `GuardSkin`), `Orderly`, `Sensor`, `Door`, `Terminal`, `Chest`,
   `Locker`, `Laser`, `Cover`, and the three act bosses.
 - **`src/systems/`** — the headless rules, which is why the unit tests drive them
