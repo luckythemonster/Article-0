@@ -204,6 +204,24 @@ from its `travelling` tag to its `impact` tag. `.aseprite` is the source and
 `spritesheet.png` is build output, same arrangement as `electricity` below —
 `python3 tools/vfx/build_vfx.py` regenerates both.
 
+**Its impact spark is deliberately late, and that ordering is the design.** The
+`impact` row above is shared: a dart and a Rail-Stapler bolt both land on a person
+and both draw it. `putDownNearest` plays it on the frame the blow resolves, which
+is right for the bare-handed takedown and wrong for the dart — the hit resolves at
+the press but the dart does not *arrive* for a few hundred milliseconds, so the
+spark announced the hit while the dart was still at the muzzle and pulled the eye
+to the target at exactly the wrong moment. The dart therefore passes `deferImpact`
+and places the spark itself through `fireStunRound`'s `onArrive`. A change that
+moves it back to press time will not fail a test; it will just quietly make the
+shot unreadable again.
+
+Two numbers keep the dart perceptible at all, and both are in `Vfx.ts` rather than
+`EntityStats.ts` because neither is balance: its art is **four opaque pixels** on an
+8x8 canvas, so `STUN_ROUND_SPEED_PX_PER_SEC` (450) buys it ~213ms of screen time on
+a typical three-tile shot, and `STUN_ROUND_MIN_FLIGHT_MS` (120) stops a contact-range
+shot from resolving inside a single frame. It shipped at 900 with a 40ms floor and
+read as though nothing had been fired.
+
 Effects render **above** the lighting overlay, alongside the player and for the
 same reason: unlit space is fully opaque, so anything beneath it is simply gone,
 and an effect that vanishes because the room is dark fails at the only job it
