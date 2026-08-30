@@ -1,0 +1,6 @@
+{
+  "ALERT": 2,
+  "COMPLETE": 3,
+  "NOMINAL": 0,
+  "SEARCHING": 1
+}

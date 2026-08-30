@@ -177,11 +177,14 @@ export class UIScene extends Phaser.Scene {
       // Suspended means 0, as for the EKG above: the directive expands on its first
       // update, which lands during the opening codec briefing, and it should still
       // be expanded when the player is given the screen back.
+      // Defaults to the NETWORK readout's own "no snapshot yet" reading, so the
+      // plate agrees with it before the first `alertNetwork` publish.
       this.objectives.update(
         objState,
         level,
         this.features,
         isSuspended(this.registry) ? 0 : delta,
+        network?.status ?? "INFILTRATION",
       );
     }
 
