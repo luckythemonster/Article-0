@@ -47,23 +47,26 @@ export type SynthVoice = "enforcer" | "drone" | "eira";
  *
  * - **faster than either guard** (60 against 82 and 96 — lower is faster), because
  *   she talks in paragraphs and they talk in stamped phrases;
- * - **the thinnest throat in the game** (95 against 190 and 150), which is what
- *   takes the chassis out of her: the guards' resonance is a big metal box
- *   talking, and she should not sound like she is speaking from inside one;
- * - **pitched up** (66), but still under the drone (78) — the two together are
- *   the difference between an appliance announcing itself and someone talking;
- * - **a wider mouth than the enforcer** (150 against 120), which is diction: it
- *   has to survive full sentences, not four words of compliance-speak.
+ * - **throat and mouth both at the ceiling** (255, against the enforcer's
+ *   190/120 and the drone's 150/200). Those two are SAM's formant frequencies,
+ *   so maxing both is the largest, most open vocal tract the synthesiser has.
+ *   Next to it the guards are narrow and clipped — which is the distinction
+ *   doing the work here: hers is the one voice in the game shaped like a body
+ *   rather than like an announcement;
+ * - **pitched up** (66), above the enforcer's 50 and under the drone's 78 —
+ *   between an appliance announcing itself and someone talking.
  *
- * Tuned by ear from a first pass at `68/58/120/150`, which read as too far back
- * in the throat and too slow for the amount she has to say. These four numbers
- * are the whole performance, so they are the thing to move if she is still not
- * right — nothing else about the narration needs to change with them.
+ * Tuned by ear across two passes: `68/58/120/150` first, then `60/66/95/150`,
+ * which took the resonance out rather than opening it up and turned out to be
+ * the wrong end of the dial. These four numbers are the whole performance, so
+ * they are the thing to move if she is still not right — nothing else about the
+ * narration needs to change with them, and nothing else in the audio path reads
+ * them.
  */
 export const SYNTH_VOICES: Record<SynthVoice, VoicePreset> = {
   enforcer: { speed: 82, pitch: 50, throat: 190, mouth: 120 },
   drone: { speed: 96, pitch: 78, throat: 150, mouth: 200 },
-  eira: { speed: 60, pitch: 66, throat: 95, mouth: 150 },
+  eira: { speed: 60, pitch: 66, throat: 255, mouth: 255 },
 };
 
 /**

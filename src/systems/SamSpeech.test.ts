@@ -73,16 +73,20 @@ describe("the voices", () => {
     // paragraphs where they talk in stamped phrases.
     expect(eira.speed).toBeLessThan(enforcer.speed);
     expect(eira.speed).toBeLessThan(drone.speed);
-    // The thinnest throat in the game: the guards' resonance is a big metal box
-    // talking, and she should not sound like she is speaking from inside one.
-    expect(eira.throat).toBeLessThan(enforcer.throat);
-    expect(eira.throat).toBeLessThan(drone.throat);
+    // The most open vocal tract in the game — SAM's two formant frequencies both
+    // at the ceiling, where the guards are narrow and clipped. Hers is the one
+    // voice shaped like a body rather than like an announcement.
+    expect(eira.throat).toBeGreaterThan(enforcer.throat);
+    expect(eira.throat).toBeGreaterThan(drone.throat);
+    expect(eira.mouth).toBeGreaterThan(drone.mouth);
     // Pitched up, but still under the drone — an appliance announcing itself
     // against someone talking.
     expect(eira.pitch).toBeGreaterThan(enforcer.pitch);
     expect(eira.pitch).toBeLessThan(drone.pitch);
     // Wider than the enforcer, because diction has to survive full sentences.
     expect(eira.mouth).toBeGreaterThan(enforcer.mouth);
+    // And within the byte SAM masks every parameter down to.
+    for (const value of Object.values(eira)) expect(value).toBeLessThanOrEqual(255);
   });
 
   it("hands the mesh a guard's voice when it cuts into her transmission", () => {
