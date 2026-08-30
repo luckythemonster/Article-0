@@ -342,9 +342,14 @@ re-exporting over the file; nothing in the repo generates them. The package's ow
 straight to the speakers, past the mixer.
 
 `sam-js` is the vanilla-JS port of **SAM**, the 1982 Commodore 64 Software Automatic
-Mouth, and it is what silicates speak with (`src/systems/SilicateBarks.ts` picks the
-line and the voice; `AudioDirector.bark` renders it and plays it through the same
-mixer as everything else, so the pause menu's volume and mute govern it). 21 KB of
+Mouth, and it is what every synthetic voice in the game speaks with —
+`src/systems/SamSpeech.ts` holds the three presets and the text rules. Silicates bark
+with it (`SilicateBarks.ts` picks the line and the voice; `AudioDirector.bark` plays
+it), and **EIRA-7 narrates her codec with it** (`AudioDirector.narrate`, with her
+37 Hz carrier under the transmission and a "Narrate codec" toggle in the pause menu's
+AUDIO section). Deliberately the same synthesiser for her as for the things hunting
+Rowan: what separates them is the register, not the instrument. Everything goes
+through the same mixer, so volume and mute govern all of it. 21 KB of
 ESM, no runtime dependencies. Worth knowing: it is a reverse-engineered port of
 commercial software, its licence field reads "SEE LICENSE IN README.md", and that
 README names SoftVoice, Inc. as the copyright holder and records that attempts to

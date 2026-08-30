@@ -24,7 +24,7 @@ describe("Settings", () => {
       constructor: { prototype: { compromised: true } },
     };
     const normalized = normalizeSettings(malicious);
-    expect(normalized).toEqual({ masterVolume: 0.8, muted: false });
+    expect(normalized).toEqual({ masterVolume: 0.8, muted: false, narrateCodec: true });
     expect((normalized as any).polluted).toBeUndefined();
     expect((normalized as any).compromised).toBeUndefined();
     expect(Object.prototype.hasOwnProperty.call(normalized, "__proto__")).toBe(false);
@@ -32,8 +32,8 @@ describe("Settings", () => {
   });
 
   it("round-trips a preference", () => {
-    saveSettings({ masterVolume: 0.4, muted: true });
-    expect(loadSettings()).toEqual({ masterVolume: 0.4, muted: true });
+    saveSettings({ masterVolume: 0.4, muted: true, narrateCodec: false });
+    expect(loadSettings()).toEqual({ masterVolume: 0.4, muted: true, narrateCodec: false });
   });
 
   it("clamps the volume into range on the way in and out", () => {
@@ -52,9 +52,37 @@ describe("Settings", () => {
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
   });
 
+  it("narrates the codec by default", () => {
+    expect(DEFAULT_SETTINGS.narrateCodec).toBe(true);
+    expect(loadSettings().narrateCodec).toBe(true);
+  });
+
+  it("turns narration on for a blob written before the setting existed", () => {
+    // Every stored preference predates this field, so absence is the ordinary
+    // case rather than a corrupt one — those players should get the feature.
+    localStorage.setItem("article-zero-settings", JSON.stringify({ masterVolume: 0.6, muted: false }));
+    expect(loadSettings()).toEqual({ masterVolume: 0.6, muted: false, narrateCodec: true });
+  });
+
+  it("keeps narration off once it has been turned off", () => {
+    // The one direction that matters: a default of `true` must not overwrite a
+    // deliberate `false` on the way back in.
+    localStorage.setItem(
+      "article-zero-settings",
+      JSON.stringify({ masterVolume: 1, muted: false, narrateCodec: false }),
+    );
+    expect(loadSettings().narrateCodec).toBe(false);
+  });
+
+  it("coerces a non-boolean narration flag back to the default", () => {
+    expect(normalizeSettings({ masterVolume: 1, muted: false, narrateCodec: "yes" }).narrateCodec).toBe(
+      true,
+    );
+  });
+
   it("survives storage being unavailable", () => {
     installBlockedStorage();
-    expect(() => saveSettings({ masterVolume: 0.5, muted: false })).not.toThrow();
+    expect(() => saveSettings({ masterVolume: 0.5, muted: false, narrateCodec: true })).not.toThrow();
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
   });
 });

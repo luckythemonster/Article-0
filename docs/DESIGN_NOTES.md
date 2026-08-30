@@ -65,6 +65,32 @@ is mono. Accepted deliberately: the alternative on offer was silence.
 Orderlies keep depth 600. A muttered reprimand is a local, in-view event with no sound
 standing behind it.
 
+### EIRA-7 speaks with the same synthesiser as the things hunting Rowan
+
+The codec was the only place she has a voice, and it was silent while the apparatus
+barked at Rowan all run — the thing arguing it is a subject was the one thing that could
+not talk. `AudioDirector.narrate` reads the transmission aloud.
+
+**Same instrument, deliberately** (`src/systems/SamSpeech.ts`). Giving her something
+other than SAM would settle the run's question in the sound design before the Tribunal
+got to it. What separates her from a guard is the register — sentences, "I",
+contractions, a question mark — over a preset that is faster, lower and wider-mouthed
+than either guard's, because it has to carry paragraphs rather than stamped phrases.
+
+**The bracketed line is not hers.** `[misdescription flagged: "afraid" — correction
+pending]` is the facility annotating her transmission from inside it, so it is
+attributed to a `mesh` speaker and comes out in an enforcer's flat voice. Two seconds of
+audio doing what the whole run is about.
+
+**Her 37 Hz carrier runs under all of it**, including the mesh's interjection — the
+carrier is her holding the channel, not her speaking. It is the same sub the calm pad
+already hums as "EIRA-7's presence"; the codec is where it resolves into words.
+
+**SAM refuses a whole line for one non-ASCII character** — not the character, the line.
+Three of the codec's lines carry an em dash or a curly quote, including the two that
+state the premise, so `sanitizeForSam` is what stands between the feature and silence.
+A dash becomes a comma because the comma is the pause the dash was doing.
+
 ### Thermal detection was already in the map
 
 Guards and cameras have a short 360° heat sense (`ThermalDetectionRadius`, default 2
