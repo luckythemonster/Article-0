@@ -282,10 +282,26 @@ function ensureStunRoundAnimations(scene: Phaser.Scene): void {
   });
 }
 
-/** A dart's flight, in world pixels per second. Brisk and fixed, so a shot at
- * point-blank and one at the full five-tile reach read as the same dart rather
- * than a slow one and a fast one. */
-const STUN_ROUND_SPEED_PX_PER_SEC = 900;
+/** A dart's flight, in world pixels per second. Fixed rather than scaled to the
+ * distance, so a point-blank shot and one at the full five-tile reach read as the
+ * same dart rather than a slow one and a fast one.
+ *
+ * Halved from the 900 it shipped at, which put a typical three-tile shot on screen
+ * for 107ms — six frames, for a dart whose art is four opaque pixels. At 450 the
+ * same shot takes ~213ms and the full reach ~356ms: long enough to register as
+ * something crossing the gap, short enough to still read as a dart rather than a
+ * lobbed object. */
+const STUN_ROUND_SPEED_PX_PER_SEC = 450;
+
+/**
+ * Shortest a flight may be, in milliseconds.
+ *
+ * A contact-range shot covers almost no distance, and without a floor its tween is
+ * a single frame — the dart is drawn at the muzzle and is already gone. The floor
+ * costs nothing at range (any shot past ~54px is longer than this anyway) and is
+ * what stops a point-blank hit from having no visible shot at all.
+ */
+const STUN_ROUND_MIN_FLIGHT_MS = 120;
 
 /**
  * Flies the Stun Rounds dart from muzzle to the point `ItemActions.fireStunDart`
@@ -296,6 +312,12 @@ const STUN_ROUND_SPEED_PX_PER_SEC = 900;
  * something landing, where this sprite *is* the shot. It is purely decorative —
  * the caller has already resolved whether anything was hit by the time this is
  * called, so nothing here can change the outcome, only how it reads.
+ *
+ * `onArrive` fires the moment the dart lands, alongside its own impact clip. It
+ * exists so a caller can hold back the *consequence* of the shot until the shot
+ * gets there: `ItemActions.fireStunDart` uses it to place the shared {@link IMPACT}
+ * spark, which otherwise announced the hit at the muzzle-flash frame and pulled the
+ * eye to the target while the dart was still leaving.
  */
 export function fireStunRound(
   scene: Phaser.Scene,
@@ -304,6 +326,7 @@ export function fireStunRound(
   endX: number,
   endY: number,
   tileSize: number,
+  onArrive?: () => void,
 ): void {
   ensureStunRoundAnimations(scene);
 
@@ -318,10 +341,14 @@ export function fireStunRound(
     targets: sprite,
     x: endX,
     y: endY,
-    duration: Math.max(40, (dist / STUN_ROUND_SPEED_PX_PER_SEC) * 1000),
+    duration: Math.max(
+      STUN_ROUND_MIN_FLIGHT_MS,
+      (dist / STUN_ROUND_SPEED_PX_PER_SEC) * 1000,
+    ),
     onComplete: () => {
       sprite.play(STUN_ROUND_IMPACT_ANIM);
       sprite.once("animationcomplete", () => sprite.destroy());
+      onArrive?.();
     },
   });
 }

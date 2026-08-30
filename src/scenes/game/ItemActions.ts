@@ -305,15 +305,29 @@ export class ItemActions {
    * A human guard is as valid a target as an orderly, and has to be: on `main1` both
    * patrols are people, so without it neither verb has anything to hit on the first
    * level of the game and the whole takedown-and-stash loop is unreachable there.
+   *
+   * Returns the body it put down, so a caller that needs to know *who* — rather than
+   * merely whether anyone — was hit does not have to ask {@link nearestPerson} a
+   * second time and hope the two agree.
+   *
+   * `deferImpact` holds back the {@link IMPACT} spark for a caller that will place it
+   * itself. Only the dart wants that: its hit lands at the far end of a flight, and
+   * firing the spark here would announce it while the dart was still at the muzzle.
+   * The takedown has no projectile to wait for, so it takes the default and keeps
+   * the spark on the same frame as the blow.
    */
-  private putDownNearest(reachPx: number, arcCos: number): boolean {
+  private putDownNearest(
+    reachPx: number,
+    arcCos: number,
+    deferImpact = false,
+  ): Orderly | Enforcer | undefined {
     const ts = this.w.tileSize();
     const victim = this.nearestPerson(reachPx, arcCos);
-    if (!victim) return false;
+    if (!victim) return undefined;
     if (victim instanceof Orderly) victim.stun(STUN_ROUND_DURATION);
     else victim.putDown(STUN_ROUND_DURATION);
-    playVfx(this.w.scene, IMPACT, victim.x, victim.y, ts);
-    return true;
+    if (!deferImpact) playVfx(this.w.scene, IMPACT, victim.x, victim.y, ts);
+    return victim;
   }
 
   /**
@@ -375,10 +389,12 @@ export class ItemActions {
     const reachPx = STUN_ROUND_REACH_TILES * ts;
     const fx = Math.cos(player.facing);
     const fy = Math.sin(player.facing);
-    // Resolved before `putDownNearest` spends him, purely so the dart sprite
-    // below knows where to fly to — the hit itself is unaffected.
-    const victim = this.nearestPerson(reachPx, WEAPON_ARC_COS);
-    this.putDownNearest(reachPx, WEAPON_ARC_COS);
+    // The spark is deferred: it belongs to the dart landing, not to the press.
+    const victim = this.putDownNearest(reachPx, WEAPON_ARC_COS, true);
+    // Captured now rather than read on arrival, so nothing holds a sprite across
+    // the flight. A body put down this frame does not move, so it stays correct.
+    const victimX = victim?.x ?? 0;
+    const victimY = victim?.y ?? 0;
 
     let cover: Cover | undefined;
     let bestCoverDist = Infinity;
@@ -404,14 +420,24 @@ export class ItemActions {
     // doc above) it picks whichever was closer rather than trying to show both.
     let endX = player.x + fx * reachPx;
     let endY = player.y + fy * reachPx;
-    if (victim && (!cover || len(victim.x - player.x, victim.y - player.y) <= bestCoverDist)) {
-      endX = victim.x;
-      endY = victim.y;
+    if (victim && (!cover || len(victimX - player.x, victimY - player.y) <= bestCoverDist)) {
+      endX = victimX;
+      endY = victimY;
     } else if (cover) {
       endX = (cover.tileX + 0.5) * ts;
       endY = (cover.tileY + 0.5) * ts;
     }
-    fireStunRound(this.w.scene, player.x, player.y, endX, endY, ts);
+    fireStunRound(
+      this.w.scene,
+      player.x,
+      player.y,
+      endX,
+      endY,
+      ts,
+      // Only a person gets the spark, exactly as before. Cover answers for itself
+      // from inside `Cover.destroy()`, and a shot into empty air stays bare.
+      victim ? () => playVfx(this.w.scene, IMPACT, victimX, victimY, ts) : undefined,
+    );
 
     this.w.conduct().violate("HOSTILE", FLAG_HOSTILE);
     this.w.noise().emitAt(player.x, player.y, STUN_ROUND_NOISE_TILES * ts);
