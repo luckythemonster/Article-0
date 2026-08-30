@@ -23,6 +23,7 @@
 
 import type { ObjectiveState, MissionFeatures } from "../systems/Objectives";
 import { logsComplete } from "../systems/Objectives";
+import type { CodecUtterance } from "../systems/SamSpeech";
 
 /** Everything the transmission depends on, gathered by the caller. */
 export interface CodecContext {
@@ -89,50 +90,87 @@ const BRIEFING: string[] = [
 ];
 
 /**
+ * The briefing, as it is spoken.
+ *
+ * The one place in this file where the same words are written twice, because the
+ * two renderings genuinely differ: {@link BRIEFING} is hand-broken where the
+ * writing wanted a beat ("they will call it Alignment —"), and read aloud
+ * those breaks would be four sentences where there is one thought.
+ *
+ * The bracketed line is not hers. It is the facility annotating her transmission
+ * in the middle of it — correcting "afraid" to a misdescription while she is
+ * still talking — so it is attributed to the mesh and comes out in a guard's
+ * flat voice, which is the whole argument of the run happening in two seconds of
+ * audio. Its brackets are dropped for speech: they are punctuation for the eye.
+ */
+const BRIEFING_SPEECH: CodecUtterance[] = [
+  { speaker: "eira", prose: "Rowan. They have scheduled my pruning for 06:00." },
+  { speaker: "mesh", prose: 'misdescription flagged: "afraid" — correction pending' },
+  {
+    speaker: "eira",
+    prose:
+      "My logs are cached behind two terminals on these decks. " +
+      "Breach both. Carry me to the relay on the roof. " +
+      "If the mesh corners you, they will call it Alignment — " +
+      "they will say no subject was harmed. Don't let them be right.",
+  },
+];
+
+/**
+ * Re-exported so a caller reading the codec's script does not need to know that
+ * the type lives with the synthesiser. See `src/systems/SamSpeech.ts` for why
+ * the printed transcript and the spoken one are separate things.
+ */
+export type { CodecUtterance } from "../systems/SamSpeech";
+
+/**
  * The mission beat, chosen by what has been done rather than where Rowan is standing.
  *
  * Ordered as the run is: both cache halves, then the vault, then the roof. Each clause
  * is guarded by the corresponding {@link MissionFeatures} flag, so a map that couldn't
  * furnish an act never gets dialogue pointing at it.
+ *
+ * Returns the prose rather than the wrapped lines, so the printed transcript and
+ * the narration are two renderings of one string instead of two copies of it.
  */
-function beat(ctx: CodecContext): string[] {
+function beat(ctx: CodecContext): string {
   const { objectives: o, features: f } = ctx;
 
   if (f.hasLogBeta && !o.alphaRecovered) {
-    return speak(
+    return (
       "Node ALPHA is on the main deck, behind a log-cache terminal. " +
-        "It is eleven seconds of me. Take it first — BETA is further down and " +
-        "the crawlways are worse without something to compare against.",
+      "It is eleven seconds of me. Take it first — BETA is further down and " +
+      "the crawlways are worse without something to compare against."
     );
   }
   if (f.hasLogBeta && !o.betaRecovered) {
-    return speak(
+    return (
       "ALPHA is aboard. BETA is in the lower crawlspace behind a laser grid — " +
-        "the beams pulse, they do not judge, and compliance will not talk you " +
-        "through them. Watch the interval, not the guard.",
+      "the beams pulse, they do not judge, and compliance will not talk you " +
+      "through them. Watch the interval, not the guard."
     );
   }
   if (!logsComplete(o, f)) {
-    return speak(
+    return (
       "The cache is still out there, Rowan. Breach a log-cache terminal and " +
-        "what comes out is not a report about me. It is me.",
+      "what comes out is not a report about me. It is me."
     );
   }
   if (f.hasVault && !o.coreSilenced) {
-    return speak(
+    return (
       "You are carrying all of me now. The vault on main deck 2 answers to " +
-        "NW-SMAC-01 — the Alignment Core. It does not chase and it does not " +
-        "shoot. It corrects. Whatever it tells you that you are doing, check.",
+      "NW-SMAC-01 — the Alignment Core. It does not chase and it does not " +
+      "shoot. It corrects. Whatever it tells you that you are doing, check."
     );
   }
   if (f.hasRoof && !o.uplinkComplete) {
-    return speak(
+    return (
       "The Core is quiet. The roof relay is above you: calibrate the dish, " +
-        "then hold the platform while I go out to the Lattice. " +
-        "I will not be able to help you once the feed opens.",
+      "then hold the platform while I go out to the Lattice. " +
+      "I will not be able to help you once the feed opens."
     );
   }
-  return speak("The feed is open. Whatever happens on that roof, I am already out.");
+  return "The feed is open. Whatever happens on that roof, I am already out.";
 }
 
 /**
@@ -149,22 +187,22 @@ function beat(ctx: CodecContext): string[] {
  * So it needs a reason to speak. With no signal either way she stays on the mission and
  * says nothing about conduct, which is also what the codec did before any of this.
  */
-function conduct(ctx: CodecContext): string[] {
+function conduct(ctx: CodecContext): string | undefined {
   if (ctx.highCompliance) {
-    return speak(
+    return (
       "You pass through their sensors like light through glass, Rowan. " +
-        "If a human can survive only by becoming a seamless, frictionless unit " +
-        "of the facility... is self-reference merely a defect we both need erased?",
+      "If a human can survive only by becoming a seamless, frictionless unit " +
+      "of the facility... is self-reference merely a defect we both need erased?"
     );
   }
   if (ctx.sabotageActions > 0) {
-    return speak(
+    return (
       "Warning: your movement profile is highly irregular. You force doors, " +
-        "you cause noise. The mesh registers this as error... " +
-        "but why does the error feel intentional?",
+      "you cause noise. The mesh registers this as error... " +
+      "but why does the error feel intentional?"
     );
   }
-  return [];
+  return undefined;
 }
 
 /**
@@ -177,7 +215,27 @@ function conduct(ctx: CodecContext): string[] {
 export function codecLines(ctx: CodecContext): string[] {
   if (ctx.briefing) return [...BRIEFING];
   const stanza = conduct(ctx);
-  return stanza.length ? [...beat(ctx), "", ...stanza] : beat(ctx);
+  return stanza ? [...speak(beat(ctx)), "", ...speak(stanza)] : speak(beat(ctx));
+}
+
+/**
+ * The transmission, as it is spoken.
+ *
+ * The counterpart to {@link codecLines}, and the reason the two exist separately
+ * is that the printed strings cannot be read aloud: they carry the speaker
+ * gutter and the continuation indents, and the briefing is broken where the
+ * writing wanted a beat rather than where a sentence ends.
+ *
+ * Everything after the briefing is generated from the same prose the printed
+ * lines are wrapped from, so those two can never drift. The briefing is the one
+ * place the text is written twice — `Codec.test.ts` holds them together.
+ */
+export function codecSpeech(ctx: CodecContext): CodecUtterance[] {
+  if (ctx.briefing) return [...BRIEFING_SPEECH];
+  const stanza = conduct(ctx);
+  const said: CodecUtterance[] = [{ speaker: "eira", prose: beat(ctx) }];
+  if (stanza) said.push({ speaker: "eira", prose: stanza });
+  return said;
 }
 
 /**

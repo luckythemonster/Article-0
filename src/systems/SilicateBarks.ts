@@ -1,4 +1,5 @@
 import type { GuardState } from "../entities/Enforcer";
+import { SYNTH_VOICES, type VoicePreset } from "./SamSpeech";
 
 /**
  * What a silicate says, and in whose voice.
@@ -31,29 +32,21 @@ import type { GuardState } from "../entities/Enforcer";
 /** Which of the two silicate voices a guard speaks in. */
 export type SilicateVoice = "enforcer" | "drone";
 
-/**
- * SAM's four voice parameters. Named exactly as `sam-js` takes them so this can
- * be handed over unchanged — see the `SamJsOptions` in its `index.d.ts`.
- */
-export interface VoicePreset {
-  speed: number;
-  pitch: number;
-  throat: number;
-  mouth: number;
-}
+/** Re-exported so callers that only care about guards need one import. */
+export type { VoicePreset } from "./SamSpeech";
 
 /**
- * The two presets, picked so the pair is tellable apart with eyes shut.
+ * The two guard presets, narrowed out of {@link SYNTH_VOICES}.
  *
- * An enforcer is the bigger chassis and gets the lower, slower, chestier voice;
- * a drone is small and fast and sits close to SAM's own "Little Robot". Both are
- * deliberately further apart than the defaults would put them, because in play
- * you hear one of these from off-screen and the only question that matters is
- * which kind of thing is about to come round the corner.
+ * A projection rather than a second declaration, so the numbers live in one
+ * place — but still its own export, because it is what says "these two are the
+ * voices a *guard* has". `AudioDirector`'s warm-up sweep enumerates this rather
+ * than the full registry, which is what keeps EIRA-7's half-minute of codec out
+ * of a pre-render sized for twelve two-word barks.
  */
 export const VOICE_PRESETS: Record<SilicateVoice, VoicePreset> = {
-  enforcer: { speed: 82, pitch: 50, throat: 190, mouth: 120 },
-  drone: { speed: 96, pitch: 78, throat: 150, mouth: 200 },
+  enforcer: SYNTH_VOICES.enforcer,
+  drone: SYNTH_VOICES.drone,
 };
 
 /**

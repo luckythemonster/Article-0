@@ -677,8 +677,30 @@ export class PauseMenuView {
     muteRow.append(muteLabel, mute);
     node.appendChild(muteRow);
 
+    // Its own row rather than a consequence of the volume: a briefing is ~25
+    // seconds of synthesised speech, and skipping one you have already read is a
+    // different want from turning the game down.
+    const narrateRow = el("div", "pause-field");
+    const narrateLabel = el("label", "pause-field-label", "Narrate codec");
+    narrateLabel.htmlFor = "pause-narrate";
+    const narrate = document.createElement("input");
+    narrate.type = "checkbox";
+    narrate.id = "pause-narrate";
+    narrate.className = "pause-checkbox";
+    narrate.checked = current.narrateCodec;
+    narrate.addEventListener("change", () => {
+      current.narrateCodec = narrate.checked;
+      push();
+    });
+    narrateRow.append(narrateLabel, narrate);
+    node.appendChild(narrateRow);
+
     node.appendChild(
-      el("p", "pause-note", "Audio is synthesised at runtime — the game ships no sound files. Kept separately from your saves."),
+      el(
+        "p",
+        "pause-note",
+        "Audio is synthesised at runtime — the game ships no sound files, and EIRA-7's voice is a 1982 formant synthesiser. Kept separately from your saves.",
+      ),
     );
     return { node };
   }

@@ -28,6 +28,13 @@
 import SamJs from "sam-js";
 import { DEFAULT_SETTINGS, loadSettings, normalizeSettings, saveSettings, type Settings } from "./Settings";
 import { allBarkLines, VOICE_PRESETS, type SilicateVoice } from "./SilicateBarks";
+import {
+  sanitizeForSam,
+  SPEAKER_VOICES,
+  SYNTH_VOICES,
+  type CodecUtterance,
+  type SynthVoice,
+} from "./SamSpeech";
 import { MUSIC_TRACKS, type BeepBoxSongJson, type MusicTrackId } from "./MusicSongs";
 import type { MusicStream } from "./MusicStream";
 
@@ -52,6 +59,41 @@ const SAM_SAMPLE_RATE = 22050;
 
 /** How loud a bark sits under the music, before the master gain. */
 const BARK_GAIN = 0.9;
+
+/**
+ * How loud EIRA-7 sits when she is narrating the codec, before the master gain.
+ *
+ * Above a bark, because the codec is a modal with the game frozen behind it and
+ * she is the only thing happening.
+ */
+const NARRATION_GAIN = 1.0;
+
+/** Silence between one utterance and the next, in seconds. */
+const NARRATION_GAP = 0.25;
+
+/**
+ * Lead-in before the first utterance, in seconds.
+ *
+ * The whole transmission is rendered and scheduled in one synchronous pass, and
+ * that pass costs ~90ms for a briefing. Scheduling the first source at
+ * `currentTime` would put its start time in the past by the time the last one is
+ * built, and clip the opening syllable.
+ */
+const NARRATION_LEAD = 0.2;
+
+/**
+ * EIRA-7's carrier, in Hz — the same 37 the calm pad already hums for her.
+ *
+ * That sub is described where it is created as her presence being *felt*. Under
+ * the codec it is the one place it resolves into words, so it runs for the whole
+ * transmission rather than per utterance: the carrier is her holding the
+ * channel, which is why the mesh's interjection rides over it rather than
+ * interrupting it.
+ */
+const CARRIER_HZ = 37;
+
+/** How loud the carrier sits under her voice. Felt, not heard. */
+const CARRIER_GAIN = 0.35;
 
 /** How loud a song sits in the mix, before the mood's duck and the master gain. */
 const MUSIC_GAIN = 0.6;
@@ -128,9 +170,22 @@ class AudioDirector {
    * Shared by the warm-up pass and the on-demand fallback in {@link bark}, so
    * neither has to stand up a formant synthesiser of its own.
    */
-  private readonly reciters = new Map<SilicateVoice, SamJs>();
+  private readonly reciters = new Map<SynthVoice, SamJs>();
   /** So a broken SAM says so once rather than every time a guard changes state. */
   private samWarned = false;
+  /**
+   * Every source scheduled by the transmission currently being narrated.
+   *
+   * A bark is fire-and-forget because it is one second long and nothing can
+   * outlive its own reason to exist. A codec transmission is half a minute, and
+   * the player can close the channel on the first syllable — so these are held
+   * to be stopped. See {@link narrate} and {@link stopNarration}.
+   */
+  private narrating: AudioBufferSourceNode[] = [];
+  /** The narration's own bus, carrying her voice and her carrier together. */
+  private narrationGain?: GainNode;
+  /** The 37 Hz carrier oscillator, live only while she is speaking. */
+  private carrier?: OscillatorNode;
 
   constructor() {
     const Ctor: typeof AudioContext | undefined =
@@ -198,6 +253,100 @@ class AudioDirector {
   }
 
   /**
+   * Speaks a whole codec transmission, in order.
+   *
+   * The codec is the one place EIRA-7 has a voice, and it was silent: the thing
+   * arguing it is a subject was the only thing in the game that could not talk,
+   * while the apparatus hunting Rowan barked at him all run.
+   *
+   * **Scheduled, not timed.** Every utterance is rendered and handed to
+   * `start(when)` in one pass, with `when` accumulated from the buffers' own
+   * durations, so the pacing is sample-accurate and survives a stalled frame.
+   * The pass costs ~90ms for a ~25-second briefing, which is one frame inside a
+   * modal that has already frozen the sim behind it.
+   *
+   * Both voices go through the same master gain as everything else, so mute and
+   * the volume slider govern her exactly as they govern a door.
+   *
+   * A no-op when the player has turned narration off, so that setting is
+   * enforced in one place rather than at each call site.
+   */
+  narrate(utterances: readonly CodecUtterance[]): void {
+    this.stopNarration();
+    if (!this.ctx || !this.master || !this.settings.narrateCodec) return;
+    void this.ctx.resume();
+
+    const bus = this.ctx.createGain();
+    bus.gain.value = NARRATION_GAIN;
+    bus.connect(this.master);
+    this.narrationGain = bus;
+
+    let when = this.ctx.currentTime + NARRATION_LEAD;
+    for (const { speaker, prose } of utterances) {
+      const buffer = this.render(SPEAKER_VOICES[speaker], prose);
+      if (!buffer) continue;
+      const src = this.ctx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(bus);
+      src.start(when);
+      this.narrating.push(src);
+      when += buffer.duration + NARRATION_GAP;
+    }
+
+    // Nothing rendered — a broken SAM, already warned about. Don't leave a
+    // carrier humming under a transmission that is never going to arrive.
+    if (this.narrating.length === 0) {
+      this.stopNarration();
+      return;
+    }
+
+    // Her carrier, under the whole transmission including the mesh's
+    // interjection — see CARRIER_HZ.
+    const carrier = this.ctx.createOscillator();
+    carrier.type = "sine";
+    carrier.frequency.value = CARRIER_HZ;
+    const carrierGain = this.ctx.createGain();
+    carrierGain.gain.value = CARRIER_GAIN;
+    carrier.connect(carrierGain);
+    carrierGain.connect(bus);
+    carrier.start();
+    carrier.stop(when);
+    this.carrier = carrier;
+  }
+
+  /**
+   * Cuts the transmission off wherever it has got to.
+   *
+   * Called when the channel closes, whichever way it closed, and again by
+   * {@link narrate} before it schedules anything, so reopening the codec never
+   * lands a second voice on top of the first.
+   *
+   * `stop()` on a source that has already ended is legal and does nothing, which
+   * is what lets this be indiscriminate rather than tracking which of thirty
+   * seconds' worth has played.
+   */
+  stopNarration(): void {
+    for (const src of this.narrating) {
+      try {
+        src.stop();
+      } catch {
+        // Already stopped, or never started. Either way it is not playing.
+      }
+      src.disconnect();
+    }
+    this.narrating = [];
+    try {
+      this.carrier?.stop();
+    } catch {
+      /* as above */
+    }
+    this.carrier?.disconnect();
+    this.carrier = undefined;
+    this.narrationGain?.disconnect();
+    this.narrationGain = undefined;
+  }
+
+  /**
    * Renders every line in both voices, once.
    *
    * Driven off the first key or pointer event — see the constructor — so the cost
@@ -231,7 +380,7 @@ class AudioDirector {
    * when its reciter cannot make phonemes of the line — all of which are the
    * caller's cue to fall back to text.
    */
-  private render(voice: SilicateVoice, line: string): AudioBuffer | undefined {
+  private render(voice: SynthVoice, line: string): AudioBuffer | undefined {
     if (!this.ctx) return undefined;
     const key = `${voice}:${line}`;
     const cached = this.barks.get(key);
@@ -239,10 +388,13 @@ class AudioDirector {
     try {
       let sam = this.reciters.get(voice);
       if (!sam) {
-        sam = new SamJs(VOICE_PRESETS[voice]);
+        sam = new SamJs(SYNTH_VOICES[voice]);
         this.reciters.set(voice, sam);
       }
-      const rendered = sam.buf32(line);
+      // SAM refuses a line containing any non-ASCII character — not the
+      // character, the whole line — so an em dash in the codec's prose is a
+      // silent sentence. See `sanitizeForSam`.
+      const rendered = sam.buf32(sanitizeForSam(line));
       // `buf32` is typed `Float32Array | Boolean` — it returns `false` for a
       // line its reciter cannot make phonemes of.
       if (!(rendered instanceof Float32Array) || rendered.length === 0) {
@@ -293,6 +445,9 @@ class AudioDirector {
   applySettings(next: Settings): void {
     this.settings = normalizeSettings(next);
     saveSettings(this.settings);
+    // Turning narration off mid-transmission has to take effect now. Muting
+    // does not: mute is a volume, and the codec keeps its place behind it.
+    if (!this.settings.narrateCodec) this.stopNarration();
     if (this.master) {
       this.master.gain.value = this.settings.muted ? 0 : HEADROOM * this.settings.masterVolume;
     }

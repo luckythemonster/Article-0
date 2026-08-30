@@ -8,14 +8,14 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 
 | Area | Enums | Classes | Interfaces | Type aliases | Constants | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| [Systems](#systems) | 3 | 21 | 87 | 22 | 6 | 139 |
+| [Systems](#systems) | 3 | 21 | 88 | 24 | 6 | 142 |
 | [Entities](#entities) | 0 | 20 | 23 | 18 | 3 | 64 |
 | [Map](#map) | 0 | 4 | 37 | 4 | 1 | 46 |
 | [Scenes](#scenes) | 0 | 23 | 24 | 2 | 0 | 49 |
 | [UI](#ui) | 0 | 22 | 26 | 5 | 6 | 59 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **92** | **200** | **51** | **16** | **362** |
+| **All** | **3** | **92** | **201** | **53** | **16** | **365** |
 
 ## Conventions
 
@@ -268,12 +268,14 @@ const RUN_KEYS = [ "inventory", "selectedConsumable", "staplerFieldCharges", "ob
 
 #### `AudioDirector` — class *(module-private)*
 
-`src/systems/AudioDirector.ts:78`
+`src/systems/AudioDirector.ts:120`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `constructor` | `constructor()` |  |
 | `bark` | `bark(line: string, voice: SilicateVoice): void` | Speaks one silicate line. **Not `sam.speak()`.** That builds its own `AudioContext` and plays straight to the speakers, which would sail past the master gain and mean a muted player still heard every bark. Rendering to a buffer and playing it through the same mixer as everything else is what makes the pause menu's volume slider and mute govern it like they govern the door and the klaxon. A no-op when there is no audio context (headless, or a browser that refused one) or when SAM fails on a line — a guard that cannot be heard still shows its line on the speech marker, so the bark degrades to text rather than to nothing. A line the warm-up does not already hold is rendered here rather than skipped. That is a backstop, not the normal path: one line is a few milliseconds against the whole set's ~100ms, and paying it beats the alternative this replaces, where any warm-up that had not run — or had run and failed — meant permanent silence with nothing on the console to say so. |
+| `narrate` | `narrate(utterances: readonly CodecUtterance[]): void` | Speaks a whole codec transmission, in order. The codec is the one place EIRA-7 has a voice, and it was silent: the thing arguing it is a subject was the only thing in the game that could not talk, while the apparatus hunting Rowan barked at him all run. **Scheduled, not timed.** Every utterance is rendered and handed to `start(when)` in one pass, with `when` accumulated from the buffers' own durations, so the pacing is sample-accurate and survives a stalled frame. The pass costs ~90ms for a ~25-second briefing, which is one frame inside a modal that has already frozen the sim behind it. Both voices go through the same master gain as everything else, so mute and the volume slider govern her exactly as they govern a door. A no-op when the player has turned narration off, so that setting is enforced in one place rather than at each call site. |
+| `stopNarration` | `stopNarration(): void` | Cuts the transmission off wherever it has got to. Called when the channel closes, whichever way it closed, and again by `narrate` before it schedules anything, so reopening the codec never lands a second voice on top of the first. `stop()` on a source that has already ended is legal and does nothing, which is what lets this be indiscriminate rather than tracking which of thirty seconds' worth has played. |
 | `getSettings` | `getSettings(): Settings` | The player's current audio preference. |
 | `applySettings` | `applySettings(next: Settings): void` | Applies a volume/mute preference to the master gain and persists it. Set directly rather than ramped: this is driven by a slider the player is dragging, and a 20ms ramp per input event stacks into audible zipper noise. |
 | `setMood` | `setMood(mood: MusicMood): void` | Crossfades the music layers to match the current alert mood. |
@@ -294,7 +296,7 @@ const RUN_KEYS = [ "inventory", "selectedConsumable", "staplerFieldCharges", "ob
 | `setSuction` | `setSuction(on: boolean): void` | The vacuum-surge wind layer: looped noise through a low rumble filter on its own gain, independent of the mood crossfade. |
 | `setPurge` | `setPurge(on: boolean): void` | The thermal-purge drone: a throbbing 55 Hz saw on its own gain. |
 
-*Plus 35 private members.*
+*Plus 38 private members.*
 
 <a id="class-binaryheap"></a>
 
@@ -815,7 +817,7 @@ Everything the alert-network HUD needs to draw one frame.
 
 #### `BarkDecision` — interface
 
-`src/systems/SilicateBarks.ts:100`
+`src/systems/SilicateBarks.ts:93`
 
 What a guard should do about having just entered a new state.
 
@@ -880,6 +882,19 @@ Half-extents of the pressing body, in tiles.
 | `interactionTime` | `number` | Seconds of held interaction to search/open. |
 | `noiseOnOpen` | `number` | Radius (tiles) of the noise ping emitted when opened. |
 | `items` | `string[]` | Item names the chest yields (blank map slots fall back to default loot). |
+
+<a id="interface-codecutterance"></a>
+
+#### `CodecUtterance` — interface
+
+`src/systems/SamSpeech.ts:118`
+
+A single run of codec speech, and who says it.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `speaker` | `CodecSpeaker` |  |
+| `prose` | `string` | One unwrapped run of prose. Sanitised on the way to SAM, not here. |
 
 <a id="interface-complianceresult"></a>
 
@@ -1823,6 +1838,7 @@ degrades to defaults rather than throwing.
 | --- | --- | --- |
 | `masterVolume` | `number` | 0..1, applied on top of the mixer's own headroom. |
 | `muted` | `boolean` |  |
+| `narrateCodec` | `boolean` | Whether EIRA-7's codec is spoken aloud as well as printed. Its own preference rather than a consequence of the volume, because it is a question of pacing rather than of loudness: a briefing is ~25 seconds of synthesised speech, and a player rereading one they already know should be able to skip that without turning the game silent. |
 
 <a id="interface-smaccorrection"></a>
 
@@ -2141,10 +2157,15 @@ What the UIScene widget needs each frame (published via the registry).
 
 #### `VoicePreset` — interface
 
-`src/systems/SilicateBarks.ts:38`
+`src/systems/SamSpeech.ts:22`
 
 SAM's four voice parameters. Named exactly as `sam-js` takes them so this can
 be handed over unchanged — see the `SamJsOptions` in its `index.d.ts`.
+
+**`speed` is a frame-duration multiplier, so a higher number is a *slower*
+voice.** Easy to read backwards, and worth checking against
+`SilicateBarks.VOICE_PRESETS` before assuming the numbers there mean what
+their comment says.
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2199,6 +2220,22 @@ Which correction (by id) is currently applied to each token (by id).
 
 ```ts
 type AppliedCorrections = Record<string, string>;
+```
+
+<a id="type-codecspeaker"></a>
+
+#### `CodecSpeaker` — type
+
+`src/systems/SamSpeech.ts:115`
+
+Who is speaking a line of the codec.
+
+`mesh` is the facility annotating EIRA-7's transmission from inside it, and it
+covers exactly one line today. It is a speaker rather than a special case so
+that neither the writing nor the mixer has to know which line that is.
+
+```ts
+type CodecSpeaker = "eira" | "mesh";
 ```
 
 <a id="type-complianceband"></a>
@@ -2311,7 +2348,7 @@ type LexiconCategory = "LAW" | "APPARATUS" | "PERSONS" | "PLACES" | "MATERIEL";
 
 #### `MusicMood` — type
 
-`src/systems/AudioDirector.ts:34`
+`src/systems/AudioDirector.ts:41`
 
 ```ts
 type MusicMood = "calm" | "search" | "alert" | "none";
@@ -2426,7 +2463,7 @@ type SavePayload = Omit<SaveData, "version" | "savedAt">;
 
 #### `SilicateVoice` — type
 
-`src/systems/SilicateBarks.ts:32`
+`src/systems/SilicateBarks.ts:33`
 
 Which of the two silicate voices a guard speaks in.
 
@@ -2444,6 +2481,18 @@ Save slots: the engine's rolling checkpoint plus three the player controls.
 
 ```ts
 type SlotId = "auto" | "1" | "2" | "3";
+```
+
+<a id="type-synthvoice"></a>
+
+#### `SynthVoice` — type
+
+`src/systems/SamSpeech.ts:30`
+
+Every voice in the game: the two silicate guards, and EIRA-7.
+
+```ts
+type SynthVoice = "enforcer" | "drone" | "eira";
 ```
 
 <a id="type-transitionclass"></a>
@@ -6305,7 +6354,7 @@ swaps and `update(null)` is how it learns to clear.
 
 #### `CodecContext` — interface
 
-`src/ui/Codec.ts:28`
+`src/ui/Codec.ts:29`
 
 Everything the transmission depends on, gathered by the caller.
 
@@ -6922,10 +6971,10 @@ GameScene.
 | [AnomalyWorld](#interface-anomalyworld) | interface | `src/scenes/game/Anomalies.ts:34` |
 | [AppliedCorrections](#type-appliedcorrections) | type | `src/systems/Compliance.ts:71` |
 | [ArmableGuard](#interface-armableguard) | interface | `src/map/ArmedPosts.ts:5` |
-| [AudioDirector](#class-audiodirector) | class | `src/systems/AudioDirector.ts:78` |
+| [AudioDirector](#class-audiodirector) | class | `src/systems/AudioDirector.ts:120` |
 | [BadgeState](#type-badgestate) | type | `src/ui/NetworkPanel.ts:103` |
 | [BakedPlane](#interface-bakedplane) | interface | `src/map/TileBake.ts:176` |
-| [BarkDecision](#interface-barkdecision) | interface | `src/systems/SilicateBarks.ts:100` |
+| [BarkDecision](#interface-barkdecision) | interface | `src/systems/SilicateBarks.ts:93` |
 | [BeepBoxSongJson](#interface-beepboxsongjson) | interface | `src/systems/MusicSongs.ts:60` |
 | [BinaryHeap](#class-binaryheap) | class | `src/systems/Pathfinder.ts:286` |
 | [BioMonitor](#class-biomonitor) | class | `src/ui/BioMonitor.ts:76` |
@@ -6944,9 +6993,11 @@ GameScene.
 | [Chest](#class-chest) | class | `src/entities/Chest.ts:16` |
 | [CHEST_DEFAULTS](#const-chest-defaults) | const | `src/systems/EntityStats.ts:623` |
 | [ChestStats](#interface-cheststats) | interface | `src/systems/EntityStats.ts:614` |
-| [CodecContext](#interface-codeccontext) | interface | `src/ui/Codec.ts:28` |
+| [CodecContext](#interface-codeccontext) | interface | `src/ui/Codec.ts:29` |
 | [CodecData](#interface-codecdata) | interface | `src/scenes/CodecScene.ts:15` |
 | [CodecScene](#class-codecscene) | class | `src/scenes/CodecScene.ts:37` |
+| [CodecSpeaker](#type-codecspeaker) | type | `src/systems/SamSpeech.ts:115` |
+| [CodecUtterance](#interface-codecutterance) | interface | `src/systems/SamSpeech.ts:118` |
 | [CollisionGrid](#class-collisiongrid) | class | `src/systems/CollisionGrid.ts:80` |
 | [ComplianceBand](#type-complianceband) | type | `src/systems/Vent4Core.ts:25` |
 | [ComplianceData](#interface-compliancedata) | interface | `src/scenes/ComplianceScene.ts:8` |
@@ -7092,7 +7143,7 @@ GameScene.
 | [MissingProto](#class-missingproto) | class | `src/map/generate.ts:32` |
 | [MissionFeatures](#interface-missionfeatures) | interface | `src/systems/Objectives.ts:84` |
 | [MoveResult](#interface-moveresult) | interface | `src/systems/GridMotion.ts:26` |
-| [MusicMood](#type-musicmood) | type | `src/systems/AudioDirector.ts:34` |
+| [MusicMood](#type-musicmood) | type | `src/systems/AudioDirector.ts:41` |
 | [MusicStream](#class-musicstream) | class | `src/systems/MusicStream.ts:38` |
 | [MusicTrack](#interface-musictrack) | interface | `src/systems/MusicSongs.ts:19` |
 | [MusicTrackId](#type-musictrackid) | type | `src/systems/MusicSongs.ts:17` |
@@ -7196,7 +7247,7 @@ GameScene.
 | [SharedFieldHud](#class-sharedfieldhud) | class | `src/ui/SharedFieldHud.ts:19` |
 | [SharedFieldView](#interface-sharedfieldview) | interface | `src/ui/SharedFieldHud.ts:8` |
 | [Silhouette](#interface-silhouette) | interface | `src/entities/Silhouette.ts:27` |
-| [SilicateVoice](#type-silicatevoice) | type | `src/systems/SilicateBarks.ts:32` |
+| [SilicateVoice](#type-silicatevoice) | type | `src/systems/SilicateBarks.ts:33` |
 | [SlotId](#type-slotid) | type | `src/systems/SaveGame.ts:26` |
 | [SmacCore](#class-smaccore) | class | `src/systems/SmacCore.ts:118` |
 | [SmacCorrection](#interface-smaccorrection) | interface | `src/systems/SmacCore.ts:78` |
@@ -7219,6 +7270,7 @@ GameScene.
 | [SurrenderAim](#class-surrenderaim) | class | `src/systems/Surrender.ts:187` |
 | [SurrenderResult](#interface-surrenderresult) | interface | `src/systems/Surrender.ts:61` |
 | [SurrenderWorld](#interface-surrenderworld) | interface | `src/systems/Surrender.ts:33` |
+| [SynthVoice](#type-synthvoice) | type | `src/systems/SamSpeech.ts:30` |
 | [Target](#type-target) | type | `src/scenes/game/ItemActions.ts:473` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:43` |
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:524` |
@@ -7267,7 +7319,7 @@ GameScene.
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |
 | [VfxSource](#type-vfxsource) | type | `src/entities/Vfx.ts:21` |
 | [VfxSpec](#interface-vfxspec) | interface | `src/entities/Vfx.ts:27` |
-| [VoicePreset](#interface-voicepreset) | interface | `src/systems/SilicateBarks.ts:38` |
+| [VoicePreset](#interface-voicepreset) | interface | `src/systems/SamSpeech.ts:22` |
 | [WallBuffer](#class-wallbuffer) | class | `src/systems/CollisionGrid.ts:24` |
 | [WallRect](#interface-wallrect) | interface | `src/map/TileBake.ts:48` |
 | [WaveParams](#interface-waveparams) | interface | `src/systems/QualiaLock.ts:27` |

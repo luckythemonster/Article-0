@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { createFrame, type Frame } from "@arwes/frames";
 import { terminalFrameSettings } from "../ui/frame";
 import { initialObjectives, objectiveLines, type ObjectiveState } from "../systems/Objectives";
-import { codecHeader, codecLines, type CodecContext } from "../ui/Codec";
+import { codecHeader, codecLines, codecSpeech, type CodecContext } from "../ui/Codec";
 import type { ConductView } from "../systems/Conduct";
 import { missionFeatures, setMode } from "../systems/GameState";
 import { getAudio } from "../systems/AudioDirector";
@@ -122,7 +122,18 @@ export class CodecScene extends Phaser.Scene {
 
     this.frame = createFrame(svg, terminalFrameSettings());
 
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.teardownDom());
+    // She reads her own transmission. `narrate` is a no-op when the player has
+    // turned narration off, and stops anything the previous open left speaking.
+    getAudio().narrate(codecSpeech(ctx));
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      // Every way out of the codec lands here — `C` and the minigame gates go
+      // through `OverlayGate.set` -> `scene.stop`, and the briefing's Enter
+      // through `scene.start` — so this one hook is what stops her talking over
+      // the game she just handed back.
+      getAudio().stopNarration();
+      this.teardownDom();
+    });
 
     if (this.interactive) {
       const begin = (): void => {

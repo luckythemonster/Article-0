@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { codecHeader, codecLines, type CodecContext } from "./Codec";
+import { codecHeader, codecLines, codecSpeech, type CodecContext } from "./Codec";
+import { sanitizeForSam } from "../systems/SamSpeech";
 import { allFeatures, initialObjectives, type ObjectiveState } from "../systems/Objectives";
 
 const FULL = allFeatures("main2");
@@ -151,5 +152,108 @@ describe("codecHeader", () => {
   it("reports the sabotage count as signal drift, clamped to two digits", () => {
     expect(codecHeader(ctx({ sabotageActions: 3 }))).toContain("DRIFT 03");
     expect(codecHeader(ctx({ sabotageActions: 4321 }))).toContain("DRIFT 99");
+  });
+});
+
+/** Everything a transmission says aloud, run together. */
+const spoken = (c: CodecContext): string =>
+  codecSpeech(c)
+    .map((u) => u.prose)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+describe("codecSpeech", () => {
+  it("says the briefing's printed words, and no others", () => {
+    // The briefing is the one place the text is written twice: printed with the
+    // gutter and hand-broken where the writing wanted a beat, spoken as a run of
+    // sentences. This is what stops the two drifting apart — sanitise both sides
+    // and they have to be the same words in the same order.
+    const c = ctx({ briefing: true });
+    const printed = sanitizeForSam(flat(c).replace(/[[\]]/g, ""));
+    expect(sanitizeForSam(spoken(c))).toBe(printed);
+  });
+
+  it("generates every later transmission from the prose it prints", () => {
+    // No duplication to drift here at all: `codecLines` wraps the same string
+    // `codecSpeech` hands over. Checked across a branch of each kind.
+    for (const c of [
+      ctx(),
+      ctx({ highCompliance: true }),
+      ctx({ sabotageActions: 3 }),
+      ctx({ objectives: progress({ alphaRecovered: true, betaRecovered: true }) }),
+    ]) {
+      expect(sanitizeForSam(spoken(c))).toBe(sanitizeForSam(flat(c)));
+    }
+  });
+
+  it("gives the mesh exactly one line, and it is the correction", () => {
+    // The bracketed annotation is the facility talking over her, which is why it
+    // is attributed rather than merged into her own speech.
+    const said = codecSpeech(ctx({ briefing: true }));
+    const mesh = said.filter((u) => u.speaker === "mesh");
+    expect(mesh).toHaveLength(1);
+    expect(mesh[0].prose).toContain("misdescription flagged");
+    expect(said.filter((u) => u.speaker === "eira").length).toBeGreaterThan(0);
+  });
+
+  it("hands the mesh's line over without its brackets", () => {
+    // Brackets are punctuation for the eye. Spoken, they are nothing.
+    const mesh = codecSpeech(ctx({ briefing: true })).find((u) => u.speaker === "mesh")!;
+    expect(mesh.prose).not.toMatch(/[[\]]/);
+  });
+
+  it("speaks only in EIRA-7's voice once the run is under way", () => {
+    expect(codecSpeech(ctx()).every((u) => u.speaker === "eira")).toBe(true);
+  });
+
+  it("carries no gutter, no indent and no wrap into the audio", () => {
+    // The printed strings cannot be read aloud: `EIRA-7:` is a label, and the
+    // line breaks are the panel's column count rather than the sentence's.
+    for (const c of [ctx({ briefing: true }), ctx(), ctx({ highCompliance: true })]) {
+      for (const { prose } of codecSpeech(c)) {
+        expect(prose).not.toContain("EIRA-7:");
+        expect(prose).not.toContain("\n");
+        expect(prose.trim()).toBe(prose);
+      }
+    }
+  });
+
+  it("survives SAM's reciter for every branch of the script", () => {
+    // SAM refuses a whole line for one non-ASCII character, and the script is
+    // full of em dashes and curly quotes. A branch that sanitises to nothing —
+    // or to something still non-ASCII — is a silent transmission.
+    const branches: CodecContext[] = [
+      ctx({ briefing: true }),
+      ctx(),
+      ctx({ objectives: progress({ alphaRecovered: true }) }),
+      ctx({ objectives: progress({ alphaRecovered: true, betaRecovered: true }) }),
+      ctx({ objectives: progress({ alphaRecovered: true, betaRecovered: true, coreSilenced: true }) }),
+      ctx({
+        objectives: progress({
+          alphaRecovered: true,
+          betaRecovered: true,
+          coreSilenced: true,
+          uplinkComplete: true,
+        }),
+      }),
+      ctx({ highCompliance: true }),
+      ctx({ sabotageActions: 1 }),
+    ];
+    for (const c of branches) {
+      const said = codecSpeech(c);
+      expect(said.length).toBeGreaterThan(0);
+      for (const { prose } of said) {
+        const forSam = sanitizeForSam(prose);
+        expect(forSam).toMatch(/^[\x20-\x7E]+$/);
+        expect(forSam.length).toBeGreaterThan(20);
+      }
+    }
+  });
+
+  it("pairs one beat with at most one conduct stanza", () => {
+    expect(codecSpeech(ctx())).toHaveLength(1);
+    expect(codecSpeech(ctx({ highCompliance: true }))).toHaveLength(2);
+    expect(codecSpeech(ctx({ sabotageActions: 4 }))).toHaveLength(2);
   });
 });
