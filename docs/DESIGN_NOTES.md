@@ -74,8 +74,12 @@ not talk. `AudioDirector.narrate` reads the transmission aloud.
 **Same instrument, deliberately** (`src/systems/SamSpeech.ts`). Giving her something
 other than SAM would settle the run's question in the sound design before the Tribunal
 got to it. What separates her from a guard is the register — sentences, "I",
-contractions, a question mark — over a preset that is faster, lower and wider-mouthed
-than either guard's, because it has to carry paragraphs rather than stamped phrases.
+contractions, a question mark — over a preset that is faster and wider-mouthed than
+either guard's, because it has to carry paragraphs rather than stamped phrases, and
+**thinner in the throat than anything else in the game**: a guard's resonance is a big
+metal box talking, and she should not sound like she is speaking from inside one. Her
+pitch sits above the enforcer's and below the drone's, which is roughly the distance
+between an appliance announcing itself and someone talking.
 
 **The bracketed line is not hers.** `[misdescription flagged: "afraid" — correction
 pending]` is the facility annotating her transmission from inside it, so it is

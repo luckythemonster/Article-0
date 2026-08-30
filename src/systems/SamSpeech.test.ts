@@ -73,7 +73,13 @@ describe("the voices", () => {
     // paragraphs where they talk in stamped phrases.
     expect(eira.speed).toBeLessThan(enforcer.speed);
     expect(eira.speed).toBeLessThan(drone.speed);
-    // Under the drone, because 25 seconds of shrill is a punishment.
+    // The thinnest throat in the game: the guards' resonance is a big metal box
+    // talking, and she should not sound like she is speaking from inside one.
+    expect(eira.throat).toBeLessThan(enforcer.throat);
+    expect(eira.throat).toBeLessThan(drone.throat);
+    // Pitched up, but still under the drone — an appliance announcing itself
+    // against someone talking.
+    expect(eira.pitch).toBeGreaterThan(enforcer.pitch);
     expect(eira.pitch).toBeLessThan(drone.pitch);
     // Wider than the enforcer, because diction has to survive full sentences.
     expect(eira.mouth).toBeGreaterThan(enforcer.mouth);

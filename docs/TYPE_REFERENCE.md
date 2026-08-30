@@ -887,7 +887,7 @@ Half-extents of the pressing body, in tiles.
 
 #### `CodecUtterance` — interface
 
-`src/systems/SamSpeech.ts:118`
+`src/systems/SamSpeech.ts:126`
 
 A single run of codec speech, and who says it.
 
@@ -2226,7 +2226,7 @@ type AppliedCorrections = Record<string, string>;
 
 #### `CodecSpeaker` — type
 
-`src/systems/SamSpeech.ts:115`
+`src/systems/SamSpeech.ts:123`
 
 Who is speaking a line of the codec.
 
@@ -6996,8 +6996,8 @@ GameScene.
 | [CodecContext](#interface-codeccontext) | interface | `src/ui/Codec.ts:29` |
 | [CodecData](#interface-codecdata) | interface | `src/scenes/CodecScene.ts:15` |
 | [CodecScene](#class-codecscene) | class | `src/scenes/CodecScene.ts:37` |
-| [CodecSpeaker](#type-codecspeaker) | type | `src/systems/SamSpeech.ts:115` |
-| [CodecUtterance](#interface-codecutterance) | interface | `src/systems/SamSpeech.ts:118` |
+| [CodecSpeaker](#type-codecspeaker) | type | `src/systems/SamSpeech.ts:123` |
+| [CodecUtterance](#interface-codecutterance) | interface | `src/systems/SamSpeech.ts:126` |
 | [CollisionGrid](#class-collisiongrid) | class | `src/systems/CollisionGrid.ts:80` |
 | [ComplianceBand](#type-complianceband) | type | `src/systems/Vent4Core.ts:25` |
 | [ComplianceData](#interface-compliancedata) | interface | `src/scenes/ComplianceScene.ts:8` |
