@@ -8,14 +8,14 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 
 | Area | Enums | Classes | Interfaces | Type aliases | Constants | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| [Systems](#systems) | 3 | 21 | 86 | 22 | 6 | 138 |
+| [Systems](#systems) | 3 | 21 | 87 | 22 | 6 | 139 |
 | [Entities](#entities) | 0 | 20 | 23 | 18 | 3 | 64 |
 | [Map](#map) | 0 | 4 | 37 | 4 | 1 | 46 |
 | [Scenes](#scenes) | 0 | 23 | 24 | 2 | 0 | 49 |
 | [UI](#ui) | 0 | 22 | 26 | 5 | 6 | 59 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **92** | **199** | **51** | **16** | **361** |
+| **All** | **3** | **92** | **200** | **51** | **16** | **362** |
 
 ## Conventions
 
@@ -1329,6 +1329,7 @@ One detector's contribution to the network readout.
 | --- | --- | --- |
 | `label` | `string` |  |
 | `done` | `boolean` |  |
+| `optional` *(opt)* | `boolean` | A side errand rather than an act of the directive. Carried as a flag as well as the `"(Optional) "` label prefix because `objectiveSummary` has to count mandatory acts and pick the next one, and sniffing a display string for that is the kind of coupling that breaks the day someone rewords a label. The prefix stays: it is what the codec, the pause menu and the expanded HUD list read. |
 
 <a id="interface-objectivestate"></a>
 
@@ -1351,6 +1352,32 @@ yet" rather than being rejected outright.
 | `coreSilenced` *(opt)* | `boolean` | NW-SMAC-01, the Alignment Core, brought down in the vault. |
 | `uplinkComplete` *(opt)* | `boolean` | The rooftop uplink reached 100% — the run's terminal beat. |
 | `betaLost` *(opt)* | `boolean` | The crawlspace BETA terminal was destroyed by a wrong compliance transmit (`TerminalHacks.settleOverlay`'s "failed" branch). Unlike a plain `log_cache` terminal, BETA is generated once with a fixed type rather than re-designated per level visit, so this always refers to that one physical terminal — persisted here (rather than left to the terminal's own runtime state) so the loss survives a checkpoint reload instead of quietly un-bricking on the next level rebuild. There is no `alphaLost` twin: ALPHA is dynamically promoted from whichever plain log-cache terminal is nearest on each level, so a persisted loss could brick a terminal the player never touched — and `logsRecovered` doesn't need ALPHA specifically anyway (see `logsComplete`). |
+
+<a id="interface-objectivesummary"></a>
+
+#### `ObjectiveSummary` — interface
+
+`src/systems/Objectives.ts:258`
+
+The directive reduced to what the HUD's standing one-line readout needs.
+
+The tracker used to print every line all the time, over the middle of the play
+field, which made it both the least legible and the most distracting thing on
+screen. It now shows progress and the act in hand, and expands to the full list
+only when something changes — so it needs a count and a "next", and this is
+where they are worked out.
+
+Derived by reducing `objectiveLines` rather than by re-reading the flags.
+Same argument as the win line's `done` inside that function: two routes to one
+answer drift, and the symptom here would be the row claiming `2/4` beside a list
+showing three ticks.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `done` | `number` | Mandatory acts complete. |
+| `total` | `number` | Mandatory acts this map furnished. |
+| `current` *(opt)* | `ObjectiveLine` | The first mandatory act still outstanding — what to be getting on with. |
+| `complete` | `boolean` | Every mandatory act done. Equivalent to `isRunWon`. |
 
 <a id="interface-pathnode"></a>
 
@@ -5080,7 +5107,7 @@ reads them.
 | `create` | `create(): void` |  |
 | `update` | `update(_time: number, delta: number): void` |  |
 
-*Plus 14 private members.*
+*Plus 15 private members.*
 
 <a id="class-vaultandpress"></a>
 
@@ -6063,11 +6090,28 @@ choose), shared by the title and outcome screens. Create it, then call
 
 #### `ObjectiveHud` — class
 
-`src/ui/ObjectiveHud.ts:27`
+`src/ui/ObjectiveHud.ts:52`
 
-A compact objective tracker pinned to the top-centre of the screen. Reads the
-objective state the scene publishes to the registry and renders each line with
-a ✓/○ marker; turns green once the whole directive is complete.
+The objective tracker, pinned to the top-centre of the screen.
+
+It stands as a **single row** — `▸ DIRECTIVE 2/4 · Breach log-cache node BETA
+(crawlspace)` — on a backing plate, and expands to the full `✓`/`○` checklist for
+`OBJECTIVE_EXPAND_MS` whenever the directive changes, then settles back.
+
+It used to print the whole list permanently, in bare white type with no backing,
+which made it simultaneously the least legible thing in the HUD (12px mono read
+against whatever tilemap happened to be underneath) and the most distracting
+(five lines of unchanging text over the middle of the play field). Neither half
+of that was buying anything: the full list is already permanently available in
+the pause menu's OBJECTIVES tab — its *first* tab — and in the codec's DIRECTIVE
+block, so the HUD only has to answer "what now?" at a glance and get out of the
+way. `J` hides it entirely, the way `K` hides the alert-network readout.
+
+One `Text` rather than the two it used to be, and that is what makes the plate
+work: `backgroundColor` wraps a text object's own box, so a heading and a list as
+separate objects would be two plates with a seam between them. The cost is that
+the heading no longer reads dimmer than the rows, which is a fair trade for
+something that is only on screen during a six-second flash.
 
 "Top-centre" means centred on the space between the status stack and the radar,
 not on the viewport — see `objectiveCentre`. On a wide canvas those are the
@@ -6077,9 +6121,11 @@ printing through the SRP meter.
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `constructor` | `constructor(scene: Phaser.Scene)` |  |
-| `update` | `update(state: ObjectiveState, currentLevel: string, features: MissionFeatures): void` |  |
+| `update` | `update( state: ObjectiveState, currentLevel: string, features: MissionFeatures, deltaMs: number, ): void` | @param deltaMs frame time, for the collapse countdown. 0 holds the directive   expanded while an overlay owns the screen — see the call site in `UIScene`. |
+| `isShown` | `isShown(): boolean` | Whether the tracker is currently on screen. |
+| `setShown` | `setShown(shown: boolean): void` | Shows or hides the tracker — the `J` binding in `UIScene`. |
 
-*Plus 5 private members.*
+*Plus 12 private members.*
 
 <a id="class-pausemenuview"></a>
 
@@ -7057,9 +7103,10 @@ GameScene.
 | [NoiseSectors](#class-noisesectors) | class | `src/systems/Radar.ts:33` |
 | [NoiseSpamTracker](#class-noisespamtracker) | class | `src/systems/AlertNetwork.ts:78` |
 | [NoiseWorld](#interface-noiseworld) | interface | `src/scenes/game/NoiseEvents.ts:36` |
-| [ObjectiveHud](#class-objectivehud) | class | `src/ui/ObjectiveHud.ts:27` |
+| [ObjectiveHud](#class-objectivehud) | class | `src/ui/ObjectiveHud.ts:52` |
 | [ObjectiveLine](#interface-objectiveline) | interface | `src/systems/Objectives.ts:185` |
 | [ObjectiveState](#interface-objectivestate) | interface | `src/systems/Objectives.ts:20` |
+| [ObjectiveSummary](#interface-objectivesummary) | interface | `src/systems/Objectives.ts:258` |
 | [OpenablePredicate](#type-openablepredicate) | type | `src/systems/GridMotion.ts:41` |
 | [Orderly](#class-orderly) | class | `src/entities/Orderly.ts:150` |
 | [OrderlyAnimName](#type-orderlyanimname) | type | `src/entities/OrderlyAnimations.ts:11` |

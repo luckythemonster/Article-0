@@ -51,6 +51,7 @@ npm test         # vitest, covers the pure systems
 | C | Open the EIRA-7 codec |
 | Esc | Pause menu — objectives, journal, inventory, index, status, map, controls, settings, saves |
 | K | Hide/show the security-network readout |
+| J | Hide/show the objective tracker |
 
 Inside the pause menu: **← / →** move between sections, **1–9** jump straight to
 one, **↑ / ↓** move within a list, **Enter** confirms, **Esc** resumes. Quitting a
@@ -214,7 +215,10 @@ carry them to the Lattice uplink.
 
 - **Title → codec → infiltrate.** A new run opens on an EIRA-7 codec briefing
   (re-openable in-game with **C**), then drops you into `main1`. The objective tracker
-  (top-centre) shows a line per act, and the codec's DIRECTIVE block mirrors it.
+  (top-centre) stands as a single row — progress and the act in hand — and expands to
+  the full checklist for a few seconds whenever one completes, then settles back. **J**
+  hides it. The whole directive stays permanently available in the pause menu's
+  OBJECTIVES tab, and the codec's DIRECTIVE block mirrors it.
 - **The codec answers to your conduct.** Re-open it mid-run and EIRA-7 responds to *how*
   you have been getting through the building, not only where you are: a long, quiet,
   high-mileage run gets one stanza, a run that has been forcing doors and tripping alarms

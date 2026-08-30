@@ -10,6 +10,8 @@ import {
   noteUplinkComplete,
   noteVent4Defeated,
   objectiveLines,
+  objectiveSummary,
+  objectiveSummaryText,
   type MissionFeatures,
 } from "./Objectives";
 import { OBJECTIVE_MAX_LINES } from "../ui/hudLayout";
@@ -170,5 +172,58 @@ describe("Objectives", () => {
     expect(canReachRoof(legacy, FULL)).toBe(false);
     // …and it still completes on a map that never had the extra acts.
     expect(isRunWon(legacy, EXTRACTION, MINIMAL)).toBe(true);
+  });
+});
+
+/**
+ * The HUD's collapsed row.
+ *
+ * `objectiveSummary` is what let the tracker stop printing the whole directive over
+ * the play field, so what it counts is load-bearing: the row is the only objective
+ * text on screen most of the time, and a count that disagreed with the list — or a
+ * finished run reading `4/5` because the optional act was counted — would be worse
+ * than the block it replaced.
+ */
+describe("objectiveSummary", () => {
+  it("counts the mandatory acts only, and never offers the optional one as next", () => {
+    const s = bothCaches();
+    noteCoreSilenced(s);
+    const before = objectiveSummary(s, "roof_array", FULL);
+    // ALPHA, BETA, the core, the uplink. VENT-4 is an errand, not an act.
+    expect(before.total).toBe(4);
+    expect(before.done).toBe(3);
+    expect(before.current?.label).toContain("rooftop relay");
+
+    noteVent4Defeated(s);
+    const after = objectiveSummary(s, "roof_array", FULL);
+    expect(after).toEqual(before);
+  });
+
+  it("names the first outstanding act, in order", () => {
+    const s = initialObjectives();
+    expect(objectiveSummary(s, "main1", FULL).current?.label).toContain("ALPHA");
+    noteTerminalHacked(s, "log_cache_alpha");
+    expect(objectiveSummary(s, "main1", FULL).current?.label).toContain("BETA");
+    noteTerminalHacked(s, "log_cache_beta");
+    expect(objectiveSummary(s, "main1", FULL).current?.label).toContain("NW-SMAC-01");
+  });
+
+  it("reads n/n with nothing outstanding once the run is won", () => {
+    const s = bothCaches();
+    noteCoreSilenced(s);
+    noteUplinkComplete(s);
+    const summary = objectiveSummary(s, "roof_array", FULL);
+    expect(summary).toMatchObject({ done: 4, total: 4, complete: true, current: undefined });
+    expect(objectiveSummaryText(summary)).toBe("▸ DIRECTIVE 4/4 · COMPLETE");
+    // The two agree by construction, and this is the pair that would drift.
+    expect(summary.complete).toBe(isRunWon(s, "roof_array", FULL));
+  });
+
+  it("counts only what a bare map furnished", () => {
+    const summary = objectiveSummary(initialObjectives(), "main1", MINIMAL);
+    expect(summary.total).toBe(2);
+    expect(objectiveSummaryText(summary)).toBe(
+      "▸ DIRECTIVE 0/2 · Recover EIRA-7's logs (breach a log-cache)",
+    );
   });
 });

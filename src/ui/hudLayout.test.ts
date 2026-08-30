@@ -3,7 +3,9 @@ import { catalogedNames } from "../systems/ItemCatalog";
 import { CONSUMABLE_ORDER, MAX_CONSUMABLES, isKeyItem } from "../systems/EntityStats";
 import { controlsHintLine } from "./Controls";
 import { inventoryLines } from "./inventoryLines";
+import { allFeatures, initialObjectives, objectiveSummary, objectiveSummaryText } from "../systems/Objectives";
 import {
+  ENCOUNTER_TOP,
   INVENTORY_MAX_CHARS,
   INVENTORY_RESERVE_W,
   INVENTORY_TOP_LIMIT,
@@ -16,6 +18,9 @@ import {
   NETWORK_PANEL_H,
   NETWORK_PANEL_W,
   NETWORK_TOP,
+  OBJECTIVE_BLOCK_H,
+  OBJECTIVE_PAD_X,
+  OBJECTIVE_TOP,
   PANEL_INSET,
   RADAR_BOTTOM,
   STATUS_STACK_RIGHT,
@@ -182,12 +187,31 @@ describe("hudLayout: the top-right stack", () => {
 });
 
 describe("hudLayout: the top-centre objective tracker", () => {
+  /** The type size the tracker draws at, matching `ObjectiveHud`. */
+  const LABEL = Number.parseInt(UI_TEXT.label, 10);
+
+  /**
+   * The widest standing row the tracker can build, from the real labels.
+   *
+   * Worst case is the *bare* map, not the shipped one: it has the longest single
+   * label (`Recover EIRA-7's logs (breach a log-cache)`, 42 chars) and the prefix
+   * costs the same either way.
+   */
+  function widestRow(): string {
+    const maps = [allFeatures("main2"), { ...allFeatures("main2"), hasLogBeta: false }];
+    const rows = maps.map((f) => objectiveSummaryText(objectiveSummary(initialObjectives(), "main1", f)));
+    return rows.reduce((a, b) => (b.length > a.length ? b : a));
+  }
+
   it("clears the status stack and the radar at its widest, at every supported width", () => {
     // At a 588px canvas the directive ran from x=161 while the SRP bar ended at
     // x=192 — 31px of overlap, because the tracker centred on the viewport rather
     // than on the space actually left between its neighbours.
     for (const width of [MIN_CANVAS_W, 800, 942, 1178, 1280]) {
-      const block = objectiveWrapWidth(width);
+      // The plate, not the text: `ObjectiveHud` draws a `backgroundColor` that
+      // reaches OBJECTIVE_PAD_X past the glyphs on each side, and it is the plate
+      // the player sees touching the SRP meter.
+      const block = objectiveWrapWidth(width) + OBJECTIVE_PAD_X * 2;
       const cx = objectiveCentre(width, block);
       expect(cx - block / 2, `status stack, at ${width}px`).toBeGreaterThanOrEqual(
         STATUS_STACK_RIGHT,
@@ -200,5 +224,27 @@ describe("hudLayout: the top-centre objective tracker", () => {
     // The nudge is a fallback, not the normal case: a short directive on a wide
     // canvas should sit exactly where it always has.
     expect(objectiveCentre(1280, 300)).toBe(640);
+  });
+
+  it("leaves the encounter band clear even fully expanded", () => {
+    // The tracker stands as one row and expands to the whole checklist for six
+    // seconds when an act completes. The band below can't know when that last
+    // happened, so the budget is the expanded height, plate included.
+    expect(OBJECTIVE_TOP + OBJECTIVE_BLOCK_H).toBeLessThanOrEqual(ENCOUNTER_TOP);
+  });
+
+  it("keeps the standing row to one line on any canvas worth the name", () => {
+    // The row is the tracker's whole point — progress plus the act in hand, at a
+    // glance. A row that wraps is two lines of chrome over the play field again,
+    // which is the thing this replaced. Same bounded-wrapping check the controls
+    // hint gets above, and built from the real labels for the same reason.
+    const width = monoWidth(widestRow().length, LABEL);
+    for (const canvas of [800, 942, 1178, 1280]) {
+      expect(Math.ceil(width / objectiveWrapWidth(canvas)), `at ${canvas}px`).toBe(1);
+    }
+    // At the 640px floor there is genuinely nowhere else for it to go — the gap
+    // between the SRP bar and the radar is 304px against a 389px row — so it wraps
+    // once. Still a third of what the old block occupied.
+    expect(Math.ceil(width / objectiveWrapWidth(MIN_CANVAS_W))).toBeLessThanOrEqual(2);
   });
 });

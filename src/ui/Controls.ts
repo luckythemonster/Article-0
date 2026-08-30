@@ -53,6 +53,7 @@ export const CONTROLS: readonly ControlBinding[] = [
   { key: "C", action: "Open the EIRA-7 codec", hint: "C codec" },
   { key: "Esc", action: "Pause — objectives, journal, inventory, index, saves", hint: "Esc pause" },
   { key: "K", action: "Hide/show the security-network readout" },
+  { key: "J", action: "Hide/show the objective tracker" },
 ];
 
 /** The HUD's one-line controls hint, built from the bindings that opt into it. */
