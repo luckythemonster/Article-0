@@ -887,7 +887,7 @@ Half-extents of the pressing body, in tiles.
 
 #### `CodecUtterance` — interface
 
-`src/systems/SamSpeech.ts:129`
+`src/systems/SamSpeech.ts:142`
 
 A single run of codec speech, and who says it.
 
@@ -2157,15 +2157,17 @@ What the UIScene widget needs each frame (published via the registry).
 
 #### `VoicePreset` — interface
 
-`src/systems/SamSpeech.ts:22`
+`src/systems/SamSpeech.ts:24`
 
 SAM's four voice parameters. Named exactly as `sam-js` takes them so this can
 be handed over unchanged — see the `SamJsOptions` in its `index.d.ts`.
 
 **`speed` is a frame-duration multiplier, so a higher number is a *slower*
-voice.** Easy to read backwards, and worth checking against
-`SilicateBarks.VOICE_PRESETS` before assuming the numbers there mean what
-their comment says.
+voice.** It is the one parameter here that runs backwards, and reading it
+forwards is not a hypothetical mistake: the two guard presets shipped with
+their speeds the wrong way round for exactly that reason, described and
+asserted as the opposite of what they did. Check a change by ear, or by the
+length of the buffer it renders.
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2226,7 +2228,7 @@ type AppliedCorrections = Record<string, string>;
 
 #### `CodecSpeaker` — type
 
-`src/systems/SamSpeech.ts:126`
+`src/systems/SamSpeech.ts:139`
 
 Who is speaking a line of the codec.
 
@@ -2487,7 +2489,7 @@ type SlotId = "auto" | "1" | "2" | "3";
 
 #### `SynthVoice` — type
 
-`src/systems/SamSpeech.ts:30`
+`src/systems/SamSpeech.ts:32`
 
 Every voice in the game: the two silicate guards, and EIRA-7.
 
@@ -6996,8 +6998,8 @@ GameScene.
 | [CodecContext](#interface-codeccontext) | interface | `src/ui/Codec.ts:29` |
 | [CodecData](#interface-codecdata) | interface | `src/scenes/CodecScene.ts:15` |
 | [CodecScene](#class-codecscene) | class | `src/scenes/CodecScene.ts:37` |
-| [CodecSpeaker](#type-codecspeaker) | type | `src/systems/SamSpeech.ts:126` |
-| [CodecUtterance](#interface-codecutterance) | interface | `src/systems/SamSpeech.ts:129` |
+| [CodecSpeaker](#type-codecspeaker) | type | `src/systems/SamSpeech.ts:139` |
+| [CodecUtterance](#interface-codecutterance) | interface | `src/systems/SamSpeech.ts:142` |
 | [CollisionGrid](#class-collisiongrid) | class | `src/systems/CollisionGrid.ts:80` |
 | [ComplianceBand](#type-complianceband) | type | `src/systems/Vent4Core.ts:25` |
 | [ComplianceData](#interface-compliancedata) | interface | `src/scenes/ComplianceScene.ts:8` |
@@ -7270,7 +7272,7 @@ GameScene.
 | [SurrenderAim](#class-surrenderaim) | class | `src/systems/Surrender.ts:187` |
 | [SurrenderResult](#interface-surrenderresult) | interface | `src/systems/Surrender.ts:61` |
 | [SurrenderWorld](#interface-surrenderworld) | interface | `src/systems/Surrender.ts:33` |
-| [SynthVoice](#type-synthvoice) | type | `src/systems/SamSpeech.ts:30` |
+| [SynthVoice](#type-synthvoice) | type | `src/systems/SamSpeech.ts:32` |
 | [Target](#type-target) | type | `src/scenes/game/ItemActions.ts:473` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:43` |
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:524` |
@@ -7319,7 +7321,7 @@ GameScene.
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |
 | [VfxSource](#type-vfxsource) | type | `src/entities/Vfx.ts:21` |
 | [VfxSpec](#interface-vfxspec) | interface | `src/entities/Vfx.ts:27` |
-| [VoicePreset](#interface-voicepreset) | interface | `src/systems/SamSpeech.ts:22` |
+| [VoicePreset](#interface-voicepreset) | interface | `src/systems/SamSpeech.ts:24` |
 | [WallBuffer](#class-wallbuffer) | class | `src/systems/CollisionGrid.ts:24` |
 | [WallRect](#interface-wallrect) | interface | `src/map/TileBake.ts:48` |
 | [WaveParams](#interface-waveparams) | interface | `src/systems/QualiaLock.ts:27` |

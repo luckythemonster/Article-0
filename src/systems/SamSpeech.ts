@@ -15,9 +15,11 @@
  * be handed over unchanged — see the `SamJsOptions` in its `index.d.ts`.
  *
  * **`speed` is a frame-duration multiplier, so a higher number is a *slower*
- * voice.** Easy to read backwards, and worth checking against
- * `SilicateBarks.VOICE_PRESETS` before assuming the numbers there mean what
- * their comment says.
+ * voice.** It is the one parameter here that runs backwards, and reading it
+ * forwards is not a hypothetical mistake: the two guard presets shipped with
+ * their speeds the wrong way round for exactly that reason, described and
+ * asserted as the opposite of what they did. Check a change by ear, or by the
+ * length of the buffer it renders.
  */
 export interface VoicePreset {
   speed: number;
@@ -34,9 +36,20 @@ export type SynthVoice = "enforcer" | "drone" | "eira";
  *
  * The guard pair is picked so it is tellable apart with eyes shut — you hear one
  * of these from off-screen and the only question that matters is which kind of
- * thing is about to come round the corner. `SilicateBarks` re-exports exactly
- * those two, so the warm-up sweep that pre-renders every bark keeps rendering
- * twelve short lines in two voices and does not touch EIRA-7's.
+ * thing is about to come round the corner. An enforcer is the bigger chassis and
+ * gets the lower, slower, chestier voice; a drone is small and quick. Both are
+ * deliberately further apart than SAM's own defaults would put them.
+ *
+ * **Their speeds were the wrong way round until now.** `speed` is a
+ * frame-duration multiplier — higher is slower — and the two were assigned as if
+ * higher meant faster, so the drone was the *slower* of the pair by about 15%
+ * for the length of a line while every comment and the test said otherwise. The
+ * values are the two the pair was authored with; only which guard gets which has
+ * changed, so the pair is exactly as far apart as it was meant to be.
+ *
+ * `SilicateBarks` re-exports exactly these two, so the warm-up sweep that
+ * pre-renders every bark keeps rendering twelve short lines in two voices and
+ * does not touch EIRA-7's.
  *
  * **EIRA-7 is deliberately the same synthesiser.** She is the same technology as
  * the things hunting Rowan, and the run's whole question is what separates them;
@@ -64,8 +77,8 @@ export type SynthVoice = "enforcer" | "drone" | "eira";
  * them.
  */
 export const SYNTH_VOICES: Record<SynthVoice, VoicePreset> = {
-  enforcer: { speed: 82, pitch: 50, throat: 190, mouth: 120 },
-  drone: { speed: 96, pitch: 78, throat: 150, mouth: 200 },
+  enforcer: { speed: 96, pitch: 50, throat: 190, mouth: 120 },
+  drone: { speed: 82, pitch: 78, throat: 150, mouth: 200 },
   eira: { speed: 60, pitch: 66, throat: 255, mouth: 255 },
 };
 
