@@ -108,6 +108,7 @@ describe("the one-shot effects", () => {
       "emp-blast",
       "impact",
       "smoke-plume",
+      "stun-round",
     ]);
   });
 });

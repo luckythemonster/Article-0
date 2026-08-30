@@ -147,12 +147,36 @@ export const ELECTRICITY: VfxSpec = {
   depth: VFX_DEPTH,
 };
 
+/**
+ * The Stun Rounds dart, hand-drawn on ENDESGA-64 at `tools/vfx/build_vfx.py`.
+ *
+ * Two tags cover its 13 frames: `travelling` (0-6) is the dart itself, spinning
+ * in flight; `impact` (7-12) is the flash it makes landing, fading to a fully
+ * transparent last frame. That split is why it does not go through `playVfx`
+ * below — every other effect plays once at a fixed point, but a projectile has
+ * to cross the world first. See {@link fireStunRound}.
+ */
+export const STUN_ROUND: VfxSpec = {
+  id: "stun-round",
+  source: { kind: "sheet", path: "assets/vfx/stun-round/spritesheet.png", frameSize: 8 },
+  frameCount: 13,
+  // The source's own per-frame hold: 20ms flat, same reasoning as `ELECTRICITY`.
+  frameRate: 50,
+  frameSize: 8,
+  // A quarter tile: (32 * 0.25 / 8) * 2 = 2 screen pixels per source pixel, the
+  // same ratio every other effect in this file lands on, and small enough that
+  // a dart reads as a dart next to the person it hits rather than matching him.
+  displayTiles: 0.25,
+  depth: VFX_DEPTH,
+};
+
 export const ALL_VFX: readonly VfxSpec[] = [
   EMP_BLAST,
   ELECTRONICS_SPARK,
   IMPACT,
   SMOKE_PLUME,
   ELECTRICITY,
+  STUN_ROUND,
 ];
 
 /** Texture key for a spec, and for one frame of a loose-frame spec. */
@@ -228,6 +252,78 @@ export function playVfx(
   scene.time.delayedCall((spec.frameCount / spec.frameRate) * 1000 + 250, done);
 
   sprite.play(animKey(spec));
+}
+
+const STUN_ROUND_TRAVEL_ANIM = "vfx-stun-round-travel";
+const STUN_ROUND_IMPACT_ANIM = "vfx-stun-round-impact";
+
+/**
+ * Registers the dart's two clips, once.
+ *
+ * Kept apart from {@link ensureAnimations}, which builds one clip spanning a
+ * spec's whole frame range — right for every other effect, wrong here: the
+ * dart has to loop through `travelling` while it is in flight and then switch
+ * to `impact` on arrival, not play both ranges straight through back to back.
+ */
+function ensureStunRoundAnimations(scene: Phaser.Scene): void {
+  if (scene.anims.exists(STUN_ROUND_TRAVEL_ANIM)) return;
+  const key = textureKey(STUN_ROUND);
+  scene.anims.create({
+    key: STUN_ROUND_TRAVEL_ANIM,
+    frames: scene.anims.generateFrameNumbers(key, { start: 0, end: 6 }),
+    frameRate: STUN_ROUND.frameRate,
+    repeat: -1,
+  });
+  scene.anims.create({
+    key: STUN_ROUND_IMPACT_ANIM,
+    frames: scene.anims.generateFrameNumbers(key, { start: 7, end: 12 }),
+    frameRate: STUN_ROUND.frameRate,
+    repeat: 0,
+  });
+}
+
+/** A dart's flight, in world pixels per second. Brisk and fixed, so a shot at
+ * point-blank and one at the full five-tile reach read as the same dart rather
+ * than a slow one and a fast one. */
+const STUN_ROUND_SPEED_PX_PER_SEC = 900;
+
+/**
+ * Flies the Stun Rounds dart from muzzle to the point `ItemActions.fireStunDart`
+ * already resolved, then plays its impact flash there before disposing of itself.
+ *
+ * The only VFX that travels rather than playing in place: everything else in
+ * this file animates at a fixed world position because it *is* the reaction to
+ * something landing, where this sprite *is* the shot. It is purely decorative —
+ * the caller has already resolved whether anything was hit by the time this is
+ * called, so nothing here can change the outcome, only how it reads.
+ */
+export function fireStunRound(
+  scene: Phaser.Scene,
+  originX: number,
+  originY: number,
+  endX: number,
+  endY: number,
+  tileSize: number,
+): void {
+  ensureStunRoundAnimations(scene);
+
+  const sprite = scene.add
+    .sprite(originX, originY, textureKey(STUN_ROUND))
+    .setDepth(STUN_ROUND.depth)
+    .setScale((tileSize * STUN_ROUND.displayTiles) / STUN_ROUND.frameSize);
+  sprite.play(STUN_ROUND_TRAVEL_ANIM);
+
+  const dist = Math.hypot(endX - originX, endY - originY);
+  scene.tweens.add({
+    targets: sprite,
+    x: endX,
+    y: endY,
+    duration: Math.max(40, (dist / STUN_ROUND_SPEED_PX_PER_SEC) * 1000),
+    onComplete: () => {
+      sprite.play(STUN_ROUND_IMPACT_ANIM);
+      sprite.once("animationcomplete", () => sprite.destroy());
+    },
+  });
 }
 
 /**
