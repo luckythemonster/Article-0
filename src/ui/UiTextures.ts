@@ -1,6 +1,7 @@
 import type Phaser from "phaser";
 import { UI_ICON_SIZE } from "../render/uiScale";
 import { INDICATOR_FRAME_COUNT, INDICATOR_SIZE, SCREEN_FRAME_COUNT } from "./NetworkPanel";
+import { OBJECTIVE_FRAME_COUNT } from "./ObjectivePanel";
 import { TICK_FRAME_COUNT, TICK_SIZE } from "./radarDirections";
 
 /**
@@ -125,6 +126,20 @@ export const UI_TEXTURES: readonly UiTextureSpec[] = [
     path: "assets/ui/radar/radar-directions.png",
     size: TICK_SIZE,
     sheet: { margin: 0, spacing: 0, count: TICK_FRAME_COUNT },
+  },
+  /**
+   * The directive tracker's backing plate: the same nine-slice geometry as
+   * `ui-panel`, with four flat frames — one per urgency state — rather than a
+   * runtime-composited chrome. `tools/panel/build_objective_panel.py` builds
+   * it from `ui-objective-panel.aseprite`; {@link ./ObjectivePanel} owns which
+   * frame means what.
+   */
+  {
+    key: "ui-objective-panel",
+    path: "assets/ui/panel/ui-objective-panel.png",
+    size: 48,
+    slice: 12,
+    sheet: { margin: 0, spacing: 0, count: OBJECTIVE_FRAME_COUNT },
   },
 ] as const;
 

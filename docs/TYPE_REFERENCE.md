@@ -5832,10 +5832,10 @@ widget picks a role rather than a number.
 
 #### `UI_TEXTURES` — const
 
-`src/ui/UiTextures.ts:71`
+`src/ui/UiTextures.ts:72`
 
 ```ts
-const UI_TEXTURES = [ { key: "ui-panel", path: "assets/ui/panel/ui-panel.png", size: 48, slice: 12, sheet: { margin: 0, spacing: 0, count: SCREEN_FRAME_COUNT }, }, { key: "ui-network-indicators", path: "assets/ui/panel/network-indicators.png", size: INDICATOR_SIZE, sheet: { margin: 0, spacing: 0, count: INDICATOR_FRAME_COUNT }, }, { key: "ui-radar-bezel", path: "assets/ui/radar/bezel.png", size: 96 }, { key: "ui-radar-directions", path: "assets/ui/radar/radar-directions.png", size: TICK_SIZE, sheet: { margin: 0, spacing: 0, count: TICK_FRAME_COUNT }, }, ] as const;
+const UI_TEXTURES = [ { key: "ui-panel", path: "assets/ui/panel/ui-panel.png", size: 48, slice: 12, sheet: { margin: 0, spacing: 0, count: SCREEN_FRAME_COUNT }, }, { key: "ui-network-indicators", path: "assets/ui/panel/network-indicators.png", size: INDICATOR_SIZE, sheet: { margin: 0, spacing: 0, count: INDICATOR_FRAME_COUNT }, }, { key: "ui-radar-bezel", path: "assets/ui/radar/bezel.png", size: 96 }, { key: "ui-radar-directions", path: "assets/ui/radar/radar-directions.png", size: TICK_SIZE, sheet: { margin: 0, spacing: 0, count: TICK_FRAME_COUNT }, }, { key: "ui-objective-panel", path: "assets/ui/panel/ui-obje… as const;
 ```
 
 ### UI — Classes
@@ -6141,7 +6141,7 @@ choose), shared by the title and outcome screens. Create it, then call
 
 #### `ObjectiveHud` — class
 
-`src/ui/ObjectiveHud.ts:52`
+`src/ui/ObjectiveHud.ts:62`
 
 The objective tracker, pinned to the top-centre of the screen.
 
@@ -6158,11 +6158,19 @@ the pause menu's OBJECTIVES tab — its *first* tab — and in the codec's DIREC
 block, so the HUD only has to answer "what now?" at a glance and get out of the
 way. `J` hides it entirely, the way `K` hides the alert-network readout.
 
-One `Text` rather than the two it used to be, and that is what makes the plate
-work: `backgroundColor` wraps a text object's own box, so a heading and a list as
-separate objects would be two plates with a seam between them. The cost is that
-the heading no longer reads dimmer than the rows, which is a fair trade for
-something that is only on screen during a six-second flash.
+One `Text` rather than the two it used to be — a heading and a list as separate
+objects would need two plates with a seam between them, where one object simply
+grows and shrinks behind whichever form is current. The cost is that the heading
+no longer reads dimmer than the rows, which is a fair trade for something that
+is only on screen during a six-second flash.
+
+The plate itself is `ui-objective-panel`, the same nine-slice geometry as
+`ui-panel` (see `NineSlicePanel.ts`) but with four flat frames instead of a
+runtime-composited chrome — one per urgency state, each with its own accent
+colour, matching the labels the NETWORK readout already shows
+(`objectivePanelFrame`). `COMPLETE` overrides once the directive is
+finished, whatever the network is doing. Falls back to a plain rectangle with no
+accent when the art isn't present, same as every other panel in the HUD.
 
 "Top-centre" means centred on the space between the status stack and the radar,
 not on the viewport — see `objectiveCentre`. On a wide canvas those are the
@@ -6172,11 +6180,11 @@ printing through the SRP meter.
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `constructor` | `constructor(scene: Phaser.Scene)` |  |
-| `update` | `update( state: ObjectiveState, currentLevel: string, features: MissionFeatures, deltaMs: number, ): void` | @param deltaMs frame time, for the collapse countdown. 0 holds the directive   expanded while an overlay owns the screen — see the call site in `UIScene`. |
+| `update` | `update( state: ObjectiveState, currentLevel: string, features: MissionFeatures, deltaMs: number, netStatus: string, ): void` | @param deltaMs frame time, for the collapse countdown. 0 holds the directive   expanded while an overlay owns the screen — see the call site in `UIScene`. @param netStatus the alert network's own `status` — `INFILTRATION` / `EVASION`   / `ALERT` — for the plate's accent. Defaults to the NETWORK readout's own   "no snapshot yet" reading; see `objectivePanelFrame`. |
 | `isShown` | `isShown(): boolean` | Whether the tracker is currently on screen. |
-| `setShown` | `setShown(shown: boolean): void` | Shows or hides the tracker — the `J` binding in `UIScene`. |
+| `setShown` | `setShown(shown: boolean): void` | Shows or hides the tracker, plate included — the `J` binding in `UIScene`. |
 
-*Plus 12 private members.*
+*Plus 15 private members.*
 
 <a id="class-pausemenuview"></a>
 
@@ -6796,7 +6804,7 @@ exists — no call site changes, nothing to remember.
 
 #### `UiSheetSpec` — interface
 
-`src/ui/UiTextures.ts:62`
+`src/ui/UiTextures.ts:63`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -6808,7 +6816,7 @@ exists — no call site changes, nothing to remember.
 
 #### `UiTextureSpec` — interface
 
-`src/ui/UiTextures.ts:26`
+`src/ui/UiTextures.ts:27`
 
 The HUD's optional artwork.
 
@@ -7156,7 +7164,7 @@ GameScene.
 | [NoiseSectors](#class-noisesectors) | class | `src/systems/Radar.ts:33` |
 | [NoiseSpamTracker](#class-noisespamtracker) | class | `src/systems/AlertNetwork.ts:78` |
 | [NoiseWorld](#interface-noiseworld) | interface | `src/scenes/game/NoiseEvents.ts:36` |
-| [ObjectiveHud](#class-objectivehud) | class | `src/ui/ObjectiveHud.ts:52` |
+| [ObjectiveHud](#class-objectivehud) | class | `src/ui/ObjectiveHud.ts:62` |
 | [ObjectiveLine](#interface-objectiveline) | interface | `src/systems/Objectives.ts:185` |
 | [ObjectiveState](#interface-objectivestate) | interface | `src/systems/Objectives.ts:20` |
 | [ObjectiveSummary](#interface-objectivesummary) | interface | `src/systems/Objectives.ts:258` |
@@ -7295,11 +7303,11 @@ GameScene.
 | [UI](#const-ui) | const | `src/ui/hudTheme.ts:34` |
 | [UI_DEPTH](#const-ui-depth) | const | `src/ui/hudTheme.ts:134` |
 | [UI_TEXT](#const-ui-text) | const | `src/ui/hudTheme.ts:113` |
-| [UI_TEXTURES](#const-ui-textures) | const | `src/ui/UiTextures.ts:71` |
+| [UI_TEXTURES](#const-ui-textures) | const | `src/ui/UiTextures.ts:72` |
 | [UiPanelOptions](#interface-uipaneloptions) | interface | `src/ui/NineSlicePanel.ts:25` |
 | [UIScene](#class-uiscene) | class | `src/scenes/UIScene.ts:34` |
-| [UiSheetSpec](#interface-uisheetspec) | interface | `src/ui/UiTextures.ts:62` |
-| [UiTextureSpec](#interface-uitexturespec) | interface | `src/ui/UiTextures.ts:26` |
+| [UiSheetSpec](#interface-uisheetspec) | interface | `src/ui/UiTextures.ts:63` |
+| [UiTextureSpec](#interface-uitexturespec) | interface | `src/ui/UiTextures.ts:27` |
 | [VaultAndPress](#class-vaultandpress) | class | `src/scenes/game/VaultAndPress.ts:96` |
 | [VaultLayout](#interface-vaultlayout) | interface | `src/map/AlignmentVault.ts:81` |
 | [VaultQuery](#interface-vaultquery) | interface | `src/scenes/game/VaultAndPress.ts:31` |

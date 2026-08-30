@@ -18,6 +18,8 @@ import {
   objectiveWrapWidth,
 } from "./hudLayout";
 import { UI, UI_DEPTH, UI_TEXT } from "./hudTheme";
+import { placePanel, setPanelFrame, uiPanel } from "./NineSlicePanel";
+import { objectivePanelFrame } from "./ObjectivePanel";
 
 /** The expanded form's first row. */
 const HEADING = "▸ DIRECTIVE · SMUGGLE EIRA-7";
@@ -38,11 +40,19 @@ const HEADING = "▸ DIRECTIVE · SMUGGLE EIRA-7";
  * block, so the HUD only has to answer "what now?" at a glance and get out of the
  * way. `J` hides it entirely, the way `K` hides the alert-network readout.
  *
- * One `Text` rather than the two it used to be, and that is what makes the plate
- * work: `backgroundColor` wraps a text object's own box, so a heading and a list as
- * separate objects would be two plates with a seam between them. The cost is that
- * the heading no longer reads dimmer than the rows, which is a fair trade for
- * something that is only on screen during a six-second flash.
+ * One `Text` rather than the two it used to be — a heading and a list as separate
+ * objects would need two plates with a seam between them, where one object simply
+ * grows and shrinks behind whichever form is current. The cost is that the heading
+ * no longer reads dimmer than the rows, which is a fair trade for something that
+ * is only on screen during a six-second flash.
+ *
+ * The plate itself is `ui-objective-panel`, the same nine-slice geometry as
+ * `ui-panel` (see `NineSlicePanel.ts`) but with four flat frames instead of a
+ * runtime-composited chrome — one per urgency state, each with its own accent
+ * colour, matching the labels the NETWORK readout already shows
+ * ({@link objectivePanelFrame}). `COMPLETE` overrides once the directive is
+ * finished, whatever the network is doing. Falls back to a plain rectangle with no
+ * accent when the art isn't present, same as every other panel in the HUD.
  *
  * "Top-centre" means centred on the space between the status stack and the radar,
  * not on the viewport — see {@link objectiveCentre}. On a wide canvas those are the
@@ -51,12 +61,13 @@ const HEADING = "▸ DIRECTIVE · SMUGGLE EIRA-7";
  */
 export class ObjectiveHud {
   private readonly scene: Phaser.Scene;
+  private readonly panel: Phaser.GameObjects.NineSlice | Phaser.GameObjects.Rectangle;
   private readonly text: Phaser.GameObjects.Text;
   /** The expanded checklist, cached so `update` can spot a change without re-rendering. */
   private lastFull = "";
   /** The collapsed row, same purpose. */
   private lastRow = "";
-  /** Whether every act is done — drives the colour, in both forms. */
+  /** Whether every act is done — drives the colour, in both forms, and the plate frame. */
   private complete = false;
   /** Showing the full list rather than the standing row. */
   private expanded = false;
@@ -64,9 +75,20 @@ export class ObjectiveHud {
   private expandRemaining = 0;
   /** The player's `J` toggle. Beats {@link expanded}: hidden means hidden. */
   private shown = true;
+  /** Last plate frame set, so a steady status doesn't re-touch the nine-slice every frame. */
+  private lastFrame = -1;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
+    // Created before the text so it sorts underneath at equal depth, same ordering
+    // `InventoryHud` uses. Given an explicit `frame` rather than the `uiPanel`
+    // default: that default (`SCREEN_ON`) is a `ui-panel` frame index and would be
+    // a coincidence here, where frame 0 means something else entirely.
+    this.panel = uiPanel(scene, 0, 0, 1, 1, {
+      key: "ui-objective-panel",
+      frame: objectivePanelFrame("INFILTRATION", false),
+    });
+
     this.text = scene.add
       .text(0, OBJECTIVE_TOP, "", {
         fontFamily: FONT_MONO,
@@ -74,25 +96,19 @@ export class ObjectiveHud {
         color: UI.textStrong,
         align: "center",
         lineSpacing: 2,
-        // The plate. `bgPanel` at 80% rather than a nine-slice: the tracker changes
-        // height every time it expands, and a `Text` background is the one backing
-        // that follows the type for free. `EncounterBand` and the debug inspector
-        // are backed the same way.
-        backgroundColor: `${UI.bgPanel}cc`,
-        padding: { x: OBJECTIVE_PAD_X, y: OBJECTIVE_PAD_Y },
       })
       .setOrigin(0.5, 0)
       .setScrollFactor(0)
       .setDepth(UI_DEPTH.BASE)
       // Nothing to say until the scene publishes a directive, and an empty `Text`
-      // with a background is still a bare 16x12 plate sitting in the corner.
+      // over an empty plate is still a bare box sitting in the corner.
       .setVisible(false);
 
     onResize(scene, () => this.layout(), true);
   }
 
   /**
-   * Re-centres the block against the space available.
+   * Re-centres the block against the space available, and re-sizes the plate to it.
    *
    * Runs on resize *and* after every text change, because the block's width is what
    * decides whether the screen centre is usable and it changes shape every time the
@@ -101,20 +117,28 @@ export class ObjectiveHud {
   private layout(): void {
     const width = this.scene.scale.width;
     this.text.setWordWrapWidth(objectiveWrapWidth(width));
-    // `Text.width` already includes the padding, so this centres the plate rather
-    // than the glyphs inside it — which is what has to clear the neighbours.
-    this.text.setPosition(objectiveCentre(width, this.text.width), OBJECTIVE_TOP);
+    // The plate, not the text: it reaches `OBJECTIVE_PAD_X`/`_Y` past the glyphs on
+    // every side, and that's the box that has to clear the neighbours.
+    const blockW = this.text.width + OBJECTIVE_PAD_X * 2;
+    const blockH = this.text.height + OBJECTIVE_PAD_Y * 2;
+    const cx = objectiveCentre(width, blockW);
+    this.text.setPosition(cx, OBJECTIVE_TOP + OBJECTIVE_PAD_Y);
+    placePanel(this.panel, cx - blockW / 2, OBJECTIVE_TOP, blockW, blockH);
   }
 
   /**
    * @param deltaMs frame time, for the collapse countdown. 0 holds the directive
    *   expanded while an overlay owns the screen — see the call site in `UIScene`.
+   * @param netStatus the alert network's own `status` — `INFILTRATION` / `EVASION`
+   *   / `ALERT` — for the plate's accent. Defaults to the NETWORK readout's own
+   *   "no snapshot yet" reading; see {@link objectivePanelFrame}.
    */
   update(
     state: ObjectiveState,
     currentLevel: string,
     features: MissionFeatures,
     deltaMs: number,
+    netStatus: string,
   ): void {
     this.tick(deltaMs);
     const lines = objectiveLines(state, currentLevel, features);
@@ -122,6 +146,10 @@ export class ObjectiveHud {
     const full = expandedText(lines);
     const row = objectiveSummaryText(objectiveSummary(state, currentLevel, features));
     this.complete = lines.every((l) => l.done);
+
+    // Independent of whether the checklist text changed: the network can flip from
+    // NOMINAL to ALERT with the directive untouched, and the plate has to notice.
+    this.setUrgency(netStatus);
 
     // A changed checklist is the whole trigger: an act completed, or a new level
     // brought a different set of lines. `lastFull` starts empty, so the first update
@@ -134,6 +162,14 @@ export class ObjectiveHud {
     // times a second for a string that only moves when an objective completes.
     if (full !== was) this.expand();
     else if (rowChanged) this.render();
+  }
+
+  /** Repaints the plate's accent, only when the frame it should show actually changed. */
+  private setUrgency(netStatus: string): void {
+    const frame = objectivePanelFrame(netStatus, this.complete);
+    if (frame === this.lastFrame) return;
+    this.lastFrame = frame;
+    setPanelFrame(this.panel, frame);
   }
 
   /** Shows the full checklist, and restarts the countdown back to the standing row. */
@@ -173,7 +209,9 @@ export class ObjectiveHud {
    * has to leave it hidden.
    */
   private render(): void {
-    this.text.setVisible(this.shown && this.lastRow.length > 0);
+    const visible = this.shown && this.lastRow.length > 0;
+    this.text.setVisible(visible);
+    this.panel.setVisible(visible);
     this.text.setText(this.expanded ? this.lastFull : this.lastRow);
     this.text.setColor(this.complete ? UI.greenSoft : UI.textStrong);
     // After setText, so the bounds being centred are the new ones.
@@ -185,7 +223,7 @@ export class ObjectiveHud {
     return this.shown;
   }
 
-  /** Shows or hides the tracker — the `J` binding in `UIScene`. */
+  /** Shows or hides the tracker, plate included — the `J` binding in `UIScene`. */
   setShown(shown: boolean): void {
     this.shown = shown;
     this.render();
