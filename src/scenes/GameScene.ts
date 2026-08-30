@@ -513,7 +513,6 @@ export class GameScene extends Phaser.Scene {
     const worldW = this.level.width * this.tileSize;
     const worldH = this.level.height * this.tileSize;
     this.physics.world.setBounds(0, 0, worldW, worldH);
-    this.cameras.main.setBounds(0, 0, worldW, worldH);
     this.cameras.main.setBackgroundColor(UI.bgVoid);
 
     // Reads each wall tile's authored footprint, so a pane wider than its own
