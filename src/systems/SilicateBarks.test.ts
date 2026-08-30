@@ -143,8 +143,12 @@ describe("the two voices", () => {
     // is which kind of thing is about to come round the corner.
     const { enforcer, drone } = VOICE_PRESETS;
     expect(drone.pitch).toBeGreaterThan(enforcer.pitch);
-    expect(drone.speed).toBeGreaterThan(enforcer.speed);
     expect(drone.throat).toBeLessThan(enforcer.throat);
+    // A drone is small and quick, an enforcer is the bigger chassis. `speed` is
+    // a frame-duration multiplier, so the quick one carries the *lower* number —
+    // this assertion used to demand the opposite, which is how the two shipped
+    // with their speeds swapped.
+    expect(drone.speed).toBeLessThan(enforcer.speed);
   });
 
   it("stays inside the range SAM's own presets use", () => {
