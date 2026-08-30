@@ -10,6 +10,10 @@
  * the objective text ran straight through the encounter title and both became
  * unreadable — a collision nothing could catch, because no single file was wrong.
  *
+ * The directive has since been cut back to a single row on a backing plate, expanding
+ * to the full checklist only when an act completes. The budget below is still the
+ * expanded worst case, because the encounter band cannot know when that last happened.
+ *
  * So the boundary lives here, once, with the arithmetic that produced it written down.
  *
  * The same failure then happened twice more at the other edges, for the same reason,
@@ -88,11 +92,20 @@ export const SRP_AXES_TOP = UI_PAD + 59;
 // Top-centre: the objective tracker and the encounter band
 // ---------------------------------------------------------------------------
 
-/** Top of the objective tracker's heading. */
+/** Top of the objective tracker's backing plate. */
 export const OBJECTIVE_TOP = UI_PAD;
 
-/** Top of the objective list itself. */
-export const OBJECTIVE_BODY_TOP = OBJECTIVE_TOP + 18;
+/**
+ * How far inside its plate the tracker's text sits.
+ *
+ * The tracker draws its own background (a `Text` `backgroundColor`, the same
+ * backing `EncounterBand` and the debug inspector use) rather than adopting a
+ * nine-slice panel, so the padding is a type-level inset rather than
+ * {@link PANEL_INSET}. It has to be budgeted here all the same: the plate is what
+ * the player sees reaching toward the SRP meter, and the text is 8px inside it.
+ */
+export const OBJECTIVE_PAD_X = 8;
+export const OBJECTIVE_PAD_Y = 6;
 
 /**
  * Rendered line height of the objective list: 12px type plus its 2px `lineSpacing`.
@@ -108,12 +121,39 @@ const OBJECTIVE_LINE_HEIGHT = 14;
  * VENT-4 line. Exported so `Objectives.test.ts` can assert `objectiveLines` never exceeds
  * it: a sixth act would otherwise silently reintroduce the exact overlap this file was
  * written to prevent, with the comment above still claiming it can't happen.
+ *
+ * Acts, not rendered rows — the DIRECTIVE heading is counted separately in
+ * {@link OBJECTIVE_BLOCK_H}. Folding the heading in here would make the constant
+ * mean two things at once and quietly weaken that assertion.
  */
 export const OBJECTIVE_MAX_LINES = 5;
 
+/**
+ * The tallest the tracker gets: the DIRECTIVE heading, every act, and the plate.
+ *
+ * Only its expanded form is this tall, and only for {@link OBJECTIVE_EXPAND_MS}
+ * after something completes — but the budget is the worst case, because the
+ * encounter band below cannot know when the directive last changed.
+ */
+export const OBJECTIVE_BLOCK_H =
+  OBJECTIVE_PAD_Y * 2 + (1 + OBJECTIVE_MAX_LINES) * OBJECTIVE_LINE_HEIGHT;
+
 /** First y an encounter HUD may claim without ever overlapping the directive. */
-export const ENCOUNTER_TOP =
-  OBJECTIVE_BODY_TOP + OBJECTIVE_MAX_LINES * OBJECTIVE_LINE_HEIGHT + 8;
+export const ENCOUNTER_TOP = OBJECTIVE_TOP + OBJECTIVE_BLOCK_H + 8;
+
+/**
+ * How long the directive stays expanded after it changes.
+ *
+ * Same reasoning as {@link HINT_HOLD_MS} one region over: the full checklist is
+ * there to tell the player what just moved, and once it has done that it is five
+ * lines of unchanging text over the middle of the play field. It settles back to a
+ * single row naming the act in hand; the whole list stays permanently available in
+ * the pause menu's OBJECTIVES tab and the codec's DIRECTIVE block.
+ *
+ * No fade to go with it, unlike the hint: the tracker collapses *into* its own
+ * standing row rather than off the screen, so there is nothing to fade to.
+ */
+export const OBJECTIVE_EXPAND_MS = 6_000;
 
 /** The encounter band's rows, all derived from {@link ENCOUNTER_TOP}. */
 export const ENCOUNTER_BAR_TOP = ENCOUNTER_TOP + 18;
@@ -216,7 +256,10 @@ export function radarLeft(canvasWidth: number): number {
  * on the *screen* rather than on the space actually available is.
  */
 export function objectiveWrapWidth(canvasWidth: number): number {
-  return Math.max(160, radarLeft(canvasWidth) - STATUS_STACK_RIGHT - UI_PAD * 2);
+  // Minus the plate's own padding: this bounds the *text*, and it is the plate
+  // around it that has to clear the neighbours.
+  const gap = radarLeft(canvasWidth) - STATUS_STACK_RIGHT - UI_PAD * 2 - OBJECTIVE_PAD_X * 2;
+  return Math.max(160, gap);
 }
 
 /**

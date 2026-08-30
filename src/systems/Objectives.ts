@@ -185,6 +185,16 @@ export function isRunWon(
 export interface ObjectiveLine {
   label: string;
   done: boolean;
+  /**
+   * A side errand rather than an act of the directive.
+   *
+   * Carried as a flag as well as the `"(Optional) "` label prefix because
+   * {@link objectiveSummary} has to count mandatory acts and pick the next one,
+   * and sniffing a display string for that is the kind of coupling that breaks
+   * the day someone rewords a label. The prefix stays: it is what the codec, the
+   * pause menu and the expanded HUD list read.
+   */
+  optional?: boolean;
 }
 
 /**
@@ -222,7 +232,72 @@ export function objectiveLines(
     done: isRunWon(state, currentLevel, features),
   });
   if (features.hasVentCore) {
-    lines.push({ label: "(Optional) Silence VENT-4 (vent core)", done: !!state.vent4Silenced });
+    lines.push({
+      label: "(Optional) Silence VENT-4 (vent core)",
+      done: !!state.vent4Silenced,
+      optional: true,
+    });
   }
   return lines;
+}
+
+/**
+ * The directive reduced to what the HUD's standing one-line readout needs.
+ *
+ * The tracker used to print every line all the time, over the middle of the play
+ * field, which made it both the least legible and the most distracting thing on
+ * screen. It now shows progress and the act in hand, and expands to the full list
+ * only when something changes — so it needs a count and a "next", and this is
+ * where they are worked out.
+ *
+ * Derived by reducing {@link objectiveLines} rather than by re-reading the flags.
+ * Same argument as the win line's `done` inside that function: two routes to one
+ * answer drift, and the symptom here would be the row claiming `2/4` beside a list
+ * showing three ticks.
+ */
+export interface ObjectiveSummary {
+  /** Mandatory acts complete. */
+  done: number;
+  /** Mandatory acts this map furnished. */
+  total: number;
+  /** The first mandatory act still outstanding — what to be getting on with. */
+  current?: ObjectiveLine;
+  /** Every mandatory act done. Equivalent to {@link isRunWon}. */
+  complete: boolean;
+}
+
+/**
+ * Progress and the next act, for the HUD's collapsed row.
+ *
+ * Optional lines are excluded from the count and never become `current`: VENT-4 is
+ * not what the player is being told to do next, and counting it would make a
+ * finished run read `4/5` — an objective tracker reporting an unfinished mission
+ * over the end-of-run cutscene.
+ */
+export function objectiveSummary(
+  state: ObjectiveState,
+  currentLevel: string,
+  features: MissionFeatures,
+): ObjectiveSummary {
+  const mandatory = objectiveLines(state, currentLevel, features).filter((l) => !l.optional);
+  const done = mandatory.filter((l) => l.done).length;
+  return {
+    done,
+    total: mandatory.length,
+    current: mandatory.find((l) => !l.done),
+    complete: done === mandatory.length,
+  };
+}
+
+/**
+ * The collapsed row itself: `▸ DIRECTIVE 2/4 · Breach log-cache node BETA (crawlspace)`.
+ *
+ * Formatting lives here beside the labels rather than in `ObjectiveHud` so
+ * `hudLayout.test.ts` can measure the real worst-case string against the
+ * top-centre width budget — the widget imports Phaser, and the layout tests run in
+ * node with no canvas.
+ */
+export function objectiveSummaryText(summary: ObjectiveSummary): string {
+  const tail = summary.current?.label ?? "COMPLETE";
+  return `▸ DIRECTIVE ${summary.done}/${summary.total} · ${tail}`;
 }

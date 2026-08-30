@@ -55,6 +55,8 @@ export class UIScene extends Phaser.Scene {
   };
   /** Shows/hides the NETWORK panel — see `AlertNetworkHud.setShown`. */
   private networkKey!: Phaser.Input.Keyboard.Key;
+  /** Shows/hides the objective tracker — see `ObjectiveHud.setShown`. */
+  private objectivesKey!: Phaser.Input.Keyboard.Key;
 
   constructor() {
     super("UIScene");
@@ -82,6 +84,10 @@ export class UIScene extends Phaser.Scene {
     // K, not N: `DebugOverlay` already binds N to no-clip, and being a separate
     // scene it would fire alongside this one rather than instead of it.
     this.networkKey = kb.addKey(K.K);
+    // Same class of check for J — free across `GameScene.bindInput`, this scene
+    // and `DebugOverlay`, which is the only way to know, since a collision between
+    // two live scenes is silent.
+    this.objectivesKey = kb.addKey(K.J);
   }
 
   update(_time: number, delta: number): void {
@@ -149,8 +155,13 @@ export class UIScene extends Phaser.Scene {
 
     // Gated the same as the item keys: a keypress behind the pause menu, the
     // codec or a minigame shouldn't toggle background HUD chrome.
-    if (!isSuspended(this.registry) && Phaser.Input.Keyboard.JustDown(this.networkKey)) {
-      this.network.setShown(!this.network.isShown());
+    if (!isSuspended(this.registry)) {
+      if (Phaser.Input.Keyboard.JustDown(this.networkKey)) {
+        this.network.setShown(!this.network.isShown());
+      }
+      if (Phaser.Input.Keyboard.JustDown(this.objectivesKey)) {
+        this.objectives.setShown(!this.objectives.isShown());
+      }
     }
 
     const network = this.registry.get("alertNetwork") as AlertNetworkSnapshot | undefined;
@@ -163,7 +174,15 @@ export class UIScene extends Phaser.Scene {
       // frame and never move, so rebuilding it here was an object and a closure per
       // frame to re-derive a constant — in a second 60fps loop, on every level.
       this.features ??= missionFeatures(this.registry);
-      this.objectives.update(objState, level, this.features);
+      // Suspended means 0, as for the EKG above: the directive expands on its first
+      // update, which lands during the opening codec briefing, and it should still
+      // be expanded when the player is given the screen back.
+      this.objectives.update(
+        objState,
+        level,
+        this.features,
+        isSuspended(this.registry) ? 0 : delta,
+      );
     }
 
     const field = this.registry.get("sharedField") as SharedFieldView | undefined;
