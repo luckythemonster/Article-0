@@ -5,7 +5,7 @@ import type { Laser } from "../../entities/Laser";
 import type { Enforcer } from "../../entities/Enforcer";
 import { Orderly } from "../../entities/Orderly";
 import type { Player } from "../../entities/Player";
-import { playVfx, ELECTRONICS_SPARK, EMP_BLAST, IMPACT } from "../../entities/Vfx";
+import { playVfx, ELECTRONICS_SPARK, EMP_BLAST, IMPACT, fireStunRound } from "../../entities/Vfx";
 import type { AlertState } from "../../systems/AlertState";
 import {
   ActiveItemState,
@@ -375,6 +375,9 @@ export class ItemActions {
     const reachPx = STUN_ROUND_REACH_TILES * ts;
     const fx = Math.cos(player.facing);
     const fy = Math.sin(player.facing);
+    // Resolved before `putDownNearest` spends him, purely so the dart sprite
+    // below knows where to fly to — the hit itself is unaffected.
+    const victim = this.nearestPerson(reachPx, WEAPON_ARC_COS);
     this.putDownNearest(reachPx, WEAPON_ARC_COS);
 
     let cover: Cover | undefined;
@@ -394,6 +397,21 @@ export class ItemActions {
       }
     }
     cover?.destroy();
+
+    // Where the visible dart itself flies to: the nearer of a hit person or hit
+    // cover, or the shot's full reach along Rowan's facing when it lands on
+    // neither. One sprite, so when both land off the same shot (see the class
+    // doc above) it picks whichever was closer rather than trying to show both.
+    let endX = player.x + fx * reachPx;
+    let endY = player.y + fy * reachPx;
+    if (victim && (!cover || len(victim.x - player.x, victim.y - player.y) <= bestCoverDist)) {
+      endX = victim.x;
+      endY = victim.y;
+    } else if (cover) {
+      endX = (cover.tileX + 0.5) * ts;
+      endY = (cover.tileY + 0.5) * ts;
+    }
+    fireStunRound(this.w.scene, player.x, player.y, endX, endY, ts);
 
     this.w.conduct().violate("HOSTILE", FLAG_HOSTILE);
     this.w.noise().emitAt(player.x, player.y, STUN_ROUND_NOISE_TILES * ts);

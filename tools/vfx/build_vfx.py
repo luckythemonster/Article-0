@@ -54,7 +54,10 @@ class Spec:
 
 #: Hand-drawn VFX packs. Third-party packs (impact, smoke-plume, the EMP
 #: blast) have no `.aseprite` source and aren't built by this tool.
-SPRITES: tuple[Spec, ...] = (Spec(folder="electricity", source="electricity.aseprite", size=128),)
+SPRITES: tuple[Spec, ...] = (
+    Spec(folder="electricity", source="electricity.aseprite", size=128),
+    Spec(folder="stun-round", source="stun_round.aseprite", size=8),
+)
 
 
 def build(strict: bool = False) -> None:
