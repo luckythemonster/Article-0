@@ -1,4 +1,5 @@
 import type { CollisionGrid } from "./CollisionGrid";
+import { clamp } from "./math";
 
 /**
  * Circle-versus-tile-grid movement for the entities that aren't driven by
@@ -146,8 +147,4 @@ export function moveCirclePx(
     blockedX: moved.blockedX,
     blockedY: moved.blockedY,
   };
-}
-
-function clamp(v: number, lo: number, hi: number): number {
-  return v < lo ? lo : v > hi ? hi : v;
 }

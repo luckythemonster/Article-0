@@ -4,6 +4,7 @@ import { createPanelFrame } from "./frame";
 import { drawMiniMap, surveyedFraction } from "./MiniMapCanvas";
 import { CONTROLS } from "./Controls";
 import { formatAgo, formatClock } from "./format";
+import { clamp01 } from "../systems/math";
 import { JOURNAL_ENTRIES, type JournalState } from "../systems/Journal";
 import { lexiconByCategory, lexiconEntry, type LexiconContext } from "../systems/Lexicon";
 import { itemInfo } from "../systems/ItemCatalog";
@@ -882,10 +883,6 @@ function swatch(modifier: string, label: string): HTMLElement {
 }
 
 // --- formatting ----------------------------------------------------------
-
-function clamp01(v: number): number {
-  return Math.min(1, Math.max(0, Number.isFinite(v) ? v : 0));
-}
 
 function activeRemaining(name: string, active: ActiveItemsView): number {
   if (name === CHAFF_PACK_ITEM) return active.chaffRemaining;
