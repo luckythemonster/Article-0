@@ -375,6 +375,32 @@ coordinate-keyed shaft. The number beats coordinate matching, and only counts on
 filed on an `elevator*` board — one filed elsewhere doesn't get the elevator's `roof_access`
 trigger and is left alone.
 
+##### The panel, and naming the floors
+
+**A shaft with three or more floors is ridden from a panel, not round the cycle.** Standing
+in the car and pressing `E` opens a list of every *other* floor the shaft serves, in map
+order, and the player picks one. The cycle is still what the graph answers with — it is the
+ride a **two-floor** lift takes, since there is nothing to choose — so nothing about a
+pair changes.
+
+Name the floors by suffixing the ref: everything after the number is that floor's row in
+the panel, underscores read as spaces.
+
+```
+duct1       elevator1_B2_MAINTENANCE  (2,30)     panel reads  B2 MAINTENANCE
+main2       elevator1                 (9,12)     panel reads  main2
+roof_array  elevator1_ROOF            (20,4)     panel reads  ROOF
+```
+
+A floor you don't name falls back to its level's name, so an unlabelled shaft is a working
+shaft with technical-looking rows rather than a broken one. The suffix is cosmetic — the
+**number** is still the whole of the link.
+
+One floor is gated rather than listed plainly: the roof is Act IV's, so until the Alignment
+Core is down it appears as `ROOF — SEALED`, dimmed and unselectable. Every other floor in
+the same car keeps working, which is the difference from the roof *ladder* — that one blanks
+its tile entirely, because a ladder with one sealed destination has nothing else to offer.
+
 #### If a link is off by a tile
 
 Two ends that both failed to find an exact partner, on different levels, axis-aligned and

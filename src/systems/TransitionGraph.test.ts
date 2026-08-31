@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { TransitionGraph } from "./TransitionGraph";
+import { TransitionGraph, floorLabel } from "./TransitionGraph";
 import type { GameMap } from "../map/types";
 
 /** A tile at (x,y) with a ref — the only fields the graph reads. */
@@ -195,6 +195,103 @@ describe("TransitionGraph — numbered elevator shafts", () => {
     expect(g.at("vent_core", 5, 1)?.toLevel).toBe("main2");
     expect(g.at("main2", 5, 1)?.toLevel).toBe("roof_array");
     expect(g.at("roof_array", 5, 1)?.toLevel).toBe("vent_core");
+  });
+});
+
+describe("TransitionGraph — the shaft a car's panel offers", () => {
+  it("offers every other floor, in map order, from any floor", () => {
+    // The cycle gives each floor one destination; the panel is the whole ring,
+    // which is what lets the middle floor reach the bottom without riding round.
+    const g = new TransitionGraph(
+      mapOf([
+        ["vent_core", { elevator_bottom: [tile(2, 30, "elevator2")] }],
+        ["main2", { elevator: [tile(9, 12, "elevator2")] }],
+        ["roof_array", { elevator: [tile(20, 4, "elevator2")] }],
+      ]),
+    );
+    expect(g.shaftAt("main2", 9, 12)).toEqual([
+      { level: "vent_core", x: 2, y: 30, label: "vent_core" },
+      { level: "roof_array", x: 20, y: 4, label: "roof_array" },
+    ]);
+    // The floor being ridden from is never a row — a button for where you are
+    // standing does nothing.
+    expect(g.shaftAt("roof_array", 20, 4).map((s) => s.level)).toEqual(["vent_core", "main2"]);
+  });
+
+  it("names each floor from its ref, and falls back to the level", () => {
+    const g = new TransitionGraph(
+      mapOf([
+        ["duct1", { elevator: [tile(2, 30, "elevator1_B2_MAINTENANCE")] }],
+        ["main2", { elevator: [tile(9, 12, "elevator1")] }],
+        ["roof_array", { elevator: [tile(20, 4, "elevator1_ROOF")] }],
+      ]),
+    );
+    expect(g.shaftAt("main2", 9, 12).map((s) => s.label)).toEqual(["B2 MAINTENANCE", "ROOF"]);
+    // main2's own car is unlabelled, so it reads as its level.
+    expect(g.floorAt("main2", 9, 12)?.label).toBe("main2");
+  });
+
+  it("offers the shaft of a coordinate-keyed lift too", () => {
+    // The shipped map's convention: no number, no label, all three floors on one
+    // coordinate. The panel still works; the rows read as level names.
+    const car = (): unknown[] => [tile(5, 1, "elevator"), tile(6, 1, "door_elevator_vertical1")];
+    const g = new TransitionGraph(
+      mapOf([
+        ["vent_core", { elevator_bottom: car() }],
+        ["main2", { elevator: car() }],
+        ["roof_array", { elevator: car() }],
+      ]),
+    );
+    expect(g.shaftAt("vent_core", 5, 1)).toEqual([
+      { level: "main2", x: 5, y: 1, label: "main2" },
+      { level: "roof_array", x: 5, y: 1, label: "roof_array" },
+    ]);
+  });
+
+  it("gives a two-floor lift exactly one stop, so it stays a single press", () => {
+    const g = new TransitionGraph(
+      mapOf([
+        ["duct1", { elevator: [tile(2, 30, "elevator1")] }],
+        ["roof_array", { elevator: [tile(20, 4, "elevator1")] }],
+      ]),
+    );
+    expect(g.shaftAt("duct1", 2, 30)).toHaveLength(1);
+  });
+
+  it("has no shaft for a hatch, a ladder or a bare tile", () => {
+    const g = new TransitionGraph(
+      mapOf([
+        ["main1", { verticals: [tile(10, 14, "access_hatch1")] }],
+        ["duct1", { verticals: [tile(10, 14, "ladder_up1")] }],
+      ]),
+    );
+    expect(g.shaftAt("main1", 10, 14)).toEqual([]);
+    expect(g.shaftAt("main1", 0, 0)).toEqual([]);
+    expect(g.floorAt("main1", 10, 14)).toBeUndefined();
+  });
+
+  it("still rides the cycle — the panel is added, not substituted", () => {
+    const g = new TransitionGraph(
+      mapOf([
+        ["vent_core", { elevator_bottom: [tile(2, 30, "elevator2")] }],
+        ["main2", { elevator: [tile(9, 12, "elevator2")] }],
+        ["roof_array", { elevator: [tile(20, 4, "elevator2")] }],
+      ]),
+    );
+    expect(g.at("main2", 9, 12)?.toLevel).toBe("roof_array");
+    expect(g.exitsOn("main2")).toHaveLength(1);
+  });
+});
+
+describe("floorLabel", () => {
+  it("reads the authored name off the ref, underscores as spaces", () => {
+    expect(floorLabel("elevator1_B2_MAINTENANCE", "duct1")).toBe("B2 MAINTENANCE");
+    expect(floorLabel("elevator12_ROOF", "roof_array")).toBe("ROOF");
+  });
+
+  it("falls back to the level for a ref that names no floor", () => {
+    expect(floorLabel("elevator1", "main2")).toBe("main2");
+    expect(floorLabel("elevator", "main2")).toBe("main2");
   });
 });
 
