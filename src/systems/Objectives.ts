@@ -279,14 +279,33 @@ export function objectiveSummary(
   currentLevel: string,
   features: MissionFeatures,
 ): ObjectiveSummary {
-  const mandatory = objectiveLines(state, currentLevel, features).filter((l) => !l.optional);
-  const done = mandatory.filter((l) => l.done).length;
-  return {
-    done,
-    total: mandatory.length,
-    current: mandatory.find((l) => !l.done),
-    complete: done === mandatory.length,
-  };
+  return summaryFromLines(objectiveLines(state, currentLevel, features));
+}
+
+/**
+ * {@link objectiveSummary}, reduced from lines the caller has already built.
+ *
+ * Same answer, from the same reduction — the split exists because `ObjectiveHud`
+ * runs every frame and needs both the checklist and the summary. Going through
+ * {@link objectiveSummary} there meant building the lines a second time and then
+ * filtering them twice more, so a readout that changes a handful of times per run
+ * cost four arrays and a set of line objects sixty times a second.
+ *
+ * Counted in one pass rather than `filter(...).length` for the reason
+ * `SmacCore`'s `SmacView` gives: allocating an array to carry an integer is the
+ * one thing a per-frame path should not do.
+ */
+export function summaryFromLines(lines: readonly ObjectiveLine[]): ObjectiveSummary {
+  let done = 0;
+  let total = 0;
+  let current: ObjectiveLine | undefined;
+  for (const line of lines) {
+    if (line.optional) continue;
+    total++;
+    if (line.done) done++;
+    else if (current === undefined) current = line;
+  }
+  return { done, total, current, complete: done === total };
 }
 
 /**

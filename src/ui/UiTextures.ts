@@ -1,5 +1,4 @@
 import type Phaser from "phaser";
-import { UI_ICON_SIZE } from "../render/uiScale";
 import { INDICATOR_FRAME_COUNT, INDICATOR_SIZE, SCREEN_FRAME_COUNT } from "./NetworkPanel";
 import { OBJECTIVE_FRAME_COUNT } from "./ObjectivePanel";
 import { TICK_FRAME_COUNT, TICK_SIZE } from "./radarDirections";
@@ -142,9 +141,6 @@ export const UI_TEXTURES: readonly UiTextureSpec[] = [
     sheet: { margin: 0, spacing: 0, count: OBJECTIVE_FRAME_COUNT },
   },
 ] as const;
-
-/** The size item icons are authored and drawn at. */
-export const UI_ICON_DISPLAY = UI_ICON_SIZE;
 
 /** Filled by {@link discoverUiTextures}; empty until it has run. */
 let present: readonly UiTextureSpec[] = [];

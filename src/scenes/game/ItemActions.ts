@@ -17,6 +17,7 @@ import { getAudio } from "../../systems/AudioDirector";
 import type { CollisionGrid } from "../../systems/CollisionGrid";
 import { FLAG_HOSTILE, type ConductState } from "../../systems/Conduct";
 import { len, withinOrEqual } from "../../systems/distance";
+import { readInventory } from "../../systems/GameState";
 import {
   BATTERY_ITEM,
   CHAFF_PACK_ITEM,
@@ -128,7 +129,7 @@ export class ItemActions {
     const request = registry.get("itemUseRequest") as string | undefined;
     if (request) {
       registry.remove("itemUseRequest");
-      const inv = (registry.get("inventory") as string[] | undefined) ?? [];
+      const inv = readInventory(registry);
       const idx = inv.indexOf(request);
       // The item is spent *after* its effect resolves, and only if the effect says
       // so — a Sack Lunch's first press opens it in the hand and keeps it. Every

@@ -331,18 +331,6 @@ export interface GameMap {
  */
 export const GENERATED_LEVELS = ["vent_core", "roof_array"] as const;
 
-/**
- * The level keys the shipped map and its generated additions use, in play order.
- * Documentation and a spell-check for the few switches that key off a deck — not
- * a constraint on what a map may name its levels.
- */
-export type KnownLevel =
-  | "main1"
-  | "duct1"
-  | "duct2"
-  | "main2"
-  | (typeof GENERATED_LEVELS)[number];
-
 // ---------------------------------------------------------------------------
 // What blocks
 // ---------------------------------------------------------------------------

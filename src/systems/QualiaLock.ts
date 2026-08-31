@@ -1,4 +1,5 @@
 import { len } from "./distance";
+import { clamp as clampTo } from "./math";
 /**
  * The Qualia Phase-Lock minigame — the diagnostic bypass a silicate server rack
  * demands when its internal processing stress spikes into Q>0 qualia feedback.
@@ -139,8 +140,9 @@ export function signalDrift(alignment: number): number {
   return 1 - alignment;
 }
 
-function clamp(v: number, [min, max]: Range): number {
-  return v < min ? min : v > max ? max : v;
+/** {@link clampTo}, taking a {@link Range} — the shape every call site here holds. */
+function clamp(v: number, range: Range): number {
+  return clampTo(v, ...range);
 }
 
 /** Builds a fresh round. `initialPlayer` seeds a deliberately-misaligned start. */

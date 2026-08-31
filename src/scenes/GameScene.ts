@@ -53,6 +53,7 @@ import { MemoryLayer } from "../ui/MemoryLayer";
 import { PlaneOverlay } from "../ui/PlaneOverlay";
 import { EntityShadows, type ShadowCaster } from "../ui/EntityShadows";
 import {
+  readInventory,
   resumeFromSave,
   setMode,
   SUSPENDED_KEY,
@@ -280,6 +281,8 @@ export class GameScene extends Phaser.Scene {
   });
   /** Refilled each frame and republished; see {@link RadarSnapshot}. */
   private readonly radarSnapshot = emptyRadarSnapshot();
+  /** Refilled each frame by {@link publishFrame}; see the note there. */
+  private readonly activeGuards: Enforcer[] = [];
   private lighting!: Lighting;
   private entityShadows!: EntityShadows;
   /**
@@ -1204,7 +1207,7 @@ export class GameScene extends Phaser.Scene {
       tileX: Math.floor(this.player.x / this.tileSize),
       tileY: Math.floor(this.player.y / this.tileSize),
       hp: this.player.hp,
-      inventory: (this.registry.get("inventory") as string[] | undefined) ?? [],
+      inventory: readInventory(this.registry),
       objectives: this.objectives,
       journal: this.journal,
       explored: (this.registry.get("explored") as ExploredState | undefined) ?? initialExplored(),
@@ -1309,7 +1312,7 @@ export class GameScene extends Phaser.Scene {
    * wiring in between.
    */
   private updateHoldUp(dt: number): void {
-    const inventory = (this.registry.get("inventory") as string[] | undefined) ?? [];
+    const inventory = readInventory(this.registry);
     const armed = canHoldUp(inventory);
     // `inputLocked` releases the hold rather than merely ignoring the key: the roof's
     // discharge is the run's authored ending, and a hostage must not stay frozen
@@ -1506,9 +1509,7 @@ export class GameScene extends Phaser.Scene {
     // meddling with anything drops that cover for a cooldown.
     // The Q0 cert (silencing VENT-4) is proof of compliance in good standing: with it
     // Rowan can stand down a *search* and pass as staff again, though never an ALERT.
-    const certified = ((this.registry.get("inventory") as string[] | undefined) ?? []).includes(
-      CERT_ITEM,
-    );
+    const certified = readInventory(this.registry).includes(CERT_ITEM);
     // Distance is sampled from the frame's actual displacement rather than from speed ×
     // dt, so being shoved by VENT-4 or held against a wall reports honestly.
     const movedTiles =
@@ -1916,7 +1917,7 @@ export class GameScene extends Phaser.Scene {
     const doorTileX = this.player.x / this.tileSize;
     const doorTileY = this.player.y / this.tileSize;
     // What he is carrying decides whether a keycard door reads SCAN or LOCKED.
-    const doorInventory = (this.registry.get("inventory") as string[] | undefined) ?? [];
+    const doorInventory = readInventory(this.registry);
     // After the player has moved this frame, so a carried body rides on his
     // current position rather than last frame's.
     this.updateCarry();
@@ -2060,7 +2061,11 @@ export class GameScene extends Phaser.Scene {
     // never drops when the player deals with somebody — which is the feedback
     // that tells him the stash worked. Filtered here rather than inside the two
     // systems: they are headless and have no business knowing what a locker is.
-    const active = this.guards.filter((g) => !g.isStashed);
+    // Refilled in place rather than filtered into a new array: this runs every
+    // frame, and the scratch is the same move `radarSnapshot` below already makes.
+    const active = this.activeGuards;
+    active.length = 0;
+    for (const g of this.guards) if (!g.isStashed) active.push(g);
     this.registry.set("alertNetwork", buildAlertNetworkSnapshot(active, this.sensors, this.alert));
     this.registry.set(
       "radar",
@@ -2160,7 +2165,7 @@ export class GameScene extends Phaser.Scene {
     const interactJust = Phaser.Input.Keyboard.JustDown(this.keys.interact) && !heldUp;
 
     // Read once for the frame: the encounter hold and the door loop below both want it.
-    const inventory = (this.registry.get("inventory") as string[] | undefined) ?? [];
+    const inventory = readInventory(this.registry);
 
     // --- The vent-core/vault/roof encounter, whichever is live (hold E) ---
     const encounter = this.encounters.handleInteract(
@@ -2374,7 +2379,7 @@ export class GameScene extends Phaser.Scene {
       !Number.isFinite(encounter.dist) &&
       interactJust &&
       this.items.staplerFieldReady &&
-      (((this.registry.get("inventory") as string[] | undefined) ?? []).includes(STAPLER_ITEM))
+      readInventory(this.registry).includes(STAPLER_ITEM)
     ) {
       this.items.fireStaplerField();
     }
@@ -2477,7 +2482,7 @@ export class GameScene extends Phaser.Scene {
       level: this.level,
       levelName: this.level.name,
       captureProgress: this.captureProgress,
-      inventory: (this.registry.get("inventory") as string[] | undefined) ?? [],
+      inventory: readInventory(this.registry),
     };
   }
 
@@ -2504,7 +2509,7 @@ export class GameScene extends Phaser.Scene {
    */
   private collectChest(chest: Chest): void {
     this.note("supply");
-    const inv = (this.registry.get("inventory") as string[] | undefined) ?? [];
+    const inv = readInventory(this.registry);
     const leftover: string[] = [];
     let held = countConsumables(inv);
     const hasRoom = (): boolean => held < MAX_CONSUMABLES;
@@ -2548,7 +2553,7 @@ export class GameScene extends Phaser.Scene {
    * shortcuts so the tester actually gets the item to trigger by hand.
    */
   private debugGiveItem(name: string): void {
-    const inv = (this.registry.get("inventory") as string[] | undefined) ?? [];
+    const inv = readInventory(this.registry);
     if (isConsumable(name) && countConsumables(inv) >= MAX_CONSUMABLES) return;
     inv.push(name);
     this.registry.set("inventory", inv);

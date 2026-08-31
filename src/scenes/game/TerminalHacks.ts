@@ -5,7 +5,7 @@ import type { Terminal } from "../../entities/Terminal";
 import { getAudio } from "../../systems/AudioDirector";
 import { len } from "../../systems/distance";
 import { LOG_ALPHA_ITEM, LOG_BETA_ITEM } from "../../systems/EntityStats";
-import { missionFeatures } from "../../systems/GameState";
+import { missionFeatures, readInventory } from "../../systems/GameState";
 import type { JournalEntryId } from "../../systems/Journal";
 import {
   isLogCacheType,
@@ -252,7 +252,7 @@ export class TerminalHacks {
           : undefined;
     if (item) {
       const registry = this.w.registry();
-      const inv = (registry.get("inventory") as string[] | undefined) ?? [];
+      const inv = readInventory(registry);
       if (!inv.includes(item)) {
         inv.push(item);
         registry.set("inventory", inv);

@@ -1295,9 +1295,17 @@ export function isKeyItem(name: string): boolean {
   return !isConsumable(name);
 }
 
-/** Total consumables currently held — the value checked against {@link MAX_CONSUMABLES}. */
+/**
+ * Total consumables currently held — the value checked against {@link MAX_CONSUMABLES}.
+ *
+ * Counted in a loop rather than with `filter(...).length`: the inventory HUD reads
+ * this every frame through `inventoryLines`, and an array allocated to carry one
+ * integer is the pattern `SmacCore`'s `SmacView` exists to have removed.
+ */
 export function countConsumables(items: string[]): number {
-  return items.filter(isConsumable).length;
+  let held = 0;
+  for (const item of items) if (isConsumable(item)) held++;
+  return held;
 }
 
 /** One held, distinct consumable type, with its position in the display list. */
@@ -1322,7 +1330,11 @@ export interface ConsumableSlot {
 export function consumableSlots(items: string[]): ConsumableSlot[] {
   const slots: ConsumableSlot[] = [];
   for (const name of CONSUMABLE_ORDER) {
-    const count = items.filter((i) => i === name).length;
+    // Counted in place. `UIScene.update` calls this every frame to normalise the
+    // item cursor, and a `filter(...).length` here threw away one array per
+    // consumable type per frame to arrive at a number.
+    let count = 0;
+    for (const item of items) if (item === name) count++;
     if (count === 0) continue;
     slots.push({ slot: slots.length + 1, name, count });
   }

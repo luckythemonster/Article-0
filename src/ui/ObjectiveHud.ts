@@ -1,8 +1,8 @@
 import Phaser from "phaser";
 import {
   objectiveLines,
-  objectiveSummary,
   objectiveSummaryText,
+  summaryFromLines,
   type MissionFeatures,
   type ObjectiveLine,
   type ObjectiveState,
@@ -144,7 +144,9 @@ export class ObjectiveHud {
     const lines = objectiveLines(state, currentLevel, features);
     const was = this.lastFull;
     const full = expandedText(lines);
-    const row = objectiveSummaryText(objectiveSummary(state, currentLevel, features));
+    // Reduced from the lines just built rather than re-deriving them: see
+    // `summaryFromLines`. This runs every frame.
+    const row = objectiveSummaryText(summaryFromLines(lines));
     this.complete = lines.every((l) => l.done);
 
     // Independent of whether the checklist text changed: the network can flip from

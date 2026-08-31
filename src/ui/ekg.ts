@@ -11,7 +11,7 @@
  * the complex shrinks, the colour crosses the same two thresholds the bar used — and
  * at zero it does the one thing a bar cannot, which is flatline.
  */
-
+import { clamp01 } from "../systems/math";
 import { UI, hex } from "./hudTheme";
 
 /**
@@ -70,12 +70,6 @@ const PULSE_DIM = 0.3;
 const PULSE_BRIGHT = 1;
 const PULSE_MS = 110;
 
-/** A finite `frac` in 0..1. Junk (NaN, ±Infinity) reads as flatlined, not as full. */
-function clampFrac(frac: number): number {
-  if (!Number.isFinite(frac)) return 0;
-  return frac < 0 ? 0 : frac > 1 ? 1 : frac;
-}
-
 /** A rounded bump of unit height, centred in `[from, to)` and zero outside it. */
 function bump(phase: number, from: number, to: number): number {
   if (phase < from || phase >= to) return 0;
@@ -121,7 +115,7 @@ export function pqrst(phase: number): number {
  * player needs to notice.
  */
 export function beatsPerMinute(frac: number): number {
-  const f = clampFrac(frac);
+  const f = clamp01(frac);
   // Rate rises as health falls, so both segments are written against "how far gone".
   if (f >= BPM_KNEE) {
     const gone = (1 - f) / (1 - BPM_KNEE); // 0 at full, 1 at the knee
@@ -134,13 +128,13 @@ export function beatsPerMinute(frac: number): number {
 
 /** How tall the complex draws. A failing heart makes a smaller one. */
 export function traceAmplitude(frac: number): number {
-  const f = clampFrac(frac);
+  const f = clamp01(frac);
   return AMPLITUDE_WEAK + (AMPLITUDE_STRONG - AMPLITUDE_WEAK) * f;
 }
 
 /** Trace colour, on the thresholds the fill bar used before it. */
 export function traceColor(frac: number): number {
-  const f = clampFrac(frac);
+  const f = clamp01(frac);
   return f > 0.5 ? COLOR_OK : f > 0.25 ? COLOR_WARN : COLOR_CRITICAL;
 }
 
@@ -224,7 +218,7 @@ export function advanceTrace(state: TraceState, dtSeconds: number, frac: number)
   const secondsPerColumn = 1 / SWEEP_SAMPLES_PER_SEC;
   const beatsPerColumn = (beatsPerMinute(frac) / 60) * secondsPerColumn;
   const amplitude = traceAmplitude(frac);
-  const flat = clampFrac(frac) <= 0;
+  const flat = clamp01(frac) <= 0;
 
   for (let i = 0; i < columns; i++) {
     state.beatPhase += beatsPerColumn;

@@ -99,7 +99,9 @@ export class Vent4Core {
   }
 
   get patchedCount(): number {
-    return this.patched.filter(Boolean).length;
+    let n = 0;
+    for (const patched of this.patched) if (patched) n++;
+    return n;
   }
 
   get jamLeft(): number {
