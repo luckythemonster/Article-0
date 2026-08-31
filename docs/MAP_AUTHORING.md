@@ -361,6 +361,20 @@ floors are linked as a cycle in map order — every floor gets one way in and on
 the car travels one way round. Leave the car's doors on the elevator board: made real they
 would seal the player inside a one-tile car.
 
+**The car's coordinate doesn't have to match across levels.** Name every floor's car
+`elevator<N>` — the same number on each floor, unlike the `hatch<N>`/`ladder<N>` pairing
+below — and they link on the number instead, wherever each level happens to place its car:
+
+```
+duct1       elevator1  (2,30)
+roof_array  elevator1  (20,4)     <- same shaft, no shared coordinate
+```
+
+Two floors sharing a number link as a pair; three or more cycle in map order, exactly like a
+coordinate-keyed shaft. The number beats coordinate matching, and only counts on a tile
+filed on an `elevator*` board — one filed elsewhere doesn't get the elevator's `roof_access`
+trigger and is left alone.
+
 #### If a link is off by a tile
 
 Two ends that both failed to find an exact partner, on different levels, axis-aligned and
