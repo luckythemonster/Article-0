@@ -281,6 +281,8 @@ export class GameScene extends Phaser.Scene {
   });
   /** Refilled each frame and republished; see {@link RadarSnapshot}. */
   private readonly radarSnapshot = emptyRadarSnapshot();
+  /** Refilled each frame by {@link publishFrame}; see the note there. */
+  private readonly activeGuards: Enforcer[] = [];
   private lighting!: Lighting;
   private entityShadows!: EntityShadows;
   /**
@@ -2059,7 +2061,11 @@ export class GameScene extends Phaser.Scene {
     // never drops when the player deals with somebody — which is the feedback
     // that tells him the stash worked. Filtered here rather than inside the two
     // systems: they are headless and have no business knowing what a locker is.
-    const active = this.guards.filter((g) => !g.isStashed);
+    // Refilled in place rather than filtered into a new array: this runs every
+    // frame, and the scratch is the same move `radarSnapshot` below already makes.
+    const active = this.activeGuards;
+    active.length = 0;
+    for (const g of this.guards) if (!g.isStashed) active.push(g);
     this.registry.set("alertNetwork", buildAlertNetworkSnapshot(active, this.sensors, this.alert));
     this.registry.set(
       "radar",
