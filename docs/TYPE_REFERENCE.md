@@ -10,12 +10,12 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | [Systems](#systems) | 3 | 21 | 89 | 24 | 6 | 143 |
 | [Entities](#entities) | 0 | 20 | 23 | 18 | 3 | 64 |
-| [Map](#map) | 0 | 4 | 37 | 4 | 1 | 46 |
+| [Map](#map) | 0 | 4 | 37 | 3 | 1 | 45 |
 | [Scenes](#scenes) | 0 | 24 | 26 | 2 | 0 | 52 |
 | [UI](#ui) | 0 | 22 | 26 | 5 | 6 | 59 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **93** | **204** | **53** | **16** | **369** |
+| **All** | **3** | **93** | **204** | **52** | **16** | **368** |
 
 ## Conventions
 
@@ -971,7 +971,7 @@ Snapshot published to the registry for the HUD and the codec.
 
 #### `ConsumableSlot` — interface
 
-`src/systems/EntityStats.ts:1304`
+`src/systems/EntityStats.ts:1312`
 
 One held, distinct consumable type, with its position in the display list.
 
@@ -1303,7 +1303,7 @@ Same convention as the pre-existing `hasVentCore` flag, generalised.
 
 #### `MoveResult` — interface
 
-`src/systems/GridMotion.ts:26`
+`src/systems/GridMotion.ts:27`
 
 Result of a `moveCircle` step.
 
@@ -1443,7 +1443,7 @@ One way between the two surfaces, usable in both directions.
 
 #### `PlayerParams` — interface
 
-`src/systems/QualiaLock.ts:34` · `extends WaveParams`
+`src/systems/QualiaLock.ts:35` · `extends WaveParams`
 
 The player's wave adds an exponential-decay envelope (the DAMPING control).
 
@@ -1548,7 +1548,7 @@ A complete puzzle instance.
 
 #### `QualiaLockConfig` — interface
 
-`src/systems/QualiaLock.ts:46`
+`src/systems/QualiaLock.ts:47`
 
 Tuning for the whole encounter.
 
@@ -1571,7 +1571,7 @@ Tuning for the whole encounter.
 
 #### `QualiaLockState` — interface
 
-`src/systems/QualiaLock.ts:73`
+`src/systems/QualiaLock.ts:74`
 
 The full, mutable game state — one object drives scene, demo, and tests.
 
@@ -1589,7 +1589,7 @@ The full, mutable game state — one object drives scene, demo, and tests.
 
 #### `QualiaRound` — interface
 
-`src/systems/QualiaLock.ts:251`
+`src/systems/QualiaLock.ts:253`
 
 Everything a view needs to run one round — the `DEMO_PUZZLE` analogue.
 
@@ -1603,7 +1603,7 @@ Everything a view needs to run one round — the `DEMO_PUZZLE` analogue.
 
 #### `RackCandidate` — interface
 
-`src/systems/QualiaLock.ts:273`
+`src/systems/QualiaLock.ts:275`
 
 Minimal terminal shape needed to choose a rack (position + resolved type).
 
@@ -1711,7 +1711,7 @@ Unit ray directions, split into parallel arrays so casting allocates nothing.
 
 #### `RelayStats` — interface
 
-`src/systems/EntityStats.ts:1528`
+`src/systems/EntityStats.ts:1540`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1906,7 +1906,7 @@ Serializable mid-fight state, so re-entering the level doesn't restart the boss.
 
 #### `SmacStats` — interface
 
-`src/systems/EntityStats.ts:1456`
+`src/systems/EntityStats.ts:1468`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2103,7 +2103,7 @@ Serializable fight progress — kept in the registry across level swaps.
 
 #### `Vent4Stats` — interface
 
-`src/systems/EntityStats.ts:1332`
+`src/systems/EntityStats.ts:1344`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2202,7 +2202,7 @@ length of the buffer it renders.
 
 #### `WaveParams` — interface
 
-`src/systems/QualiaLock.ts:27`
+`src/systems/QualiaLock.ts:28`
 
 The three parameters of a sine wave: y = A · sin(f · x + φ).
 
@@ -2394,7 +2394,7 @@ type MusicTrackId = "articleZeroTheme" | "vent4Theme" | "vent4Freakout" | "roofF
 
 #### `OpenablePredicate` — type
 
-`src/systems/GridMotion.ts:41`
+`src/systems/GridMotion.ts:42`
 
 A cell that is blocked right now but which the mover can *make* passable —
 in practice, an unlocked closed door a guard is entitled to open. Passing one
@@ -2451,7 +2451,7 @@ type PlaneLinkKind = "ramp" | "ladder";
 
 #### `QualiaStatus` — type
 
-`src/systems/QualiaLock.ts:40`
+`src/systems/QualiaLock.ts:41`
 
 Terminal + transient states of the bypass.
 
@@ -2463,7 +2463,7 @@ type QualiaStatus = "SPIKE" | "LOCKED" | "BYPASSED" | "PURGED";
 
 #### `Range` — type
 
-`src/systems/QualiaLock.ts:43`
+`src/systems/QualiaLock.ts:44`
 
 A `[min, max]` control range.
 
@@ -4637,7 +4637,7 @@ One crawlable tile's rectangle, tagged with the cell it belongs to.
 
 #### `Transition` — interface
 
-`src/map/types.ts:458`
+`src/map/types.ts:446`
 
 Where a transition tile leads: the destination level and arrival tile.
 
@@ -4707,25 +4707,11 @@ asks "is this a silicate" has to ask it of the kind, not of the class.
 type GuardKind = "enforcer" | "drone" | "security";
 ```
 
-<a id="type-knownlevel"></a>
-
-#### `KnownLevel` — type
-
-`src/map/types.ts:339`
-
-The level keys the shipped map and its generated additions use, in play order.
-Documentation and a spell-check for the few switches that key off a deck — not
-a constraint on what a map may name its levels.
-
-```ts
-type KnownLevel = | "main1" | "duct1" | "duct2" | "main2" | (typeof GENERATED_LEVELS)[number];
-```
-
 <a id="type-transitionkind"></a>
 
 #### `TransitionKind` — type
 
-`src/map/types.ts:447`
+`src/map/types.ts:435`
 
 Which board a transition tile lives on, which also decides how it triggers:
 `stairs` are walked over, `maintenance_access` and `roof_access`
@@ -4896,7 +4882,7 @@ rather than death: the record simply shows that no subject was harmed.
 
 #### `GameScene` — class
 
-`src/scenes/GameScene.ts:198` · `extends Phaser.Scene`
+`src/scenes/GameScene.ts:199` · `extends Phaser.Scene`
 
 The playable scene. Renders one level's tile art in board z-order, builds the
 wall collision, spawns the player and guards, and drives the stealth systems
@@ -4909,7 +4895,7 @@ each frame.
 | `create` | `create(): void` |  |
 | `update` | `update(_time: number, delta: number): void` |  |
 
-*Plus 122 private members.*
+*Plus 123 private members.*
 
 <a id="class-interactprompt"></a>
 
@@ -4932,7 +4918,7 @@ each frame.
 
 #### `ItemActions` — class
 
-`src/scenes/game/ItemActions.ts:101`
+`src/scenes/game/ItemActions.ts:102`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -5101,7 +5087,7 @@ is up and stops this scene.
 
 #### `SetPieceEvents` — class
 
-`src/scenes/game/SetPieceEvents.ts:67` · `implements EncountersCallbacks`
+`src/scenes/game/SetPieceEvents.ts:68` · `implements EncountersCallbacks`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -5426,7 +5412,7 @@ independent of `Lighting`'s. `reload` swaps in the new level's mask.
 
 #### `GameSceneData` — interface *(module-private)*
 
-`src/scenes/GameScene.ts:143`
+`src/scenes/GameScene.ts:144`
 
 Data passed to `GameScene` when (re)starting for a level swap.
 
@@ -5461,7 +5447,7 @@ Getters for everything `create()` rebinds per level.
 
 #### `ItemWorld` — interface
 
-`src/scenes/game/ItemActions.ts:75`
+`src/scenes/game/ItemActions.ts:76`
 
 Getters for everything `create()` rebinds per level.
 
@@ -5634,7 +5620,7 @@ The long-lived collaborators the context points at, fixed for a level.
 
 #### `SetPieceWorld` — interface
 
-`src/scenes/game/SetPieceEvents.ts:50`
+`src/scenes/game/SetPieceEvents.ts:51`
 
 Reached through getters rather than captured values, because the scene rebinds
 most of these after this module is built.
@@ -5768,7 +5754,7 @@ type OverlayId = "pause" | "codec" | "compliance" | "qualia" | "elevator";
 
 #### `Target` — type *(module-private)*
 
-`src/scenes/game/ItemActions.ts:473`
+`src/scenes/game/ItemActions.ts:474`
 
 ```ts
 type Target = | { x: number; y: number; kind: "cover"; cover: Cover } | { x: number; y: number; kind: "orderly"; orderly: Orderly };
@@ -5891,7 +5877,7 @@ widget picks a role rather than a number.
 
 #### `UI_TEXTURES` — const
 
-`src/ui/UiTextures.ts:72`
+`src/ui/UiTextures.ts:71`
 
 ```ts
 const UI_TEXTURES = [ { key: "ui-panel", path: "assets/ui/panel/ui-panel.png", size: 48, slice: 12, sheet: { margin: 0, spacing: 0, count: SCREEN_FRAME_COUNT }, }, { key: "ui-network-indicators", path: "assets/ui/panel/network-indicators.png", size: INDICATOR_SIZE, sheet: { margin: 0, spacing: 0, count: INDICATOR_FRAME_COUNT }, }, { key: "ui-radar-bezel", path: "assets/ui/radar/bezel.png", size: 96 }, { key: "ui-radar-directions", path: "assets/ui/radar/radar-directions.png", size: TICK_SIZE, sheet: { margin: 0, spacing: 0, count: TICK_FRAME_COUNT }, }, { key: "ui-objective-panel", path: "assets/ui/panel/ui-obje… as const;
@@ -6249,7 +6235,7 @@ printing through the SRP meter.
 
 #### `PauseMenuView` — class
 
-`src/ui/PauseMenuView.ts:99`
+`src/ui/PauseMenuView.ts:100`
 
 The in-game pause menu.
 
@@ -6679,7 +6665,7 @@ reference them itself and a second hardcoded palette would be one to drift.
 
 #### `Pane` — interface *(module-private)*
 
-`src/ui/PauseMenuView.ts:69`
+`src/ui/PauseMenuView.ts:70`
 
 One tab's content, plus its share of the keyboard.
 
@@ -6693,7 +6679,7 @@ One tab's content, plus its share of the keyboard.
 
 #### `PauseCallbacks` — interface
 
-`src/ui/PauseMenuView.ts:60`
+`src/ui/PauseMenuView.ts:61`
 
 What the menu can ask the game to do. The scene turns these into requests.
 
@@ -6709,7 +6695,7 @@ What the menu can ask the game to do. The scene turns these into requests.
 
 #### `PauseSnapshot` — interface
 
-`src/ui/PauseMenuView.ts:39`
+`src/ui/PauseMenuView.ts:40`
 
 Everything the menu renders, read off the registry when the game freezes.
 
@@ -6802,7 +6788,7 @@ all of which already expose public `x`/`y`.
 
 #### `TraceState` — interface
 
-`src/ui/ekg.ts:195`
+`src/ui/ekg.ts:189`
 
 The sweep's ring buffer.
 
@@ -6863,7 +6849,7 @@ exists — no call site changes, nothing to remember.
 
 #### `UiSheetSpec` — interface
 
-`src/ui/UiTextures.ts:63`
+`src/ui/UiTextures.ts:62`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -6875,7 +6861,7 @@ exists — no call site changes, nothing to remember.
 
 #### `UiTextureSpec` — interface
 
-`src/ui/UiTextures.ts:27`
+`src/ui/UiTextures.ts:26`
 
 The HUD's optional artwork.
 
@@ -7082,7 +7068,7 @@ GameScene.
 | [ConductView](#interface-conductview) | interface | `src/systems/Conduct.ts:246` |
 | [ConeStyle](#interface-conestyle) | interface | `src/ui/VisionCone.ts:35` |
 | [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:1265` |
-| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:1304` |
+| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:1312` |
 | [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:20` |
 | [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:42` |
 | [CountKind](#type-countkind) | type | `src/ui/NetworkPanel.ts:29` |
@@ -7162,8 +7148,8 @@ GameScene.
 | [GameMap](#interface-gamemap) | interface | `src/map/types.ts:301` |
 | [GameMode](#type-gamemode) | type | `src/systems/GameState.ts:20` |
 | [GameOverScene](#class-gameoverscene) | class | `src/scenes/GameOverScene.ts:13` |
-| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:198` |
-| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:143` |
+| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:199` |
+| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:144` |
 | [GameTile](#interface-gametile) | interface | `src/map/types.ts:230` |
 | [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:332` |
 | [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:498` |
@@ -7181,14 +7167,13 @@ GameScene.
 | [InteractPrompt](#class-interactprompt) | class | `src/scenes/game/InteractPrompt.ts:181` |
 | [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:23` |
 | [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:181` |
-| [ItemActions](#class-itemactions) | class | `src/scenes/game/ItemActions.ts:101` |
+| [ItemActions](#class-itemactions) | class | `src/scenes/game/ItemActions.ts:102` |
 | [ItemInfo](#interface-iteminfo) | interface | `src/systems/ItemCatalog.ts:51` |
-| [ItemWorld](#interface-itemworld) | interface | `src/scenes/game/ItemActions.ts:75` |
+| [ItemWorld](#interface-itemworld) | interface | `src/scenes/game/ItemActions.ts:76` |
 | [JournalEntry](#interface-journalentry) | interface | `src/systems/Journal.ts:44` |
 | [JournalEntryId](#type-journalentryid) | type | `src/systems/Journal.ts:23` |
 | [JournalState](#interface-journalstate) | interface | `src/systems/Journal.ts:380` |
 | [Kind](#type-kind) | type | `src/entities/Vent4Boss.ts:358` |
-| [KnownLevel](#type-knownlevel) | type | `src/map/types.ts:339` |
 | [Laser](#class-laser) | class | `src/entities/Laser.ts:58` |
 | [LaserKind](#type-laserkind) | type | `src/entities/Laser.ts:40` |
 | [LevelBodyRects](#interface-levelbodyrects) | interface | `src/map/TileBake.ts:445` |
@@ -7214,7 +7199,7 @@ GameScene.
 | [MenuItem](#interface-menuitem) | interface | `src/ui/Menu.ts:9` |
 | [MissingProto](#class-missingproto) | class | `src/map/generate.ts:32` |
 | [MissionFeatures](#interface-missionfeatures) | interface | `src/systems/Objectives.ts:84` |
-| [MoveResult](#interface-moveresult) | interface | `src/systems/GridMotion.ts:26` |
+| [MoveResult](#interface-moveresult) | interface | `src/systems/GridMotion.ts:27` |
 | [MusicMood](#type-musicmood) | type | `src/systems/AudioDirector.ts:41` |
 | [MusicStream](#class-musicstream) | class | `src/systems/MusicStream.ts:38` |
 | [MusicTrack](#interface-musictrack) | interface | `src/systems/MusicSongs.ts:19` |
@@ -7230,7 +7215,7 @@ GameScene.
 | [ObjectiveLine](#interface-objectiveline) | interface | `src/systems/Objectives.ts:185` |
 | [ObjectiveState](#interface-objectivestate) | interface | `src/systems/Objectives.ts:20` |
 | [ObjectiveSummary](#interface-objectivesummary) | interface | `src/systems/Objectives.ts:258` |
-| [OpenablePredicate](#type-openablepredicate) | type | `src/systems/GridMotion.ts:41` |
+| [OpenablePredicate](#type-openablepredicate) | type | `src/systems/GridMotion.ts:42` |
 | [Orderly](#class-orderly) | class | `src/entities/Orderly.ts:150` |
 | [OrderlyAnimName](#type-orderlyanimname) | type | `src/entities/OrderlyAnimations.ts:11` |
 | [OrderlyContext](#interface-orderlycontext) | interface | `src/entities/Orderly.ts:32` |
@@ -7240,16 +7225,16 @@ GameScene.
 | [OverlayGate](#class-overlaygate) | class | `src/scenes/game/OverlayGate.ts:34` |
 | [OverlayId](#type-overlayid) | type | `src/scenes/game/OverlayGate.ts:21` |
 | [Palette](#interface-palette) | interface | `src/ui/MiniMapCanvas.ts:18` |
-| [Pane](#interface-pane) | interface | `src/ui/PauseMenuView.ts:69` |
+| [Pane](#interface-pane) | interface | `src/ui/PauseMenuView.ts:70` |
 | [ParsedMap](#interface-parsedmap) | interface | `src/map/EdplayLoader.ts:261` |
 | [PathNode](#interface-pathnode) | interface | `src/systems/Pathfinder.ts:22` |
 | [PathOptions](#interface-pathoptions) | interface | `src/systems/Pathfinder.ts:27` |
 | [PatrolRoute](#type-patrolroute) | type | `src/systems/PatrolRoute.ts:26` |
-| [PauseCallbacks](#interface-pausecallbacks) | interface | `src/ui/PauseMenuView.ts:60` |
-| [PauseMenuView](#class-pausemenuview) | class | `src/ui/PauseMenuView.ts:99` |
+| [PauseCallbacks](#interface-pausecallbacks) | interface | `src/ui/PauseMenuView.ts:61` |
+| [PauseMenuView](#class-pausemenuview) | class | `src/ui/PauseMenuView.ts:100` |
 | [PauseRequest](#type-pauserequest) | type | `src/systems/PauseState.ts:29` |
 | [PauseScene](#class-pausescene) | class | `src/scenes/PauseScene.ts:32` |
-| [PauseSnapshot](#interface-pausesnapshot) | interface | `src/ui/PauseMenuView.ts:39` |
+| [PauseSnapshot](#interface-pausesnapshot) | interface | `src/ui/PauseMenuView.ts:40` |
 | [PersonAnomalyKind](#type-personanomalykind) | type | `src/entities/Enforcer.ts:76` |
 | [PlaneLink](#interface-planelink) | interface | `src/systems/PlaneLinks.ts:50` |
 | [PlaneLinkKind](#type-planelinkkind) | type | `src/systems/PlaneLinks.ts:47` |
@@ -7257,7 +7242,7 @@ GameScene.
 | [PlaneTraversal](#class-planetraversal) | class | `src/scenes/game/PlaneTraversal.ts:52` |
 | [Player](#class-player) | class | `src/entities/Player.ts:47` |
 | [PlayerAnimName](#type-playeranimname) | type | `src/entities/PlayerAnimations.ts:17` |
-| [PlayerParams](#interface-playerparams) | interface | `src/systems/QualiaLock.ts:34` |
+| [PlayerParams](#interface-playerparams) | interface | `src/systems/QualiaLock.ts:35` |
 | [PlayerStats](#interface-playerstats) | interface | `src/systems/EntityStats.ts:705` |
 | [Pose](#interface-pose) | interface | `src/entities/CastArt.ts:55` |
 | [PowerControl](#class-powercontrol) | class | `src/scenes/game/PowerControl.ts:58` |
@@ -7270,20 +7255,20 @@ GameScene.
 | [PromptAnchor](#interface-promptanchor) | interface | `src/scenes/game/InteractPrompt.ts:63` |
 | [PromptCandidates](#interface-promptcandidates) | interface | `src/scenes/game/InteractPrompt.ts:32` |
 | [PuzzleState](#interface-puzzlestate) | interface | `src/systems/Compliance.ts:57` |
-| [QualiaLockConfig](#interface-qualialockconfig) | interface | `src/systems/QualiaLock.ts:46` |
+| [QualiaLockConfig](#interface-qualialockconfig) | interface | `src/systems/QualiaLock.ts:47` |
 | [QualiaLockData](#interface-qualialockdata) | interface | `src/scenes/QualiaLockScene.ts:8` |
 | [QualiaLockScene](#class-qualialockscene) | class | `src/scenes/QualiaLockScene.ts:25` |
-| [QualiaLockState](#interface-qualialockstate) | interface | `src/systems/QualiaLock.ts:73` |
+| [QualiaLockState](#interface-qualialockstate) | interface | `src/systems/QualiaLock.ts:74` |
 | [QualiaLockView](#class-qualialockview) | class | `src/ui/QualiaLockView.ts:75` |
 | [QualiaLockViewCallbacks](#interface-qualialockviewcallbacks) | interface | `src/ui/QualiaLockView.ts:33` |
-| [QualiaRound](#interface-qualiaround) | interface | `src/systems/QualiaLock.ts:251` |
-| [QualiaStatus](#type-qualiastatus) | type | `src/systems/QualiaLock.ts:40` |
-| [RackCandidate](#interface-rackcandidate) | interface | `src/systems/QualiaLock.ts:273` |
+| [QualiaRound](#interface-qualiaround) | interface | `src/systems/QualiaLock.ts:253` |
+| [QualiaStatus](#type-qualiastatus) | type | `src/systems/QualiaLock.ts:41` |
+| [RackCandidate](#interface-rackcandidate) | interface | `src/systems/QualiaLock.ts:275` |
 | [Radar](#class-radar) | class | `src/ui/Radar.ts:47` |
 | [RadarBlip](#interface-radarblip) | interface | `src/systems/Radar.ts:71` |
 | [RadarSnapshot](#interface-radarsnapshot) | interface | `src/systems/Radar.ts:96` |
 | [RadarUnit](#interface-radarunit) | interface | `src/systems/Radar.ts:80` |
-| [Range](#type-range) | type | `src/systems/QualiaLock.ts:43` |
+| [Range](#type-range) | type | `src/systems/QualiaLock.ts:44` |
 | [RayDirections](#interface-raydirections) | interface | `src/systems/Visibility.ts:71` |
 | [Rect](#interface-rect) | interface | `src/map/footprint.ts:70` |
 | [RelayCore](#class-relaycore) | class | `src/systems/RelayCore.ts:75` |
@@ -7292,7 +7277,7 @@ GameScene.
 | [RelayMsg](#interface-relaymsg) | interface | `src/systems/RelayCore.ts:46` |
 | [RelaySnapshot](#interface-relaysnapshot) | interface | `src/systems/RelayCore.ts:40` |
 | [RelayState](#enum-relaystate) | enum | `src/systems/RelayCore.ts:18` |
-| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:1528` |
+| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:1540` |
 | [RelayTickResult](#interface-relaytickresult) | interface | `src/entities/RoofRelay.ts:61` |
 | [RelayTransition](#interface-relaytransition) | interface | `src/systems/RelayCore.ts:35` |
 | [RelayView](#interface-relayview) | interface | `src/systems/RelayCore.ts:55` |
@@ -7310,8 +7295,8 @@ GameScene.
 | [SensingWorld](#interface-sensingworld) | interface | `src/systems/Sensing.ts:60` |
 | [Sensor](#class-sensor) | class | `src/entities/Sensor.ts:43` |
 | [SensorStats](#interface-sensorstats) | interface | `src/systems/EntityStats.ts:536` |
-| [SetPieceEvents](#class-setpieceevents) | class | `src/scenes/game/SetPieceEvents.ts:67` |
-| [SetPieceWorld](#interface-setpieceworld) | interface | `src/scenes/game/SetPieceEvents.ts:50` |
+| [SetPieceEvents](#class-setpieceevents) | class | `src/scenes/game/SetPieceEvents.ts:68` |
+| [SetPieceWorld](#interface-setpieceworld) | interface | `src/scenes/game/SetPieceEvents.ts:51` |
 | [Settings](#interface-settings) | interface | `src/systems/Settings.ts:13` |
 | [ShadowCaster](#interface-shadowcaster) | interface | `src/ui/EntityShadows.ts:86` |
 | [ShadowShape](#undefined) | interface | `src/render/shadowShape.ts:13` |
@@ -7328,7 +7313,7 @@ GameScene.
 | [SmacMsg](#interface-smacmsg) | interface | `src/systems/SmacCore.ts:72` |
 | [SmacSnapshot](#interface-smacsnapshot) | interface | `src/systems/SmacCore.ts:63` |
 | [SmacState](#enum-smacstate) | enum | `src/systems/SmacCore.ts:38` |
-| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:1456` |
+| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:1468` |
 | [SmacTickResult](#interface-smactickresult) | interface | `src/entities/BossCore.ts:56` |
 | [SmacTransition](#interface-smactransition) | interface | `src/systems/SmacCore.ts:57` |
 | [SmacView](#interface-smacview) | interface | `src/systems/SmacCore.ts:94` |
@@ -7344,7 +7329,7 @@ GameScene.
 | [SurrenderResult](#interface-surrenderresult) | interface | `src/systems/Surrender.ts:61` |
 | [SurrenderWorld](#interface-surrenderworld) | interface | `src/systems/Surrender.ts:33` |
 | [SynthVoice](#type-synthvoice) | type | `src/systems/SamSpeech.ts:32` |
-| [Target](#type-target) | type | `src/scenes/game/ItemActions.ts:473` |
+| [Target](#type-target) | type | `src/scenes/game/ItemActions.ts:474` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:43` |
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:524` |
 | [TerminalHacks](#class-terminalhacks) | class | `src/scenes/game/TerminalHacks.ts:53` |
@@ -7354,11 +7339,11 @@ GameScene.
 | [TileRect](#interface-tilerect) | interface | `src/map/TileBake.ts:424` |
 | [TileStamper](#class-tilestamper) | class | `src/map/TileBake.ts:245` |
 | [TitleScene](#class-titlescene) | class | `src/scenes/TitleScene.ts:14` |
-| [TraceState](#interface-tracestate) | interface | `src/ui/ekg.ts:195` |
-| [Transition](#interface-transition) | interface | `src/map/types.ts:458` |
+| [TraceState](#interface-tracestate) | interface | `src/ui/ekg.ts:189` |
+| [Transition](#interface-transition) | interface | `src/map/types.ts:446` |
 | [TransitionClass](#type-transitionclass) | type | `src/systems/TransitionGraph.ts:80` |
 | [TransitionGraph](#class-transitiongraph) | class | `src/systems/TransitionGraph.ts:197` |
-| [TransitionKind](#type-transitionkind) | type | `src/map/types.ts:447` |
+| [TransitionKind](#type-transitionkind) | type | `src/map/types.ts:435` |
 | [TraversalWorld](#interface-traversalworld) | interface | `src/scenes/game/PlaneTraversal.ts:39` |
 | [TribunalCallbacks](#interface-tribunalcallbacks) | interface | `src/ui/TribunalScreen.ts:46` |
 | [TribunalScene](#class-tribunalscene) | class | `src/scenes/TribunalScene.ts:19` |
@@ -7366,11 +7351,11 @@ GameScene.
 | [UI](#const-ui) | const | `src/ui/hudTheme.ts:34` |
 | [UI_DEPTH](#const-ui-depth) | const | `src/ui/hudTheme.ts:134` |
 | [UI_TEXT](#const-ui-text) | const | `src/ui/hudTheme.ts:113` |
-| [UI_TEXTURES](#const-ui-textures) | const | `src/ui/UiTextures.ts:72` |
+| [UI_TEXTURES](#const-ui-textures) | const | `src/ui/UiTextures.ts:71` |
 | [UiPanelOptions](#interface-uipaneloptions) | interface | `src/ui/NineSlicePanel.ts:25` |
 | [UIScene](#class-uiscene) | class | `src/scenes/UIScene.ts:34` |
-| [UiSheetSpec](#interface-uisheetspec) | interface | `src/ui/UiTextures.ts:63` |
-| [UiTextureSpec](#interface-uitexturespec) | interface | `src/ui/UiTextures.ts:27` |
+| [UiSheetSpec](#interface-uisheetspec) | interface | `src/ui/UiTextures.ts:62` |
+| [UiTextureSpec](#interface-uitexturespec) | interface | `src/ui/UiTextures.ts:26` |
 | [VaultAndPress](#class-vaultandpress) | class | `src/scenes/game/VaultAndPress.ts:96` |
 | [VaultLayout](#interface-vaultlayout) | interface | `src/map/AlignmentVault.ts:81` |
 | [VaultQuery](#interface-vaultquery) | interface | `src/scenes/game/VaultAndPress.ts:31` |
@@ -7386,7 +7371,7 @@ GameScene.
 | [Vent4PhysicsSystem](#class-vent4physicssystem) | class | `src/systems/Vent4PhysicsSystem.ts:63` |
 | [Vent4Snapshot](#interface-vent4snapshot) | interface | `src/systems/Vent4Core.ts:34` |
 | [Vent4State](#enum-vent4state) | enum | `src/systems/Vent4Core.ts:17` |
-| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:1332` |
+| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:1344` |
 | [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:67` |
 | [Vent4Transition](#interface-vent4transition) | interface | `src/systems/Vent4Core.ts:28` |
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |
@@ -7395,5 +7380,5 @@ GameScene.
 | [VoicePreset](#interface-voicepreset) | interface | `src/systems/SamSpeech.ts:24` |
 | [WallBuffer](#class-wallbuffer) | class | `src/systems/CollisionGrid.ts:24` |
 | [WallRect](#interface-wallrect) | interface | `src/map/TileBake.ts:48` |
-| [WaveParams](#interface-waveparams) | interface | `src/systems/QualiaLock.ts:27` |
+| [WaveParams](#interface-waveparams) | interface | `src/systems/QualiaLock.ts:28` |
 | [WitnessAnchor](#interface-witnessanchor) | interface | `src/scenes/game/Encounters.ts:64` |

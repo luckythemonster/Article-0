@@ -80,8 +80,22 @@ export function setMode(registry: Phaser.Data.DataManager, mode: GameMode): void
   registry.set(MODE_KEY, mode);
 }
 
-export function getMode(registry: Phaser.Data.DataManager): GameMode | undefined {
-  return registry.get(MODE_KEY) as GameMode | undefined;
+/**
+ * The run's held items.
+ *
+ * Every caller wants the same two things — the array out of the registry, and a
+ * usable value when the key is absent — so they read it through one function
+ * rather than each spelling out the cast and the fallback (this was thirteen
+ * copies of one expression).
+ *
+ * The fallback is a **fresh** array rather than a shared empty constant: the
+ * inventory is mutated in place (see `resetRun`, and `GameScene.collectChest`,
+ * which pushes straight into what it reads back), so a shared constant would be
+ * filled in by the first caller to find the registry empty and handed out already
+ * populated to the next.
+ */
+export function readInventory(registry: Phaser.Data.DataManager): string[] {
+  return (registry.get("inventory") as string[] | undefined) ?? [];
 }
 
 /** True while an overlay owns the screen and gameplay input must not be read. */
