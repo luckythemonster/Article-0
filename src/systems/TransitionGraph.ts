@@ -47,6 +47,17 @@ const VERTICAL_REF = /^(access_hatch|hatch|ladder|stairs|elevator)/i;
 const NUMBERED_ACCESS = /^(hatch|ladder)(\d+)$/i;
 
 /**
+ * Refs that name one floor of a numbered elevator shaft, e.g. `elevator1`. A
+ * dedicated regex and number-keyed group rather than folding into
+ * {@link NUMBERED_ACCESS}: this file's own invariant is that two ends only
+ * ever pair inside the same class (see {@link TransitionClass}), and sharing
+ * one namespace would let a stray reused digit (`hatch7` / `elevator7`)
+ * cross-link a hatch to an elevator car. A plain unnumbered `elevator` ref —
+ * the shipped map's convention — has no digits and never matches.
+ */
+const NUMBERED_ELEVATOR = /^elevator(\d+)$/i;
+
+/**
  * How far apart the two ends of a link may drift and still be read as one link.
  *
  * One tile, axis-aligned, and only between two ends that have no exact partner
@@ -212,6 +223,7 @@ export class TransitionGraph {
     this.linkShafts(ends, levelOrder);
     this.linkSlippedPairs(orphans);
     this.linkNumberedPairs(map);
+    this.linkNumberedElevators(map, levelOrder);
   }
 
   /**
@@ -238,19 +250,31 @@ export class TransitionGraph {
       const floors = levelOrder
         .map((name) => stops.find((s) => s.level === name))
         .filter((s): s is AccessEnd => s !== undefined);
+      // A coordinate-keyed pair (2 floors) is already handled by the main
+      // per-end best-match loop above; only 3+ makes this a shaft.
       if (floors.length < 3) continue;
-      floors.forEach((from, i) => {
-        const to = floors[(i + 1) % floors.length];
-        this.byLevel
-          .get(from.level)!
-          .set(key(from.x, from.y), {
-            toLevel: to.level,
-            toX: to.x,
-            toY: to.y,
-            kind: from.kind,
-          });
-      });
+      this.linkCycle(floors);
     }
+  }
+
+  /**
+   * Links a set of floors — one end each, already ordered — as a one-way
+   * cycle: every floor gets one way in and one way out, and the car travels
+   * one way round. Shared by {@link linkShafts} (floors sharing a coordinate)
+   * and {@link linkNumberedElevators} (floors sharing a declared number).
+   */
+  private linkCycle(floors: AccessEnd[]): void {
+    floors.forEach((from, i) => {
+      const to = floors[(i + 1) % floors.length];
+      this.byLevel
+        .get(from.level)!
+        .set(key(from.x, from.y), {
+          toLevel: to.level,
+          toX: to.x,
+          toY: to.y,
+          kind: from.kind,
+        });
+    });
   }
 
   /**
@@ -343,6 +367,53 @@ export class TransitionGraph {
       this.byLevel
         .get(b.level)
         ?.set(key(b.x, b.y), { toLevel: a.level, toX: a.x, toY: a.y, kind: b.kind });
+    }
+  }
+
+  /**
+   * Numbered elevator shafts — every floor's car tile shares one ref,
+   * `elevator<N>`, and links into a pair or a cycle regardless of coordinate.
+   *
+   * This is the elevator counterpart to {@link linkNumberedPairs}, but keyed
+   * by the *shaft* model rather than the hatch/ladder *pair* one: a shaft's
+   * floors all declare the same number (mirroring how a coordinate-keyed
+   * shaft has all its floors share one coordinate today) rather than two
+   * different prefixes, so it generalizes from 2 floors to N without a
+   * separate rule for each.
+   *
+   * Only tiles on a board {@link transitionClassOf} already calls
+   * `"elevator"` are scanned — narrower than hatch/ladder's "wherever it
+   * sits" — because {@link kindOf} only produces the elevator's
+   * `roof_access` trigger for tiles classified that way; a numbered elevator
+   * ref filed off an elevator board would silently lose it.
+   */
+  private linkNumberedElevators(map: GameMap, levelOrder: string[]): void {
+    const byNumber = new Map<string, AccessEnd[]>();
+
+    for (const level of map.levels) {
+      for (const layer of level.layers) {
+        const cls = transitionClassOf(layer.name);
+        if (cls !== "elevator") continue;
+        for (const t of layer.tiles) {
+          const m = NUMBERED_ELEVATOR.exec(t.ref);
+          if (!m) continue;
+          byNumber.set(m[1], [
+            ...(byNumber.get(m[1]) ?? []),
+            { level: level.name, x: t.x, y: t.y, cls, kind: kindOf(cls, t) },
+          ]);
+        }
+      }
+    }
+
+    for (const stops of byNumber.values()) {
+      // One end per level, in map order, exactly as a coordinate-keyed shaft
+      // does — see linkShafts. Fewer than two distinct levels means the
+      // number has no partner, so it stays inert rather than guessed at.
+      const floors = levelOrder
+        .map((name) => stops.find((s) => s.level === name))
+        .filter((s): s is AccessEnd => s !== undefined);
+      if (floors.length < 2) continue;
+      this.linkCycle(floors);
     }
   }
 

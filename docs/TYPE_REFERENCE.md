@@ -638,7 +638,7 @@ a `scene.restart()` destroys.
 
 #### `TransitionGraph` — class
 
-`src/systems/TransitionGraph.ts:147`
+`src/systems/TransitionGraph.ts:158`
 
 The level-to-level connection map, derived automatically from the tile data.
 
@@ -671,7 +671,7 @@ Pure: never touches Phaser. Built once from the parsed `GameMap`.
 | `at` | `at(levelName: string, tileX: number, tileY: number): Transition \| undefined` | The transition on the tile at (tileX, tileY) in a level, if any. |
 | `exitsOn` | `exitsOn(levelName: string): { tx: number; ty: number; transition: Transition }[]` | Every transition tile on a level, with its coordinate — the reverse of `at`, for the pause menu's map, which needs to mark the ways out rather than test one tile. |
 
-*Plus 4 private members.*
+*Plus 6 private members.*
 
 <a id="class-vent4core"></a>
 
@@ -752,7 +752,7 @@ of play it stops allocating entirely.
 
 #### `AccessEnd` — interface *(module-private)*
 
-`src/systems/TransitionGraph.ts:66`
+`src/systems/TransitionGraph.ts:77`
 
 One classified transition tile, before it knows where it leads.
 
@@ -2501,7 +2501,7 @@ type SynthVoice = "enforcer" | "drone" | "eira";
 
 #### `TransitionClass` — type *(module-private)*
 
-`src/systems/TransitionGraph.ts:63`
+`src/systems/TransitionGraph.ts:74`
 
 Which index a transition tile is matched within. Two ends only ever pair
 inside the same class, so a hatch can never be mistaken for an elevator car.
@@ -6969,7 +6969,7 @@ GameScene.
 
 | Name | Kind | Declared in |
 | --- | --- | --- |
-| [AccessEnd](#interface-accessend) | interface | `src/systems/TransitionGraph.ts:66` |
+| [AccessEnd](#interface-accessend) | interface | `src/systems/TransitionGraph.ts:77` |
 | [ActiveItemState](#class-activeitemstate) | class | `src/systems/ActiveItems.ts:33` |
 | [ActiveItemsView](#interface-activeitemsview) | interface | `src/systems/ActiveItems.ts:152` |
 | [Aimer](#interface-aimer) | interface | `src/systems/Surrender.ts:39` |
@@ -7293,8 +7293,8 @@ GameScene.
 | [TitleScene](#class-titlescene) | class | `src/scenes/TitleScene.ts:14` |
 | [TraceState](#interface-tracestate) | interface | `src/ui/ekg.ts:195` |
 | [Transition](#interface-transition) | interface | `src/map/types.ts:458` |
-| [TransitionClass](#type-transitionclass) | type | `src/systems/TransitionGraph.ts:63` |
-| [TransitionGraph](#class-transitiongraph) | class | `src/systems/TransitionGraph.ts:147` |
+| [TransitionClass](#type-transitionclass) | type | `src/systems/TransitionGraph.ts:74` |
+| [TransitionGraph](#class-transitiongraph) | class | `src/systems/TransitionGraph.ts:158` |
 | [TransitionKind](#type-transitionkind) | type | `src/map/types.ts:447` |
 | [TraversalWorld](#interface-traversalworld) | interface | `src/scenes/game/PlaneTraversal.ts:39` |
 | [TribunalCallbacks](#interface-tribunalcallbacks) | interface | `src/ui/TribunalScreen.ts:46` |

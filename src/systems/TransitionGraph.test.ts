@@ -129,6 +129,75 @@ describe("TransitionGraph — numbered access pairs", () => {
   });
 });
 
+describe("TransitionGraph — numbered elevator shafts", () => {
+  it("links two floors of elevator1 even though their coordinates disagree", () => {
+    const g = new TransitionGraph(
+      mapOf([
+        ["duct1", { elevator: [tile(2, 30, "elevator1")] }],
+        ["roof_array", { elevator: [tile(20, 4, "elevator1")] }],
+      ]),
+    );
+    expect(g.at("duct1", 2, 30)).toEqual({
+      toLevel: "roof_array",
+      toX: 20,
+      toY: 4,
+      kind: "roof_access",
+    });
+    expect(g.at("roof_array", 20, 4)).toEqual({
+      toLevel: "duct1",
+      toX: 2,
+      toY: 30,
+      kind: "roof_access",
+    });
+  });
+
+  it("cycles three differently-placed floors sharing elevator2, in map order", () => {
+    const g = new TransitionGraph(
+      mapOf([
+        ["vent_core", { elevator_bottom: [tile(2, 30, "elevator2")] }],
+        ["main2", { elevator: [tile(9, 12, "elevator2")] }],
+        ["roof_array", { elevator: [tile(20, 4, "elevator2")] }],
+      ]),
+    );
+    expect(g.at("vent_core", 2, 30)?.toLevel).toBe("main2");
+    expect(g.at("main2", 9, 12)?.toLevel).toBe("roof_array");
+    expect(g.at("roof_array", 20, 4)?.toLevel).toBe("vent_core");
+  });
+
+  it("leaves a lone numbered elevator inert rather than guessing a partner", () => {
+    const g = new TransitionGraph(mapOf([["main2", { elevator: [tile(9, 12, "elevator5")] }]]));
+    expect(g.exitsOn("main2")).toEqual([]);
+  });
+
+  it("ignores a numbered elevator ref filed off an elevator board", () => {
+    const g = new TransitionGraph(
+      mapOf([
+        ["main1", { entities: [tile(9, 18, "elevator3")] }],
+        ["duct1", { elevator: [tile(2, 30, "elevator3")] }],
+      ]),
+    );
+    // main1's tile sits on an unclassified board, so it never enters the graph
+    // at all — not even as an orphan — and duct1's end is left with no partner.
+    expect(g.exitsOn("main1")).toEqual([]);
+    expect(g.exitsOn("duct1")).toEqual([]);
+  });
+
+  it("does not disturb a plain unnumbered elevator's coordinate-keyed shaft", () => {
+    // Regression for the shipped map's convention: no digits, no number to key on.
+    const car = (): unknown[] => [tile(5, 1, "elevator"), tile(6, 1, "door_elevator_vertical1")];
+    const g = new TransitionGraph(
+      mapOf([
+        ["vent_core", { elevator_bottom: car() }],
+        ["main2", { elevator: car() }],
+        ["roof_array", { elevator: car() }],
+      ]),
+    );
+    expect(g.at("vent_core", 5, 1)?.toLevel).toBe("main2");
+    expect(g.at("main2", 5, 1)?.toLevel).toBe("roof_array");
+    expect(g.at("roof_array", 5, 1)?.toLevel).toBe("vent_core");
+  });
+});
+
 describe("TransitionGraph — the consolidated `verticals` board", () => {
   it("links two levels sharing a coordinate, and reads the trigger off the art", () => {
     // NW-SMAC-01 v0.4 files every way out on one board and aligns both ends on
