@@ -39,6 +39,8 @@ export interface PromptCandidates {
   chest: Chest | undefined;
   chestDist: number;
   hatch: boolean;
+  /** The hatch in reach is a lift car offering a choice of floors. */
+  elevator?: boolean;
   vault: boolean;
   /** A locker in reach that this press would actually do something at. */
   locker: { occupied: boolean } | undefined;
@@ -132,7 +134,9 @@ export function promptLabelFor(c: PromptCandidates): string | undefined {
     label = "[E] Pick up";
   }
   if (c.hatch && 0.2 < best) {
-    label = "[E] Use access";
+    // A car that offers floors is a lift, not an access hatch, and the press
+    // opens a panel rather than moving him — so the verb says which it is.
+    label = c.elevator ? "[E] Elevator" : "[E] Use access";
   }
   // Lowest priority of the E verbs, matching the tap order above: a crate is
   // scenery Rowan happens to be facing, and it must not shout over a door.

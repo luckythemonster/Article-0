@@ -19,6 +19,7 @@ import { TribunalScene } from "./scenes/TribunalScene";
 import { CodecScene } from "./scenes/CodecScene";
 import { ComplianceScene } from "./scenes/ComplianceScene";
 import { QualiaLockScene } from "./scenes/QualiaLockScene";
+import { ElevatorScene } from "./scenes/ElevatorScene";
 import { fontsReady } from "./ui/fontsReady";
 import "./ui/fonts.css";
 import { buildCastTextures } from "./entities/CastArt";
@@ -203,6 +204,7 @@ function startGame(): Phaser.Game {
       CodecScene,
       ComplianceScene,
       QualiaLockScene,
+      ElevatorScene,
       PauseScene,
       GameOverScene,
       TribunalScene,

@@ -166,6 +166,12 @@ describe("promptLabelFor", () => {
     expect(promptLabelFor({ ...nothing(), vault: true })).toBe("[E] Vault");
   });
 
+  it("names a lift car a lift, since the press opens a panel rather than moving him", () => {
+    expect(promptLabelFor({ ...nothing(), hatch: true, elevator: true })).toBe("[E] Elevator");
+    // A two-stop lift offers no choice, so it reads as the plain access it is.
+    expect(promptLabelFor({ ...nothing(), hatch: true })).toBe("[E] Use access");
+  });
+
   it("lets a hatch under your feet beat anything further than a fifth of a tile", () => {
     expect(promptLabelFor({ ...nothing(), hatch: true, door: shutDoor, doorDist: 0.9 })).toBe(
       "[E] Use access",

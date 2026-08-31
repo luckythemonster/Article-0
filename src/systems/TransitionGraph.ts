@@ -54,8 +54,14 @@ const NUMBERED_ACCESS = /^(hatch|ladder)(\d+)$/i;
  * one namespace would let a stray reused digit (`hatch7` / `elevator7`)
  * cross-link a hatch to an elevator car. A plain unnumbered `elevator` ref —
  * the shipped map's convention — has no digits and never matches.
+ *
+ * The number is the shaft; an optional trailing `_LABEL` is that floor's name
+ * in the car's panel — `elevator1_ROOF`, `elevator1_B2_MAINTENANCE`. Authored
+ * on the ref rather than in a component because that is how this engine already
+ * reads intent (`^stairs` is walked over, `*_avatar` is where the Core stands),
+ * and because it needs nothing new in the tile editor. See {@link floorLabel}.
  */
-const NUMBERED_ELEVATOR = /^elevator(\d+)$/i;
+const NUMBERED_ELEVATOR = /^elevator(\d+)(?:_(.+))?$/i;
 
 /**
  * How far apart the two ends of a link may drift and still be read as one link.
@@ -80,9 +86,42 @@ interface AccessEnd {
   y: number;
   cls: TransitionClass;
   kind: TransitionKind;
+  /** The floor's authored name, for elevator ends only — see {@link floorLabel}. */
+  label?: string;
+}
+
+/**
+ * One stop a shaft serves: where the car goes and what the panel calls it.
+ *
+ * The whole ring is kept per tile rather than collapsed to one edge, which is
+ * what lets the car's panel offer every floor instead of only the next one —
+ * see {@link TransitionGraph.shaftAt}.
+ */
+export interface ShaftStop {
+  level: string;
+  x: number;
+  y: number;
+  /** What the panel prints for this floor. Never empty. */
+  label: string;
 }
 
 const key = (x: number, y: number): string => `${x},${y}`;
+
+/** The answer for every tile that is not a lift — see {@link TransitionGraph.shaftAt}. */
+const NO_STOPS: ShaftStop[] = [];
+
+/**
+ * What the car's panel calls a floor.
+ *
+ * The author names it on the ref — `elevator1_B2_MAINTENANCE` is `B2
+ * MAINTENANCE` — and a floor left unnamed falls back to its level's name, so a
+ * coordinate-keyed shaft (a plain `elevator` ref, which the shipped map uses)
+ * still reads as something rather than as a blank row.
+ */
+export function floorLabel(ref: string, levelName: string): string {
+  const authored = NUMBERED_ELEVATOR.exec(ref)?.[2];
+  return authored ? authored.replace(/_/g, " ").toUpperCase() : levelName;
+}
 
 /**
  * Classifies a board, or returns undefined for one that isn't a way out.
@@ -159,6 +198,15 @@ export class TransitionGraph {
   /** levelName -> ("x,y" -> Transition). */
   private readonly byLevel = new Map<string, Map<string, Transition>>();
 
+  /**
+   * levelName -> ("x,y" -> every stop the shaft that tile belongs to serves).
+   *
+   * Written alongside {@link byLevel} rather than instead of it: the cycle in
+   * `byLevel` stays the ride a floor takes when nobody picks, and this is the
+   * menu the car's panel offers. Only elevator cars appear here.
+   */
+  private readonly shaftsByLevel = new Map<string, Map<string, ShaftStop[]>>();
+
   constructor(map: GameMap) {
     const ends: AccessEnd[] = [];
     // Per (level, class): the set of transition-tile coordinates.
@@ -171,7 +219,14 @@ export class TransitionGraph {
         if (cls === undefined) continue;
         for (const t of board.tiles) {
           if (!isWayOut(cls, t)) continue;
-          ends.push({ level: level.name, x: t.x, y: t.y, cls, kind: kindOf(cls, t) });
+          ends.push({
+            level: level.name,
+            x: t.x,
+            y: t.y,
+            cls,
+            kind: kindOf(cls, t),
+            label: cls === "elevator" ? floorLabel(t.ref, level.name) : undefined,
+          });
           let set = perClass.get(cls);
           if (!set) perClass.set(cls, (set = new Set<string>()));
           set.add(key(t.x, t.y));
@@ -179,6 +234,7 @@ export class TransitionGraph {
       }
       coordsByLevelClass.set(level.name, perClass);
       this.byLevel.set(level.name, new Map<string, Transition>());
+      this.shaftsByLevel.set(level.name, new Map<string, ShaftStop[]>());
     }
 
     const levelOrder = map.levels.map((l) => l.name);
@@ -262,8 +318,19 @@ export class TransitionGraph {
    * cycle: every floor gets one way in and one way out, and the car travels
    * one way round. Shared by {@link linkShafts} (floors sharing a coordinate)
    * and {@link linkNumberedElevators} (floors sharing a declared number).
+   *
+   * The cycle is the ride a floor takes when nobody picks — the panel offers
+   * the whole ring, recorded here at the same time, because these floors *are*
+   * the shaft and nothing downstream can reconstruct them from single edges.
    */
   private linkCycle(floors: AccessEnd[]): void {
+    const stops: ShaftStop[] = floors.map((f) => ({
+      level: f.level,
+      x: f.x,
+      y: f.y,
+      label: f.label ?? f.level,
+    }));
+
     floors.forEach((from, i) => {
       const to = floors[(i + 1) % floors.length];
       this.byLevel
@@ -274,6 +341,7 @@ export class TransitionGraph {
           toY: to.y,
           kind: from.kind,
         });
+      this.shaftsByLevel.get(from.level)?.set(key(from.x, from.y), stops);
     });
   }
 
@@ -399,7 +467,14 @@ export class TransitionGraph {
           if (!m) continue;
           byNumber.set(m[1], [
             ...(byNumber.get(m[1]) ?? []),
-            { level: level.name, x: t.x, y: t.y, cls, kind: kindOf(cls, t) },
+            {
+              level: level.name,
+              x: t.x,
+              y: t.y,
+              cls,
+              kind: kindOf(cls, t),
+              label: floorLabel(t.ref, level.name),
+            },
           ]);
         }
       }
@@ -420,6 +495,36 @@ export class TransitionGraph {
   /** The transition on the tile at (tileX, tileY) in a level, if any. */
   at(levelName: string, tileX: number, tileY: number): Transition | undefined {
     return this.byLevel.get(levelName)?.get(key(tileX, tileY));
+  }
+
+  /**
+   * Every *other* floor the car on this tile serves, in map order — what the
+   * panel inside it offers.
+   *
+   * Empty for anything that is not an elevator car, and for a car whose shaft
+   * nothing else joined, so a caller can treat "no choice to make" and "not a
+   * lift" the same way. The floor being ridden from is dropped rather than
+   * shown greyed: a lift button for the floor you are standing on is a button
+   * that does nothing.
+   */
+  shaftAt(levelName: string, tileX: number, tileY: number): ShaftStop[] {
+    const stops = this.shaftsByLevel.get(levelName)?.get(key(tileX, tileY));
+    // Read once per frame from the tile under the player, so the miss — every
+    // tile that is not a lift — hands back the shared empty rather than a new
+    // array to collect.
+    if (!stops) return NO_STOPS;
+    return stops.filter((s) => s.level !== levelName);
+  }
+
+  /**
+   * This car's own stop — the floor being ridden *from*, which the panel prints
+   * as its header. The counterpart to {@link shaftAt}, which drops it.
+   */
+  floorAt(levelName: string, tileX: number, tileY: number): ShaftStop | undefined {
+    return this.shaftsByLevel
+      .get(levelName)
+      ?.get(key(tileX, tileY))
+      ?.find((s) => s.level === levelName);
   }
 
   /**

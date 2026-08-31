@@ -22,7 +22,12 @@ import { CollisionGrid } from "../systems/CollisionGrid";
 import { DetectionSystem } from "../systems/DetectionSystem";
 import { AlertState } from "../systems/AlertState";
 import { FirearmsAuthorization } from "../systems/Firearms";
-import { TransitionGraph } from "../systems/TransitionGraph";
+import { TransitionGraph, type ShaftStop } from "../systems/TransitionGraph";
+import {
+  ELEVATOR_CHOICE_KEY,
+  ELEVATOR_CLOSED_KEY,
+  type ElevatorFloor,
+} from "./ElevatorScene";
 import { buildRadarSnapshot, emptyRadarSnapshot } from "../systems/Radar";
 import { Player, type InputState } from "../entities/Player";
 import {
@@ -302,6 +307,13 @@ export class GameScene extends Phaser.Scene {
    */
   private readonly noiseLog = new NoiseLog();
   private transitions!: TransitionGraph;
+
+  /**
+   * The rows the elevator panel opens with, staged between the E-press that
+   * builds them and the `launchData` that reads them. Cleared implicitly: the
+   * panel is only ever launched by `openElevatorPanel`, which writes it first.
+   */
+  private pendingElevatorFloors: ElevatorFloor[] = [];
 
   /** Where this scene run should start (level + optional arrival tile). */
   /** Set in init() from the map plan; the literal is only a pre-init placeholder. */
@@ -986,6 +998,25 @@ export class GameScene extends Phaser.Scene {
             this.registry.remove("qualiaClosed");
           },
         },
+        elevator: {
+          sceneKey: "ElevatorScene",
+          // Read at open time, which is why the rows are staged on the scene
+          // rather than passed in: `openElevatorPanel` knows the shaft, and the
+          // gate is what actually launches.
+          launchData: () => ({
+            here:
+              this.transitions.floorAt(
+                this.level.name,
+                Math.floor(this.player.x / this.tileSize),
+                Math.floor(this.player.y / this.tileSize),
+              )?.label ?? this.level.name,
+            floors: this.pendingElevatorFloors,
+          }),
+          onOpen: () => {
+            this.registry.remove(ELEVATOR_CHOICE_KEY);
+            this.registry.remove(ELEVATOR_CLOSED_KEY);
+          },
+        },
       },
       (suspended) => this.registry.set(SUSPENDED_KEY, suspended),
     );
@@ -1054,6 +1085,47 @@ export class GameScene extends Phaser.Scene {
     const result = this.overlays.pollResult("qualiaSolved", "qualiaClosed");
     if (!result) return;
     this.hacks.settleOverlay("qualia", result);
+  }
+
+  /**
+   * Opens the car's floor panel, sealing the rows the run hasn't earned.
+   *
+   * The roof is the only gated stop, and it is shown rather than withheld for
+   * the reason its ladder always has been: the player should know where they
+   * are going before they are allowed to go.
+   */
+  private openElevatorPanel(stops: ShaftStop[], roofSealed: boolean): void {
+    this.pendingElevatorFloors = stops.map((stop) => ({
+      ...stop,
+      lockedNote: stop.level === ROOF_ARRAY_LEVEL && roofSealed ? "SEALED" : undefined,
+    }));
+    this.overlays.set("elevator", true);
+  }
+
+  /**
+   * Collects the floor the panel chose, and rides there.
+   *
+   * Not `pollResult`, which reads booleans: a choice carries *which* floor, so
+   * it comes back as the stop itself. The panel is closed before the fade so the
+   * overlay isn't left owning the screen through a scene restart.
+   */
+  private updateElevatorOverlay(): void {
+    const chosen = this.registry.get(ELEVATOR_CHOICE_KEY) as ShaftStop | undefined;
+    if (chosen) {
+      this.registry.remove(ELEVATOR_CHOICE_KEY);
+      this.overlays.set("elevator", false);
+      this.beginTransition({
+        toLevel: chosen.level,
+        toX: chosen.x,
+        toY: chosen.y,
+        kind: "roof_access",
+      });
+      return;
+    }
+    if (this.registry.get(ELEVATOR_CLOSED_KEY) === true) {
+      this.registry.remove(ELEVATOR_CLOSED_KEY);
+      this.overlays.set("elevator", false);
+    }
   }
 
   /** Abandons the run from the pause overlay and returns to the title. */
@@ -1377,13 +1449,24 @@ export class GameScene extends Phaser.Scene {
       return this.updateWorld(dt, delta);
     }
 
-    // Pause (Esc), the codec (C) and the two minigames each freeze the sim behind
-    // an overlay scene. The minigames and codec suppress the pause/codec toggles.
+    // Pause (Esc), the codec (C), the two minigames and the elevator's floor panel
+    // each freeze the sim behind an overlay scene. The minigames and codec suppress
+    // the pause/codec toggles, and so does the panel — Esc is its own cancel key,
+    // and without this guard dismissing it would open the pause menu on the way out.
+    //
+    // Both reads are *consuming*, and so are evaluated unconditionally and masked
+    // afterwards — the same discipline `updateInteractions` spells out. Skipping
+    // the call banks the press instead of swallowing it, and it then fires on the
+    // frame the overlay closes: Esc dismissing the floor panel would land in the
+    // pause menu on its way out.
     const ov = this.overlays;
-    if (!ov.isOpen("codec") && !ov.minigameOpen && Phaser.Input.Keyboard.JustDown(this.keys.pause)) {
+    const pausePressed = Phaser.Input.Keyboard.JustDown(this.keys.pause);
+    const codecPressed = Phaser.Input.Keyboard.JustDown(this.keys.codec);
+    const ownsKeys = ov.minigameOpen || ov.isOpen("elevator");
+    if (!ov.isOpen("codec") && !ownsKeys && pausePressed) {
       ov.set("pause", !ov.isOpen("pause"));
     }
-    if (!ov.isOpen("pause") && !ov.minigameOpen && Phaser.Input.Keyboard.JustDown(this.keys.codec)) {
+    if (!ov.isOpen("pause") && !ownsKeys && codecPressed) {
       ov.set("codec", !ov.isOpen("codec"));
     }
     if (ov.anyOpen) {
@@ -1668,6 +1751,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (ov.isOpen("compliance")) this.updateComplianceOverlay();
     if (ov.isOpen("qualia")) this.updateQualiaOverlay();
+    if (ov.isOpen("elevator")) this.updateElevatorOverlay();
   }
 
   /**
@@ -2014,12 +2098,20 @@ export class GameScene extends Phaser.Scene {
 
     // --- Transitions ---
     const raw = this.transitions.at(this.level.name, Math.floor(ptx), Math.floor(pty));
+    // Every *other* floor this car serves. Empty unless he is standing in a lift
+    // whose shaft goes somewhere else, so it costs nothing on every other tile.
+    const shaft = this.transitions.shaftAt(this.level.name, Math.floor(ptx), Math.floor(pty));
+    const roofSealed = !canReachRoof(this.objectives, this.hacks.features());
     // The roof is Act IV's reward, not a shortcut past Act III: the ladder is inert
     // until both cache halves are aboard and the Alignment Core is down. Blocked here
     // rather than by withholding the tile, so the ladder is visibly *there* — the player
     // should know where they are going before they are allowed to go.
-    const roofLocked =
-      raw?.toLevel === ROOF_ARRAY_LEVEL && !canReachRoof(this.objectives, this.hacks.features());
+    //
+    // A car with a panel is the same rule one level down: blanking the tile would
+    // take the whole lift away to seal one floor, so the roof becomes a dimmed row
+    // in the list instead and every other floor keeps working. Only a car with no
+    // choice to offer — a two-stop lift straight to the roof — still blanks.
+    const roofLocked = raw?.toLevel === ROOF_ARRAY_LEVEL && roofSealed && shaft.length < 2;
     const tr = roofLocked ? undefined : raw;
     if (!raw) this.transitionArmed = true;
     if (tr && tr.kind === "stairs" && this.transitionArmed) {
@@ -2230,7 +2322,13 @@ export class GameScene extends Phaser.Scene {
           if (nearestDoor.isOpen) this.noise.doorOperated(nearestDoor);
         }
       } else if (hatch) {
-        this.beginTransition(hatch);
+        // A lift with more than one other stop asks which floor; anything else —
+        // a hatch, a ladder, a two-stop lift — is one press and one destination.
+        if (shaft.length >= 2) {
+          this.openElevatorPanel(shaft, roofSealed);
+        } else {
+          this.beginTransition(hatch);
+        }
         return;
       } else if (ladder && this.traversal.armedForLink) {
         // A way between this level's own surfaces. Unlike a level transition it
@@ -2304,6 +2402,7 @@ export class GameScene extends Phaser.Scene {
         bodyDist: bodyToLift ? len(bodyToLift.x / ts - ptx, bodyToLift.y / ts - pty) : Infinity,
         carrying: this.carried !== null,
         hatch: hatch !== undefined || (ladder !== undefined && this.traversal.armedForLink),
+        elevator: hatch !== undefined && shaft.length >= 2,
         vault: vaultTo !== null,
         ventLabel: encounter.label,
         ventDist: encounter.dist,

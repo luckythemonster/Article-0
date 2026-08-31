@@ -8,14 +8,14 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 
 | Area | Enums | Classes | Interfaces | Type aliases | Constants | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| [Systems](#systems) | 3 | 21 | 88 | 24 | 6 | 142 |
+| [Systems](#systems) | 3 | 21 | 89 | 24 | 6 | 143 |
 | [Entities](#entities) | 0 | 20 | 23 | 18 | 3 | 64 |
 | [Map](#map) | 0 | 4 | 37 | 4 | 1 | 46 |
-| [Scenes](#scenes) | 0 | 23 | 24 | 2 | 0 | 49 |
+| [Scenes](#scenes) | 0 | 24 | 26 | 2 | 0 | 52 |
 | [UI](#ui) | 0 | 22 | 26 | 5 | 6 | 59 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **92** | **201** | **53** | **16** | **365** |
+| **All** | **3** | **93** | **204** | **53** | **16** | **369** |
 
 ## Conventions
 
@@ -638,7 +638,7 @@ a `scene.restart()` destroys.
 
 #### `TransitionGraph` — class
 
-`src/systems/TransitionGraph.ts:158`
+`src/systems/TransitionGraph.ts:197`
 
 The level-to-level connection map, derived automatically from the tile data.
 
@@ -669,9 +669,11 @@ Pure: never touches Phaser. Built once from the parsed `GameMap`.
 | --- | --- | --- |
 | `constructor` | `constructor(map: GameMap)` |  |
 | `at` | `at(levelName: string, tileX: number, tileY: number): Transition \| undefined` | The transition on the tile at (tileX, tileY) in a level, if any. |
+| `shaftAt` | `shaftAt(levelName: string, tileX: number, tileY: number): ShaftStop[]` | Every *other* floor the car on this tile serves, in map order — what the panel inside it offers. Empty for anything that is not an elevator car, and for a car whose shaft nothing else joined, so a caller can treat "no choice to make" and "not a lift" the same way. The floor being ridden from is dropped rather than shown greyed: a lift button for the floor you are standing on is a button that does nothing. |
+| `floorAt` | `floorAt(levelName: string, tileX: number, tileY: number): ShaftStop \| undefined` | This car's own stop — the floor being ridden *from*, which the panel prints as its header. The counterpart to `shaftAt`, which drops it. |
 | `exitsOn` | `exitsOn(levelName: string): { tx: number; ty: number; transition: Transition }[]` | Every transition tile on a level, with its coordinate — the reverse of `at`, for the pause menu's map, which needs to mark the ways out rather than test one tile. |
 
-*Plus 6 private members.*
+*Plus 7 private members.*
 
 <a id="class-vent4core"></a>
 
@@ -752,7 +754,7 @@ of play it stops allocating entirely.
 
 #### `AccessEnd` — interface *(module-private)*
 
-`src/systems/TransitionGraph.ts:77`
+`src/systems/TransitionGraph.ts:83`
 
 One classified transition tile, before it knows where it leads.
 
@@ -763,6 +765,7 @@ One classified transition tile, before it knows where it leads.
 | `y` | `number` |  |
 | `cls` | `TransitionClass` |  |
 | `kind` | `TransitionKind` |  |
+| `label` *(opt)* | `string` | The floor's authored name, for elevator ends only — see `floorLabel`. |
 
 <a id="interface-activeitemsview"></a>
 
@@ -1840,6 +1843,25 @@ degrades to defaults rather than throwing.
 | `muted` | `boolean` |  |
 | `narrateCodec` | `boolean` | Whether EIRA-7's codec is spoken aloud as well as printed. Its own preference rather than a consequence of the volume, because it is a question of pacing rather than of loudness: a briefing is ~25 seconds of synthesised speech, and a player rereading one they already know should be able to skip that without turning the game silent. |
 
+<a id="interface-shaftstop"></a>
+
+#### `ShaftStop` — interface
+
+`src/systems/TransitionGraph.ts:100`
+
+One stop a shaft serves: where the car goes and what the panel calls it.
+
+The whole ring is kept per tile rather than collapsed to one edge, which is
+what lets the car's panel offer every floor instead of only the next one —
+see `TransitionGraph.shaftAt`.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `level` | `string` |  |
+| `x` | `number` |  |
+| `y` | `number` |  |
+| `label` | `string` | What the panel prints for this floor. Never empty. |
+
 <a id="interface-smaccorrection"></a>
 
 #### `SmacCorrection` — interface
@@ -2501,7 +2523,7 @@ type SynthVoice = "enforcer" | "drone" | "eira";
 
 #### `TransitionClass` — type *(module-private)*
 
-`src/systems/TransitionGraph.ts:74`
+`src/systems/TransitionGraph.ts:80`
 
 Which index a transition tile is matched within. Two ends only ever pair
 inside the same class, so a hatch can never be mistaken for an elevator car.
@@ -4803,6 +4825,17 @@ whichever flag while the overlay is up and stops this scene.
 
 *Plus 8 private members.*
 
+<a id="class-elevatorscene"></a>
+
+#### `ElevatorScene` — class
+
+`src/scenes/ElevatorScene.ts:43` · `extends Phaser.Scene`
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `constructor` | `constructor()` |  |
+| `create` | `create(data: ElevatorSceneData): void` |  |
+
 <a id="class-encounters"></a>
 
 #### `Encounters` — class
@@ -4863,7 +4896,7 @@ rather than death: the record simply shows that no subject was harmed.
 
 #### `GameScene` — class
 
-`src/scenes/GameScene.ts:193` · `extends Phaser.Scene`
+`src/scenes/GameScene.ts:198` · `extends Phaser.Scene`
 
 The playable scene. Renders one level's tile art in board z-order, builds the
 wall collision, spawns the player and guards, and drives the stealth systems
@@ -4876,13 +4909,13 @@ each frame.
 | `create` | `create(): void` |  |
 | `update` | `update(_time: number, delta: number): void` |  |
 
-*Plus 119 private members.*
+*Plus 122 private members.*
 
 <a id="class-interactprompt"></a>
 
 #### `InteractPrompt` — class
 
-`src/scenes/game/InteractPrompt.ts:177`
+`src/scenes/game/InteractPrompt.ts:181`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -4937,7 +4970,7 @@ each frame.
 
 #### `OverlayGate` — class
 
-`src/scenes/game/OverlayGate.ts:32`
+`src/scenes/game/OverlayGate.ts:34`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -5301,6 +5334,29 @@ What the overlay needs from the scene, supplied fresh each frame.
 | `captureProgress` | `number` |  |
 | `inventory` | `readonly string[]` | Current inventory, for the certified readout. |
 
+<a id="interface-elevatorfloor"></a>
+
+#### `ElevatorFloor` — interface
+
+`src/scenes/ElevatorScene.ts:31` · `extends ShaftStop`
+
+One row of the panel: a stop, plus why it can't be ridden to.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `lockedNote` *(opt)* | `string` | Dimmed and unselectable. The reason is appended to the label. |
+
+<a id="interface-elevatorscenedata"></a>
+
+#### `ElevatorSceneData` — interface
+
+`src/scenes/ElevatorScene.ts:36`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `here` | `string` | Where the car is now — printed as the header, never offered as a row. |
+| `floors` | `ElevatorFloor[]` | Every other floor the shaft serves, in map order. |
+
 <a id="interface-encounterscallbacks"></a>
 
 #### `EncountersCallbacks` — interface
@@ -5370,7 +5426,7 @@ independent of `Lighting`'s. `reload` swaps in the new level's mask.
 
 #### `GameSceneData` — interface *(module-private)*
 
-`src/scenes/GameScene.ts:138`
+`src/scenes/GameScene.ts:143`
 
 Data passed to `GameScene` when (re)starting for a level swap.
 
@@ -5456,7 +5512,7 @@ The live level state noise propagation reads. Held by reference.
 
 #### `OverlayConfig` — interface
 
-`src/scenes/game/OverlayGate.ts:21`
+`src/scenes/game/OverlayGate.ts:23`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -5490,7 +5546,7 @@ capture anything `create()` has not set yet.
 
 #### `PromptAnchor` — interface
 
-`src/scenes/game/InteractPrompt.ts:61`
+`src/scenes/game/InteractPrompt.ts:63`
 
 What the label is pinned to. `Player` satisfies this structurally; naming the
 four fields it actually reads keeps the pure half testable with a literal.
@@ -5527,6 +5583,7 @@ and the rest are optional.
 | `chest` | `Chest \| undefined` |  |
 | `chestDist` | `number` |  |
 | `hatch` | `boolean` |  |
+| `elevator` *(opt)* | `boolean` | The hatch in reach is a lift car offering a choice of floors. |
 | `vault` | `boolean` |  |
 | `locker` | `{ occupied: boolean } \| undefined` | A locker in reach that this press would actually do something at. |
 | `lockerDist` | `number` |  |
@@ -5683,26 +5740,28 @@ A fixed point that charges the Shared Field when witnessed — a rack or a dish.
 
 #### `OverlayId` — type
 
-`src/scenes/game/OverlayGate.ts:19`
+`src/scenes/game/OverlayGate.ts:21`
 
 **Module note** — the header comment on `src/scenes/game/OverlayGate.ts`, which this declaration heads:
 
-The four overlays that can take the screen away from the running game: the
-pause menu, the EIRA-7 codec, and the two minigames.
+The five overlays that can take the screen away from the running game: the
+pause menu, the EIRA-7 codec, the two minigames, and the elevator's floor
+panel.
 
-Each one used to have its own toggle, and all four were the same seven lines
-— flip a flag, republish the suspended state, pause Arcade physics, launch a
-scene; and the reverse on the way out. What actually differs between them is
-a scene key and a little setup, which is what `OverlayConfig` carries.
+Each one used to have its own toggle, and all of them were the same seven
+lines — flip a flag, republish the suspended state, pause Arcade physics,
+launch a scene; and the reverse on the way out. What actually differs between
+them is a scene key and a little setup, which is what `OverlayConfig`
+carries.
 
 Centralising the flags also fixes the part that was easy to get wrong.
-"Something is covering the screen" is a property of all four together, not of
-whichever one just changed, so closing the codec while the pause menu is up
+"Something is covering the screen" is a property of all of them together, not
+of whichever one just changed, so closing the codec while the pause menu is up
 must not report the game as resumed. That answer is computed here from the
 whole set rather than assigned by each toggle.
 
 ```ts
-type OverlayId = "pause" | "codec" | "compliance" | "qualia";
+type OverlayId = "pause" | "codec" | "compliance" | "qualia" | "elevator";
 ```
 
 <a id="type-target"></a>
@@ -6951,7 +7010,7 @@ Top-level bootstrap modules.
 
 #### `BootScene` — class *(module-private)*
 
-`src/main.ts:36` · `extends Phaser.Scene`
+`src/main.ts:37` · `extends Phaser.Scene`
 
 Boot scene: loads the edplay map JSON and its spritesheets, parses the map
 into the normalized model, stashes it in the registry, then hands off to
@@ -6969,7 +7028,7 @@ GameScene.
 
 | Name | Kind | Declared in |
 | --- | --- | --- |
-| [AccessEnd](#interface-accessend) | interface | `src/systems/TransitionGraph.ts:77` |
+| [AccessEnd](#interface-accessend) | interface | `src/systems/TransitionGraph.ts:83` |
 | [ActiveItemState](#class-activeitemstate) | class | `src/systems/ActiveItems.ts:33` |
 | [ActiveItemsView](#interface-activeitemsview) | interface | `src/systems/ActiveItems.ts:152` |
 | [Aimer](#interface-aimer) | interface | `src/systems/Surrender.ts:39` |
@@ -6990,7 +7049,7 @@ GameScene.
 | [BioMonitor](#class-biomonitor) | class | `src/ui/BioMonitor.ts:76` |
 | [BlockedAt](#type-blockedat) | type | `src/map/TileBake.ts:58` |
 | [BodyExtent](#interface-bodyextent) | interface | `src/systems/WallPress.ts:24` |
-| [BootScene](#class-bootscene) | class | `src/main.ts:36` |
+| [BootScene](#class-bootscene) | class | `src/main.ts:37` |
 | [BossCore](#class-bosscore) | class | `src/entities/BossCore.ts:64` |
 | [BossCoreHud](#class-bosscorehud) | class | `src/ui/BossCoreHud.ts:45` |
 | [Breaker](#class-breaker) | class | `src/entities/Breaker.ts:41` |
@@ -7070,6 +7129,9 @@ GameScene.
 | [EdTile](#interface-edtile) | interface | `src/map/types.ts:125` |
 | [EdTileDef](#interface-edtiledef) | interface | `src/map/types.ts:63` |
 | [EdVariable](#interface-edvariable) | interface | `src/map/types.ts:53` |
+| [ElevatorFloor](#interface-elevatorfloor) | interface | `src/scenes/ElevatorScene.ts:31` |
+| [ElevatorScene](#class-elevatorscene) | class | `src/scenes/ElevatorScene.ts:43` |
+| [ElevatorSceneData](#interface-elevatorscenedata) | interface | `src/scenes/ElevatorScene.ts:36` |
 | [EncounterBand](#class-encounterband) | class | `src/ui/EncounterBand.ts:67` |
 | [EncounterBandFrame](#interface-encounterbandframe) | interface | `src/ui/EncounterBand.ts:30` |
 | [EncounterBandStyle](#interface-encounterbandstyle) | interface | `src/ui/EncounterBand.ts:18` |
@@ -7100,8 +7162,8 @@ GameScene.
 | [GameMap](#interface-gamemap) | interface | `src/map/types.ts:301` |
 | [GameMode](#type-gamemode) | type | `src/systems/GameState.ts:20` |
 | [GameOverScene](#class-gameoverscene) | class | `src/scenes/GameOverScene.ts:13` |
-| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:193` |
-| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:138` |
+| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:198` |
+| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:143` |
 | [GameTile](#interface-gametile) | interface | `src/map/types.ts:230` |
 | [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:332` |
 | [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:498` |
@@ -7116,7 +7178,7 @@ GameScene.
 | [HoldTarget](#class-holdtarget) | class | `src/entities/HoldTarget.ts:41` |
 | [Hud](#class-hud) | class | `src/ui/Hud.ts:37` |
 | [InputState](#interface-inputstate) | interface | `src/entities/Player.ts:541` |
-| [InteractPrompt](#class-interactprompt) | class | `src/scenes/game/InteractPrompt.ts:177` |
+| [InteractPrompt](#class-interactprompt) | class | `src/scenes/game/InteractPrompt.ts:181` |
 | [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:23` |
 | [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:181` |
 | [ItemActions](#class-itemactions) | class | `src/scenes/game/ItemActions.ts:101` |
@@ -7174,9 +7236,9 @@ GameScene.
 | [OrderlyContext](#interface-orderlycontext) | interface | `src/entities/Orderly.ts:32` |
 | [OrderlyRoute](#interface-orderlyroute) | interface | `src/map/EntityIndex.ts:63` |
 | [OrderlyState](#type-orderlystate) | type | `src/entities/Orderly.ts:95` |
-| [OverlayConfig](#interface-overlayconfig) | interface | `src/scenes/game/OverlayGate.ts:21` |
-| [OverlayGate](#class-overlaygate) | class | `src/scenes/game/OverlayGate.ts:32` |
-| [OverlayId](#type-overlayid) | type | `src/scenes/game/OverlayGate.ts:19` |
+| [OverlayConfig](#interface-overlayconfig) | interface | `src/scenes/game/OverlayGate.ts:23` |
+| [OverlayGate](#class-overlaygate) | class | `src/scenes/game/OverlayGate.ts:34` |
+| [OverlayId](#type-overlayid) | type | `src/scenes/game/OverlayGate.ts:21` |
 | [Palette](#interface-palette) | interface | `src/ui/MiniMapCanvas.ts:18` |
 | [Pane](#interface-pane) | interface | `src/ui/PauseMenuView.ts:69` |
 | [ParsedMap](#interface-parsedmap) | interface | `src/map/EdplayLoader.ts:261` |
@@ -7205,7 +7267,7 @@ GameScene.
 | [PressState](#interface-pressstate) | interface | `src/systems/WallPress.ts:65` |
 | [PressSurface](#interface-presssurface) | interface | `src/systems/WallPress.ts:30` |
 | [PressureSubStation](#class-pressuresubstation) | class | `src/entities/PressureSubStation.ts:43` |
-| [PromptAnchor](#interface-promptanchor) | interface | `src/scenes/game/InteractPrompt.ts:61` |
+| [PromptAnchor](#interface-promptanchor) | interface | `src/scenes/game/InteractPrompt.ts:63` |
 | [PromptCandidates](#interface-promptcandidates) | interface | `src/scenes/game/InteractPrompt.ts:32` |
 | [PuzzleState](#interface-puzzlestate) | interface | `src/systems/Compliance.ts:57` |
 | [QualiaLockConfig](#interface-qualialockconfig) | interface | `src/systems/QualiaLock.ts:46` |
@@ -7253,6 +7315,7 @@ GameScene.
 | [Settings](#interface-settings) | interface | `src/systems/Settings.ts:13` |
 | [ShadowCaster](#interface-shadowcaster) | interface | `src/ui/EntityShadows.ts:86` |
 | [ShadowShape](#undefined) | interface | `src/render/shadowShape.ts:13` |
+| [ShaftStop](#interface-shaftstop) | interface | `src/systems/TransitionGraph.ts:100` |
 | [SharedField](#class-sharedfield) | class | `src/systems/SharedField.ts:22` |
 | [SharedFieldHud](#class-sharedfieldhud) | class | `src/ui/SharedFieldHud.ts:19` |
 | [SharedFieldView](#interface-sharedfieldview) | interface | `src/ui/SharedFieldHud.ts:8` |
@@ -7293,8 +7356,8 @@ GameScene.
 | [TitleScene](#class-titlescene) | class | `src/scenes/TitleScene.ts:14` |
 | [TraceState](#interface-tracestate) | interface | `src/ui/ekg.ts:195` |
 | [Transition](#interface-transition) | interface | `src/map/types.ts:458` |
-| [TransitionClass](#type-transitionclass) | type | `src/systems/TransitionGraph.ts:74` |
-| [TransitionGraph](#class-transitiongraph) | class | `src/systems/TransitionGraph.ts:158` |
+| [TransitionClass](#type-transitionclass) | type | `src/systems/TransitionGraph.ts:80` |
+| [TransitionGraph](#class-transitiongraph) | class | `src/systems/TransitionGraph.ts:197` |
 | [TransitionKind](#type-transitionkind) | type | `src/map/types.ts:447` |
 | [TraversalWorld](#interface-traversalworld) | interface | `src/scenes/game/PlaneTraversal.ts:39` |
 | [TribunalCallbacks](#interface-tribunalcallbacks) | interface | `src/ui/TribunalScreen.ts:46` |
