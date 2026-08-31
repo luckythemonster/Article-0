@@ -20,7 +20,7 @@ import type { RelayView } from "../systems/RelayCore";
 import type { ActiveItemsView } from "../systems/ActiveItems";
 import type { ConductView } from "../systems/Conduct";
 import { consumableSlots } from "../systems/EntityStats";
-import { isSuspended, missionFeatures } from "../systems/GameState";
+import { isSuspended, missionFeatures, readInventory } from "../systems/GameState";
 
 /**
  * A parallel overlay scene for the HUD.
@@ -111,7 +111,7 @@ export class UIScene extends Phaser.Scene {
     const radarSnapshot = this.registry.get("radar") as RadarSnapshot | undefined;
     if (radarSnapshot) this.radar.update(radarSnapshot);
 
-    const items = (this.registry.get("inventory") as string[] | undefined) ?? [];
+    const items = readInventory(this.registry);
 
     // The item cursor: `,`/`.` move the selection among held consumables (in
     // canonical order), `Enter` uses whichever one is currently selected —

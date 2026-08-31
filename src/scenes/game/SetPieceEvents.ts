@@ -6,6 +6,7 @@ import type { Player } from "../../entities/Player";
 import type { AlertState } from "../../systems/AlertState";
 import { getAudio } from "../../systems/AudioDirector";
 import { CERT_ITEM, RELAY_DEFAULTS } from "../../systems/EntityStats";
+import { readInventory } from "../../systems/GameState";
 import type { JournalEntryId } from "../../systems/Journal";
 import {
   noteCoreSilenced,
@@ -109,7 +110,7 @@ export class SetPieceEvents implements EncountersCallbacks {
         // trying to kill him — the arena is somewhere to walk out of now.
         audio.setTrack("articleZeroTheme");
         const registry = this.w.scene.registry;
-        const inv = (registry.get("inventory") as string[] | undefined) ?? [];
+        const inv = readInventory(registry);
         if (!inv.includes(CERT_ITEM)) {
           inv.push(CERT_ITEM);
           registry.set("inventory", inv);
