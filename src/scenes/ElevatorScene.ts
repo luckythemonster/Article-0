@@ -2,21 +2,24 @@ import Phaser from "phaser";
 import { FONT_DISPLAY, FONT_MONO } from "../ui/fonts";
 import { onResize } from "../ui/resize";
 import { UI, UI_DEPTH, hex } from "../ui/hudTheme";
-import { placePanel, uiPanel } from "../ui/NineSlicePanel";
+import { placePanel, setPanelFrame, uiPanel } from "../ui/NineSlicePanel";
 import { hasUiTexture } from "../ui/UiTextures";
 import { getAudio } from "../systems/AudioDirector";
+import { alertPulse } from "../ui/NetworkPanel";
 import { PANEL_INSET } from "../ui/hudLayout";
 import {
   BUTTON_GAP,
   BUTTON_SIZE,
   HINT_BASELINE,
   LABEL_GAP,
+  PANEL_ALERT_FRAME,
   RULE_OFFSET,
   buttonAt,
   buttonStateFor,
   elevatorButtonFrame,
   firstSelectable,
   nextSelectable,
+  panelDigitFrame,
   panelSize,
 } from "../ui/ElevatorPanel";
 import type { ShaftStop } from "../systems/TransitionGraph";
@@ -62,6 +65,13 @@ export interface ElevatorSceneData {
   here: string;
   /** Every other floor the shaft serves, in map order. */
   floors: ElevatorFloor[];
+  /**
+   * A snapshot of `AlertState.phase === "ALERT"` at open time. Safe to take
+   * once rather than poll: `GameScene` freezes its whole simulation —
+   * `AlertState`'s timer included — while any overlay is open, so the phase
+   * cannot change for as long as this scene is up.
+   */
+  alerting: boolean;
 }
 
 /** The objects making up one floor's row, kept together so a repaint is cheap. */
@@ -80,6 +90,16 @@ export class ElevatorScene extends Phaser.Scene {
   /** Set once a floor is chosen: the plate stops taking input and flashes. */
   private committed = false;
 
+  private plate!: Phaser.GameObjects.NineSlice | Phaser.GameObjects.Rectangle;
+  /** Whether `plate` is the elevator's own art — the digit/alert readout
+   * below only means anything on that sheet, never on the `ui-panel`
+   * fallback or the primitive rectangle. */
+  private usingElevatorArt = false;
+  private alerting = false;
+  /** The casing frame last set, so `refreshCasing` skips the no-op case of
+   * setting the frame it is already on every single tick. */
+  private lastCasingFrame = -1;
+
   constructor() {
     super("ElevatorScene");
   }
@@ -94,6 +114,8 @@ export class ElevatorScene extends Phaser.Scene {
     this.floors = data.floors;
     this.rows = [];
     this.committed = false;
+    this.alerting = data.alerting;
+    this.lastCasingFrame = -1;
 
     const veil = this.add
       .rectangle(0, 0, 10, 10, 0x0a0e14, 0.92)
@@ -104,11 +126,10 @@ export class ElevatorScene extends Phaser.Scene {
     // Prefer the elevator's own casing, fall back to the generic panel the HUD
     // already ships, and let `uiPanel` fall back again to primitives if neither
     // is present. Three states, all playable — see the class comment.
-    const casingKey = hasUiTexture(this, "ui-elevator-panel")
-      ? "ui-elevator-panel"
-      : "ui-panel";
+    this.usingElevatorArt = hasUiTexture(this, "ui-elevator-panel");
+    const casingKey = this.usingElevatorArt ? "ui-elevator-panel" : "ui-panel";
     const size = panelSize(this.floors.length);
-    const plate = uiPanel(this, 0, 0, size.w, size.h, { key: casingKey });
+    this.plate = uiPanel(this, 0, 0, size.w, size.h, { key: casingKey });
 
     const banner = this.add
       .text(0, 0, "ELEVATOR", { fontFamily: FONT_DISPLAY, fontSize: "20px", color: UI.cyan })
@@ -203,7 +224,7 @@ export class ElevatorScene extends Phaser.Scene {
       const x = Math.round((w - size.w) / 2);
       const y = Math.round((h - size.h) / 2);
       const well = size.w - PANEL_INSET * 2;
-      placePanel(plate, x, y, size.w, size.h);
+      placePanel(this.plate, x, y, size.w, size.h);
 
       // Everything is placed from the well, never from the plate's outer edge:
       // the outer 12px is nine-slice casing, and content laid against it is
@@ -225,6 +246,34 @@ export class ElevatorScene extends Phaser.Scene {
       });
     };
     onResize(this, layout, true);
+
+    // So the casing shows the right digit (or the alert flash) from the very
+    // first rendered frame, rather than only from the first `update()` tick.
+    this.refreshCasing(this.time.now);
+  }
+
+  update(time: number, _delta: number): void {
+    this.refreshCasing(time);
+  }
+
+  /**
+   * Sets the casing's corner LEDs to the cursor's digit, or pulses them
+   * between the alert frame and the unlit frame while alerting.
+   *
+   * A no-op on the `ui-panel` fallback and on the primitive rectangle: their
+   * frames mean dark/lit/alert-flash or nothing at all, never a digit, so
+   * touching them here would show the wrong thing rather than nothing.
+   */
+  private refreshCasing(time: number): void {
+    if (!this.usingElevatorArt) return;
+    const frame = this.alerting
+      ? alertPulse(time)
+        ? 0
+        : PANEL_ALERT_FRAME
+      : panelDigitFrame(this.index);
+    if (frame === this.lastCasingFrame) return;
+    this.lastCasingFrame = frame;
+    setPanelFrame(this.plate, frame);
   }
 
   /** Moves the cursor by one selectable row, if there is one that way. */

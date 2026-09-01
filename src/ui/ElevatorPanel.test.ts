@@ -1,11 +1,15 @@
 import { describe, it, expect } from "vitest";
 import {
   BUTTON_STATES,
+  PANEL_ALERT_FRAME,
+  PANEL_DIGIT_COUNT,
+  PANEL_FRAME_COUNT,
   buttonAt,
   buttonStateFor,
   elevatorButtonFrame,
   firstSelectable,
   nextSelectable,
+  panelDigitFrame,
   panelSize,
 } from "./ElevatorPanel";
 
@@ -81,5 +85,28 @@ describe("elevator panel navigation", () => {
   it("reports no selection at all when every floor is sealed", () => {
     // -1, so the scene paints no lit lamp rather than lighting a sealed one.
     expect(firstSelectable(sealed(true, true))).toBe(-1);
+  });
+});
+
+describe("elevator casing digit", () => {
+  it("passes an in-range cursor straight through", () => {
+    expect(panelDigitFrame(0)).toBe(0);
+    expect(panelDigitFrame(5)).toBe(5);
+    expect(panelDigitFrame(8)).toBe(8);
+  });
+
+  it("clamps a cursor past what the corner LEDs can show", () => {
+    expect(panelDigitFrame(9)).toBe(8);
+    expect(panelDigitFrame(20)).toBe(8);
+  });
+
+  it("reads no selection as digit 0 rather than going negative", () => {
+    expect(panelDigitFrame(-1)).toBe(0);
+  });
+
+  it("keeps the digit count, alert frame and sheet size in step", () => {
+    expect(PANEL_DIGIT_COUNT).toBe(9);
+    expect(PANEL_ALERT_FRAME).toBe(9);
+    expect(PANEL_FRAME_COUNT).toBe(10);
   });
 });
