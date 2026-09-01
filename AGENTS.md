@@ -23,7 +23,7 @@ Before you push, run the gate yourself:
 npx tsc --noEmit && npx vitest run
 ```
 
-The suite is fast (~12s) and currently **1075 tests across 84 files, all passing**.
+The suite is fast (~15s) and currently **1175 tests across 90 files, all passing**.
 A drop in that count means you broke something rather than that the suite shrank.
 
 CI (`.github/workflows/ci.yml`) runs `npm run build`, `npm test`, and a check that
@@ -61,6 +61,8 @@ open it first to find that out, so:
 | `systems/SharedField.ts` | The WX-9 merge — the undetectable window (**F**) |
 | `systems/Surrender.ts` | The hold-up: aiming at an orderly rather than firing (**Q**) |
 | `systems/Lexicon.ts` | In-game glossary shown in the pause menu's index |
+| `systems/Prologue.ts` | The four pages a run opens on, before the codec briefing |
+| `systems/Memos.ts` | Facility paperwork found on breached terminals |
 | `systems/Journal.ts` | In-game journal entries |
 | `systems/Explored.ts` | Fog of war for the pause menu's map |
 

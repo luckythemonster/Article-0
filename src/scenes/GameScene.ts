@@ -53,12 +53,15 @@ import { MemoryLayer } from "../ui/MemoryLayer";
 import { PlaneOverlay } from "../ui/PlaneOverlay";
 import { EntityShadows, type ShadowCaster } from "../ui/EntityShadows";
 import {
+  ACT_CARD_KEY,
+  ACT_SHOWN_KEY,
   readInventory,
   resumeFromSave,
   setMode,
   SUSPENDED_KEY,
   type GameMode,
 } from "../systems/GameState";
+import { initialMemos, nextMemoFor, noteMemo, type MemoState } from "../systems/Memos";
 import {
   initialJournal,
   journalIdForLevel,
@@ -77,6 +80,7 @@ import {
   BATTERY_ITEM,
   CERT_ITEM,
   countConsumables,
+  isKeycard,
   SMAC_DEFAULTS,
   FLASHLIGHT_DETECTION_MULTIPLIER,
   GAME_SPEED,
@@ -106,6 +110,7 @@ import {
   type ActiveItemsView,
 } from "../systems/ActiveItems";
 import {
+  actForLevel,
   canReachRoof,
   initialObjectives,
   isRunWon,
@@ -373,12 +378,16 @@ export class GameScene extends Phaser.Scene {
     objectives: () => this.objectives,
     registry: () => this.registry,
     note: (id) => this.note(id),
+    takeMemo: (level) => this.takeMemo(level),
+    levelName: () => this.level.name,
     publishObjectives: () => this.registry.set("objectives", this.objectives),
   });
   /** Mission progress (kept in the registry so it survives level swaps). */
   private objectives!: ObjectiveState;
   /** Rowan's journal — the run's counter-archive, also registry-backed. */
   private journal!: JournalState;
+  /** The facility's own paper, taken off the terminals he breaks into. */
+  private memos!: MemoState;
   /** Seen-tile mask for *this* level; the other levels' stay in the registry. */
   /** What Rowan has had a sightline to, and the throttled sweep that finds out. */
   private readonly tracker = new ExploredTracker({
@@ -676,6 +685,7 @@ export class GameScene extends Phaser.Scene {
 
     // Fade in from black (also covers arrivals from a transition).
     this.cameras.main.fadeIn(FADE_MS, 5, 7, 10);
+    this.announceAct();
 
     this.restoreRunState();
     // Needs `this.objectives` populated, which is why this runs after
@@ -809,6 +819,8 @@ export class GameScene extends Phaser.Scene {
 
     this.journal = (this.registry.get("journal") as JournalState | undefined) ?? initialJournal();
     this.registry.set("journal", this.journal);
+    this.memos = (this.registry.get("memos") as MemoState | undefined) ?? initialMemos();
+    this.registry.set("memos", this.memos);
     this.playTimeMs = (this.registry.get("playTimeMs") as number | undefined) ?? 0;
     this.tracker.reload();
 
@@ -885,6 +897,32 @@ export class GameScene extends Phaser.Scene {
   // --- Journal / map bookkeeping -----------------------------------------
 
   /**
+   * Names the act, once, on the level that crosses into it.
+   *
+   * Published for `UIScene` to draw rather than drawn here: this scene's camera
+   * is zoomed for the SNES look, and a title card scaled by 3 would be the size
+   * of a room. `UIScene` is the unzoomed overlay, and it removes the cue as it
+   * plays it.
+   *
+   * Deferred to `FADE_IN_COMPLETE` because `UIScene` is *not* faded — a card
+   * published now would be legible over a black screen for the length of the
+   * fade and then be half over by the time there was a level behind it.
+   *
+   * `ACT_SHOWN_KEY` is a run key, so a fresh infiltration re-announces Act I,
+   * and coming back down a ladder into a deck of the act you are already in says
+   * nothing. A map whose levels this engine does not recognise gets no cards at
+   * all — the same courtesy `journalIdForLevel` extends to arrival entries.
+   */
+  private announceAct(): void {
+    const act = actForLevel(this.level.name);
+    if (act === undefined || this.registry.get(ACT_SHOWN_KEY) === act) return;
+    this.registry.set(ACT_SHOWN_KEY, act);
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_IN_COMPLETE, () => {
+      this.registry.set(ACT_CARD_KEY, act);
+    });
+  }
+
+  /**
    * Writes a journal entry, if this is the first time it has come up.
    *
    * The unlock sites are ordinary gameplay events that re-fire constantly
@@ -894,6 +932,21 @@ export class GameScene extends Phaser.Scene {
   private note(id: JournalEntryId): void {
     if (!noteJournal(this.journal, id)) return;
     this.registry.set("journal", this.journal);
+    getAudio().pickup();
+  }
+
+  /**
+   * Takes whatever memo this deck's terminals still hold.
+   *
+   * Which memo is `Memos.nextMemoFor`'s decision, not this one's — the same
+   * split every other system here uses, and it is what lets the deal-out rule be
+   * tested without a map. Nothing happens once a deck's paper and the general
+   * pool are both exhausted, which is the ordinary late-run case.
+   */
+  private takeMemo(level: string): void {
+    const memo = nextMemoFor(level, this.memos);
+    if (!memo || !noteMemo(this.memos, memo.id)) return;
+    this.registry.set("memos", this.memos);
     getAudio().pickup();
   }
 
@@ -1118,6 +1171,7 @@ export class GameScene extends Phaser.Scene {
     if (chosen) {
       this.registry.remove(ELEVATOR_CHOICE_KEY);
       this.overlays.set("elevator", false);
+      this.note("the-lift");
       this.beginTransition({
         toLevel: chosen.level,
         toX: chosen.x,
@@ -1211,6 +1265,7 @@ export class GameScene extends Phaser.Scene {
       inventory: readInventory(this.registry),
       objectives: this.objectives,
       journal: this.journal,
+      memos: this.memos,
       explored: (this.registry.get("explored") as ExploredState | undefined) ?? initialExplored(),
       playTimeMs: this.playTimeMs,
     });
@@ -2246,6 +2301,7 @@ export class GameScene extends Phaser.Scene {
     if (stashing && nearestLocker!.work(dt, this.carried) === "stashed") {
       this.carried = null;
       getAudio().door();
+      this.note("stashed");
     }
     for (const locker of this.lockers) {
       if (locker !== nearestLocker || !stashing) locker.idle(dt);
@@ -2320,7 +2376,10 @@ export class GameScene extends Phaser.Scene {
       // deliberately, and main1 puts one on the same board as a door.
       if (nearestBreaker && nearestBreakerDist <= Math.min(nearestDoorDist, hatchDist)) {
         adjacentClaimedTap = true;
+        const wasClosed = nearestBreaker.isClosed;
         this.power.throwBreaker(nearestBreaker);
+        // Only cutting the lights is the beat. Putting them back is housekeeping.
+        if (wasClosed) this.note("blackout");
       } else if (nearestDoor && nearestDoorDist <= hatchDist) {
         adjacentClaimedTap = true;
         if (nearestDoor.toggle()) {
@@ -2538,6 +2597,7 @@ export class GameScene extends Phaser.Scene {
         continue;
       }
       // Key items (keycards, EIRA-7 log) and equipment: always stored, uncapped.
+      if (isKeycard(item)) this.note("keys");
       inv.push(item);
     }
 

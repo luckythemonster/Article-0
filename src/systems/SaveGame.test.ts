@@ -12,6 +12,7 @@ import {
 } from "./SaveGame";
 import { initialObjectives } from "./Objectives";
 import { initialJournal, noteJournal } from "./Journal";
+import { MEMOS, initialMemos, noteMemo } from "./Memos";
 import { ExploredMap } from "./Explored";
 import { installBlockedStorage, installMemStorage } from "../testing/memStorage";
 
@@ -133,8 +134,9 @@ describe("SaveGame", () => {
   it("gives a migrated v1 save empty journal/map/clock rather than junk", () => {
     writeLegacyV1();
     const loaded = loadGame("auto")!;
-    expect(loaded.version).toBe(2);
+    expect(loaded.version).toBe(3);
     expect(loaded.journal).toEqual(initialJournal());
+    expect(loaded.memos).toEqual(initialMemos());
     expect(loaded.explored).toEqual({});
     expect(loaded.playTimeMs).toBe(0);
     // Dated to the epoch, so it can never outrank a genuinely newer slot.
@@ -178,7 +180,7 @@ describe("SaveGame", () => {
   });
 
   it("rejects out-of-range or corrupted field values", () => {
-    const base = { version: 2, savedAt: Date.now(), ...sample };
+    const base = { version: 3, savedAt: Date.now(), ...sample };
     const bad: Array<Record<string, unknown>> = [
       { ...base, hp: Number.NaN }, // non-finite HP
       { ...base, hp: -5 }, // negative HP
@@ -219,6 +221,10 @@ describe("SaveGame", () => {
       }, // excessive number of level maps in explored state (DoS)
       { ...base, playTimeMs: -1 }, // negative clock
       { ...base, playTimeMs: Number.NaN }, // non-finite clock
+      { ...base, memos: { collected: "ticket-1471" } }, // memo list is not a list
+      { ...base, memos: null }, // memos missing
+      { ...base, memos: { collected: Array(101).fill("x") } }, // oversized memo list (DoS)
+      { ...base, memos: { collected: ["invalid;chars"] } }, // invalid characters in memo id
     ];
     for (const payload of bad) {
       localStorage.setItem("article-zero-save-auto", JSON.stringify(payload));
@@ -319,5 +325,72 @@ describe("SaveGame", () => {
     expect(() => clearSave()).not.toThrow();
     expect(loadGame("auto")).toBeNull();
     expect(hasAnySave()).toBe(false);
+  });
+});
+
+describe("SaveGame — the memo archive", () => {
+  it("round-trips the memos taken", () => {
+    const memos = initialMemos();
+    noteMemo(memos, MEMOS[0].id);
+    noteMemo(memos, MEMOS[1].id);
+    saveGame("3", { ...sample, memos });
+    expect(loadGame("3")!.memos.collected).toEqual([MEMOS[0].id, MEMOS[1].id]);
+  });
+
+  it("drops memo ids this build does not know, rather than rejecting the save", () => {
+    // A save written by a newer build that authored more memos still loads,
+    // minus the ones this build lacks — the same contract the journal has.
+    localStorage.setItem(
+      "article-zero-save-auto",
+      JSON.stringify({
+        version: 3,
+        savedAt: Date.now(),
+        ...sample,
+        memos: { collected: [MEMOS[0].id, "from-the-future"] },
+      }),
+    );
+    expect(loadGame("auto")!.memos.collected).toEqual([MEMOS[0].id]);
+  });
+
+  it("brings a v2 checkpoint forward with an empty archive, keeping the rest", () => {
+    const journal = initialJournal();
+    noteJournal(journal, "the-cache");
+    const savedAt = Date.now() - 5000;
+    localStorage.setItem(
+      "article-zero-save-auto",
+      JSON.stringify({
+        version: 2,
+        savedAt,
+        level: "duct2",
+        tileX: 4,
+        tileY: 9,
+        hp: 42,
+        inventory: ["Battery"],
+        objectives: { ...initialObjectives(), logsRecovered: true },
+        journal,
+        explored: {},
+        playTimeMs: 120_000,
+      }),
+    );
+    const loaded = loadGame("auto")!;
+    expect(loaded.version).toBe(3);
+    expect(loaded.memos).toEqual(initialMemos());
+    // Everything v2 did carry survives, timestamp included — a real in-progress
+    // run must not lose to an older slot in newestSave().
+    expect(loaded.level).toBe("duct2");
+    expect(loaded.hp).toBe(42);
+    expect(loaded.journal.unlocked).toEqual(["the-cache"]);
+    expect(loaded.playTimeMs).toBe(120_000);
+    expect(loaded.savedAt).toBe(savedAt);
+  });
+
+  it("still rejects a v2 blob whose own fields are corrupt", () => {
+    // Being old is not the same as being trusted: the fields a v2 save does
+    // carry are held to exactly the standard a v3 save's are.
+    localStorage.setItem(
+      "article-zero-save-auto",
+      JSON.stringify({ version: 2, savedAt: Date.now(), ...sample, playTimeMs: -1 }),
+    );
+    expect(loadGame("auto")).toBeNull();
   });
 });

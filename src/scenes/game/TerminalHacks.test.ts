@@ -20,7 +20,11 @@ function terminal(type: string, state: { bricked?: boolean } = {}): Terminal {
   return t as unknown as Terminal;
 }
 
-function world(objectives: ObjectiveState, terminals: Terminal[]): HackWorld {
+function world(
+  objectives: ObjectiveState,
+  terminals: Terminal[],
+  memoDecks: string[] = [],
+): HackWorld {
   const notes: string[] = [];
   return {
     tileSize: () => 16,
@@ -32,6 +36,10 @@ function world(objectives: ObjectiveState, terminals: Terminal[]): HackWorld {
     objectives: () => objectives,
     registry: () => ({ get: () => undefined, set: () => {}, has: () => false }) as any,
     note: (id) => notes.push(id),
+    // Records the deck each landed breach asked for paper on, so the tests below
+    // can assert that a *failed* transmit never yields one.
+    takeMemo: (level) => memoDecks.push(level),
+    levelName: () => "main1",
     publishObjectives: () => {},
   };
 }
@@ -114,5 +122,34 @@ describe("TerminalHacks — compliance failure and BETA persistence", () => {
 
     expect((beta as any).bricked).toBe(true);
     expect(objectives.betaLost).toBe(true);
+  });
+});
+
+describe("TerminalHacks — facility memos", () => {
+  it("takes a memo off a breach that lands", () => {
+    const decks: string[] = [];
+    const term = terminal(LOG_CACHE_ALPHA_TYPE);
+    const hacks = new TerminalHacks(world(initialObjectives(), [term], decks));
+    hacks.onComplete(term);
+    hacks.settleOverlay("compliance", "solved");
+    expect(decks).toEqual(["main1"]);
+  });
+
+  it("takes nothing off a bricked terminal, or one the player walked away from", () => {
+    // The memo hangs on `apply`, which is the funnel for breaches that landed.
+    // A wrong transmit destroys the cache; it should not also hand over paper.
+    const failed: string[] = [];
+    const a = terminal(LOG_CACHE_ALPHA_TYPE);
+    const h1 = new TerminalHacks(world(initialObjectives(), [a], failed));
+    h1.onComplete(a);
+    h1.settleOverlay("compliance", "failed");
+    expect(failed).toEqual([]);
+
+    const closed: string[] = [];
+    const b = terminal(LOG_CACHE_ALPHA_TYPE);
+    const h2 = new TerminalHacks(world(initialObjectives(), [b], closed));
+    h2.onComplete(b);
+    h2.settleOverlay("compliance", "closed");
+    expect(closed).toEqual([]);
   });
 });

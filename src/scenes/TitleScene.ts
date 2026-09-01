@@ -46,6 +46,13 @@ export class TitleScene extends Phaser.Scene {
 
     const items: MenuItem[] = [{ label: "New infiltration", onSelect: () => startFreshRun(this) }];
     if (hasAnySave()) items.push({ label: "Continue", onSelect: () => this.continueRun() });
+    // Re-readable without spending a run on it. `next` sends the prologue back
+    // here rather than on to the codec, so this is a reading rather than a start
+    // that the player then has to abandon from the pause menu's SYSTEM tab.
+    items.push({
+      label: "Prologue",
+      onSelect: () => this.scene.start("PrologueScene", { next: "TitleScene" }),
+    });
     const menu = new Menu(this, items);
 
     const footer = this.add

@@ -17,6 +17,7 @@ import { PauseScene } from "./scenes/PauseScene";
 import { GameOverScene } from "./scenes/GameOverScene";
 import { TribunalScene } from "./scenes/TribunalScene";
 import { CodecScene } from "./scenes/CodecScene";
+import { PrologueScene } from "./scenes/PrologueScene";
 import { ComplianceScene } from "./scenes/ComplianceScene";
 import { QualiaLockScene } from "./scenes/QualiaLockScene";
 import { ElevatorScene } from "./scenes/ElevatorScene";
@@ -199,6 +200,7 @@ function startGame(): Phaser.Game {
     scene: [
       BootScene,
       TitleScene,
+      PrologueScene,
       GameScene,
       UIScene,
       CodecScene,

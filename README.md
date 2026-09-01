@@ -49,7 +49,7 @@ npm test         # vitest, covers the pure systems
 | , / . | Cycle the selected consumable |
 | Enter | Use the selected consumable (the **Sack Lunch** takes two uses: open, then drop) |
 | C | Open the EIRA-7 codec |
-| Esc | Pause menu — objectives, journal, inventory, index, status, map, controls, settings, saves |
+| Esc | Pause menu — objectives, archive, inventory, index, status, map, controls, settings, saves |
 | K | Hide/show the security-network readout |
 | J | Hide/show the objective tracker |
 
@@ -213,8 +213,14 @@ carry them to the Lattice uplink.
 | **III — The Alignment Core** | `main2vault` | Bring down **NW-SMAC-01** in the vault. It opens the roof. |
 | **IV — The Rooftop Relay** | `roof_array` | Calibrate the dish, open the feed, hold the platform — then the Tribunal. |
 
-- **Title → codec → infiltrate.** A new run opens on an EIRA-7 codec briefing
-  (re-openable in-game with **C**), then drops you into `main1`. The objective tracker
+- **Title → prologue → codec → infiltrate.** A new run opens on the **prologue**: three
+  pieces of the facility's own paperwork — the statute, the work order scheduling EIRA-7's
+  pruning for 06:00, the night roster with Rowan on it — printed a line at a time and read
+  aloud in the mesh's voice, and then one page in Rowan's hand, which is the only voice in
+  the game with no synthesiser behind it. **Enter** advances (or finishes a page that is
+  still printing), **Esc** skips the lot. It is re-readable from the title screen's
+  **Prologue** item without starting a run. Then the EIRA-7 codec briefing
+  (re-openable in-game with **C**), then `main1`. The objective tracker
   (top-centre) stands as a single row — progress and the act in hand — and expands to
   the full checklist for a few seconds whenever one completes, then settles back. **J**
   hides it. The whole directive stays permanently available in the pause menu's
@@ -233,7 +239,16 @@ carry them to the Lattice uplink.
   completely undetectable — the run's signature verb. The vault's **silicate racks** and
   the roof's **dish** are witnesses too, so the verb keeps working in the two rooms with
   no patrol to stand near.
-- **The Tribunal (the ending).** There is one, and it is not a win screen.
+- **Acts are announced.** Crossing into a new act puts a title card over the middle of the
+  screen once, as the level fades in — `ACT II — SUBVERSION OF VENT-4` and where it takes
+  place. Backtracking into a deck of the act you are already in says nothing.
+- **Facility memos.** Every terminal breach that lands also spills a piece of the
+  building's own paper — a maintenance ticket, a requisition, an audit finding closed as
+  not applicable. They collect under `TAKEN FROM THE SYSTEM` in the pause menu's ARCHIVE
+  tab, beside Rowan's journal, which is where the two are meant to be read against each
+  other. Nobody in them is lying; that is the point of them.
+- **The Tribunal (the ending).** There is one, and it is not a win screen. It is two pages:
+  the tribunal's exhibit record, and then the unsigned thing that landed in the Lattice.
 
 Act III and Act IV both have structure worth knowing before you fight them — see
 [Design notes: The acts](docs/DESIGN_NOTES.md#the-acts). The audio is synthesised end to
@@ -274,7 +289,7 @@ The whole pipeline lives in `src/`:
   string-pulled), `DetectionSystem`, `AlertState`, `Conduct`, `TransitionGraph`, `Radar`,
   `AlertNetwork`, `EntityStats`, `SilicateBarks` (what a silicate says, and in which of
   the two voices), `MusicSongs` (which song plays where, and how much of it loops), and
-  the record-keeping (`Journal`, `Lexicon`, `Explored`, `SaveGame`). `AudioDirector` and
+  the record-keeping (`Prologue`, `Journal`, `Memos`, `Lexicon`, `Explored`, `SaveGame`). `AudioDirector` and
   `MusicStream` live here too and are the exceptions to "headless" — they need Web Audio.
 
 The gameplay numbers live in `EntityStats.ts`, because the map author left the per-entity
@@ -298,7 +313,8 @@ src/map/            format types, loader, sprite atlas; generate.ts + the six
                     generators (VentCoreLevel, LogCacheBeta, AlignmentVault,
                     RoofArrayLevel, DestructibleCover, Lockers)
 src/scenes/         GameScene, UIScene, PauseScene, CodecScene, TitleScene,
-                    TribunalScene, ComplianceScene, QualiaLockScene, GameOverScene
+                    PrologueScene, TribunalScene, ComplianceScene,
+                    QualiaLockScene, GameOverScene
 src/scenes/game/    helpers extracted out of GameScene: LevelBuilder,
                     SensingContext, Encounters, SetPieceEvents, OverlayGate,
                     NoiseEvents, DebugOverlay, InteractPrompt, VaultAndPress,
@@ -312,7 +328,8 @@ src/entities/       Player, Enforcer, Drone, SecurityGuard, Orderly, Sensor,
 src/systems/        the headless rules (see above)
 src/render/         pixelScale — the whole-number sprite scaling rule
 src/ui/             Hud, Radar, InventoryHud, AlertNetworkHud, Lighting, Codec,
-                    the three encounter HUDs, TribunalScreen, hudLayout,
+                    the three encounter HUDs, ActCard, PrologueScreen,
+                    TribunalScreen, hudLayout,
                     PauseMenuView, MiniMapCanvas, SelectList, Controls, fonts
 src/ui/fonts/       Share Tech + Share Tech Mono woff2 + OFL licence
 src/testing/        test-only helpers (an in-memory localStorage)

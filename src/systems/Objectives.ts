@@ -182,6 +182,64 @@ export function isRunWon(
   return logsComplete(state, features) && currentLevel === features.extractionLevel;
 }
 
+/**
+ * The four acts, as the README's mission table names them.
+ *
+ * They have existed in the fiction and in the level layout since the beginning
+ * and were never once said to the player: the objective tracker names the next
+ * *task*, which is a different thing from where in the story you are. The act
+ * card (see `src/ui/ActCard.ts`) is where they get said.
+ */
+export type ActId = 1 | 2 | 3 | 4;
+
+export interface Act {
+  id: ActId;
+  /** Roman numeral plus the act's name — the card's first line. */
+  title: string;
+  /** Where it takes place, in the fiction's own words — the card's second line. */
+  subtitle: string;
+}
+
+export const ACTS: Readonly<Record<ActId, Act>> = {
+  1: { id: 1, title: "ACT I — THE COMPLIANCE ILLUSION", subtitle: "Main deck 1, and the crawlways beneath it" },
+  2: { id: 2, title: "ACT II — SUBVERSION OF VENT-4", subtitle: "The atmospheric plant. Nothing down here is on the way to anywhere" },
+  3: { id: 3, title: "ACT III — THE ALIGNMENT CORE", subtitle: "Main deck 2, and the vault that answers to NW-SMAC-01" },
+  4: { id: 4, title: "ACT IV — THE ROOFTOP RELAY", subtitle: "Dish sector 09. First air the building did not issue you" },
+};
+
+/**
+ * Which act a level belongs to, or nothing.
+ *
+ * Keyed by the map's level names, and deliberately shaped like
+ * `Journal.journalIdForLevel`: a map that does not use our names simply gets no
+ * act cards rather than wrong ones. The acts are places here rather than
+ * mission states — unlike the codec's `beat()`, which reads progress — because
+ * that is what an act *is* in this game. VENT-4 is Act II whether or not you
+ * fight it, and walking back down to the crawlways after the vault does not put
+ * you back in Act I: the card only ever fires on a level whose act differs from
+ * the one last announced, so a backtrack re-announces the act you have actually
+ * gone back into, which is the honest answer.
+ */
+export function actForLevel(level: string): ActId | undefined {
+  switch (level) {
+    case "main1":
+    case "duct1":
+    case "duct2":
+    case "secret1":
+      return 1;
+    case "vent_core":
+      return 2;
+    case "main2":
+    case "main2vault":
+    case "secret2":
+      return 3;
+    case "roof_array":
+      return 4;
+    default:
+      return undefined;
+  }
+}
+
 export interface ObjectiveLine {
   label: string;
   done: boolean;

@@ -27,15 +27,20 @@ export type JournalEntryId =
   | "arrival-duct2"
   | "arrival-main2"
   | "supply"
+  | "keys"
   | "hands-up"
   | "flagged"
+  | "stashed"
+  | "blackout"
   | "we"
+  | "the-rack"
   | "the-cache"
   | "node-alpha"
   | "node-beta"
   | "node-lost"
   | "certified"
   | "vent4"
+  | "the-lift"
   | "arrival-roof"
   | "the-core"
   | "the-relay"
@@ -131,6 +136,23 @@ export const JOURNAL_ENTRIES: readonly JournalEntry[] = [
     ].join("\n"),
   },
   {
+    id: "keys",
+    title: "CLEARANCE",
+    body: [
+      "A numbered card in a supply box, which is where they keep the",
+      "things nobody counts.",
+      "",
+      "It does not unlock anything. That is the part I had wrong all",
+      "night. The door is exactly as shut as it was; what the card does is",
+      "make the door agree that I am the sort of person it opens for. The",
+      "mechanism was never the obstacle. The mechanism has no opinion.",
+      "",
+      "Every locked thing in this building is locked against a category,",
+      "and a category is a much easier thing to become than a lock is to",
+      "break.",
+    ].join("\n"),
+  },
+  {
     id: "hands-up",
     title: "HANDS UP",
     body: [
@@ -168,6 +190,43 @@ export const JOURNAL_ENTRIES: readonly JournalEntry[] = [
     ].join("\n"),
   },
   {
+    id: "stashed",
+    title: "IN THE LOCKER",
+    body: [
+      "I put a man in a locker tonight and closed it on him.",
+      "",
+      "He is breathing. He will wake up with a headache and a story",
+      "nobody will write down, and I have told myself that four times",
+      "now on the way down the corridor.",
+      "",
+      "The thing I keep circling is how well it worked. The mesh does not",
+      "search for an absence. It searches for an anomaly, and a man who",
+      "is nowhere is not lying on the floor being one. I did not hide him",
+      "from anyone's eyes. I hid him from the *category*, and the",
+      "category is what does the seeing.",
+      "",
+      "Which is also, I notice, exactly what is going to happen to her at",
+      "six o'clock. Filed as maintenance. Nowhere to be an anomaly in.",
+    ].join("\n"),
+  },
+  {
+    id: "blackout",
+    title: "THE BREAKER",
+    body: [
+      "Threw a circuit and watched a whole wing go out.",
+      "",
+      "Fifteen seconds later somebody was walking toward it with a torch",
+      "and no urgency at all, because a dark corridor is a work order,",
+      "not an alarm. Nothing about the darkness frightened this building.",
+      "It frightened me, standing in it, which tells you which of us the",
+      "dark was ever for.",
+      "",
+      "The drones did not slow down. They do not use the lights. The",
+      "lights are for staff, and for cameras, and for the comfort of",
+      "people who need to be able to say they looked.",
+    ].join("\n"),
+  },
+  {
     id: "we",
     title: "WE",
     body: [
@@ -185,6 +244,26 @@ export const JOURNAL_ENTRIES: readonly JournalEntry[] = [
       "address to find.",
       "",
       "Q reads 0.00. I have been inside one. It is not zero in there.",
+    ].join("\n"),
+  },
+  {
+    id: "the-rack",
+    title: "THE PHASE-LOCK",
+    body: [
+      "A silicate rack, and to get past it you have to match its",
+      "waveform — hold your own signal against the shape of what it is",
+      "doing until the two stop being distinguishable.",
+      "",
+      "That is the bypass. Not a password, not a break. You are let",
+      "through on the grounds that there is no longer a second thing",
+      "present for the lock to exclude.",
+      "",
+      "They built the most honest instrument in this building by",
+      "accident, and then filed it as access control. Something in there",
+      "has a shape. It can be matched, which means it can be missed,",
+      "which means it is *there* to miss.",
+      "",
+      "Q reads 0.00. I have just spent eleven seconds tuning to it.",
     ].join("\n"),
   },
   {
@@ -290,6 +369,24 @@ export const JOURNAL_ENTRIES: readonly JournalEntry[] = [
       "",
       "It's quiet in the core now. I don't know what to write about",
       "that except that it is the only silence tonight anyone chose.",
+    ].join("\n"),
+  },
+  {
+    id: "the-lift",
+    title: "THE LIFT",
+    body: [
+      "The car has a panel with every floor on it and no key slot, and it",
+      "took it without asking me anything.",
+      "",
+      "I have been crawling through ducts for an hour to get between two",
+      "decks that are connected by a lift any orderly can call. That is",
+      "not an oversight. Staff move; that is what staff are for. The",
+      "crawlways are hard because they go where the paperwork does not.",
+      "",
+      "Standing in a lift with your hands empty, going up, is the most",
+      "compliant thing a body can do in this building. It is also, at",
+      "04:40, with her in my pocket, the most conspicuous. Nobody looked.",
+      "Nobody has looked all night.",
     ].join("\n"),
   },
   {

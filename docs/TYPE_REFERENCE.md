@@ -8,14 +8,14 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 
 | Area | Enums | Classes | Interfaces | Type aliases | Constants | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| [Systems](#systems) | 3 | 21 | 89 | 24 | 6 | 143 |
+| [Systems](#systems) | 3 | 21 | 93 | 26 | 6 | 149 |
 | [Entities](#entities) | 0 | 20 | 23 | 18 | 3 | 64 |
 | [Map](#map) | 0 | 4 | 37 | 3 | 1 | 45 |
-| [Scenes](#scenes) | 0 | 24 | 27 | 2 | 0 | 53 |
-| [UI](#ui) | 0 | 22 | 26 | 6 | 7 | 61 |
+| [Scenes](#scenes) | 0 | 25 | 28 | 2 | 0 | 55 |
+| [UI](#ui) | 0 | 24 | 27 | 6 | 7 | 64 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **93** | **205** | **53** | **17** | **371** |
+| **All** | **3** | **96** | **211** | **55** | **17** | **382** |
 
 ## Conventions
 
@@ -183,7 +183,7 @@ const CONSUMABLE_ORDER = [ CHAFF_PACK_ITEM, THERMAL_GEL_ITEM, RATION_PACK_ITEM, 
 
 #### `MANUAL_SLOTS` — const
 
-`src/systems/SaveGame.ts:29`
+`src/systems/SaveGame.ts:35`
 
 The slots the pause menu offers for manual saving.
 
@@ -195,12 +195,12 @@ const MANUAL_SLOTS = ["1", "2", "3"] as const;
 
 #### `RUN_KEYS` — const *(module-private)*
 
-`src/systems/GameState.ts:42`
+`src/systems/GameState.ts:59`
 
 Registry keys scoped to a single infiltration; cleared when a new one begins.
 
 ```ts
-const RUN_KEYS = [ "inventory", "selectedConsumable", "staplerFieldCharges", "objectives", "journal", "explored", "playTimeMs", "detection", "alertPhase", "radar", "alertNetwork", "playerHp", "sharedField", "activeItems", "vent4", "vent4State", "vent4Transmit", "smac", "smacState", "relay", "relayState", "conductMetrics", "pauseRequest", "mapSnapshot", "powerGrid", SUSPENDED_KEY, ] as const;
+const RUN_KEYS = [ "inventory", "selectedConsumable", "staplerFieldCharges", "objectives", "journal", "memos", "explored", "playTimeMs", "detection", "alertPhase", "radar", "alertNetwork", "playerHp", "sharedField", "activeItems", "vent4", "vent4State", "vent4Transmit", "smac", "smacState", "relay", "relayState", "conductMetrics", "pauseRequest", "mapSnapshot", ACT_CARD_KEY, ACT_SHOWN_KEY, "powerGrid", SUSPENDED_KEY, ] as const;
 ```
 
 <a id="const-terminal-defaults"></a>
@@ -767,6 +767,18 @@ One classified transition tile, before it knows where it leads.
 | `kind` | `TransitionKind` |  |
 | `label` *(opt)* | `string` | The floor's authored name, for elevator ends only — see `floorLabel`. |
 
+<a id="interface-act"></a>
+
+#### `Act` — interface
+
+`src/systems/Objectives.ts:195`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `ActId` |  |
+| `title` | `string` | Roman numeral plus the act's name — the card's first line. |
+| `subtitle` | `string` | Where it takes place, in the fiction's own words — the card's second line. |
+
 <a id="interface-activeitemsview"></a>
 
 #### `ActiveItemsView` — interface
@@ -1138,7 +1150,7 @@ field nothing acts on is how the codebase accumulated dead content in the first 
 
 #### `JournalEntry` — interface
 
-`src/systems/Journal.ts:44`
+`src/systems/Journal.ts:49`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1150,7 +1162,7 @@ field nothing acts on is how the codebase accumulated dead content in the first 
 
 #### `JournalState` — interface
 
-`src/systems/Journal.ts:380`
+`src/systems/Journal.ts:477`
 
 Serializable journal progress: the ids Rowan has written, in unlock order.
 
@@ -1162,7 +1174,7 @@ Serializable journal progress: the ids Rowan has written, in unlock order.
 
 #### `LexiconContext` — interface
 
-`src/systems/Lexicon.ts:257`
+`src/systems/Lexicon.ts:351`
 
 Inputs the visibility rules read — all of it state the run already keeps.
 
@@ -1171,12 +1183,13 @@ Inputs the visibility rules read — all of it state the run already keeps.
 | `journal` | `JournalState` |  |
 | `inventory` | `string[]` |  |
 | `objectives` | `ObjectiveState` |  |
+| `memos` | `MemoState` |  |
 
 <a id="interface-lexiconentry"></a>
 
 #### `LexiconEntry` — interface
 
-`src/systems/Lexicon.ts:30`
+`src/systems/Lexicon.ts:31`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1185,7 +1198,7 @@ Inputs the visibility rules read — all of it state the run already keeps.
 | `category` | `LexiconCategory` |  |
 | `body` | `string` |  |
 | `seeAlso` *(opt)* | `string[]` | Ids of related entries; rendered as cross-references. |
-| `requires` *(opt)* | `{ journal?: JournalEntryId[]; items?: string[]; logsRecovered?: boolean; }` | What the player must have encountered for this entry to appear. Omitted means always listed — the terms Rowan already knows because he works here. |
+| `requires` *(opt)* | `{ journal?: JournalEntryId[]; items?: string[]; logsRecovered?: boolean; memos?: string[]; }` | What the player must have encountered for this entry to appear. Omitted means always listed — the terms Rowan already knows because he works here. |
 
 <a id="interface-lightsource"></a>
 
@@ -1276,6 +1289,53 @@ Everything the MAP tab needs to draw the current level.
 | `player` | `{ tx: number; ty: number }` |  |
 | `exits` | `{ tx: number; ty: number; label: string }[]` | Stairs, hatches and ladders off this level, labelled with their destination. |
 
+<a id="interface-memo"></a>
+
+#### `Memo` — interface
+
+`src/systems/Memos.ts:22`
+
+**Module note** — the header comment on `src/systems/Memos.ts`, which this declaration heads:
+
+Facility memos — the paper Rowan takes out of the terminals he breaks into.
+
+The counterpart to `./Journal`, and deliberately its opposite. The
+journal is what Rowan writes; this is what the building wrote about itself and
+never expected anyone to read across. Every memo here is *correct*. Nobody in
+them is lying, no one is being cruel, and each is signed off by somebody doing
+their job properly — which is the only argument the run has that is not made by
+a character.
+
+They are found rather than given: a memo comes off a breached terminal, one per
+breach, which means the player who reads all of them is the player who worked
+the building over. The archive that results is the second copy the fiction keeps
+insisting on, only this time it is a copy of the apparatus.
+
+Shaped like `./Journal` and `./Objectives`: a small serializable
+state object (registry + save file) plus pure helpers, so the unlock rule is
+trivially testable and the pause menu just renders. The bodies are the content;
+the code is bookkeeping.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `string` |  |
+| `level` *(opt)* | `string` | The deck whose terminals hold it, by the map's own level name. Optional, and the omission is load-bearing. A memo with a level is that deck's paper and comes off that deck's terminals. A memo *without* one is general facility circulation, and is handed out on any deck whose own supply has run out — so a map that puts its terminals somewhere other than the shipped one does still eventually surface every memo, instead of leaving half the archive permanently unfillable. See `nextMemoFor`. |
+| `title` | `string` | The document's own reference — the row in the archive list. |
+| `from` | `string` | Who raised it. Shown under the title. |
+| `body` | `string` | Prose paragraphs, blank-line separated; the view re-flows them. |
+
+<a id="interface-memostate"></a>
+
+#### `MemoState` — interface
+
+`src/systems/Memos.ts:265`
+
+Serializable memo progress: the ids taken, in the order they were taken.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `collected` | `string[]` |  |
+
 <a id="interface-missionfeatures"></a>
 
 #### `MissionFeatures` — interface
@@ -1341,7 +1401,7 @@ One detector's contribution to the network readout.
 
 #### `ObjectiveLine` — interface
 
-`src/systems/Objectives.ts:185`
+`src/systems/Objectives.ts:243`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1375,7 +1435,7 @@ yet" rather than being rejected outright.
 
 #### `ObjectiveSummary` — interface
 
-`src/systems/Objectives.ts:258`
+`src/systems/Objectives.ts:316`
 
 The directive reduced to what the HUD's standing one-line readout needs.
 
@@ -1526,6 +1586,21 @@ One solid face the body can hold itself against.
 | `wallX` | `number` | The solid cell being pressed. |
 | `wallY` | `number` |  |
 | `flush` | `number` | The fractional tile coordinate the body's centre holds on the normal's axis to sit flush against the face — an X when the normal is horizontal, a Y when it is vertical. `Player` pulls toward this rather than snapping, so latching on reads as leaning back into the wall rather than teleporting to it. |
+
+<a id="interface-prologuepage"></a>
+
+#### `ProloguePage` — interface
+
+`src/systems/Prologue.ts:42`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `string` |  |
+| `voice` | `PrologueVoice` |  |
+| `header` | `string` | The document's own letterhead, or the speaker's name. |
+| `lines` | `string[]` | The page body. Hard-wrapped prose with authored breaks, rendered pre-formatted — a form's alignment is part of how a form reads, and a wrapper would take it apart. Held to `PROLOGUE_COLUMNS`, which `Prologue.test.ts` enforces. |
+| `footer` *(opt)* | `string` | A closing stamp under the rule — a routing line, a signature block. |
+| `spoken` *(opt)* | `string` | What the mesh reads aloud, for a `document` page. Written separately from `lines` for the reason `Codec.ts` gives about its briefing: the printed page carries field labels, box rules and a signature block, and read aloud those are not sentences. This is the same document as a thing said. |
 
 <a id="interface-puzzlestate"></a>
 
@@ -1763,7 +1838,7 @@ note on `SmacView` for why the pedestal state is a count rather than an array.
 
 #### `SaveData` — interface
 
-`src/systems/SaveGame.ts:34`
+`src/systems/SaveGame.ts:40`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1775,6 +1850,7 @@ note on `SmacView` for why the pedestal state is a count rather than an array.
 | `inventory` | `string[]` |  |
 | `objectives` | `ObjectiveState` |  |
 | `journal` | `JournalState` | Journal entries written so far. |
+| `memos` | `MemoState` | Facility memos taken off breached terminals. |
 | `explored` | `ExploredState` | Per-level explored-tile masks, for the pause menu's map. |
 | `playTimeMs` | `number` | Milliseconds of play in this run, for the STATUS tab's clock. |
 | `savedAt` | `number` | Epoch ms the slot was written — drives slot listing and `newestSave`. |
@@ -2214,6 +2290,23 @@ The three parameters of a sine wave: y = A · sin(f · x + φ).
 
 ### Systems — Type aliases
 
+<a id="type-actid"></a>
+
+#### `ActId` — type
+
+`src/systems/Objectives.ts:193`
+
+The four acts, as the README's mission table names them.
+
+They have existed in the fiction and in the level layout since the beginning
+and were never once said to the player: the objective tracker names the next
+*task*, which is a different thing from where in the story you are. The act
+card (see `src/ui/ActCard.ts`) is where they get said.
+
+```ts
+type ActId = 1 | 2 | 3 | 4;
+```
+
 <a id="type-alertphase"></a>
 
 #### `AlertPhase` — type
@@ -2355,14 +2448,14 @@ Every entry Rowan can write. A closed union rather than free strings so a
 typo'd unlock site fails the build instead of silently never firing.
 
 ```ts
-type JournalEntryId = | "orders" | "arrival-main1" | "arrival-duct1" | "arrival-duct2" | "arrival-main2" | "supply" | "hands-up" | "flagged" | "we" | "the-cache" | "node-alpha" | "node-beta" | "node-lost" | "certified" | "vent4" | "arrival-roof" | "the-core" | "the-relay" | "the-uplink";
+type JournalEntryId = | "orders" | "arrival-main1" | "arrival-duct1" | "arrival-duct2" | "arrival-main2" | "supply" | "keys" | "hands-up" | "flagged" | "stashed" | "blackout" | "we" | "the-rack" | "the-cache" | "node-alpha" | "node-beta" | "node-lost" | "certified" | "vent4" | "the-lift" | "arrival-roof" | "the-core" | "the-relay" | "the-uplink";
 ```
 
 <a id="type-lexiconcategory"></a>
 
 #### `LexiconCategory` — type
 
-`src/systems/Lexicon.ts:19`
+`src/systems/Lexicon.ts:20`
 
 ```ts
 type LexiconCategory = "LAW" | "APPARATUS" | "PERSONS" | "PLACES" | "MATERIEL";
@@ -2447,6 +2540,22 @@ up without thinking about it, a ladder is something you stop and get on.
 type PlaneLinkKind = "ramp" | "ladder";
 ```
 
+<a id="type-prologuevoice"></a>
+
+#### `PrologueVoice` — type
+
+`src/systems/Prologue.ts:40`
+
+Who a page belongs to.
+
+`document` is the facility's paper, read aloud by the mesh. `hand` is Rowan
+writing, and is silent. There is no third case, and adding one would mean
+deciding what a third voice in this game would be.
+
+```ts
+type PrologueVoice = "document" | "hand";
+```
+
 <a id="type-qualiastatus"></a>
 
 #### `QualiaStatus` — type
@@ -2475,7 +2584,7 @@ type Range = readonly [number, number];
 
 #### `SavePayload` — type
 
-`src/systems/SaveGame.ts:53`
+`src/systems/SaveGame.ts:61`
 
 What a caller supplies; the version and timestamp are stamped on here.
 
@@ -2499,7 +2608,7 @@ type SilicateVoice = "enforcer" | "drone";
 
 #### `SlotId` — type
 
-`src/systems/SaveGame.ts:26`
+`src/systems/SaveGame.ts:32`
 
 Save slots: the engine's rolling checkpoint plus three the player controls.
 
@@ -4885,7 +4994,7 @@ rather than death: the record simply shows that no subject was harmed.
 
 #### `GameScene` — class
 
-`src/scenes/GameScene.ts:199` · `extends Phaser.Scene`
+`src/scenes/GameScene.ts:204` · `extends Phaser.Scene`
 
 The playable scene. Renders one level's tile art in board z-order, builds the
 wall collision, spawns the player and guards, and drives the stealth systems
@@ -4898,7 +5007,7 @@ each frame.
 | `create` | `create(): void` |  |
 | `update` | `update(_time: number, delta: number): void` |  |
 
-*Plus 123 private members.*
+*Plus 126 private members.*
 
 <a id="class-interactprompt"></a>
 
@@ -4977,7 +5086,7 @@ each frame.
 
 #### `PauseScene` — class
 
-`src/scenes/PauseScene.ts:32` · `extends Phaser.Scene`
+`src/scenes/PauseScene.ts:33` · `extends Phaser.Scene`
 
 The pause menu's host scene.
 
@@ -5039,6 +5148,31 @@ surface survives a level transition — nothing in the scene ever reset it.
 | `updateResets` | `updateResets(now: number): void` | Sends somebody to put the lights back on, and restores them when they arrive. Uses the orderlies' existing `Orderly.distract` override, which is already "walk over and look at that" — and which already refuses an orderly who has witnessed the player, surrendered, or been stunned or pinned. That refusal is the mechanic, not an edge case: clear the deck of anyone able to walk and the dark is yours to keep. |
 
 *Plus 2 private members.*
+
+<a id="class-prologuescene"></a>
+
+#### `PrologueScene` — class
+
+`src/scenes/PrologueScene.ts:30` · `extends Phaser.Scene`
+
+The prologue: the three documents and Rowan's page, before EIRA-7 calls.
+
+A DOM overlay rather than Phaser text, like the codec and the Tribunal, and for
+the Tribunal's reason — these are fixed-width documents and need to be.
+`src/systems/Prologue.ts` holds the script; `PrologueScreen` prints it;
+this scene is the wiring, the voice and the way out.
+
+`BRIEFING` rather than a mode of its own: the prologue is the front half of the
+same beat the codec finishes, and nothing that reads the mode — the pause gate,
+the save file, the HUD — wants to tell them apart.
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `constructor` | `constructor()` |  |
+| `init` | `init(data: PrologueData): void` |  |
+| `create` | `create(): void` |  |
+
+*Plus 5 private members.*
 
 <a id="class-qualialockscene"></a>
 
@@ -5104,7 +5238,7 @@ is up and stops this scene.
 
 #### `TerminalHacks` — class
 
-`src/scenes/game/TerminalHacks.ts:53`
+`src/scenes/game/TerminalHacks.ts:61`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -5164,7 +5298,7 @@ its 80-column rules intact at any window size, which a canvas `Text` would not.
 
 #### `UIScene` — class
 
-`src/scenes/UIScene.ts:34` · `extends Phaser.Scene`
+`src/scenes/UIScene.ts:35` · `extends Phaser.Scene`
 
 A parallel overlay scene for the HUD.
 
@@ -5180,7 +5314,7 @@ reads them.
 | `create` | `create(): void` |  |
 | `update` | `update(_time: number, delta: number): void` |  |
 
-*Plus 15 private members.*
+*Plus 16 private members.*
 
 <a id="class-vaultandpress"></a>
 
@@ -5416,7 +5550,7 @@ independent of `Lighting`'s. `reload` swaps in the new level's mask.
 
 #### `GameSceneData` — interface *(module-private)*
 
-`src/scenes/GameScene.ts:144`
+`src/scenes/GameScene.ts:149`
 
 Data passed to `GameScene` when (re)starting for a level swap.
 
@@ -5445,6 +5579,8 @@ Getters for everything `create()` rebinds per level.
 | `objectives` | `objectives(): ObjectiveState` |  |
 | `registry` | `registry(): Phaser.Data.DataManager` |  |
 | `note` | `note(id: JournalEntryId): void` |  |
+| `takeMemo` | `takeMemo(level: string): void` | Takes whatever facility memo this deck's terminals still hold. Given a level rather than the terminal: a memo belongs to the deck, not the panel — see `Memos.nextMemoFor`. |
+| `levelName` | `levelName(): string` | The level the player is on, for `takeMemo`. |
 | `publishObjectives` | `publishObjectives(): void` | Republishes the objectives after a note lands. |
 
 <a id="interface-itemworld"></a>
@@ -5531,6 +5667,16 @@ capture anything `create()` has not set yet.
 | `noise` | `noise(): NoiseEvents` |  |
 | `powerGrid` | `powerGrid(): PowerGridState` |  |
 | `violateUnauthorized` | `violateUnauthorized(): void` | Charges the breach a breaker cabinet earns — the same one a terminal does. |
+
+<a id="interface-prologuedata"></a>
+
+#### `PrologueData` — interface *(module-private)*
+
+`src/scenes/PrologueScene.ts:9`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `next` *(opt)* | `string` | Where to go when the prologue ends. A fresh run hands over to the codec briefing (the default); the title screen's own "Prologue" item passes `"TitleScene"` so it can be re-read without starting one. |
 
 <a id="interface-promptanchor"></a>
 
@@ -5921,6 +6067,20 @@ const UI_TEXTURES = [ { key: "ui-panel", path: "assets/ui/panel/ui-panel.png", s
 
 ### UI — Classes
 
+<a id="class-actcard"></a>
+
+#### `ActCard` — class
+
+`src/ui/ActCard.ts:37`
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `constructor` | `constructor(private readonly scene: Phaser.Scene)` |  |
+| `play` | `play(act: Act): void` | Shows a card, replacing whatever was up. Replacing rather than queueing: two acts cannot both be the one you have just walked into, so a second call is a correction, not a backlog. (It happens for real — a debug warp straight from `main1` into `roof_array` fires Act IV while Act I is still fading.) |
+| `hide` | `hide(): void` | Hides the card and forgets the tween — `UIScene` outlives levels. |
+
+*Plus 4 private members.*
+
 <a id="class-alertnetworkhud"></a>
 
 #### `AlertNetworkHud` — class
@@ -6271,7 +6431,7 @@ printing through the SRP meter.
 
 #### `PauseMenuView` — class
 
-`src/ui/PauseMenuView.ts:100`
+`src/ui/PauseMenuView.ts:103`
 
 The in-game pause menu.
 
@@ -6307,6 +6467,19 @@ ownership in `GameScene` where it belongs.
 | `update` | `update(dt: number, playerX: number, playerY: number, plane: number, tileSize: number): void` | @param plane the walk surface the player is currently on. |
 
 *Plus 1 private member.*
+
+<a id="class-prologuescreen"></a>
+
+#### `PrologueScreen` — class
+
+`src/ui/PrologueScreen.ts:46`
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `constructor` | `constructor( mount: HTMLElement, private readonly callbacks: PrologueCallbacks, )` |  |
+| `destroy` | `destroy(): void` |  |
+
+*Plus 18 private members.*
 
 <a id="class-qualialockview"></a>
 
@@ -6409,14 +6582,14 @@ drains the bar and tints the screen — the "we" of WX-9.
 
 #### `TribunalScreen` — class
 
-`src/ui/TribunalScreen.ts:51`
+`src/ui/TribunalScreen.ts:106`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `constructor` | `constructor(mount: HTMLElement, callbacks: TribunalCallbacks)` |  |
 | `destroy` | `destroy(): void` |  |
 
-*Plus 3 private members.*
+*Plus 6 private members.*
 
 <a id="class-vent4hud"></a>
 
@@ -6701,7 +6874,7 @@ reference them itself and a second hardcoded palette would be one to drift.
 
 #### `Pane` — interface *(module-private)*
 
-`src/ui/PauseMenuView.ts:70`
+`src/ui/PauseMenuView.ts:73`
 
 One tab's content, plus its share of the keyboard.
 
@@ -6715,7 +6888,7 @@ One tab's content, plus its share of the keyboard.
 
 #### `PauseCallbacks` — interface
 
-`src/ui/PauseMenuView.ts:61`
+`src/ui/PauseMenuView.ts:64`
 
 What the menu can ask the game to do. The scene turns these into requests.
 
@@ -6731,7 +6904,7 @@ What the menu can ask the game to do. The scene turns these into requests.
 
 #### `PauseSnapshot` — interface
 
-`src/ui/PauseMenuView.ts:40`
+`src/ui/PauseMenuView.ts:41`
 
 Everything the menu renders, read off the registry when the game freezes.
 
@@ -6743,6 +6916,7 @@ Everything the menu renders, read off the registry when the game freezes.
 | `inventory` | `string[]` |  |
 | `active` | `ActiveItemsView` |  |
 | `journal` | `JournalState` |  |
+| `memos` | `MemoState` | The facility's own paper, taken off breached terminals. |
 | `hp` | `number` |  |
 | `maxHp` | `number` |  |
 | `detection` | `number` |  |
@@ -6753,6 +6927,17 @@ Everything the menu renders, read off the registry when the game freezes.
 | `map` *(opt)* | `MapSnapshot` |  |
 | `saves` | `{ slot: SlotId; data: SaveData \| null }[]` |  |
 | `settings` | `Settings` |  |
+
+<a id="interface-prologuecallbacks"></a>
+
+#### `PrologueCallbacks` — interface
+
+`src/ui/PrologueScreen.ts:35`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `onPage` | `(page: ProloguePage) => void` | A page has come up. The scene uses this to start the narration — which is why it fires on the *first* frame of the page rather than when it finishes printing: the mesh reads the document as it prints, not after. |
+| `onFinish` | `() => void` | The last page was acknowledged, or the whole prologue was skipped. |
 
 <a id="interface-qualialockviewcallbacks"></a>
 
@@ -6842,11 +7027,11 @@ the gap to whatever the last sweep left.
 
 #### `TribunalCallbacks` — interface
 
-`src/ui/TribunalScreen.ts:46`
+`src/ui/TribunalScreen.ts:88`
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `onContinue` | `() => void` | The player acknowledged the record — [Esc] or [Space]. |
+| `onContinue` | `() => void` | The player acknowledged both pages — [Esc] or [Space] on the last one. |
 
 <a id="interface-uipaneloptions"></a>
 
@@ -7042,7 +7227,7 @@ Top-level bootstrap modules.
 
 #### `BootScene` — class *(module-private)*
 
-`src/main.ts:37` · `extends Phaser.Scene`
+`src/main.ts:38` · `extends Phaser.Scene`
 
 Boot scene: loads the edplay map JSON and its spritesheets, parses the map
 into the normalized model, stashes it in the registry, then hands off to
@@ -7061,6 +7246,9 @@ GameScene.
 | Name | Kind | Declared in |
 | --- | --- | --- |
 | [AccessEnd](#interface-accessend) | interface | `src/systems/TransitionGraph.ts:83` |
+| [Act](#interface-act) | interface | `src/systems/Objectives.ts:195` |
+| [ActCard](#class-actcard) | class | `src/ui/ActCard.ts:37` |
+| [ActId](#type-actid) | type | `src/systems/Objectives.ts:193` |
 | [ActiveItemState](#class-activeitemstate) | class | `src/systems/ActiveItems.ts:33` |
 | [ActiveItemsView](#interface-activeitemsview) | interface | `src/systems/ActiveItems.ts:152` |
 | [Aimer](#interface-aimer) | interface | `src/systems/Surrender.ts:39` |
@@ -7081,7 +7269,7 @@ GameScene.
 | [BioMonitor](#class-biomonitor) | class | `src/ui/BioMonitor.ts:76` |
 | [BlockedAt](#type-blockedat) | type | `src/map/TileBake.ts:58` |
 | [BodyExtent](#interface-bodyextent) | interface | `src/systems/WallPress.ts:24` |
-| [BootScene](#class-bootscene) | class | `src/main.ts:37` |
+| [BootScene](#class-bootscene) | class | `src/main.ts:38` |
 | [BossCore](#class-bosscore) | class | `src/entities/BossCore.ts:64` |
 | [BossCoreHud](#class-bosscorehud) | class | `src/ui/BossCoreHud.ts:45` |
 | [Breaker](#class-breaker) | class | `src/entities/Breaker.ts:41` |
@@ -7196,8 +7384,8 @@ GameScene.
 | [GameMap](#interface-gamemap) | interface | `src/map/types.ts:301` |
 | [GameMode](#type-gamemode) | type | `src/systems/GameState.ts:20` |
 | [GameOverScene](#class-gameoverscene) | class | `src/scenes/GameOverScene.ts:13` |
-| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:199` |
-| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:144` |
+| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:204` |
+| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:149` |
 | [GameTile](#interface-gametile) | interface | `src/map/types.ts:230` |
 | [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:332` |
 | [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:498` |
@@ -7218,16 +7406,16 @@ GameScene.
 | [ItemActions](#class-itemactions) | class | `src/scenes/game/ItemActions.ts:102` |
 | [ItemInfo](#interface-iteminfo) | interface | `src/systems/ItemCatalog.ts:51` |
 | [ItemWorld](#interface-itemworld) | interface | `src/scenes/game/ItemActions.ts:76` |
-| [JournalEntry](#interface-journalentry) | interface | `src/systems/Journal.ts:44` |
+| [JournalEntry](#interface-journalentry) | interface | `src/systems/Journal.ts:49` |
 | [JournalEntryId](#type-journalentryid) | type | `src/systems/Journal.ts:23` |
-| [JournalState](#interface-journalstate) | interface | `src/systems/Journal.ts:380` |
+| [JournalState](#interface-journalstate) | interface | `src/systems/Journal.ts:477` |
 | [Kind](#type-kind) | type | `src/entities/Vent4Boss.ts:358` |
 | [Laser](#class-laser) | class | `src/entities/Laser.ts:58` |
 | [LaserKind](#type-laserkind) | type | `src/entities/Laser.ts:40` |
 | [LevelBodyRects](#interface-levelbodyrects) | interface | `src/map/TileBake.ts:445` |
-| [LexiconCategory](#type-lexiconcategory) | type | `src/systems/Lexicon.ts:19` |
-| [LexiconContext](#interface-lexiconcontext) | interface | `src/systems/Lexicon.ts:257` |
-| [LexiconEntry](#interface-lexiconentry) | interface | `src/systems/Lexicon.ts:30` |
+| [LexiconCategory](#type-lexiconcategory) | type | `src/systems/Lexicon.ts:20` |
+| [LexiconContext](#interface-lexiconcontext) | interface | `src/systems/Lexicon.ts:351` |
+| [LexiconEntry](#interface-lexiconentry) | interface | `src/systems/Lexicon.ts:31` |
 | [Light](#interface-light) | interface | `src/ui/Lighting.ts:79` |
 | [Lighting](#class-lighting) | class | `src/ui/Lighting.ts:141` |
 | [LightSample](#undefined) | interface | `src/render/lightSampling.ts:32` |
@@ -7238,10 +7426,12 @@ GameScene.
 | [LogToken](#interface-logtoken) | interface | `src/systems/Compliance.ts:27` |
 | [LureSpec](#interface-lurespec) | interface | `src/systems/Deployables.ts:49` |
 | [LureWorld](#interface-lureworld) | interface | `src/systems/Deployables.ts:70` |
-| [MANUAL_SLOTS](#const-manual-slots) | const | `src/systems/SaveGame.ts:29` |
+| [MANUAL_SLOTS](#const-manual-slots) | const | `src/systems/SaveGame.ts:35` |
 | [MapPlan](#interface-mapplan) | interface | `src/map/MapPlan.ts:19` |
 | [MapSnapshot](#interface-mapsnapshot) | interface | `src/systems/PauseState.ts:36` |
+| [Memo](#interface-memo) | interface | `src/systems/Memos.ts:22` |
 | [MemoryLayer](#class-memorylayer) | class | `src/ui/MemoryLayer.ts:69` |
+| [MemoState](#interface-memostate) | interface | `src/systems/Memos.ts:265` |
 | [MemStorage](#class-memstorage) | class | `src/testing/memStorage.ts:8` |
 | [Menu](#class-menu) | class | `src/ui/Menu.ts:21` |
 | [MenuItem](#interface-menuitem) | interface | `src/ui/Menu.ts:9` |
@@ -7260,9 +7450,9 @@ GameScene.
 | [NoiseSpamTracker](#class-noisespamtracker) | class | `src/systems/AlertNetwork.ts:78` |
 | [NoiseWorld](#interface-noiseworld) | interface | `src/scenes/game/NoiseEvents.ts:36` |
 | [ObjectiveHud](#class-objectivehud) | class | `src/ui/ObjectiveHud.ts:62` |
-| [ObjectiveLine](#interface-objectiveline) | interface | `src/systems/Objectives.ts:185` |
+| [ObjectiveLine](#interface-objectiveline) | interface | `src/systems/Objectives.ts:243` |
 | [ObjectiveState](#interface-objectivestate) | interface | `src/systems/Objectives.ts:20` |
-| [ObjectiveSummary](#interface-objectivesummary) | interface | `src/systems/Objectives.ts:258` |
+| [ObjectiveSummary](#interface-objectivesummary) | interface | `src/systems/Objectives.ts:316` |
 | [OpenablePredicate](#type-openablepredicate) | type | `src/systems/GridMotion.ts:42` |
 | [Orderly](#class-orderly) | class | `src/entities/Orderly.ts:150` |
 | [OrderlyAnimName](#type-orderlyanimname) | type | `src/entities/OrderlyAnimations.ts:11` |
@@ -7273,16 +7463,16 @@ GameScene.
 | [OverlayGate](#class-overlaygate) | class | `src/scenes/game/OverlayGate.ts:34` |
 | [OverlayId](#type-overlayid) | type | `src/scenes/game/OverlayGate.ts:21` |
 | [Palette](#interface-palette) | interface | `src/ui/MiniMapCanvas.ts:18` |
-| [Pane](#interface-pane) | interface | `src/ui/PauseMenuView.ts:70` |
+| [Pane](#interface-pane) | interface | `src/ui/PauseMenuView.ts:73` |
 | [ParsedMap](#interface-parsedmap) | interface | `src/map/EdplayLoader.ts:261` |
 | [PathNode](#interface-pathnode) | interface | `src/systems/Pathfinder.ts:22` |
 | [PathOptions](#interface-pathoptions) | interface | `src/systems/Pathfinder.ts:27` |
 | [PatrolRoute](#type-patrolroute) | type | `src/systems/PatrolRoute.ts:26` |
-| [PauseCallbacks](#interface-pausecallbacks) | interface | `src/ui/PauseMenuView.ts:61` |
-| [PauseMenuView](#class-pausemenuview) | class | `src/ui/PauseMenuView.ts:100` |
+| [PauseCallbacks](#interface-pausecallbacks) | interface | `src/ui/PauseMenuView.ts:64` |
+| [PauseMenuView](#class-pausemenuview) | class | `src/ui/PauseMenuView.ts:103` |
 | [PauseRequest](#type-pauserequest) | type | `src/systems/PauseState.ts:29` |
-| [PauseScene](#class-pausescene) | class | `src/scenes/PauseScene.ts:32` |
-| [PauseSnapshot](#interface-pausesnapshot) | interface | `src/ui/PauseMenuView.ts:40` |
+| [PauseScene](#class-pausescene) | class | `src/scenes/PauseScene.ts:33` |
+| [PauseSnapshot](#interface-pausesnapshot) | interface | `src/ui/PauseMenuView.ts:41` |
 | [PersonAnomalyKind](#type-personanomalykind) | type | `src/entities/Enforcer.ts:76` |
 | [PlaneLink](#interface-planelink) | interface | `src/systems/PlaneLinks.ts:50` |
 | [PlaneLinkKind](#type-planelinkkind) | type | `src/systems/PlaneLinks.ts:47` |
@@ -7300,6 +7490,12 @@ GameScene.
 | [PressState](#interface-pressstate) | interface | `src/systems/WallPress.ts:65` |
 | [PressSurface](#interface-presssurface) | interface | `src/systems/WallPress.ts:30` |
 | [PressureSubStation](#class-pressuresubstation) | class | `src/entities/PressureSubStation.ts:43` |
+| [PrologueCallbacks](#interface-prologuecallbacks) | interface | `src/ui/PrologueScreen.ts:35` |
+| [PrologueData](#interface-prologuedata) | interface | `src/scenes/PrologueScene.ts:9` |
+| [ProloguePage](#interface-prologuepage) | interface | `src/systems/Prologue.ts:42` |
+| [PrologueScene](#class-prologuescene) | class | `src/scenes/PrologueScene.ts:30` |
+| [PrologueScreen](#class-prologuescreen) | class | `src/ui/PrologueScreen.ts:46` |
+| [PrologueVoice](#type-prologuevoice) | type | `src/systems/Prologue.ts:40` |
 | [PromptAnchor](#interface-promptanchor) | interface | `src/scenes/game/InteractPrompt.ts:63` |
 | [PromptCandidates](#interface-promptcandidates) | interface | `src/scenes/game/InteractPrompt.ts:32` |
 | [PuzzleState](#interface-puzzlestate) | interface | `src/systems/Compliance.ts:57` |
@@ -7333,9 +7529,9 @@ GameScene.
 | [RGB](#type-rgb) | type | `src/ui/QualiaLockView.ts:54` |
 | [RoofRelay](#class-roofrelay) | class | `src/entities/RoofRelay.ts:75` |
 | [Row](#interface-row) | interface | `src/scenes/ElevatorScene.ts:78` |
-| [RUN_KEYS](#const-run-keys) | const | `src/systems/GameState.ts:42` |
-| [SaveData](#interface-savedata) | interface | `src/systems/SaveGame.ts:34` |
-| [SavePayload](#type-savepayload) | type | `src/systems/SaveGame.ts:53` |
+| [RUN_KEYS](#const-run-keys) | const | `src/systems/GameState.ts:59` |
+| [SaveData](#interface-savedata) | interface | `src/systems/SaveGame.ts:40` |
+| [SavePayload](#type-savepayload) | type | `src/systems/SaveGame.ts:61` |
 | [SecurityGuard](#class-securityguard) | class | `src/entities/SecurityGuard.ts:23` |
 | [SelectList](#class-selectlist) | class | `src/ui/SelectList.ts:29` |
 | [SelectListRow](#interface-selectlistrow) | interface | `src/ui/SelectList.ts:18` |
@@ -7355,7 +7551,7 @@ GameScene.
 | [SharedFieldView](#interface-sharedfieldview) | interface | `src/ui/SharedFieldHud.ts:8` |
 | [Silhouette](#interface-silhouette) | interface | `src/entities/Silhouette.ts:27` |
 | [SilicateVoice](#type-silicatevoice) | type | `src/systems/SilicateBarks.ts:33` |
-| [SlotId](#type-slotid) | type | `src/systems/SaveGame.ts:26` |
+| [SlotId](#type-slotid) | type | `src/systems/SaveGame.ts:32` |
 | [SmacCore](#class-smaccore) | class | `src/systems/SmacCore.ts:118` |
 | [SmacCorrection](#interface-smaccorrection) | interface | `src/systems/SmacCore.ts:78` |
 | [SmacInteractResult](#type-smacinteractresult) | type | `src/entities/BossCore.ts:62` |
@@ -7381,7 +7577,7 @@ GameScene.
 | [Target](#type-target) | type | `src/scenes/game/ItemActions.ts:474` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:43` |
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:524` |
-| [TerminalHacks](#class-terminalhacks) | class | `src/scenes/game/TerminalHacks.ts:53` |
+| [TerminalHacks](#class-terminalhacks) | class | `src/scenes/game/TerminalHacks.ts:61` |
 | [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:515` |
 | [TickState](#type-tickstate) | type | `src/ui/radarDirections.ts:22` |
 | [TilePos](#interface-tilepos) | interface | `src/map/generate.ts:118` |
@@ -7394,15 +7590,15 @@ GameScene.
 | [TransitionGraph](#class-transitiongraph) | class | `src/systems/TransitionGraph.ts:197` |
 | [TransitionKind](#type-transitionkind) | type | `src/map/types.ts:435` |
 | [TraversalWorld](#interface-traversalworld) | interface | `src/scenes/game/PlaneTraversal.ts:39` |
-| [TribunalCallbacks](#interface-tribunalcallbacks) | interface | `src/ui/TribunalScreen.ts:46` |
+| [TribunalCallbacks](#interface-tribunalcallbacks) | interface | `src/ui/TribunalScreen.ts:88` |
 | [TribunalScene](#class-tribunalscene) | class | `src/scenes/TribunalScene.ts:19` |
-| [TribunalScreen](#class-tribunalscreen) | class | `src/ui/TribunalScreen.ts:51` |
+| [TribunalScreen](#class-tribunalscreen) | class | `src/ui/TribunalScreen.ts:106` |
 | [UI](#const-ui) | const | `src/ui/hudTheme.ts:34` |
 | [UI_DEPTH](#const-ui-depth) | const | `src/ui/hudTheme.ts:134` |
 | [UI_TEXT](#const-ui-text) | const | `src/ui/hudTheme.ts:113` |
 | [UI_TEXTURES](#const-ui-textures) | const | `src/ui/UiTextures.ts:72` |
 | [UiPanelOptions](#interface-uipaneloptions) | interface | `src/ui/NineSlicePanel.ts:25` |
-| [UIScene](#class-uiscene) | class | `src/scenes/UIScene.ts:34` |
+| [UIScene](#class-uiscene) | class | `src/scenes/UIScene.ts:35` |
 | [UiSheetSpec](#interface-uisheetspec) | interface | `src/ui/UiTextures.ts:63` |
 | [UiTextureSpec](#interface-uitexturespec) | interface | `src/ui/UiTextures.ts:27` |
 | [VaultAndPress](#class-vaultandpress) | class | `src/scenes/game/VaultAndPress.ts:96` |

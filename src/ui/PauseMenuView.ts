@@ -6,6 +6,7 @@ import { CONTROLS } from "./Controls";
 import { formatAgo, formatClock } from "./format";
 import { clamp01 } from "../systems/math";
 import { JOURNAL_ENTRIES, type JournalState } from "../systems/Journal";
+import { MEMOS, type MemoState } from "../systems/Memos";
 import { lexiconByCategory, lexiconEntry, type LexiconContext } from "../systems/Lexicon";
 import { itemInfo } from "../systems/ItemCatalog";
 import { ROOF_ARRAY_LEVEL } from "../map/RoofArrayLevel";
@@ -45,6 +46,8 @@ export interface PauseSnapshot {
   inventory: string[];
   active: ActiveItemsView;
   journal: JournalState;
+  /** The facility's own paper, taken off breached terminals. */
+  memos: MemoState;
   hp: number;
   maxHp: number;
   detection: number;
@@ -278,7 +281,10 @@ export class PauseMenuView {
   private buildPanes(): { label: string; pane: Pane }[] {
     return [
       { label: "OBJECTIVES", pane: this.objectivesPane() },
-      { label: "JOURNAL", pane: this.journalPane() },
+      // "ARCHIVE" rather than "JOURNAL": the pane holds both what Rowan wrote
+      // and what he took off the building, and the heading has said ARCHIVE since
+      // before the second half existed.
+      { label: "ARCHIVE", pane: this.journalPane() },
       { label: "INVENTORY", pane: this.inventoryPane() },
       { label: "INDEX", pane: this.indexPane() },
       { label: "STATUS", pane: this.statusPane() },
@@ -331,42 +337,85 @@ export class PauseMenuView {
     return { node };
   }
 
+  /**
+   * The archive: what Rowan wrote, and what he took.
+   *
+   * Two groups in one list rather than two tabs, and not only because the tab
+   * strip is full (the digit jump is `[1-9]`, and there are nine). They belong in
+   * one place: the run's whole argument is about records, and the point of
+   * putting the facility's own paper beside Rowan's account is that the player
+   * reads them against each other. The header rows are the same
+   * `disabled: true` device the INDEX pane uses for its categories.
+   *
+   * Both groups list what has not been got yet as `— — —`, unselectable. That is
+   * the property the journal pane has always had — the archive has a visible
+   * shape before it is filled — extended to the half of it the building wrote.
+   */
   private journalPane(): Pane {
     const detail = el("div", "pause-detail");
     detail.tabIndex = 0;
-    detail.setAttribute("aria-label", "Journal entry details");
+    detail.setAttribute("aria-label", "Archive entry details");
     detail.setAttribute("aria-live", "polite");
     detail.setAttribute("aria-atomic", "true");
     const unlocked = new Set(this.snap.journal.unlocked);
+    const taken = new Set(this.snap.memos.collected);
+
+    const rows: SelectListRow[] = [];
+    /** What each row shows on the right, in row order; null for a group header. */
+    const detailFor: ((node: HTMLElement) => void)[] = [];
+
+    const blank = (why: string) => (node: HTMLElement) => {
+      node.appendChild(el("div", "pause-detail-title", "— — —"));
+      node.appendChild(el("p", "pause-note", why));
+    };
+
+    rows.push({ label: "ROWAN'S FILE", disabled: true });
+    detailFor.push(blank("Not written yet."));
+    JOURNAL_ENTRIES.forEach((entry, i) => {
+      const have = unlocked.has(entry.id);
+      rows.push({
+        label: `  ${String(i + 1).padStart(3, "0")}  ${have ? entry.title : "— — —"}`,
+        disabled: !have,
+      });
+      detailFor.push(
+        have
+          ? (node) => {
+              node.appendChild(el("div", "pause-detail-title", entry.title));
+              node.appendChild(prose(entry.body));
+            }
+          : blank("Not written yet."),
+      );
+    });
+
+    rows.push({ label: "TAKEN FROM THE SYSTEM", disabled: true });
+    detailFor.push(blank("Not taken yet."));
+    MEMOS.forEach((memo, i) => {
+      const have = taken.has(memo.id);
+      rows.push({
+        label: `  M${String(i + 1).padStart(2, "0")}  ${have ? memo.title : "— — —"}`,
+        disabled: !have,
+      });
+      detailFor.push(
+        have
+          ? (node) => {
+              node.appendChild(el("div", "pause-detail-title", memo.title));
+              node.appendChild(el("div", "pause-section", memo.from));
+              node.appendChild(prose(memo.body));
+            }
+          : blank("Not taken yet."),
+      );
+    });
 
     const list = new SelectList((i) => {
-      const entry = JOURNAL_ENTRIES[i];
       detail.replaceChildren();
-      if (!unlocked.has(entry.id)) {
-        detail.appendChild(el("div", "pause-detail-title", "— — —"));
-        detail.appendChild(el("p", "pause-note", "Not written yet."));
-        return;
-      }
-      detail.appendChild(el("div", "pause-detail-title", entry.title));
-      detail.appendChild(prose(entry.body));
-    }, "Journal entries");
-
-    list.setRows(
-      JOURNAL_ENTRIES.map((entry, i): SelectListRow => {
-        const have = unlocked.has(entry.id);
-        return {
-          label: `${String(i + 1).padStart(3, "0")}  ${have ? entry.title : "— — —"}`,
-          // Locked entries stay listed but unselectable: the gaps show the
-          // archive's shape, which is the point of keeping one.
-          disabled: !have,
-        };
-      }),
-    );
+      detailFor[i]?.(detail);
+    }, "Archive entries");
+    list.setRows(rows);
 
     const node = splitPane(
       list.node,
       detail,
-      `ARCHIVE · ${unlocked.size}/${JOURNAL_ENTRIES.length} WRITTEN`,
+      `ARCHIVE · ${unlocked.size}/${JOURNAL_ENTRIES.length} WRITTEN · ${taken.size}/${MEMOS.length} TAKEN`,
     );
     return { node, onKey: (e) => list.onKey(e) };
   }
@@ -460,6 +509,7 @@ export class PauseMenuView {
       journal: this.snap.journal,
       inventory: this.snap.inventory,
       objectives: this.snap.objectives,
+      memos: this.snap.memos,
     };
     const groups = lexiconByCategory(ctx);
 

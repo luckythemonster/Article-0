@@ -9,18 +9,19 @@ import { Vent4Hud } from "../ui/Vent4Hud";
 import { BossCoreHud } from "../ui/BossCoreHud";
 import { RelayHud } from "../ui/RelayHud";
 import { DebugHud, type DebugSnapshot } from "../ui/DebugHud";
+import { ActCard } from "../ui/ActCard";
 import { DEBUG_ALLOWED } from "../systems/DebugFlag";
 import type { AlertPhase } from "../systems/AlertState";
 import type { RadarSnapshot } from "../systems/Radar";
 import type { AlertNetworkSnapshot } from "../systems/AlertNetwork";
-import type { MissionFeatures, ObjectiveState } from "../systems/Objectives";
+import { ACTS, type ActId, type MissionFeatures, type ObjectiveState } from "../systems/Objectives";
 import type { Vent4View } from "../systems/Vent4Core";
 import type { SmacView } from "../systems/SmacCore";
 import type { RelayView } from "../systems/RelayCore";
 import type { ActiveItemsView } from "../systems/ActiveItems";
 import type { ConductView } from "../systems/Conduct";
 import { consumableSlots } from "../systems/EntityStats";
-import { isSuspended, missionFeatures, readInventory } from "../systems/GameState";
+import { ACT_CARD_KEY, isSuspended, missionFeatures, readInventory } from "../systems/GameState";
 
 /**
  * A parallel overlay scene for the HUD.
@@ -41,6 +42,7 @@ export class UIScene extends Phaser.Scene {
   private vent4!: Vent4Hud;
   private smac!: BossCoreHud;
   private relay!: RelayHud;
+  private actCard!: ActCard;
   // The debug inspector is only built when DEBUG_ALLOWED (see create()).
   private debug?: DebugHud;
   // A tiny stand-in that mirrors the phase the HUD needs to colour itself.
@@ -72,6 +74,7 @@ export class UIScene extends Phaser.Scene {
     this.vent4 = new Vent4Hud(this);
     this.smac = new BossCoreHud(this);
     this.relay = new RelayHud(this);
+    this.actCard = new ActCard(this);
     if (DEBUG_ALLOWED) this.debug = new DebugHud(this);
 
     const K = Phaser.Input.Keyboard.KeyCodes;
@@ -196,6 +199,18 @@ export class UIScene extends Phaser.Scene {
     this.vent4.update((this.registry.get("vent4") as Vent4View | null | undefined) ?? null);
     this.smac.update((this.registry.get("smac") as SmacView | null | undefined) ?? null);
     this.relay.update((this.registry.get("relay") as RelayView | null | undefined) ?? null);
+
+    // The act card is a cue rather than a snapshot: GameScene writes the act
+    // once, when the fade-in on a level of a *different* act completes, and this
+    // consumes the key so it plays exactly once per crossing. Everything else
+    // this scene reads is state it re-reads every frame; this is the one thing
+    // that is an event, which is why it is removed rather than compared.
+    const card = this.registry.get(ACT_CARD_KEY) as ActId | undefined;
+    if (card !== undefined) {
+      this.registry.remove(ACT_CARD_KEY);
+      const act = ACTS[card];
+      if (act) this.actCard.play(act);
+    }
 
     this.debug?.update(this.registry.get("debug") as DebugSnapshot | undefined);
   }

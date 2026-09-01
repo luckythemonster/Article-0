@@ -38,6 +38,23 @@ const MODE_KEY = "gameMode";
  */
 export const SUSPENDED_KEY = "simSuspended";
 
+/**
+ * The act the player has just crossed into, published for one frame.
+ *
+ * A cue rather than state: `GameScene` writes it when the fade-in completes on a
+ * level belonging to a different act, and `UIScene` removes it as it plays the
+ * card. It has to travel through the registry because the two scenes run in
+ * parallel and never hold each other.
+ */
+export const ACT_CARD_KEY = "actCard";
+
+/**
+ * The act the card last announced. Per *run*, so a fresh infiltration opens on
+ * Act I again and walking back into a deck of the act you are already in does
+ * not re-announce it.
+ */
+export const ACT_SHOWN_KEY = "actShown";
+
 /** Registry keys scoped to a single infiltration; cleared when a new one begins. */
 const RUN_KEYS = [
   "inventory",
@@ -45,6 +62,7 @@ const RUN_KEYS = [
   "staplerFieldCharges",
   "objectives",
   "journal",
+  "memos",
   "explored",
   "playTimeMs",
   "detection",
@@ -64,6 +82,8 @@ const RUN_KEYS = [
   "conductMetrics",
   "pauseRequest",
   "mapSnapshot",
+  ACT_CARD_KEY,
+  ACT_SHOWN_KEY,
   // Which breakers the player has thrown. Belongs to the run, not the save file:
   // a fresh start must find the lights on, whatever the last one left them.
   "powerGrid",
@@ -71,10 +91,14 @@ const RUN_KEYS = [
 ] as const;
 
 /**
- * The scene that begins a fresh run: the EIRA-7 codec briefing, which starts
- * play on confirm.
+ * The scene that begins a fresh run: the prologue, which hands over to the
+ * EIRA-7 codec briefing, which starts play on confirm.
+ *
+ * One constant rather than each caller naming a scene, so "what a new run opens
+ * on" is a single edit — which is exactly what it turned out to be when the
+ * prologue went in front of the briefing.
  */
-export const NEW_RUN_SCENE = "CodecScene";
+export const NEW_RUN_SCENE = "PrologueScene";
 
 export function setMode(registry: Phaser.Data.DataManager, mode: GameMode): void {
   registry.set(MODE_KEY, mode);
@@ -154,8 +178,9 @@ export function startFreshRun(scene: Phaser.Scene): void {
  *
  * Shared by the title screen's "Continue" and the pause menu's slot loading. It
  * lives here rather than in `TitleScene` because the two paths must restore
- * *exactly* the same set of keys — a load that quietly forgot the journal or the
- * explored map would look like it worked, and be wrong only in what it lost.
+ * *exactly* the same set of keys — a load that quietly forgot the journal, the
+ * memos or the explored map would look like it worked, and be wrong only in what
+ * it lost.
  */
 export function resumeFromSave(scene: Phaser.Scene, save: SaveData): void {
   const registry = scene.registry;

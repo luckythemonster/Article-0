@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  ACTS,
+  actForLevel,
   allFeatures,
   canReachRoof,
   initialObjectives,
@@ -225,5 +227,36 @@ describe("objectiveSummary", () => {
     expect(objectiveSummaryText(summary)).toBe(
       "▸ DIRECTIVE 0/2 · Recover EIRA-7's logs (breach a log-cache)",
     );
+  });
+});
+
+describe("actForLevel", () => {
+  it("puts every level of the shipped map in an act", () => {
+    expect(actForLevel("main1")).toBe(1);
+    expect(actForLevel("duct1")).toBe(1);
+    expect(actForLevel("duct2")).toBe(1);
+    expect(actForLevel("secret1")).toBe(1);
+    expect(actForLevel("vent_core")).toBe(2);
+    expect(actForLevel("main2")).toBe(3);
+    expect(actForLevel("main2vault")).toBe(3);
+    expect(actForLevel("secret2")).toBe(3);
+    expect(actForLevel("roof_array")).toBe(4);
+  });
+
+  it("says nothing about a level it does not recognise", () => {
+    // The same courtesy journalIdForLevel extends: a map that does not use our
+    // names gets no act cards rather than wrong ones.
+    expect(actForLevel("basement")).toBeUndefined();
+    expect(actForLevel("")).toBeUndefined();
+  });
+
+  it("names every act it can return", () => {
+    const levels = ["main1", "vent_core", "main2vault", "roof_array"];
+    for (const level of levels) {
+      const id = actForLevel(level)!;
+      expect(ACTS[id], level).toBeDefined();
+      expect(ACTS[id].id).toBe(id);
+      expect(ACTS[id].title).toContain("ACT");
+    }
   });
 });
