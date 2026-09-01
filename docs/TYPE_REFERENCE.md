@@ -5169,7 +5169,7 @@ the save file, the HUD — wants to tell them apart.
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `constructor` | `constructor()` |  |
-| `init` | `init(data: PrologueData): void` |  |
+| `init` | `init(data: PrologueData): void` | Every caller passes `next` explicitly — see `GameState.startFreshRun` for why a data-less `scene.start` cannot be trusted here. The fallback is kept so a future caller that forgets it lands in the run rather than in a loop back to the title, which is the failure that is hard to notice. |
 | `create` | `create(): void` |  |
 
 *Plus 5 private members.*
@@ -5676,7 +5676,7 @@ capture anything `create()` has not set yet.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `next` *(opt)* | `string` | Where to go when the prologue ends. A fresh run hands over to the codec briefing (the default); the title screen's own "Prologue" item passes `"TitleScene"` so it can be re-read without starting one. |
+| `next` *(opt)* | `string` | Where to go when the prologue ends. A fresh run hands over to the codec briefing; the title screen's own "Prologue" item passes `"TitleScene"` so it can be re-read without starting one. Both pass it explicitly. |
 
 <a id="interface-promptanchor"></a>
 

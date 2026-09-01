@@ -2,15 +2,15 @@ import Phaser from "phaser";
 import { PrologueScreen } from "../ui/PrologueScreen";
 import { prologueSpeech, type ProloguePage } from "../systems/Prologue";
 import { getAudio } from "../systems/AudioDirector";
-import { setMode } from "../systems/GameState";
+import { NEW_RUN_NEXT_SCENE, setMode } from "../systems/GameState";
 
 const CODEC_ROOT_ID = "codec-root";
 
 interface PrologueData {
   /**
    * Where to go when the prologue ends. A fresh run hands over to the codec
-   * briefing (the default); the title screen's own "Prologue" item passes
-   * `"TitleScene"` so it can be re-read without starting one.
+   * briefing; the title screen's own "Prologue" item passes `"TitleScene"` so it
+   * can be re-read without starting one. Both pass it explicitly.
    */
   next?: string;
 }
@@ -28,7 +28,7 @@ interface PrologueData {
  * the save file, the HUD — wants to tell them apart.
  */
 export class PrologueScene extends Phaser.Scene {
-  private next = "CodecScene";
+  private next: string = NEW_RUN_NEXT_SCENE;
   private screen?: PrologueScreen;
   private veil?: HTMLDivElement;
 
@@ -36,8 +36,14 @@ export class PrologueScene extends Phaser.Scene {
     super("PrologueScene");
   }
 
+  /**
+   * Every caller passes `next` explicitly — see `GameState.startFreshRun` for
+   * why a data-less `scene.start` cannot be trusted here. The fallback is kept
+   * so a future caller that forgets it lands in the run rather than in a loop
+   * back to the title, which is the failure that is hard to notice.
+   */
   init(data: PrologueData): void {
-    this.next = data.next ?? "CodecScene";
+    this.next = data.next ?? NEW_RUN_NEXT_SCENE;
   }
 
   create(): void {

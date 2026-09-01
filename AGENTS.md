@@ -23,7 +23,7 @@ Before you push, run the gate yourself:
 npx tsc --noEmit && npx vitest run
 ```
 
-The suite is fast (~15s) and currently **1175 tests across 90 files, all passing**.
+The suite is fast (~15s) and currently **1177 tests across 90 files, all passing**.
 A drop in that count means you broke something rather than that the suite shrank.
 
 CI (`.github/workflows/ci.yml`) runs `npm run build`, `npm test`, and a check that
@@ -147,3 +147,12 @@ These are the ones that bite. Each has burned someone already.
   escape (`\u0000`) instead; the runtime value is identical.
 - **Systems under `src/systems/` are headless** — no Phaser, no DOM. That is what lets the
   unit tests drive them directly; keep it that way.
+- **Always pass a data object to `scene.start` / `scene.launch` / `scene.restart`.**
+  Phaser only overwrites a scene's `settings.data` when it is *given* some, so a bare
+  `scene.start("GameScene")` re-runs that scene's `init` against whatever the previous
+  start passed — and every `init` in `src/scenes/` reads its data with `??` defaults, which
+  silently do not apply. This shipped twice: reading the prologue from the title screen
+  (`{ next: "TitleScene" }`) left every later "New infiltration" returning to the title
+  instead of starting the game, and a fresh run after walking off the start deck opened on
+  the deck the *last* run ended on. `OverlayGate.set` has spelled the guard `?? {}` from
+  the beginning; do the same, or name the value.
