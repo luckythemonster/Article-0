@@ -22,6 +22,10 @@ Two files come out:
 button state is annotated on its own frame with its name. The plate has no
 states, so its source is simply flattened.
 
+The two sources are drawn independently and `build()` cuts whichever one
+exists — a finished button sheet isn't held back waiting on the casing, or
+the reverse. Only when neither source exists does it refuse outright.
+
 Unlike its siblings this emits **no JSON manifest**. Those exist because their
 art is the source of truth for its own frame order; here the order is owned by
 `src/ui/ElevatorPanel.ts`'s `BUTTON_STATES`, which is what addresses the strip,
@@ -132,17 +136,35 @@ def _verify_distinct(sheet: Image.Image) -> None:
 
 
 def build() -> None:
-    missing = [p for p in (PLATE_SRC, BUTTON_SRC) if not os.path.exists(p)]
-    if missing:
+    """Cuts whichever of the plate and buttons has a source, independently.
+
+    The two are drawn by different people on different schedules — nothing
+    ties their completion together — so waiting on both before cutting
+    either would sit on a finished button sheet for however long the casing
+    takes. Only the fully-undrawn case refuses outright.
+    """
+    ran = False
+    if os.path.exists(PLATE_SRC):
+        build_plate()
+        ran = True
+    else:
+        print(f"  skipping casing: {os.path.relpath(PLATE_SRC, ROOT)} not drawn yet")
+
+    if os.path.exists(BUTTON_SRC):
+        build_buttons()
+        ran = True
+    else:
+        print(f"  skipping buttons: {os.path.relpath(BUTTON_SRC, ROOT)} not drawn yet")
+
+    if not ran:
         raise SystemExit(
             "elevator panel art not drawn yet — nothing to build.\n"
-            + "".join(f"  missing: {os.path.relpath(p, ROOT)}\n" for p in missing)
-            + "  see docs/SPRITE_BACKLOG.md for what each file should contain.\n"
+            f"  missing: {os.path.relpath(PLATE_SRC, ROOT)}\n"
+            f"  missing: {os.path.relpath(BUTTON_SRC, ROOT)}\n"
+            "  see docs/SPRITE_BACKLOG.md for what each file should contain.\n"
             "  The game runs without them: ElevatorScene falls back to the\n"
             "  generic `ui-panel` casing and primitive buttons."
         )
-    build_plate()
-    build_buttons()
 
 
 if __name__ == "__main__":

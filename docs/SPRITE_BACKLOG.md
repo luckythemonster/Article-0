@@ -19,19 +19,24 @@ icons specifically.
 ## Owed — the elevator car's control plate
 
 Two files, both under `public/assets/ui/panel/`. **The code is already in and
-already playing**: `ElevatorScene` draws the plate from the generic `ui-panel`
-casing with primitive buttons today, and swaps to this art the moment it lands —
-nothing to wire, no code change. `python3 tools/panel/build_elevator_panel.py`
-cuts both and refuses with a plain message until they exist.
+already playing**: `ElevatorScene` draws each half from art the moment it
+lands and falls back independently until then — nothing to wire, no code
+change. `python3 tools/panel/build_elevator_panel.py` cuts whichever source
+exists; only a fully-undrawn shaft (neither file present) gets its plain
+refusal message.
+
+**The buttons are drawn and built** — `elevator-buttons.png` is in the repo.
+The casing is still owed, so the plate itself is still the generic `ui-panel`
+chrome, with real button art on it.
 
 These are **interface** art, so they obey the stricter of the two rules: `UI_ZOOM`
 is 1, so **author at the exact size drawn**. There is no camera multiplier to
 absorb a mismatch, and `uiScale.test.ts` fails the build on one.
 
-| file | canvas | frames | what it is |
-|---|---|---|---|
-| `ui-elevator-panel.aseprite` | **48x48** | 1 | The casing. Nine-sliced, **12px inset** — same terms as `ui-panel` |
-| `elevator-buttons.aseprite` | **24x24** | 4 | One call button, one frame per state |
+| file | canvas | frames | what it is | status |
+|---|---|---|---|---|
+| `ui-elevator-panel.aseprite` | **48x48** | 1 | The casing. Nine-sliced, **12px inset** — same terms as `ui-panel` | owed |
+| `elevator-buttons.aseprite` | **24x24** | 4 | One call button, one frame per state | done |
 
 **The casing is stretched, so only its corners are safe.** The plate grows with
 the shaft — a three-stop lift and an eight-stop one are this one file at two

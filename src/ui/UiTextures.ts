@@ -168,7 +168,8 @@ export const UI_TEXTURES: readonly UiTextureSpec[] = [
    * these are fixed-size instruments laid onto it, so baking them into the plate
    * would smear them the moment a floor was added.
    *
-   * **Not drawn yet** — same fallback as the plate above.
+   * Drawn; the plate above is not, so the elevator plays with real buttons on
+   * generic `ui-panel` casing until that lands too.
    */
   {
     key: "ui-elevator-buttons",
