@@ -100,6 +100,16 @@ const RUN_KEYS = [
  */
 export const NEW_RUN_SCENE = "PrologueScene";
 
+/**
+ * Where {@link NEW_RUN_SCENE} hands over when it finishes — the interactive
+ * briefing, which begins play on confirm.
+ *
+ * Named here beside the scene it belongs to rather than left as the prologue's
+ * internal default, because {@link startFreshRun} has to pass it explicitly on
+ * every start. See the note there for why.
+ */
+export const NEW_RUN_NEXT_SCENE = "CodecScene";
+
 export function setMode(registry: Phaser.Data.DataManager, mode: GameMode): void {
   registry.set(MODE_KEY, mode);
 }
@@ -167,10 +177,26 @@ export function resetRun(registry: Phaser.Data.DataManager): void {
   registry.set("staplerFieldCharges", STAPLER_FIELD_MAX_CHARGES);
 }
 
-/** Resets run state and launches the fresh-run scene from anywhere. */
+/**
+ * Resets run state and launches the fresh-run scene from anywhere.
+ *
+ * **The data argument is load-bearing, and passing nothing is not the same as
+ * passing an empty object.** Phaser only overwrites a scene's `settings.data`
+ * when `start` is given some, so a data-less `start` re-runs `init` against
+ * whatever the *previous* start passed. `PrologueScene` is started twice with
+ * different data — here for a run, and by the title screen's replay item with
+ * `{ next: "TitleScene" }` — so omitting it meant that once a player had read
+ * the prologue from the title, every "New infiltration" afterwards played the
+ * prologue and then dropped them back on the title screen, unable to start the
+ * game at all until they reloaded the page.
+ *
+ * So every start of a scene whose `init` reads data says what it means. See
+ * `OverlayGate.set`, which has spelled this `?? {}` since before there was a
+ * prologue to get it wrong.
+ */
 export function startFreshRun(scene: Phaser.Scene): void {
   resetRun(scene.registry);
-  scene.scene.start(NEW_RUN_SCENE);
+  scene.scene.start(NEW_RUN_SCENE, { next: NEW_RUN_NEXT_SCENE });
 }
 
 /**

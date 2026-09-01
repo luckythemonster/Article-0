@@ -138,7 +138,13 @@ export class CodecScene extends Phaser.Scene {
     if (this.interactive) {
       const begin = (): void => {
         setMode(this.registry, "PLAYING");
-        this.scene.start("GameScene");
+        // `{}` rather than nothing: Phaser keeps a scene's `settings.data` when
+        // `start` is called without any, so a bare `start("GameScene")` would
+        // re-run its `init` against the last data it was handed — which for a
+        // player who had already resumed a checkpoint, or walked through one
+        // hatch, is a level name and an arrival tile. A fresh run would open on
+        // whatever deck the last one was standing on instead of the map's start.
+        this.scene.start("GameScene", {});
       };
       const kb = this.input.keyboard!;
       kb.on("keydown-ENTER", begin);
