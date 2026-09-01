@@ -4815,14 +4815,15 @@ whichever flag while the overlay is up and stops this scene.
 
 #### `ElevatorScene` — class
 
-`src/scenes/ElevatorScene.ts:76` · `extends Phaser.Scene`
+`src/scenes/ElevatorScene.ts:86` · `extends Phaser.Scene`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `constructor` | `constructor()` |  |
 | `create` | `create(data: ElevatorSceneData): void` |  |
+| `update` | `update(time: number, _delta: number): void` |  |
 
-*Plus 8 private members.*
+*Plus 13 private members.*
 
 <a id="class-encounters"></a>
 
@@ -5326,7 +5327,7 @@ What the overlay needs from the scene, supplied fresh each frame.
 
 #### `ElevatorFloor` — interface
 
-`src/scenes/ElevatorScene.ts:55` · `extends ShaftStop`
+`src/scenes/ElevatorScene.ts:58` · `extends ShaftStop`
 
 One row of the plate: a stop, plus why it can't be ridden to.
 
@@ -5338,12 +5339,13 @@ One row of the plate: a stop, plus why it can't be ridden to.
 
 #### `ElevatorSceneData` — interface
 
-`src/scenes/ElevatorScene.ts:60`
+`src/scenes/ElevatorScene.ts:63`
 
 | Field | Type | Notes |
 | --- | --- | --- |
 | `here` | `string` | Where the car is now — printed in the readout, never given a button. |
 | `floors` | `ElevatorFloor[]` | Every other floor the shaft serves, in map order. |
+| `alerting` | `boolean` | A snapshot of `AlertState.phase === "ALERT"` at open time. Safe to take once rather than poll: `GameScene` freezes its whole simulation — `AlertState`'s timer included — while any overlay is open, so the phase cannot change for as long as this scene is up. |
 
 <a id="interface-encounterscallbacks"></a>
 
@@ -5596,7 +5598,7 @@ and the rest are optional.
 
 #### `Row` — interface *(module-private)*
 
-`src/scenes/ElevatorScene.ts:68`
+`src/scenes/ElevatorScene.ts:78`
 
 The objects making up one floor's row, kept together so a repaint is cheap.
 
@@ -7161,9 +7163,9 @@ GameScene.
 | [EdTile](#interface-edtile) | interface | `src/map/types.ts:125` |
 | [EdTileDef](#interface-edtiledef) | interface | `src/map/types.ts:63` |
 | [EdVariable](#interface-edvariable) | interface | `src/map/types.ts:53` |
-| [ElevatorFloor](#interface-elevatorfloor) | interface | `src/scenes/ElevatorScene.ts:55` |
-| [ElevatorScene](#class-elevatorscene) | class | `src/scenes/ElevatorScene.ts:76` |
-| [ElevatorSceneData](#interface-elevatorscenedata) | interface | `src/scenes/ElevatorScene.ts:60` |
+| [ElevatorFloor](#interface-elevatorfloor) | interface | `src/scenes/ElevatorScene.ts:58` |
+| [ElevatorScene](#class-elevatorscene) | class | `src/scenes/ElevatorScene.ts:86` |
+| [ElevatorSceneData](#interface-elevatorscenedata) | interface | `src/scenes/ElevatorScene.ts:63` |
 | [EncounterBand](#class-encounterband) | class | `src/ui/EncounterBand.ts:67` |
 | [EncounterBandFrame](#interface-encounterbandframe) | interface | `src/ui/EncounterBand.ts:30` |
 | [EncounterBandStyle](#interface-encounterbandstyle) | interface | `src/ui/EncounterBand.ts:18` |
@@ -7330,7 +7332,7 @@ GameScene.
 | [REQUIRED_FONTS](#const-required-fonts) | const | `src/ui/fonts.ts:38` |
 | [RGB](#type-rgb) | type | `src/ui/QualiaLockView.ts:54` |
 | [RoofRelay](#class-roofrelay) | class | `src/entities/RoofRelay.ts:75` |
-| [Row](#interface-row) | interface | `src/scenes/ElevatorScene.ts:68` |
+| [Row](#interface-row) | interface | `src/scenes/ElevatorScene.ts:78` |
 | [RUN_KEYS](#const-run-keys) | const | `src/systems/GameState.ts:42` |
 | [SaveData](#interface-savedata) | interface | `src/systems/SaveGame.ts:34` |
 | [SavePayload](#type-savepayload) | type | `src/systems/SaveGame.ts:53` |

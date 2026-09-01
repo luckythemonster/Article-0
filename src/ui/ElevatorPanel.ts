@@ -53,6 +53,30 @@ export function buttonStateFor(floor: {
 /** The call button's authored and displayed size. Square, and `UI_ZOOM` is 1. */
 export const BUTTON_SIZE = 24;
 
+/**
+ * How many digits the casing's corner LEDs can show — frames 0..8 of
+ * `ui-elevator-panel`, one binary-encoded digit per corner.
+ */
+export const PANEL_DIGIT_COUNT = 9;
+
+/** The casing's alert frame: all four corner LEDs lit red. */
+export const PANEL_ALERT_FRAME = PANEL_DIGIT_COUNT;
+
+/** Total frames in the built `ui-elevator-panel` sheet: 9 digits + 1 alert. */
+export const PANEL_FRAME_COUNT = PANEL_DIGIT_COUNT + 1;
+
+/**
+ * Which digit frame shows the cursor's row on the casing's corner LEDs.
+ *
+ * Clamped rather than wrapped: a shaft with more than nine other stops (none
+ * exist yet) keeps reading as floor 8 rather than rolling over to a
+ * wrong-looking 0, and -1 — nothing selected, an all-sealed panel, which
+ * never actually opens the picker today — reads as 0.
+ */
+export function panelDigitFrame(cursorIndex: number): number {
+  return Math.min(Math.max(cursorIndex, 0), PANEL_DIGIT_COUNT - 1);
+}
+
 /** Vertical gap between two buttons' boxes. */
 export const BUTTON_GAP = 8;
 

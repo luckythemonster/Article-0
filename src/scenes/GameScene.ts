@@ -1014,6 +1014,7 @@ export class GameScene extends Phaser.Scene {
                 Math.floor(this.player.y / this.tileSize),
               )?.label ?? this.level.name,
             floors: this.pendingElevatorFloors,
+            alerting: this.alert.phase === "ALERT",
           }),
           onOpen: () => {
             this.registry.remove(ELEVATOR_CHOICE_KEY);

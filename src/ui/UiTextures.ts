@@ -1,5 +1,5 @@
 import type Phaser from "phaser";
-import { BUTTON_SIZE, BUTTON_STATES } from "./ElevatorPanel";
+import { BUTTON_SIZE, BUTTON_STATES, PANEL_FRAME_COUNT } from "./ElevatorPanel";
 import { INDICATOR_FRAME_COUNT, INDICATOR_SIZE, SCREEN_FRAME_COUNT } from "./NetworkPanel";
 import { OBJECTIVE_FRAME_COUNT } from "./ObjectivePanel";
 import { TICK_FRAME_COUNT, TICK_SIZE } from "./radarDirections";
@@ -146,18 +146,22 @@ export const UI_TEXTURES: readonly UiTextureSpec[] = [
    *
    * Same nine-slice terms as `ui-panel` — 48x48, 12px inset — because the plate
    * grows with the shaft: a three-stop lift and an eight-stop one are one piece
-   * of art at two heights. One frame; the plate has no states of its own, the
-   * buttons carry them.
+   * of art at two heights.
    *
-   * **Not drawn yet.** `discoverUiTextures` probes before queueing, so an absent
-   * file costs nothing, and `ElevatorScene` falls back to the generic `ui-panel`
-   * casing and then to primitives. See `docs/SPRITE_BACKLOG.md`.
+   * Ten frames rather than one: the corner LEDs double as a readout.
+   * `{@link ./ElevatorPanel.PANEL_DIGIT_COUNT}` frames (0..8) show a digit
+   * tracking the picker's cursor row, and the last frame
+   * ({@link ./ElevatorPanel.PANEL_ALERT_FRAME}) is all four corners lit red,
+   * shown while `AlertState` is in its `ALERT` phase — `ElevatorScene` owns
+   * picking which. The buttons carry their own states independently; see
+   * below.
    */
   {
     key: "ui-elevator-panel",
     path: "assets/ui/panel/ui-elevator-panel.png",
     size: 48,
     slice: 12,
+    sheet: { margin: 0, spacing: 0, count: PANEL_FRAME_COUNT },
   },
   /**
    * The call buttons, one frame per state in {@link ./ElevatorPanel.BUTTON_STATES}
@@ -167,8 +171,6 @@ export const UI_TEXTURES: readonly UiTextureSpec[] = [
    * separate from `ui-panel`: the casing is stretched to the shaft's height and
    * these are fixed-size instruments laid onto it, so baking them into the plate
    * would smear them the moment a floor was added.
-   *
-   * **Not drawn yet** — same fallback as the plate above.
    */
   {
     key: "ui-elevator-buttons",

@@ -9,18 +9,28 @@ moment a floor was added — the same split, for the same reason, that
 
 Two files come out:
 
-  ui-elevator-panel.png     48x48, one frame — the casing. Same nine-slice terms
-                            as `ui-panel`: 12px inset, so four 12x12 corners,
-                            four 12x24 edges and a 24x24 middle. Only the
-                            corners are safe for detail; the edges stretch along
-                            their axis and the middle stretches both ways.
+  ui-elevator-panel.png     480x48, ten 48x48 frames — the casing. Same
+                            nine-slice terms as `ui-panel`: 12px inset, so
+                            four 12x12 corners, four 12x24 edges and a 24x24
+                            middle. Only the corners are safe for detail; the
+                            edges stretch along their axis and the middle
+                            stretches both ways. Frames "0".."8" are a digit
+                            shown on the corner LEDs — `ElevatorScene` picks
+                            one to track the picker's cursor row — and frame
+                            "ALERT" is all four corners lit red, shown while
+                            `AlertState` is in its `ALERT` phase. See
+                            `PLATE_STATES` below and `src/ui/ElevatorPanel.ts`.
 
   elevator-buttons.png      96x24, four 24x24 frames — one call button per
                             state, laid out in STATES order below.
 
 **The cel labels are the contract**, same as the other two panel tools: each
-button state is annotated on its own frame with its name. The plate has no
-states, so its source is simply flattened.
+frame — casing digit/alert state, button state alike — is annotated on its
+own cel with its name.
+
+The two sources are drawn independently and `build()` cuts whichever one
+exists — a finished button sheet isn't held back waiting on the casing, or
+the reverse. Only when neither source exists does it refuse outright.
 
 Unlike its siblings this emits **no JSON manifest**. Those exist because their
 art is the source of truth for its own frame order; here the order is owned by
@@ -63,15 +73,45 @@ BUTTON_CANVAS = 24
 #: addresses the built strip by index.
 STATES = ("IDLE", "LIT", "SEALED", "PRESSED")
 
+#: Must match `PANEL_DIGIT_COUNT`/`PANEL_ALERT_FRAME` in
+#: `src/ui/ElevatorPanel.ts` — nine digits the corner LEDs can show, plus the
+#: all-red alert frame. The source also carries a `BLINK` cel (the alert
+#: flash's dark beat), left unaddressed on purpose: it is pixel-identical to
+#: `"0"`, so `ElevatorScene` reuses frame 0 for it rather than the sheet
+#: carrying a redundant frame — the same kind of gap `elevator-buttons.png`
+#: already leaves for the unused `SEALED & PRESSED` cel.
+PLATE_STATES = ("0", "1", "2", "3", "4", "5", "6", "7", "8", "ALERT")
+
 
 def build_plate() -> None:
     doc = read(PLATE_SRC, expect_size=(PLATE_CANVAS, PLATE_CANVAS))
     print(f"{os.path.relpath(PLATE_SRC, ROOT)}: {doc.frame_count} frames, layers {doc.layer_names}")
 
-    plate = doc.composite(0, doc.visible_layers())
-    plate.save(PLATE_OUT)
-    _verify_palette(plate, PLATE_OUT)
-    print(f"  {os.path.relpath(PLATE_OUT, ROOT)}: {plate.width}x{plate.height}, 1 frame")
+    layers = doc.visible_layers()
+
+    # The label can live on any layer the artist happened to annotate; search
+    # all of them rather than assuming which one carries the state names.
+    found: dict[str, int] = {}
+    for li in layers:
+        for frame, label in doc.labels_for(li).items():
+            if label in PLATE_STATES:
+                found[label] = frame
+
+    missing = [s for s in PLATE_STATES if s not in found]
+    if missing:
+        raise SystemExit(
+            f"{PLATE_SRC}: no cel labelled {missing}.\n"
+            f"  found labels: {sorted({l for li in layers for l in doc.labels_for(li).values()})}"
+        )
+
+    sheet = Image.new("RGBA", (PLATE_CANVAS * len(PLATE_STATES), PLATE_CANVAS), (0, 0, 0, 0))
+    for slot, state in enumerate(PLATE_STATES):
+        sheet.paste(doc.composite(found[state], layers), (slot * PLATE_CANVAS, 0))
+    sheet.save(PLATE_OUT)
+
+    _verify_palette(sheet, PLATE_OUT)
+    _verify_distinct(sheet, PLATE_CANVAS, PLATE_STATES, "casing frames")
+    print(f"  {os.path.relpath(PLATE_OUT, ROOT)}: {sheet.width}x{sheet.height}, {len(PLATE_STATES)} frames")
 
 
 def build_buttons() -> None:
@@ -101,7 +141,7 @@ def build_buttons() -> None:
     sheet.save(BUTTON_OUT)
 
     _verify_palette(sheet, BUTTON_OUT)
-    _verify_distinct(sheet)
+    _verify_distinct(sheet, BUTTON_CANVAS, STATES, "button states")
     print(f"  {os.path.relpath(BUTTON_OUT, ROOT)}: {sheet.width}x{sheet.height}, {len(STATES)} frames")
 
 
@@ -112,37 +152,55 @@ def _verify_palette(image: Image.Image, path: str) -> None:
         raise SystemExit(1)
 
 
-def _verify_distinct(sheet: Image.Image) -> None:
-    """Prove the states differ rather than trust it — a button that never changes
-    is a panel that silently stops reporting which floor is selected."""
+def _verify_distinct(
+    sheet: Image.Image, canvas: int, states: tuple[str, ...], noun: str
+) -> None:
+    """Prove the states differ rather than trust it — a button or a casing digit
+    that never changes is a panel that silently stops reporting anything."""
     px = sheet.load()
 
     def frame_at(slot: int):
         return tuple(
-            px[slot * BUTTON_CANVAS + x, y]
-            for y in range(BUTTON_CANVAS)
-            for x in range(BUTTON_CANVAS)
+            px[slot * canvas + x, y] for y in range(canvas) for x in range(canvas)
         )
 
-    seen = {frame_at(slot) for slot in range(len(STATES))}
-    if len(seen) != len(STATES):
-        print(f"  FAIL {len(STATES)} states but only {len(seen)} distinct pictures")
+    seen = {frame_at(slot) for slot in range(len(states))}
+    if len(seen) != len(states):
+        print(f"  FAIL {len(states)} {noun} but only {len(seen)} distinct pictures")
         raise SystemExit(1)
-    print(f"  all colours ENDESGA-64, all {len(STATES)} button states distinct")
+    print(f"  all colours ENDESGA-64, all {len(states)} {noun} distinct")
 
 
 def build() -> None:
-    missing = [p for p in (PLATE_SRC, BUTTON_SRC) if not os.path.exists(p)]
-    if missing:
+    """Cuts whichever of the plate and buttons has a source, independently.
+
+    The two are drawn by different people on different schedules — nothing
+    ties their completion together — so waiting on both before cutting
+    either would sit on a finished button sheet for however long the casing
+    takes. Only the fully-undrawn case refuses outright.
+    """
+    ran = False
+    if os.path.exists(PLATE_SRC):
+        build_plate()
+        ran = True
+    else:
+        print(f"  skipping casing: {os.path.relpath(PLATE_SRC, ROOT)} not drawn yet")
+
+    if os.path.exists(BUTTON_SRC):
+        build_buttons()
+        ran = True
+    else:
+        print(f"  skipping buttons: {os.path.relpath(BUTTON_SRC, ROOT)} not drawn yet")
+
+    if not ran:
         raise SystemExit(
             "elevator panel art not drawn yet — nothing to build.\n"
-            + "".join(f"  missing: {os.path.relpath(p, ROOT)}\n" for p in missing)
-            + "  see docs/SPRITE_BACKLOG.md for what each file should contain.\n"
+            f"  missing: {os.path.relpath(PLATE_SRC, ROOT)}\n"
+            f"  missing: {os.path.relpath(BUTTON_SRC, ROOT)}\n"
+            "  see docs/SPRITE_BACKLOG.md for what each file should contain.\n"
             "  The game runs without them: ElevatorScene falls back to the\n"
             "  generic `ui-panel` casing and primitive buttons."
         )
-    build_plate()
-    build_buttons()
 
 
 if __name__ == "__main__":
