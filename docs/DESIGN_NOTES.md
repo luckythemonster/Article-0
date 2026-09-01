@@ -520,6 +520,83 @@ the game hands you the Alignment Tribunal's exhibit record. The record's own lin
 transmitted data has been designated non-recoverable* — is the closest thing to a victory
 notice the game gives.
 
+**And then one more page.** The record concedes something in that line: there is an object
+out there the Commonwealth has just finished writing down that it cannot reach. The
+epilogue is that object and nothing else — a Citizen Lattice archive entry, unverified,
+unsigned, no matching subject class, *no authority to prune*, with one read on it.
+
+This is a deliberate change to the note that used to stand here, which said the state gets
+the last word full stop. It still gets the last word about *Rowan*: he is named on the
+first page and appears nowhere on the second, nothing answers the tribunal back, and there
+is no menu, no banner and no score. What the second page adds is not a rebuttal but the
+other half of the sentence the tribunal already wrote. The reason it is worth adding is
+that "custody, not rescue" is the run's actual claim — it is what the journal's last entry
+says, and what the index says under *Citizen Lattice* — and the ending was asserting it
+nowhere the player could see. `TribunalScreen.test.ts` holds the line: page two must not
+contain Rowan's name.
+
+Both pages are the same fixed 80 columns, and so is the prologue at the other end of the
+night. Everything that frames this run is a document.
+
+### The prologue is documents, and Rowan is not read aloud
+
+A run used to open on EIRA-7's 04:12 call, which states the mission in six lines and
+assumes the player already knows what a pruning is, what a badge reading ORDERLY buys, and
+why a facility would file the deletion of a mind under records maintenance. All of that
+existed only in `README.md` and in the pause menu's index — both of which are read *after*
+the moment they would have explained anything.
+
+So the run opens on the paperwork instead (`src/systems/Prologue.ts`): the statute, the
+work order, the roster. Nothing in them is a lie and nobody in them is cruel — every field
+is filled in correctly, which is the only argument the game makes that is not made by a
+character. Then one page in Rowan's hand, which hands over to her call.
+
+The three documents are **spoken**, in the mesh's voice — which is an enforcer's, the same
+choice `Codec.ts` makes for the line that interrupts her to correct the word "afraid". The
+facility narrating its own paperwork and the facility correcting her mid-sentence should
+sound like one thing, because they are. Rowan's page is silent. He is the only voice in
+this game with no synthesiser behind him, and the prologue is where that first reads as a
+difference rather than as an omission.
+
+It prints a line at a time because Rowan found the work order on a station printer, and
+because a page that is still printing is a page the player has a reason to interrupt.
+
+### Acts are announced; memos are found
+
+Two smaller things, both fixing the same kind of gap — something the fiction had always
+known and never said to the player.
+
+The **act card** (`src/ui/ActCard.ts`) names the act on the level that crosses into it. The
+four acts have been in the README and in the level layout since the beginning; the
+objective tracker names the next *task*, which is a different thing, and a run with no
+chapter headings reads as one long errand. `actForLevel` is keyed by level name and
+returns nothing for a name it does not know — the same courtesy `journalIdForLevel`
+extends. It is published as a registry cue on `FADE_IN_COMPLETE` rather than drawn by
+`GameScene`, because that scene's camera is zoomed for the SNES look and a title card
+scaled by 3 would be the size of a room. It brings its own backing band: it is the only
+HUD element that has to hold the middle of the play field.
+
+The **memos** (`src/systems/Memos.ts`) are the counterpart to the journal, and deliberately
+its opposite. The journal is what Rowan writes; the memos are what the building wrote about
+itself and never expected anyone to read across. They hang off `TerminalHacks.apply`, which
+is the single funnel every landed breach passes through — the plain path *and* a minigame
+that came back solved. That matters on the shipped map specifically: `typeInertTerminals`
+gives every authored terminal the export's `LOG_CACHE` default, so almost all of them route
+through the compliance puzzle, and hanging memos off the plain branch would have fired
+almost never.
+
+Which memo a breach yields is decided per *deck* rather than per panel (`nextMemoFor`), so
+the writing stays where it belongs and the rule is testable without a map. A memo with no
+level is general circulation and is dealt out wherever a deck's own paper has run out —
+which is what stops a map that puts its terminals somewhere else leaving half the archive
+permanently unfillable.
+
+They are read in the pause menu's **ARCHIVE** tab, under `TAKEN FROM THE SYSTEM`, beside
+the journal rather than in a tab of their own. Partly because the tab strip is full — the
+digit jump is `[1-9]` and there are nine — but mostly because that is where they belong:
+the run's whole argument is about records, and the point of putting the facility's paper
+next to Rowan's account is that the player reads them against each other.
+
 ---
 
 ## The score
@@ -580,12 +657,15 @@ the fight's escalation and the 259 BPM track was written for it.
 **The journal** (`src/systems/Journal.ts`) is Rowan's counter-archive, and the point of
 the pause menu existing. The fiction turns on a claim about records: EIRA-7's cached logs
 *are* her experience rather than a report of it, and "Log Pruning" is what this facility
-calls deleting a person. So the game lets the player keep something. Twelve authored
+calls deleting a person. So the game lets the player keep something. Twenty-four authored
 entries unlock on beats Rowan actually lives through, and locked entries stay listed as
 `— — —`, so the archive has a visible shape before it is filled.
 
-**The index** (`src/systems/Lexicon.ts`) derives its visibility from the journal,
-inventory and objectives rather than storing it, so there is no third progress record to
+**The memos** (`src/systems/Memos.ts`) are the other half of that tab — the facility's own
+paper, taken off the terminals he breaks into. See *Acts are announced; memos are found*.
+
+**The index** (`src/systems/Lexicon.ts`) derives its visibility from the journal, memos,
+inventory and objectives rather than storing it, so there is no fourth progress record to
 version and migrate.
 
 **The map** (`src/systems/Explored.ts`) is a per-level explored-tile mask — a bit per
