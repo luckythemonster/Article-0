@@ -11,11 +11,11 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 | [Systems](#systems) | 3 | 21 | 89 | 24 | 6 | 143 |
 | [Entities](#entities) | 0 | 20 | 23 | 18 | 3 | 64 |
 | [Map](#map) | 0 | 4 | 37 | 3 | 1 | 45 |
-| [Scenes](#scenes) | 0 | 24 | 26 | 2 | 0 | 52 |
-| [UI](#ui) | 0 | 22 | 26 | 5 | 6 | 59 |
+| [Scenes](#scenes) | 0 | 24 | 27 | 2 | 0 | 53 |
+| [UI](#ui) | 0 | 22 | 26 | 6 | 7 | 61 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **93** | **204** | **52** | **16** | **368** |
+| **All** | **3** | **93** | **205** | **53** | **17** | **371** |
 
 ## Conventions
 
@@ -4815,12 +4815,14 @@ whichever flag while the overlay is up and stops this scene.
 
 #### `ElevatorScene` — class
 
-`src/scenes/ElevatorScene.ts:43` · `extends Phaser.Scene`
+`src/scenes/ElevatorScene.ts:76` · `extends Phaser.Scene`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `constructor` | `constructor()` |  |
 | `create` | `create(data: ElevatorSceneData): void` |  |
+
+*Plus 8 private members.*
 
 <a id="class-encounters"></a>
 
@@ -5324,23 +5326,23 @@ What the overlay needs from the scene, supplied fresh each frame.
 
 #### `ElevatorFloor` — interface
 
-`src/scenes/ElevatorScene.ts:31` · `extends ShaftStop`
+`src/scenes/ElevatorScene.ts:55` · `extends ShaftStop`
 
-One row of the panel: a stop, plus why it can't be ridden to.
+One row of the plate: a stop, plus why it can't be ridden to.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `lockedNote` *(opt)* | `string` | Dimmed and unselectable. The reason is appended to the label. |
+| `lockedNote` *(opt)* | `string` | Dimmed and unselectable. The reason is printed beside the floor name. |
 
 <a id="interface-elevatorscenedata"></a>
 
 #### `ElevatorSceneData` — interface
 
-`src/scenes/ElevatorScene.ts:36`
+`src/scenes/ElevatorScene.ts:60`
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `here` | `string` | Where the car is now — printed as the header, never offered as a row. |
+| `here` | `string` | Where the car is now — printed in the readout, never given a button. |
 | `floors` | `ElevatorFloor[]` | Every other floor the shaft serves, in map order. |
 
 <a id="interface-encounterscallbacks"></a>
@@ -5590,6 +5592,22 @@ and the rest are optional.
 | --- | --- | --- |
 | `round` *(opt)* | `QualiaRound` | The round to play; defaults to the demo silicate-rack round. |
 
+<a id="interface-row"></a>
+
+#### `Row` — interface *(module-private)*
+
+`src/scenes/ElevatorScene.ts:68`
+
+The objects making up one floor's row, kept together so a repaint is cheap.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `lamp` | `Phaser.GameObjects.Image \| Phaser.GameObjects.Rectangle` |  |
+| `label` | `Phaser.GameObjects.Text` |  |
+| `note` | `Phaser.GameObjects.Text \| undefined` |  |
+| `hit` | `Phaser.GameObjects.Zone` |  |
+| `sealed` | `boolean` |  |
+
 <a id="interface-sensingdeps"></a>
 
 #### `SensingDeps` — interface
@@ -5768,6 +5786,22 @@ HUD widgets and DOM overlays. Phaser-drawn HUD pieces and DOM-drawn full-screen 
 
 ### UI — Constants
 
+<a id="const-button-states"></a>
+
+#### `BUTTON_STATES` — const
+
+`src/ui/ElevatorPanel.ts:26`
+
+What a call button is doing, and the order the built strip draws them in.
+
+`PRESSED` is the confirmation flash — the beat between choosing a floor and
+the car actually leaving, which is the only feedback that the press landed
+before the screen fades.
+
+```ts
+const BUTTON_STATES = ["IDLE", "LIT", "SEALED", "PRESSED"] as const;
+```
+
 <a id="const-directions"></a>
 
 #### `DIRECTIONS` — const
@@ -5877,7 +5911,7 @@ widget picks a role rather than a number.
 
 #### `UI_TEXTURES` — const
 
-`src/ui/UiTextures.ts:71`
+`src/ui/UiTextures.ts:72`
 
 ```ts
 const UI_TEXTURES = [ { key: "ui-panel", path: "assets/ui/panel/ui-panel.png", size: 48, slice: 12, sheet: { margin: 0, spacing: 0, count: SCREEN_FRAME_COUNT }, }, { key: "ui-network-indicators", path: "assets/ui/panel/network-indicators.png", size: INDICATOR_SIZE, sheet: { margin: 0, spacing: 0, count: INDICATOR_FRAME_COUNT }, }, { key: "ui-radar-bezel", path: "assets/ui/radar/bezel.png", size: 96 }, { key: "ui-radar-directions", path: "assets/ui/radar/radar-directions.png", size: TICK_SIZE, sheet: { margin: 0, spacing: 0, count: TICK_FRAME_COUNT }, }, { key: "ui-objective-panel", path: "assets/ui/panel/ui-obje… as const;
@@ -6849,7 +6883,7 @@ exists — no call site changes, nothing to remember.
 
 #### `UiSheetSpec` — interface
 
-`src/ui/UiTextures.ts:62`
+`src/ui/UiTextures.ts:63`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -6861,7 +6895,7 @@ exists — no call site changes, nothing to remember.
 
 #### `UiTextureSpec` — interface
 
-`src/ui/UiTextures.ts:26`
+`src/ui/UiTextures.ts:27`
 
 The HUD's optional artwork.
 
@@ -6909,6 +6943,16 @@ names them separately because they mean different things.
 
 ```ts
 type BadgeState = "disconnected" | "nominal" | "suspicious" | "alert" | "blink";
+```
+
+<a id="type-buttonstate"></a>
+
+#### `ButtonState` — type
+
+`src/ui/ElevatorPanel.ts:28`
+
+```ts
+type ButtonState = (typeof BUTTON_STATES)[number];
 ```
 
 <a id="type-countkind"></a>
@@ -7041,6 +7085,8 @@ GameScene.
 | [Breaker](#class-breaker) | class | `src/entities/Breaker.ts:41` |
 | [BreakerStats](#interface-breakerstats) | interface | `src/systems/EntityStats.ts:575` |
 | [BuiltLevel](#interface-builtlevel) | interface | `src/scenes/game/LevelBuilder.ts:51` |
+| [BUTTON_STATES](#const-button-states) | const | `src/ui/ElevatorPanel.ts:26` |
+| [ButtonState](#type-buttonstate) | type | `src/ui/ElevatorPanel.ts:28` |
 | [Cardinal4](#type-cardinal4) | type | `src/entities/directions.ts:69` |
 | [CARDINALS_4](#const-cardinals-4) | const | `src/entities/directions.ts:67` |
 | [CastingLight](#undefined) | interface | `src/render/lightSampling.ts:15` |
@@ -7115,9 +7161,9 @@ GameScene.
 | [EdTile](#interface-edtile) | interface | `src/map/types.ts:125` |
 | [EdTileDef](#interface-edtiledef) | interface | `src/map/types.ts:63` |
 | [EdVariable](#interface-edvariable) | interface | `src/map/types.ts:53` |
-| [ElevatorFloor](#interface-elevatorfloor) | interface | `src/scenes/ElevatorScene.ts:31` |
-| [ElevatorScene](#class-elevatorscene) | class | `src/scenes/ElevatorScene.ts:43` |
-| [ElevatorSceneData](#interface-elevatorscenedata) | interface | `src/scenes/ElevatorScene.ts:36` |
+| [ElevatorFloor](#interface-elevatorfloor) | interface | `src/scenes/ElevatorScene.ts:55` |
+| [ElevatorScene](#class-elevatorscene) | class | `src/scenes/ElevatorScene.ts:76` |
+| [ElevatorSceneData](#interface-elevatorscenedata) | interface | `src/scenes/ElevatorScene.ts:60` |
 | [EncounterBand](#class-encounterband) | class | `src/ui/EncounterBand.ts:67` |
 | [EncounterBandFrame](#interface-encounterbandframe) | interface | `src/ui/EncounterBand.ts:30` |
 | [EncounterBandStyle](#interface-encounterbandstyle) | interface | `src/ui/EncounterBand.ts:18` |
@@ -7284,6 +7330,7 @@ GameScene.
 | [REQUIRED_FONTS](#const-required-fonts) | const | `src/ui/fonts.ts:38` |
 | [RGB](#type-rgb) | type | `src/ui/QualiaLockView.ts:54` |
 | [RoofRelay](#class-roofrelay) | class | `src/entities/RoofRelay.ts:75` |
+| [Row](#interface-row) | interface | `src/scenes/ElevatorScene.ts:68` |
 | [RUN_KEYS](#const-run-keys) | const | `src/systems/GameState.ts:42` |
 | [SaveData](#interface-savedata) | interface | `src/systems/SaveGame.ts:34` |
 | [SavePayload](#type-savepayload) | type | `src/systems/SaveGame.ts:53` |
@@ -7351,11 +7398,11 @@ GameScene.
 | [UI](#const-ui) | const | `src/ui/hudTheme.ts:34` |
 | [UI_DEPTH](#const-ui-depth) | const | `src/ui/hudTheme.ts:134` |
 | [UI_TEXT](#const-ui-text) | const | `src/ui/hudTheme.ts:113` |
-| [UI_TEXTURES](#const-ui-textures) | const | `src/ui/UiTextures.ts:71` |
+| [UI_TEXTURES](#const-ui-textures) | const | `src/ui/UiTextures.ts:72` |
 | [UiPanelOptions](#interface-uipaneloptions) | interface | `src/ui/NineSlicePanel.ts:25` |
 | [UIScene](#class-uiscene) | class | `src/scenes/UIScene.ts:34` |
-| [UiSheetSpec](#interface-uisheetspec) | interface | `src/ui/UiTextures.ts:62` |
-| [UiTextureSpec](#interface-uitexturespec) | interface | `src/ui/UiTextures.ts:26` |
+| [UiSheetSpec](#interface-uisheetspec) | interface | `src/ui/UiTextures.ts:63` |
+| [UiTextureSpec](#interface-uitexturespec) | interface | `src/ui/UiTextures.ts:27` |
 | [VaultAndPress](#class-vaultandpress) | class | `src/scenes/game/VaultAndPress.ts:96` |
 | [VaultLayout](#interface-vaultlayout) | interface | `src/map/AlignmentVault.ts:81` |
 | [VaultQuery](#interface-vaultquery) | interface | `src/scenes/game/VaultAndPress.ts:31` |

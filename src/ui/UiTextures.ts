@@ -1,4 +1,5 @@
 import type Phaser from "phaser";
+import { BUTTON_SIZE, BUTTON_STATES } from "./ElevatorPanel";
 import { INDICATOR_FRAME_COUNT, INDICATOR_SIZE, SCREEN_FRAME_COUNT } from "./NetworkPanel";
 import { OBJECTIVE_FRAME_COUNT } from "./ObjectivePanel";
 import { TICK_FRAME_COUNT, TICK_SIZE } from "./radarDirections";
@@ -139,6 +140,41 @@ export const UI_TEXTURES: readonly UiTextureSpec[] = [
     size: 48,
     slice: 12,
     sheet: { margin: 0, spacing: 0, count: OBJECTIVE_FRAME_COUNT },
+  },
+  /**
+   * The elevator car's control plate: the casing the floor buttons sit on.
+   *
+   * Same nine-slice terms as `ui-panel` — 48x48, 12px inset — because the plate
+   * grows with the shaft: a three-stop lift and an eight-stop one are one piece
+   * of art at two heights. One frame; the plate has no states of its own, the
+   * buttons carry them.
+   *
+   * **Not drawn yet.** `discoverUiTextures` probes before queueing, so an absent
+   * file costs nothing, and `ElevatorScene` falls back to the generic `ui-panel`
+   * casing and then to primitives. See `docs/SPRITE_BACKLOG.md`.
+   */
+  {
+    key: "ui-elevator-panel",
+    path: "assets/ui/panel/ui-elevator-panel.png",
+    size: 48,
+    slice: 12,
+  },
+  /**
+   * The call buttons, one frame per state in {@link ./ElevatorPanel.BUTTON_STATES}
+   * order.
+   *
+   * A separate key from the plate for the reason `ui-network-indicators` is
+   * separate from `ui-panel`: the casing is stretched to the shaft's height and
+   * these are fixed-size instruments laid onto it, so baking them into the plate
+   * would smear them the moment a floor was added.
+   *
+   * **Not drawn yet** — same fallback as the plate above.
+   */
+  {
+    key: "ui-elevator-buttons",
+    path: "assets/ui/panel/elevator-buttons.png",
+    size: BUTTON_SIZE,
+    sheet: { margin: 0, spacing: 0, count: BUTTON_STATES.length },
   },
 ] as const;
 
