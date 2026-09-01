@@ -1,0 +1,95 @@
+/*
+ * The prologue — three facility documents and one page in Rowan's hand.
+ *
+ * Deliberately the exhibit record's stylesheet rather than the codec's: the
+ * prologue and the Tribunal are the same kind of object at the two ends of the
+ * night, both fixed-width documents the state produced, and they should measure
+ * the same. Same 80-column discipline, same clamp that scales the type down
+ * instead of wrapping it, same panel.
+ *
+ * What differs is one rule — `.prologue-page--hand` — because Rowan writing is
+ * not a form. It loses the letterhead's accent and the boxed feel, and reads
+ * warmer, which is the only way the screen has of saying that a person has
+ * started talking.
+ */
+@import "./theme.css";
+
+.prologue-root {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-family: var(--font-mono);
+}
+
+.prologue-panel {
+  position: relative;
+  box-sizing: border-box;
+  width: min(760px, calc(100vw - 40px));
+  /* Fixed rather than fitted: the four pages are different lengths, and a panel
+     that resized under each one would make the reveal look like a layout bug. */
+  height: min(520px, calc(100vh - 40px));
+  padding: 22px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--c-bg-panel);
+  border: 1px solid var(--c-border);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.6);
+}
+
+.prologue-panel:focus-visible {
+  outline: 1px solid var(--c-cyan);
+  outline-offset: 2px;
+}
+
+.prologue-header {
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  color: var(--c-cyan);
+}
+
+.prologue-page {
+  margin: 0;
+  flex: 1;
+  overflow: hidden;
+  /* Small enough that the 80-column rules never wrap on a narrow window — the
+     document's shape is part of how it reads. */
+  font-size: clamp(9px, 1.5vw, 13px);
+  line-height: 1.45;
+  white-space: pre;
+  color: var(--c-text);
+}
+
+/* Rowan's page. No letterhead accent, no rules, and the one voice in the
+   prologue with no synthesiser reading it aloud. */
+.prologue-page--hand {
+  color: var(--c-text-muted);
+}
+
+.prologue-header--hand {
+  color: var(--c-text-faint);
+  font-weight: normal;
+}
+
+.prologue-footer {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--c-text-dim);
+}
+
+.prologue-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--c-text-dim);
+}
+
+.prologue-count {
+  color: var(--c-text-debug);
+}

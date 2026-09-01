@@ -71,10 +71,14 @@ const RUN_KEYS = [
 ] as const;
 
 /**
- * The scene that begins a fresh run: the EIRA-7 codec briefing, which starts
- * play on confirm.
+ * The scene that begins a fresh run: the prologue, which hands over to the
+ * EIRA-7 codec briefing, which starts play on confirm.
+ *
+ * One constant rather than each caller naming a scene, so "what a new run opens
+ * on" is a single edit — which is exactly what it turned out to be when the
+ * prologue went in front of the briefing.
  */
-export const NEW_RUN_SCENE = "CodecScene";
+export const NEW_RUN_SCENE = "PrologueScene";
 
 export function setMode(registry: Phaser.Data.DataManager, mode: GameMode): void {
   registry.set(MODE_KEY, mode);
