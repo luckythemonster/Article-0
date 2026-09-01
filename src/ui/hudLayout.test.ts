@@ -3,8 +3,9 @@ import { catalogedNames } from "../systems/ItemCatalog";
 import { CONSUMABLE_ORDER, MAX_CONSUMABLES, isKeyItem } from "../systems/EntityStats";
 import { controlsHintLine } from "./Controls";
 import { inventoryLines } from "./inventoryLines";
-import { allFeatures, initialObjectives, objectiveSummary, objectiveSummaryText } from "../systems/Objectives";
+import { ACTS, allFeatures, initialObjectives, objectiveSummary, objectiveSummaryText } from "../systems/Objectives";
 import {
+  ACT_CARD_MAX_CHARS,
   ENCOUNTER_TOP,
   INVENTORY_MAX_CHARS,
   INVENTORY_RESERVE_W,
@@ -246,5 +247,24 @@ describe("hudLayout: the top-centre objective tracker", () => {
     // between the SRP bar and the radar is 304px against a 389px row — so it wraps
     // once. Still a third of what the old block occupied.
     expect(Math.ceil(width / objectiveWrapWidth(MIN_CANVAS_W))).toBeLessThanOrEqual(2);
+  });
+});
+
+describe("the act card", () => {
+  it("fits every authored act's subtitle on the narrowest canvas", () => {
+    // The card is the one piece of HUD text that is a sentence, and a sentence
+    // that runs off both edges is the same failure as every other budget here,
+    // reached from the other direction. A fifth act with a long place name
+    // fails this rather than the window.
+    for (const act of Object.values(ACTS)) {
+      expect(act.subtitle.length, act.title).toBeLessThanOrEqual(ACT_CARD_MAX_CHARS);
+      expect(act.title.length, act.title).toBeLessThanOrEqual(ACT_CARD_MAX_CHARS);
+    }
+  });
+
+  it("budgets a real number of characters", () => {
+    // Guards the derivation itself: a bad MONO_ADVANCE or pad would show up here
+    // as a budget of three characters, which every subtitle would then fail.
+    expect(ACT_CARD_MAX_CHARS).toBeGreaterThan(70);
   });
 });

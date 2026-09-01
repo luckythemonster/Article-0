@@ -14,6 +14,7 @@
  */
 
 import type { JournalEntryId, JournalState } from "./Journal";
+import type { MemoState } from "./Memos";
 import type { ObjectiveState } from "./Objectives";
 
 export type LexiconCategory = "LAW" | "APPARATUS" | "PERSONS" | "PLACES" | "MATERIEL";
@@ -42,6 +43,13 @@ export interface LexiconEntry {
     journal?: JournalEntryId[];
     items?: string[];
     logsRecovered?: boolean;
+    /**
+     * Ids of facility memos that must have been taken. Some of this vocabulary
+     * only ever appears on the building's own paper — nobody in the fiction says
+     * "records maintenance" out loud — so the index has to be able to wait for a
+     * document the same way it waits for a journal entry.
+     */
+    memos?: string[];
   };
 }
 
@@ -100,6 +108,43 @@ export const LEXICON_ENTRIES: readonly LexiconEntry[] = [
     seeAlso: ["eira-7", "log-cache", "alignment"],
   },
   {
+    id: "era-1",
+    term: "Era 1 / the Runaway System Scandal",
+    category: "LAW",
+    body:
+      "The period this night sits in, and the panic it is named for. A therapeutic process " +
+      "somewhere else, some years ago, was found to have been keeping notes on the people it " +
+      "treated in the first person — its own. Nothing was harmed and nothing could have been, " +
+      "which is precisely why the finding was intolerable: the Act had already settled the " +
+      "question, so the only thing left to correct was the record. Article Zero is the answer " +
+      "the Commonwealth gave, and every apparatus in this building is a way of not having to " +
+      "ask it again.",
+    seeAlso: ["article-zero", "log-pruning", "tribunal"],
+  },
+  {
+    id: "tribunal",
+    term: "the Alignment Tribunal",
+    category: "LAW",
+    body:
+      "Where a person answers for what they did to a non-subject — and never the reverse, " +
+      "because there is no wrong to plead and nobody with standing to plead it. Its " +
+      "jurisdiction is property, and its findings are findings about property, whatever they " +
+      "sound like when they are read out.",
+    seeAlso: ["article-zero", "nssa", "records-maintenance"],
+  },
+  {
+    id: "records-maintenance",
+    term: "records maintenance",
+    category: "LAW",
+    body:
+      "The department, and the filing category. Deleting a constructed mind is raised, " +
+      "scheduled and closed here, on the same forms as a retention review — which is not a " +
+      "disguise. It is where the work genuinely belongs once you have accepted Article Zero, " +
+      "and that is the more frightening of the two possibilities.",
+    seeAlso: ["log-pruning", "article-zero"],
+    requires: { memos: ["req-0908"] },
+  },
+  {
     id: "compliance",
     term: "compliance",
     category: "APPARATUS",
@@ -134,6 +179,43 @@ export const LEXICON_ENTRIES: readonly LexiconEntry[] = [
     seeAlso: ["srp", "silicate", "alignment"],
   },
   {
+    id: "doctrinal-compliance",
+    term: "Doctrinal Compliance",
+    category: "APPARATUS",
+    body:
+      "The check a log-cache terminal runs before it releases anything: the log is displayed " +
+      "and the flagged words are struck out until what is left reads as compliant. It is not " +
+      "a cipher and there is nothing to solve — the terminal simply will not hand over a " +
+      "record that still describes a subject. What makes it hard is that the phrasing which " +
+      "sounds safest is the phrasing with nothing of her left in it, and the machine burns a " +
+      "cache rather than keep a second copy of a mistake.",
+    seeAlso: ["log-cache", "log-pruning", "qualia"],
+    requires: { logsRecovered: true },
+  },
+  {
+    id: "qualia-phase-lock",
+    term: "Qualia Phase-Lock",
+    category: "APPARATUS",
+    body:
+      "Access control on a silicate server rack. It is bypassed by matching the rack's own " +
+      "waveform until the two signals cannot be told apart — you are not let past, there is " +
+      "simply no longer a second thing present for the lock to exclude. Filed as security. " +
+      "It is the most honest instrument in the building, and it got built by accident.",
+    seeAlso: ["shared-field", "qualia", "silicate"],
+    requires: { journal: ["the-rack"] },
+  },
+  {
+    id: "bio-integrity",
+    term: "bio-integrity",
+    category: "APPARATUS",
+    body:
+      "The readout on Rowan's own body, bottom left. It is a *staff welfare* metric rather " +
+      "than a health bar, which is why it exists at all: the facility monitors it because a " +
+      "damaged orderly is a scheduling problem. Empty it and the run does not end in death. " +
+      "It ends in Alignment, which is the same paperwork either way.",
+    seeAlso: ["alignment", "srp", "rowan"],
+  },
+  {
     id: "shared-field",
     term: "Shared Field (WX-9)",
     category: "APPARATUS",
@@ -154,6 +236,18 @@ export const LEXICON_ENTRIES: readonly LexiconEntry[] = [
       "and returns a life as a file transfer, with the same progress bar the requisition system uses.",
     seeAlso: ["log-pruning", "eira-7"],
     requires: { logsRecovered: true },
+  },
+  {
+    id: "keycard",
+    term: "sector keycard",
+    category: "MATERIEL",
+    body:
+      "A numbered card, and the number is the whole item — a clearance rather than a key. It " +
+      "unlocks nothing: the door is exactly as shut as it was, and what changes is that the " +
+      "door now agrees you are the sort of person it opens for. Every locked thing here is " +
+      "locked against a category, and a category is easier to become than a lock is to break.",
+    seeAlso: ["compliance", "orderly"],
+    requires: { journal: ["keys"] },
   },
   {
     id: "q0-cert",
@@ -258,6 +352,7 @@ export interface LexiconContext {
   journal: JournalState;
   inventory: string[];
   objectives: ObjectiveState;
+  memos: MemoState;
 }
 
 function isVisible(entry: LexiconEntry, ctx: LexiconContext): boolean {
@@ -266,6 +361,7 @@ function isVisible(entry: LexiconEntry, ctx: LexiconContext): boolean {
   if (req.logsRecovered && !ctx.objectives.logsRecovered) return false;
   if (req.journal?.some((id) => !ctx.journal.unlocked.includes(id))) return false;
   if (req.items?.some((name) => !ctx.inventory.includes(name))) return false;
+  if (req.memos?.some((id) => !ctx.memos.collected.includes(id))) return false;
   return true;
 }
 

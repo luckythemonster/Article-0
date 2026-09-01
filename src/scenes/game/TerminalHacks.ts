@@ -46,6 +46,14 @@ export interface HackWorld {
   objectives(): ObjectiveState;
   registry(): Phaser.Data.DataManager;
   note(id: JournalEntryId): void;
+  /**
+   * Takes whatever facility memo this deck's terminals still hold. Given a level
+   * rather than the terminal: a memo belongs to the deck, not the panel — see
+   * `Memos.nextMemoFor`.
+   */
+  takeMemo(level: string): void;
+  /** The level the player is on, for {@link takeMemo}. */
+  levelName(): string;
   /** Republishes the objectives after a note lands. */
   publishObjectives(): void;
 }
@@ -120,6 +128,10 @@ export class TerminalHacks {
     else this.pendingQualia = undefined;
     this.w.overlays().set(which, false);
     if (result === "solved") {
+      // The bypass is its own beat, and only the rack has one: matching a
+      // silicate's waveform until the lock can no longer tell you apart is the
+      // Shared Field's argument made by the facility's own access control.
+      if (which === "qualia") this.w.note("the-rack");
       if (term) this.apply(term);
     } else if (result === "failed") {
       if (term) this.fail(term);
@@ -222,7 +234,17 @@ export class TerminalHacks {
     if (best) best.stats.type = LOG_CACHE_ALPHA_TYPE;
   }
 
-  /** A completed hack releases every door within {@link HACK_UNLOCK_RADIUS}. */
+  /**
+   * A completed hack releases every door within {@link HACK_UNLOCK_RADIUS} — and
+   * spills whatever else the terminal was holding.
+   *
+   * The single funnel every landed breach passes through: the plain path from
+   * {@link onComplete}, and a minigame that came back solved. That is why the
+   * memo hangs here rather than on the plain branch, which on the shipped map is
+   * very nearly dead code — `typeInertTerminals` gives every authored terminal
+   * the export's `LOG_CACHE` default, so almost all of them route through the
+   * compliance puzzle instead.
+   */
   private apply(terminal: Terminal): void {
     const ts = this.w.tileSize();
     const tx = terminal.x / ts;
@@ -259,5 +281,9 @@ export class TerminalHacks {
       }
       this.w.note(item === LOG_ALPHA_ITEM ? "node-alpha" : "node-beta");
     }
+
+    // Last, and after the mission has taken what it came for: the memo is the
+    // thing the terminal was holding that nobody meant to leave in it.
+    this.w.takeMemo(this.w.levelName());
   }
 }

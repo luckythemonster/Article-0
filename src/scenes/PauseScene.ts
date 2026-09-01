@@ -3,6 +3,7 @@ import { PauseMenuView, type PauseSnapshot } from "../ui/PauseMenuView";
 import { PAUSE_REQUEST_KEY, SAVE_WRITTEN_KEY, type MapSnapshot, type PauseRequest } from "../systems/PauseState";
 import { initialObjectives, type ObjectiveState } from "../systems/Objectives";
 import { initialJournal, type JournalState } from "../systems/Journal";
+import { initialMemos, type MemoState } from "../systems/Memos";
 import { listSaves, type SlotId } from "../systems/SaveGame";
 import { getAudio } from "../systems/AudioDirector";
 import { missionFeatures } from "../systems/GameState";
@@ -92,6 +93,7 @@ export class PauseScene extends Phaser.Scene {
         sackLunchOpened: false,
       },
       journal: (r.get("journal") as JournalState | undefined) ?? initialJournal(),
+      memos: (r.get("memos") as MemoState | undefined) ?? initialMemos(),
       hp: (r.get("playerHp") as number | undefined) ?? 0,
       maxHp: (r.get("playerMaxHp") as number | undefined) ?? 1,
       detection: (r.get("detection") as number | undefined) ?? 0,

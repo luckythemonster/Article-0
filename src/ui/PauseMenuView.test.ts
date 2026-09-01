@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { PauseMenuView, type PauseSnapshot, type PauseCallbacks } from "./PauseMenuView";
 import { initialObjectives } from "../systems/Objectives";
+import { JOURNAL_ENTRIES } from "../systems/Journal";
+import { MEMOS } from "../systems/Memos";
 import { DEFAULT_SETTINGS } from "../systems/Settings";
 
 // Stub a minimal DOM for Vitest running in Node.
@@ -162,6 +164,7 @@ function mockSnapshot(): PauseSnapshot {
       sackLunchOpened: false,
     },
     journal: { unlocked: ["orders"] },
+    memos: { collected: [] },
     hp: 100,
     maxHp: 100,
     detection: 0,
@@ -215,6 +218,45 @@ describe("PauseMenuView ARIA live attributes", () => {
       expect(detail.getAttribute("aria-live")).toBe("polite");
       expect(detail.getAttribute("aria-atomic")).toBe("true");
     }
+
+    view.destroy();
+  });
+});
+
+describe("PauseMenuView archive tab", () => {
+  /** Every row label in the ARCHIVE list, in order. */
+  function archiveRows(view: PauseMenuView): string[] {
+    const panes = (view as any).panes as { node: MockElement }[];
+    // The archive is the second tab, and the only pane holding both groups.
+    const rows = findElementsByClass(panes[1].node, "pause-row-label");
+    return rows.map((r) => r.textContent);
+  }
+
+  it("lists Rowan's file and the facility's paper as two groups", () => {
+    const mount = new MockElement("div");
+    const view = new PauseMenuView(mount as any, mockSnapshot(), mockCallbacks());
+    const rows = archiveRows(view);
+
+    // Two headers plus every entry and every memo — nothing is hidden by not
+    // having been found: the archive has a shape before it is filled.
+    expect(rows.length).toBe(2 + JOURNAL_ENTRIES.length + MEMOS.length);
+    expect(rows[0]).toBe("ROWAN'S FILE");
+    expect(rows[1 + JOURNAL_ENTRIES.length]).toBe("TAKEN FROM THE SYSTEM");
+
+    view.destroy();
+  });
+
+  it("shows what has not been got as a gap, and what has by name", () => {
+    const mount = new MockElement("div");
+    const snap = mockSnapshot();
+    snap.memos = { collected: [MEMOS[0].id] };
+    const view = new PauseMenuView(mount as any, snap, mockCallbacks());
+    const rows = archiveRows(view);
+    const memoRows = rows.slice(2 + JOURNAL_ENTRIES.length);
+
+    expect(memoRows[0]).toContain(MEMOS[0].title);
+    expect(memoRows[1]).toContain("— — —");
+    expect(memoRows[1]).not.toContain(MEMOS[1].title);
 
     view.destroy();
   });

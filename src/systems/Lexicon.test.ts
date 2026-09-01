@@ -8,6 +8,7 @@ import {
   type LexiconContext,
 } from "./Lexicon";
 import { initialJournal, noteJournal, JOURNAL_ENTRIES } from "./Journal";
+import { MEMOS, initialMemos, noteMemo } from "./Memos";
 import { initialObjectives, noteTerminalHacked } from "./Objectives";
 import { CERT_ITEM } from "./EntityStats";
 
@@ -16,6 +17,7 @@ function ctx(over: Partial<LexiconContext> = {}): LexiconContext {
     journal: initialJournal(),
     inventory: [],
     objectives: initialObjectives(),
+    memos: initialMemos(),
     ...over,
   };
 }
@@ -74,9 +76,11 @@ describe("Lexicon", () => {
     // requirement no run can satisfy.
     const journal = initialJournal();
     for (const e of JOURNAL_ENTRIES) noteJournal(journal, e.id);
+    const memos = initialMemos();
+    for (const m of MEMOS) noteMemo(memos, m.id);
     const objectives = initialObjectives();
     noteTerminalHacked(objectives, "log_cache");
-    const everything = ctx({ journal, objectives, inventory: [CERT_ITEM] });
+    const everything = ctx({ journal, memos, objectives, inventory: [CERT_ITEM] });
     expect(visibleLexicon(everything)).toHaveLength(LEXICON_ENTRIES.length);
   });
 
@@ -90,5 +94,31 @@ describe("Lexicon", () => {
     // Grouping is a partition of the visible set — nothing lost, nothing doubled.
     const grouped = groups.flatMap((g) => g.entries.map((e) => e.id));
     expect(grouped.sort()).toEqual(visibleLexicon(ctx()).map((e) => e.id).sort());
+  });
+});
+
+describe("Lexicon — terms held behind the facility's own paper", () => {
+  it("hides a memo-gated term until the memo has been taken", () => {
+    const gated = LEXICON_ENTRIES.filter((e) => e.requires?.memos?.length);
+    expect(gated.length).toBeGreaterThan(0);
+
+    for (const entry of gated) {
+      expect(visibleLexicon(ctx()).map((e) => e.id)).not.toContain(entry.id);
+
+      const memos = initialMemos();
+      for (const id of entry.requires!.memos!) noteMemo(memos, id);
+      expect(visibleLexicon(ctx({ memos })).map((e) => e.id)).toContain(entry.id);
+    }
+  });
+
+  it("gates on memos this build actually authors", () => {
+    // A typo'd memo id would hide a term forever with nothing to show for it —
+    // the ids are strings here rather than a closed union, so this is the check.
+    const known = new Set(MEMOS.map((m) => m.id));
+    for (const entry of LEXICON_ENTRIES) {
+      for (const id of entry.requires?.memos ?? []) {
+        expect(known.has(id), `${entry.id} -> ${id}`).toBe(true);
+      }
+    }
   });
 });

@@ -342,3 +342,46 @@ export function hintWrapWidth(canvasWidth: number): number {
   const beforeInventory = canvasWidth - UI_PAD * 2 - INVENTORY_RESERVE_W;
   return Math.max(120, Math.min(beforeGauge, beforeInventory));
 }
+
+// ---------------------------------------------------------------------------
+// Centre: the act card
+// ---------------------------------------------------------------------------
+
+/**
+ * Type sizes for the act card's two lines — the act's name in the display face,
+ * its place in mono under it. Held here rather than in the widget because the
+ * budget below is derived from the second one.
+ */
+export const ACT_CARD_TITLE_SIZE = 22;
+export const ACT_CARD_SUBTITLE_SIZE = 12;
+
+/** How far above the vertical centre the card's title baseline sits. */
+export const ACT_CARD_TITLE_UP = 14;
+
+/**
+ * Height of the band the card draws behind its two lines.
+ *
+ * The card is the only HUD element that holds the middle of the play field, so
+ * unlike everything else it cannot rely on a corner or on the level being dark
+ * behind it. Tall enough for the 22px title, the 12px subtitle and a comfortable
+ * margin on each side.
+ */
+export const ACT_CARD_BAND_H = ACT_CARD_TITLE_SIZE + ACT_CARD_SUBTITLE_SIZE + 40;
+
+/**
+ * The most characters an act's subtitle may run to.
+ *
+ * The card is centred and transient, so it collides with nothing — but it is
+ * also the one piece of HUD text that is a *sentence*, and a sentence that runs
+ * off both edges of a 640px canvas is the same failure as every other budget in
+ * this file, arrived at from the other direction. `hudLayout.test.ts` asserts
+ * every authored subtitle against it, so a fifth act with a long place name
+ * fails the suite rather than the window.
+ *
+ * Derived from the narrowest canvas the HUD is budgeted for, less a pad each
+ * side — the card claims the full width because nothing else is on screen with
+ * it that matters while it is up.
+ */
+export const ACT_CARD_MAX_CHARS = Math.floor(
+  (MIN_CANVAS_W - UI_PAD * 2) / (ACT_CARD_SUBTITLE_SIZE * MONO_ADVANCE),
+);

@@ -1,4 +1,5 @@
 import { initialJournal, isJournalState, sanitizeJournal, type JournalState } from "./Journal";
+import { initialMemos, isMemoState, sanitizeMemos, type MemoState } from "./Memos";
 import { initialExplored, isExploredState, type ExploredState } from "./Explored";
 import type { ObjectiveState } from "./Objectives";
 
@@ -20,6 +21,11 @@ import type { ObjectiveState } from "./Objectives";
  * the moment this shipped, which is the exact failure the strict validation exists
  * to prevent. v1 also had no per-slot key, so the unsuffixed legacy key is read as
  * the `auto` slot when no suffixed one exists.
+ *
+ * **Version 3** added the facility memos. Same treatment, and it is the reason
+ * the upgrade path is written as "fill in what this version added" rather than as
+ * a v1-shaped special case: every older blob now resumes with an empty archive
+ * instead of being thrown away, and the next field to arrive costs one line.
  */
 
 /** Save slots: the engine's rolling checkpoint plus three the player controls. */
@@ -41,6 +47,8 @@ export interface SaveData {
   objectives: ObjectiveState;
   /** Journal entries written so far. */
   journal: JournalState;
+  /** Facility memos taken off breached terminals. */
+  memos: MemoState;
   /** Per-level explored-tile masks, for the pause menu's map. */
   explored: ExploredState;
   /** Milliseconds of play in this run, for the STATUS tab's clock. */
@@ -54,7 +62,7 @@ export type SavePayload = Omit<SaveData, "version" | "savedAt">;
 
 const LEGACY_KEY = "article-zero-save";
 const KEY_PREFIX = "article-zero-save-";
-const VERSION = 2;
+const VERSION = 3;
 
 function keyFor(slot: SlotId): string {
   return `${KEY_PREFIX}${slot}`;
@@ -171,8 +179,16 @@ function parseSave(raw: string | null): SaveData | null {
   if (!isValidSave(parsed)) return null;
 
   const v = parsed as Partial<SaveData> & Record<string, unknown>;
+  // v1 predates every field v2 added, so nothing of it carries and it is rebuilt
+  // wholesale. v2 carries everything but the memos, so it falls through to the
+  // checks below and differs only in that the one missing field is defaulted
+  // rather than rejected. That is the whole shape of an upgrade here: fill in
+  // what the version lacked, and hold what it *does* have to exactly the current
+  // standard — being old is not the same as being trusted.
   if (v.version === 1) return upgradeV1(v);
-  if (v.version !== VERSION) return null;
+  if (v.version !== 2 && v.version !== VERSION) return null;
+  const memos = v.version === 2 ? initialMemos() : isMemoState(v.memos) ? sanitizeMemos(v.memos) : undefined;
+  if (!memos) return null;
   if (!isJournalState(v.journal) || !isExploredState(v.explored)) return null;
   if (!Number.isFinite(v.playTimeMs) || (v.playTimeMs as number) < 0) return null;
   if (!Number.isFinite(v.savedAt)) return null;
@@ -188,6 +204,7 @@ function parseSave(raw: string | null): SaveData | null {
     objectives: sanitizeObjectives(v.objectives),
     // Drop entries authored by a build that isn't this one.
     journal: sanitizeJournal(v.journal),
+    memos,
     explored: sanitizeExplored(v.explored),
     playTimeMs: v.playTimeMs as number,
     savedAt: v.savedAt as number,
@@ -210,6 +227,7 @@ function upgradeV1(v: Partial<SaveData>): SaveData {
     inventory: v.inventory as string[],
     objectives: sanitizeObjectives(v.objectives),
     journal: initialJournal(),
+    memos: initialMemos(),
     explored: initialExplored(),
     playTimeMs: 0,
     savedAt: 0,
@@ -226,7 +244,7 @@ function isValidSave(v: unknown): boolean {
   if (typeof v !== "object" || v === null) return false;
   const s = v as Partial<SaveData>;
   return (
-    (s.version === 1 || s.version === VERSION) &&
+    (s.version === 1 || s.version === 2 || s.version === VERSION) &&
     typeof s.level === "string" &&
     s.level.length > 0 &&
     s.level.length < 100 &&
@@ -254,7 +272,15 @@ function isObjectiveState(o: unknown): o is ObjectiveState {
   );
 }
 
-/** A payload with everything new to v2 empty — for a run that hasn't got one yet. */
-export function emptyProgress(): Pick<SaveData, "journal" | "explored" | "playTimeMs"> {
-  return { journal: initialJournal(), explored: initialExplored(), playTimeMs: 0 };
+/** A payload with the run's records empty — for a run that hasn't got any yet. */
+export function emptyProgress(): Pick<
+  SaveData,
+  "journal" | "memos" | "explored" | "playTimeMs"
+> {
+  return {
+    journal: initialJournal(),
+    memos: initialMemos(),
+    explored: initialExplored(),
+    playTimeMs: 0,
+  };
 }
