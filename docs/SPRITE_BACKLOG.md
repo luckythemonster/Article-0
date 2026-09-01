@@ -16,6 +16,56 @@ icons specifically.
 
 ---
 
+## Owed — the elevator car's control plate
+
+Two files, both under `public/assets/ui/panel/`. **The code is already in and
+already playing**: `ElevatorScene` draws the plate from the generic `ui-panel`
+casing with primitive buttons today, and swaps to this art the moment it lands —
+nothing to wire, no code change. `python3 tools/panel/build_elevator_panel.py`
+cuts both and refuses with a plain message until they exist.
+
+These are **interface** art, so they obey the stricter of the two rules: `UI_ZOOM`
+is 1, so **author at the exact size drawn**. There is no camera multiplier to
+absorb a mismatch, and `uiScale.test.ts` fails the build on one.
+
+| file | canvas | frames | what it is |
+|---|---|---|---|
+| `ui-elevator-panel.aseprite` | **48x48** | 1 | The casing. Nine-sliced, **12px inset** — same terms as `ui-panel` |
+| `elevator-buttons.aseprite` | **24x24** | 4 | One call button, one frame per state |
+
+**The casing is stretched, so only its corners are safe.** The plate grows with
+the shaft — a three-stop lift and an eight-stop one are this one file at two
+heights — which means the 12px corners are reproduced at native size while the
+four 12x24 edges stretch along their axis and the 24x24 middle stretches both
+ways. Detail in an edge smears; the middle is what the floor names sit on and
+wants `--c-bg-panel`, near-flat and dark. §4 of the
+[GUI style guide](GUI_STYLE_GUIDE.md#4-panel-chrome) is the full brief and
+applies here unchanged.
+
+**The buttons are the instruments**, kept in their own file for the reason
+`network-indicators.png` is kept out of `ui-panel.png`: they are fixed-size and
+laid *onto* the stretched plate, so baking them in would smear them the moment a
+floor was added. Label each state's frame with its own name — the cel label is
+the contract, exactly as it is for the other two panel tools:
+
+| cel label | reads as |
+|---|---|
+| `IDLE` | a floor that can be called, unlit |
+| `LIT` | the floor the cursor is on |
+| `SEALED` | a floor the run has not earned — the roof before Act IV |
+| `PRESSED` | the confirmation flash, held ~220ms while the car leaves |
+
+The build tool checks all four are drawn, all four are **distinct** (a button
+that never changes is a panel that silently stops reporting anything), and every
+colour is an exact ENDESGA-64 entry. `BUTTON_STATES` in
+`src/ui/ElevatorPanel.ts` owns the strip order; the tool's `STATES` mirrors it.
+
+> The **world** sprite for the panel — the thing bolted inside the car that you
+> walk up to — is a separate job and a different rule: 16x16 drawn at a half-tile
+> footprint, like the breaker. See [The two rules](#the-two-rules).
+
+---
+
 ## Done — three world entities
 
 `terminal.aseprite`, `terminal_substation.aseprite` and `security_camera.aseprite`
