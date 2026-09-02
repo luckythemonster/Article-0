@@ -146,7 +146,7 @@ below) modulate sweep speed, steam, and thermal behaviour on the boss side.
 
 #### `CHEST_DEFAULTS` — const
 
-`src/systems/EntityStats.ts:670`
+`src/systems/EntityStats.ts:744`
 
 | Key | Value | Notes |
 | --- | --- | --- |
@@ -158,7 +158,7 @@ below) modulate sweep speed, steam, and thermal behaviour on the boss side.
 
 #### `CONSUMABLE_ORDER` — const
 
-`src/systems/EntityStats.ts:1328`
+`src/systems/EntityStats.ts:1402`
 
 The consumables selectable through the item cursor, in canonical display
 order. Held consumables fill the list dynamically (unheld names are
@@ -173,7 +173,7 @@ const CONSUMABLE_ORDER = [ CHAFF_PACK_ITEM, THERMAL_GEL_ITEM, RATION_PACK_ITEM, 
 
 #### `DOOR_DEFAULTS` — const
 
-`src/systems/EntityStats.ts:465`
+`src/systems/EntityStats.ts:539`
 
 | Key | Value | Notes |
 | --- | --- | --- |
@@ -207,7 +207,7 @@ const RUN_KEYS = [ "inventory", "selectedConsumable", "staplerFieldCharges", "ob
 
 #### `TERMINAL_DEFAULTS` — const
 
-`src/systems/EntityStats.ts:540`
+`src/systems/EntityStats.ts:614`
 
 | Key | Value | Notes |
 | --- | --- | --- |
@@ -880,7 +880,7 @@ Half-extents of the pressing body, in tiles.
 
 #### `BreakerStats` — interface
 
-`src/systems/EntityStats.ts:591`
+`src/systems/EntityStats.ts:665`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -891,7 +891,7 @@ Half-extents of the pressing body, in tiles.
 
 #### `ChestStats` — interface
 
-`src/systems/EntityStats.ts:661`
+`src/systems/EntityStats.ts:735`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -984,7 +984,7 @@ Snapshot published to the registry for the HUD and the codec.
 
 #### `ConsumableSlot` — interface
 
-`src/systems/EntityStats.ts:1375`
+`src/systems/EntityStats.ts:1449`
 
 One held, distinct consumable type, with its position in the display list.
 
@@ -1066,7 +1066,7 @@ The extra context `accrueDetection` needs on top of `SensingWorld`.
 
 #### `DoorStats` — interface
 
-`src/systems/EntityStats.ts:456`
+`src/systems/EntityStats.ts:530`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1121,7 +1121,7 @@ Everything sensing needs to know about one eye — a guard's, or a camera's.
 
 #### `GlassStats` — interface
 
-`src/systems/EntityStats.ts:514`
+`src/systems/EntityStats.ts:588`
 
 A glazed panel. The map's glass tiles are *also* doors — the shipped tile defs carry a
 `door` and a `glass` component together — so this describes the glazing on top of the
@@ -1234,7 +1234,7 @@ Inputs the visibility rules read — all of it state the run already keeps.
 
 #### `LightSwitchStats` — interface
 
-`src/systems/EntityStats.ts:630`
+`src/systems/EntityStats.ts:704`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1528,7 +1528,7 @@ The player's wave adds an exponential-decay envelope (the DAMPING control).
 
 #### `PlayerStats` — interface
 
-`src/systems/EntityStats.ts:752`
+`src/systems/EntityStats.ts:826`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1800,7 +1800,7 @@ Unit ray directions, split into parallel arrays so casting allocates nothing.
 
 #### `RelayStats` — interface
 
-`src/systems/EntityStats.ts:1603`
+`src/systems/EntityStats.ts:1677`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1898,7 +1898,7 @@ plain object. `EnforcerContext` satisfies this by shape.
 
 #### `SensorStats` — interface
 
-`src/systems/EntityStats.ts:552`
+`src/systems/EntityStats.ts:626`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1997,7 +1997,7 @@ Serializable mid-fight state, so re-entering the level doesn't restart the boss.
 
 #### `SmacStats` — interface
 
-`src/systems/EntityStats.ts:1531`
+`src/systems/EntityStats.ts:1605`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2104,7 +2104,7 @@ The slice of the level this module reads. Structural, so a test can pass a liter
 
 #### `TerminalStats` — interface
 
-`src/systems/EntityStats.ts:531`
+`src/systems/EntityStats.ts:605`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2194,7 +2194,7 @@ Serializable fight progress — kept in the registry across level swaps.
 
 #### `Vent4Stats` — interface
 
-`src/systems/EntityStats.ts:1407`
+`src/systems/EntityStats.ts:1481`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -4183,7 +4183,7 @@ The `edplay` file format, its in-memory game-side counterpart, and the generator
 
 #### `GENERATED_LEVELS` — const
 
-`src/map/types.ts:345`
+`src/map/types.ts:362`
 
 Levels the engine appends to the parsed map at boot rather than reading out of
 `edplay.json`. Kept as one list so `isGeneratedLevel` — and therefore
@@ -4311,6 +4311,7 @@ A component instance placed on an entity, with values resolved to defaults.
 | --- | --- | --- |
 | `type` | `string` |  |
 | `values` | `Record<string, string>` |  |
+| `defaults` *(opt)* | `Record<string, string>` | The *editor's* own `DefaultValues` for this component's fields. Kept beside `values` rather than folded into it, because the two mean opposite things and folding them is what hid a map-wide bug. The editor fills every blank field with its structure's default, so by the time a component reaches here "the author chose 7" and "the author chose nothing" are the same string — and the editor's placeholder then silently outranked the engine's own tuned default. On the shipped map that took every light's detection multiplier to the editor's `1`, which is to say it removed the penalty for standing in the light from the entire game. `EntityStats.num` compares against this to tell blank from chosen. Optional because generated tiles and test fixtures build components by hand and have no schema behind them; absent means "every value here was chosen". |
 
 <a id="interface-coverbody"></a>
 
@@ -4576,7 +4577,7 @@ Everything on a level that spawns rather than bakes.
 
 #### `GameLayer` — interface
 
-`src/map/types.ts:279`
+`src/map/types.ts:296`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -4588,7 +4589,7 @@ Everything on a level that spawns rather than bakes.
 
 #### `GameLevel` — interface
 
-`src/map/types.ts:286`
+`src/map/types.ts:303`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -4603,7 +4604,7 @@ Everything on a level that spawns rather than bakes.
 
 #### `GameMap` — interface
 
-`src/map/types.ts:314`
+`src/map/types.ts:331`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -4617,7 +4618,7 @@ Everything on a level that spawns rather than bakes.
 
 #### `GameTile` — interface
 
-`src/map/types.ts:230`
+`src/map/types.ts:247`
 
 A single placed tile in the normalized model.
 
@@ -4718,7 +4719,7 @@ One orderly's board: the round it walks and the stats it carries.
 
 #### `ParsedMap` — interface
 
-`src/map/EdplayLoader.ts:261`
+`src/map/EdplayLoader.ts:271`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -4785,7 +4786,7 @@ One crawlable tile's rectangle, tagged with the cell it belongs to.
 
 #### `Transition` — interface
 
-`src/map/types.ts:459`
+`src/map/types.ts:476`
 
 Where a transition tile leads: the destination level and arrival tile.
 
@@ -4859,7 +4860,7 @@ type GuardKind = "enforcer" | "drone" | "security";
 
 #### `TransitionKind` — type
 
-`src/map/types.ts:448`
+`src/map/types.ts:465`
 
 Which board a transition tile lives on, which also decides how it triggers:
 `stairs` are walked over, `maintenance_access` and `roof_access`
@@ -7325,7 +7326,7 @@ GameScene.
 | [BossCore](#class-bosscore) | class | `src/entities/BossCore.ts:64` |
 | [BossCoreHud](#class-bosscorehud) | class | `src/ui/BossCoreHud.ts:45` |
 | [Breaker](#class-breaker) | class | `src/entities/Breaker.ts:41` |
-| [BreakerStats](#interface-breakerstats) | interface | `src/systems/EntityStats.ts:591` |
+| [BreakerStats](#interface-breakerstats) | interface | `src/systems/EntityStats.ts:665` |
 | [BuiltLevel](#interface-builtlevel) | interface | `src/scenes/game/LevelBuilder.ts:57` |
 | [BUTTON_STATES](#const-button-states) | const | `src/ui/ElevatorPanel.ts:26` |
 | [ButtonState](#type-buttonstate) | type | `src/ui/ElevatorPanel.ts:28` |
@@ -7334,8 +7335,8 @@ GameScene.
 | [CastingLight](#undefined) | interface | `src/render/lightSampling.ts:15` |
 | [CastRole](#interface-castrole) | interface | `src/entities/CastArt.ts:65` |
 | [Chest](#class-chest) | class | `src/entities/Chest.ts:16` |
-| [CHEST_DEFAULTS](#const-chest-defaults) | const | `src/systems/EntityStats.ts:670` |
-| [ChestStats](#interface-cheststats) | interface | `src/systems/EntityStats.ts:661` |
+| [CHEST_DEFAULTS](#const-chest-defaults) | const | `src/systems/EntityStats.ts:744` |
+| [ChestStats](#interface-cheststats) | interface | `src/systems/EntityStats.ts:735` |
 | [CodecContext](#interface-codeccontext) | interface | `src/ui/Codec.ts:29` |
 | [CodecData](#interface-codecdata) | interface | `src/scenes/CodecScene.ts:15` |
 | [CodecScene](#class-codecscene) | class | `src/scenes/CodecScene.ts:37` |
@@ -7355,8 +7356,8 @@ GameScene.
 | [ConductState](#class-conductstate) | class | `src/systems/Conduct.ts:112` |
 | [ConductView](#interface-conductview) | interface | `src/systems/Conduct.ts:246` |
 | [ConeStyle](#interface-conestyle) | interface | `src/ui/VisionCone.ts:35` |
-| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:1328` |
-| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:1375` |
+| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:1402` |
+| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:1449` |
 | [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:20` |
 | [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:42` |
 | [CountKind](#type-countkind) | type | `src/ui/NetworkPanel.ts:29` |
@@ -7380,10 +7381,10 @@ GameScene.
 | [DIRS_8](#const-dirs-8) | const | `src/entities/directions.ts:20` |
 | [DisplayFootprint](#type-displayfootprint) | type | `src/entities/EntitySprites.ts:114` |
 | [Door](#class-door) | class | `src/entities/Door.ts:172` |
-| [DOOR_DEFAULTS](#const-door-defaults) | const | `src/systems/EntityStats.ts:465` |
+| [DOOR_DEFAULTS](#const-door-defaults) | const | `src/systems/EntityStats.ts:539` |
 | [DoorAccess](#interface-dooraccess) | interface | `src/entities/doorWork.ts:47` |
 | [DoorSeating](#interface-doorseating) | interface | `src/entities/doorGeometry.ts:37` |
-| [DoorStats](#interface-doorstats) | interface | `src/systems/EntityStats.ts:456` |
+| [DoorStats](#interface-doorstats) | interface | `src/systems/EntityStats.ts:530` |
 | [DoorWalker](#interface-doorwalker) | interface | `src/entities/doorWork.ts:30` |
 | [Drone](#class-drone) | class | `src/entities/Drone.ts:14` |
 | [EdAnimation](#interface-edanimation) | interface | `src/map/types.ts:48` |
@@ -7431,16 +7432,16 @@ GameScene.
 | [FirearmsPosture](#type-firearmsposture) | type | `src/systems/Firearms.ts:10` |
 | [FlashlightBeam](#interface-flashlightbeam) | interface | `src/ui/Lighting.ts:113` |
 | [FollowResult](#type-followresult) | type | `src/entities/Enforcer.ts:226` |
-| [GameLayer](#interface-gamelayer) | interface | `src/map/types.ts:279` |
-| [GameLevel](#interface-gamelevel) | interface | `src/map/types.ts:286` |
-| [GameMap](#interface-gamemap) | interface | `src/map/types.ts:314` |
+| [GameLayer](#interface-gamelayer) | interface | `src/map/types.ts:296` |
+| [GameLevel](#interface-gamelevel) | interface | `src/map/types.ts:303` |
+| [GameMap](#interface-gamemap) | interface | `src/map/types.ts:331` |
 | [GameMode](#type-gamemode) | type | `src/systems/GameState.ts:20` |
 | [GameOverScene](#class-gameoverscene) | class | `src/scenes/GameOverScene.ts:13` |
 | [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:206` |
 | [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:151` |
-| [GameTile](#interface-gametile) | interface | `src/map/types.ts:230` |
-| [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:345` |
-| [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:514` |
+| [GameTile](#interface-gametile) | interface | `src/map/types.ts:247` |
+| [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:362` |
+| [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:588` |
 | [GuardAnomaly](#interface-guardanomaly) | interface | `src/entities/Enforcer.ts:93` |
 | [GuardKind](#type-guardkind) | type | `src/map/EntityIndex.ts:46` |
 | [GuardRoute](#interface-guardroute) | interface | `src/map/EntityIndex.ts:50` |
@@ -7474,7 +7475,7 @@ GameScene.
 | [LightSource](#interface-lightsource) | interface | `src/systems/DetectionSystem.ts:4` |
 | [LightStats](#interface-lightstats) | interface | `src/systems/EntityStats.ts:113` |
 | [LightSwitch](#class-lightswitch) | class | `src/entities/LightSwitch.ts:70` |
-| [LightSwitchStats](#interface-lightswitchstats) | interface | `src/systems/EntityStats.ts:630` |
+| [LightSwitchStats](#interface-lightswitchstats) | interface | `src/systems/EntityStats.ts:704` |
 | [Locker](#class-locker) | class | `src/entities/Locker.ts:37` |
 | [LockerResult](#type-lockerresult) | type | `src/entities/Locker.ts:117` |
 | [LogToken](#interface-logtoken) | interface | `src/systems/Compliance.ts:27` |
@@ -7518,7 +7519,7 @@ GameScene.
 | [OverlayId](#type-overlayid) | type | `src/scenes/game/OverlayGate.ts:21` |
 | [Palette](#interface-palette) | interface | `src/ui/MiniMapCanvas.ts:18` |
 | [Pane](#interface-pane) | interface | `src/ui/PauseMenuView.ts:73` |
-| [ParsedMap](#interface-parsedmap) | interface | `src/map/EdplayLoader.ts:261` |
+| [ParsedMap](#interface-parsedmap) | interface | `src/map/EdplayLoader.ts:271` |
 | [PathNode](#interface-pathnode) | interface | `src/systems/Pathfinder.ts:22` |
 | [PathOptions](#interface-pathoptions) | interface | `src/systems/Pathfinder.ts:27` |
 | [PatrolRoute](#type-patrolroute) | type | `src/systems/PatrolRoute.ts:26` |
@@ -7535,7 +7536,7 @@ GameScene.
 | [Player](#class-player) | class | `src/entities/Player.ts:47` |
 | [PlayerAnimName](#type-playeranimname) | type | `src/entities/PlayerAnimations.ts:17` |
 | [PlayerParams](#interface-playerparams) | interface | `src/systems/QualiaLock.ts:35` |
-| [PlayerStats](#interface-playerstats) | interface | `src/systems/EntityStats.ts:752` |
+| [PlayerStats](#interface-playerstats) | interface | `src/systems/EntityStats.ts:826` |
 | [Pose](#interface-pose) | interface | `src/entities/CastArt.ts:55` |
 | [PowerControl](#class-powercontrol) | class | `src/scenes/game/PowerControl.ts:99` |
 | [PowerGridState](#interface-powergridstate) | interface | `src/systems/PowerGrid.ts:27` |
@@ -7575,7 +7576,7 @@ GameScene.
 | [RelayMsg](#interface-relaymsg) | interface | `src/systems/RelayCore.ts:46` |
 | [RelaySnapshot](#interface-relaysnapshot) | interface | `src/systems/RelayCore.ts:40` |
 | [RelayState](#enum-relaystate) | enum | `src/systems/RelayCore.ts:18` |
-| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:1603` |
+| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:1677` |
 | [RelayTickResult](#interface-relaytickresult) | interface | `src/entities/RoofRelay.ts:61` |
 | [RelayTransition](#interface-relaytransition) | interface | `src/systems/RelayCore.ts:35` |
 | [RelayView](#interface-relayview) | interface | `src/systems/RelayCore.ts:55` |
@@ -7593,7 +7594,7 @@ GameScene.
 | [SensingDeps](#interface-sensingdeps) | interface | `src/scenes/game/SensingContext.ts:26` |
 | [SensingWorld](#interface-sensingworld) | interface | `src/systems/Sensing.ts:60` |
 | [Sensor](#class-sensor) | class | `src/entities/Sensor.ts:43` |
-| [SensorStats](#interface-sensorstats) | interface | `src/systems/EntityStats.ts:552` |
+| [SensorStats](#interface-sensorstats) | interface | `src/systems/EntityStats.ts:626` |
 | [SetPieceEvents](#class-setpieceevents) | class | `src/scenes/game/SetPieceEvents.ts:68` |
 | [SetPieceWorld](#interface-setpieceworld) | interface | `src/scenes/game/SetPieceEvents.ts:51` |
 | [Settings](#interface-settings) | interface | `src/systems/Settings.ts:13` |
@@ -7612,7 +7613,7 @@ GameScene.
 | [SmacMsg](#interface-smacmsg) | interface | `src/systems/SmacCore.ts:72` |
 | [SmacSnapshot](#interface-smacsnapshot) | interface | `src/systems/SmacCore.ts:63` |
 | [SmacState](#enum-smacstate) | enum | `src/systems/SmacCore.ts:38` |
-| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:1531` |
+| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:1605` |
 | [SmacTickResult](#interface-smactickresult) | interface | `src/entities/BossCore.ts:56` |
 | [SmacTransition](#interface-smactransition) | interface | `src/systems/SmacCore.ts:57` |
 | [SmacView](#interface-smacview) | interface | `src/systems/SmacCore.ts:94` |
@@ -7630,19 +7631,19 @@ GameScene.
 | [SynthVoice](#type-synthvoice) | type | `src/systems/SamSpeech.ts:32` |
 | [Target](#type-target) | type | `src/scenes/game/ItemActions.ts:474` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:43` |
-| [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:540` |
+| [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:614` |
 | [TerminalHacks](#class-terminalhacks) | class | `src/scenes/game/TerminalHacks.ts:80` |
-| [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:531` |
+| [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:605` |
 | [TickState](#type-tickstate) | type | `src/ui/radarDirections.ts:22` |
 | [TilePos](#interface-tilepos) | interface | `src/map/generate.ts:118` |
 | [TileRect](#interface-tilerect) | interface | `src/map/TileBake.ts:424` |
 | [TileStamper](#class-tilestamper) | class | `src/map/TileBake.ts:245` |
 | [TitleScene](#class-titlescene) | class | `src/scenes/TitleScene.ts:14` |
 | [TraceState](#interface-tracestate) | interface | `src/ui/ekg.ts:189` |
-| [Transition](#interface-transition) | interface | `src/map/types.ts:459` |
+| [Transition](#interface-transition) | interface | `src/map/types.ts:476` |
 | [TransitionClass](#type-transitionclass) | type | `src/systems/TransitionGraph.ts:80` |
 | [TransitionGraph](#class-transitiongraph) | class | `src/systems/TransitionGraph.ts:197` |
-| [TransitionKind](#type-transitionkind) | type | `src/map/types.ts:448` |
+| [TransitionKind](#type-transitionkind) | type | `src/map/types.ts:465` |
 | [TraversalWorld](#interface-traversalworld) | interface | `src/scenes/game/PlaneTraversal.ts:39` |
 | [TribunalCallbacks](#interface-tribunalcallbacks) | interface | `src/ui/TribunalScreen.ts:88` |
 | [TribunalScene](#class-tribunalscene) | class | `src/scenes/TribunalScene.ts:19` |
@@ -7670,7 +7671,7 @@ GameScene.
 | [Vent4PhysicsSystem](#class-vent4physicssystem) | class | `src/systems/Vent4PhysicsSystem.ts:63` |
 | [Vent4Snapshot](#interface-vent4snapshot) | interface | `src/systems/Vent4Core.ts:34` |
 | [Vent4State](#enum-vent4state) | enum | `src/systems/Vent4Core.ts:17` |
-| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:1407` |
+| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:1481` |
 | [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:67` |
 | [Vent4Transition](#interface-vent4transition) | interface | `src/systems/Vent4Core.ts:28` |
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |

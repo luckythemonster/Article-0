@@ -182,7 +182,12 @@ export class EdplayLoader {
       return td.DataComponents.map((dc) => {
         const defaults = defaultsByType.get(dc.DataType) ?? {};
         const values: Record<string, string> = {};
-        for (const [k, v] of Object.entries(defaults)) values[canonicalField(dc.DataType, k)] = v;
+        const canonicalDefaults: Record<string, string> = {};
+        for (const [k, v] of Object.entries(defaults)) {
+          const key = canonicalField(dc.DataType, k);
+          values[key] = v;
+          canonicalDefaults[key] = v;
+        }
         for (const v of dc.Variables) {
           const val = v.Values[0];
           // The map author left most values null -> keep the schema default.
@@ -190,7 +195,12 @@ export class EdplayLoader {
             values[canonicalField(dc.DataType, v.Name)] = String(val);
           }
         }
-        return { type: canonicalComponent(dc.DataType), values };
+        // Carried alongside so a reader can tell a value the author *chose* from one
+        // the editor filled in for them — see `ComponentData.defaults`. Seeding
+        // `values` with the defaults is still right for the fields that want it
+        // (`InertTerminals` leans on `Terminal.type` arriving as `LOG_CACHE`); what
+        // was missing was any way to know which was which.
+        return { type: canonicalComponent(dc.DataType), values, defaults: canonicalDefaults };
       });
     };
 

@@ -255,11 +255,14 @@ function autoLightLevel(level: GameLevel): void {
  * Measured against each authored fixture's *own* reach — asked of `lightStatsFor`,
  * which is the same answer `Lighting` and `DetectionSystem` get. That is the point:
  * suppression has to match what the engine will actually *draw*, not what the export
- * says on paper. (On NW-SMAC-01 those differ, and not in this module's favour: the
- * map writes `radius` / `detectionMultiplier` where `lightStatsFor` reads `Radius` /
- * `DetectionMultiplier`, so every authored light on the shipped map silently runs at
- * the engine default. Reading the raw field here would suppress zones that are not
- * in fact lit.)
+ * says on paper — a fixture the engine renders small must not suppress a zone it
+ * does not reach, and one it renders wide must suppress every zone it does.
+ *
+ * The two used to disagree, which is why this asks rather than reading the field: the
+ * map writes `radius`, `lightStatsFor` read `Radius`, and every authored light ran at
+ * the engine default. Fixed in #169 — the lookup is case-insensitive now, and a value
+ * equal to the editor's own placeholder counts as unset — so `vent_core` and
+ * `main2vault` suppress every zone under their ten-tile lamps rather than none.
  *
  * A tile this module derived on an earlier pass is not "authored" and is not
  * consulted — but `autoLightLevel` has already returned in that case.
