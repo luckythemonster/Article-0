@@ -179,14 +179,21 @@ export const ENTITY_SPRITES: readonly EntitySpriteSpec[] = [
   // The breaker's quiet sibling — see `src/entities/LightSwitch.ts`. Listed here
   // before the art exists, which is what {@link discoverEntitySprites} is for: the
   // strip is wired the moment somebody drops the PNG in, and until then the probe
-  // finds nothing and the entity draws its own plate. Half a tile, like the cabinet.
+  // finds nothing and the entity draws its own plate.
+  //
+  // A quarter tile, which is *not* a shrink — it is what an 8px-wide sprite is on a
+  // 32px grid. The house density is one art pixel per world pixel (ratio 2 once the
+  // camera's zoom is applied), so the source canvas decides the footprint: 32x32 art
+  // fills a tile, the breaker's 16x16 covers half of one, and 8x8 covers a quarter.
+  // Drawn at the cabinet's half-tile instead, each of this sprite's pixels would be
+  // twice the size of the cabinet's beside it on the same wall.
   {
     id: "light-switch",
     key: "entity-light-switch",
     path: "assets/sprites/light-switch.png",
-    sourceWidth: 16,
-    sourceHeight: 16,
-    displayTiles: [0.5],
+    sourceWidth: 8,
+    sourceHeight: 8,
+    displayTiles: [0.25],
   },
   // East-west doors' tiles are 1x1.5 — the extra half-tile is the swing
   // clearance that orientation needs. See DisplayFootprint.
@@ -345,7 +352,13 @@ export function framesLabelled(
   label: string,
   layer?: string,
 ): Set<number> {
-  const cels = SPRITES[id].cels;
+  // An id whose art nobody has drawn yet has no manifest entry, and asking it for
+  // labels is not an error — it is the ordinary "declared ahead of the PNG" case
+  // this module is built around. Same guard, and the same reasoning, as
+  // {@link hasEntitySprite}; reaching straight into `SPRITES[id]` is what used to
+  // take the whole scene down.
+  const cels = SPRITES[id]?.cels;
+  if (!cels) return new Set();
   const found = new Set<number>();
   for (const [layerName, byFrame] of Object.entries(cels)) {
     if (layer !== undefined && layerName !== layer) continue;

@@ -117,19 +117,32 @@ frames needs no code change.
 
 ## Owed — the wall switch
 
-`public/assets/sprites/light_switch.aseprite` → `light-switch.png`, **16x16**, drawn
-at a half-tile footprint exactly like the breaker (see [The two rules](#the-two-rules)).
+`public/assets/sprites/light_switch.aseprite` → `light-switch.png`, **8x8**, drawn
+over a **quarter tile**.
 
-**Two frames, and they are the whole state**: frame 0 the rocker up and lit, frame 1
-the rocker down and dark. `src/entities/LightSwitch.ts` picks the frame off
-`isClosed`; nothing else is read, so there are no tags and no timings to get right.
+**Why 8x8 and why a quarter.** The house density is one art pixel per world pixel —
+that is what "ratio 2" means once `CAMERA_ZOOM` is applied, and every door, locker and
+laser hits it with 32x32 art over a full 32-world-pixel tile. So the canvas *is* the
+footprint: the breaker's 16x16 covers half a tile, and 8x8 covers a quarter. Drawn at
+the breaker's half-tile instead, each of the switch's pixels would be twice the size
+of each of the cabinet's beside it on the same wall, which reads as a scaled-up
+placeholder rather than as a small object. See [The two rules](#the-two-rules).
 
-Dropping the file in is enough — no code change. Until it lands the entity draws its
-own plate in `Graphics` (a dark rectangle, a `borderCool` edge, a rocker that is
-`greenBright` while the circuit is closed and `borderDim` while it is cut), which is
-legible but plainly programmer art. The lit rocker should read as the *same* "this
-circuit is live" green as the breaker cabinet's screen — a player learns that colour
-once and should not have to learn it twice.
+**Two frames, and they are the whole state**: the rocker up and lit, and down and
+dark. Label the cels **`ON`** and **`OFF`** — any layer, the code does not narrow to
+one. `src/entities/LightSwitch.ts` picks the frame by that label, falling back to
+frame 0/1 if the labels are missing; the build tool separately reports a sprite with
+no tags and no cel labels as having "nothing for code to address", so the labels are
+worth adding either way. **ENDESGA-64 only** — off-palette colours fail the build
+under `--strict`.
+
+Dropping the file in and running `python3 tools/sprites/build_sprites.py` is enough —
+no code change. Until then the entity draws its own plate in `Graphics` at the same
+quarter-tile box (a dark rectangle, a `borderCool` edge, a rocker that is
+`greenBright` while the circuit is closed and `borderDim` while it is cut), so the
+switch will not change size when the art lands. The lit rocker should read as the
+*same* "this circuit is live" green as the breaker cabinet's screen — a player learns
+that colour once and should not have to learn it twice.
 
 There are a lot of these on a level: `src/map/AutoLight.ts` derives one per lit zone,
 which is around a dozen per deck. It wants to read as ordinary fixture, not as a

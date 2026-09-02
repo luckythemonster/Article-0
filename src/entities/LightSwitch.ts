@@ -3,6 +3,7 @@ import type { GameTile } from "../map/types";
 import { lightSwitchStatsFor, type LightSwitchStats } from "../systems/EntityStats";
 import {
   entitySpriteKey,
+  framesLabelled,
   hasEntitySprite,
   type EntitySpriteId,
 } from "./EntitySprites";
@@ -34,6 +35,21 @@ import {
 
 const ART: EntitySpriteId = "light-switch";
 
+/**
+ * The cel labels the art is asked to carry, one per circuit state.
+ *
+ * Read by label rather than by frame index for the reason `Breaker` does it — the
+ * artist decides how many frames the strip has, and an index is a promise about
+ * their file that the code has no business making. The build tool wants an
+ * annotation anyway: `tools/sprites/build_sprites.py` reports a sprite with no tags
+ * and no cel labels as having "nothing for code to address".
+ *
+ * Deliberately *not* narrowed to a layer, unlike the breaker's — a two-state plate
+ * has no reason to be split across layers, so a label anywhere in the file counts.
+ */
+const LABEL_ON = "ON";
+const LABEL_OFF = "OFF";
+
 export class LightSwitch {
   readonly tileX: number;
   readonly tileY: number;
@@ -54,7 +70,9 @@ export class LightSwitch {
    */
   private readonly plate?: Phaser.GameObjects.Graphics;
   private readonly sprite?: Phaser.GameObjects.Sprite;
-  private readonly tileSize: number;
+  /** Drawn size in px, from the tile's own span — see the constructor. */
+  private readonly width: number;
+  private readonly height: number;
 
   /**
    * @param closed the zone's live state — the persisted `PowerGridState` override
@@ -68,12 +86,18 @@ export class LightSwitch {
     this.y = (tile.y + 0.5) * tileSize + tile.offsetY;
     this.stats = lightSwitchStatsFor(tile.components);
     this.closed = closed;
-    this.tileSize = tileSize;
+
+    // Off the tile, not the art — the same reading `Breaker` takes of its cabinet.
+    // `src/map/AutoLight.ts` files these at `SWITCH_TILES`, and taking the size from
+    // there rather than from a constant here is what keeps the drawn plate and the
+    // sprite spec's `displayTiles` from drifting apart, which they previously did.
+    this.width = tile.colSpan * tileSize;
+    this.height = tile.rowSpan * tileSize;
 
     if (hasEntitySprite(scene, ART)) {
       this.sprite = scene.add
         .sprite(this.x, this.y, entitySpriteKey(ART))
-        .setDisplaySize(tileSize, tileSize)
+        .setDisplaySize(this.width, this.height)
         // Beside the breaker on the fixture layer, under everything that walks.
         .setDepth(120);
     } else {
@@ -101,6 +125,22 @@ export class LightSwitch {
   }
 
   /**
+   * Which frame of the strip shows the current state.
+   *
+   * The labelled frame where the art carries labels, and frame 0/1 where it does
+   * not — so a plain two-frame file still works and costs only a build warning,
+   * rather than the switch silently sticking on one state. A single-cel file gets
+   * frame 0 both ways, which reads as a plate that does not animate rather than as
+   * a broken one.
+   */
+  private stateFrame(): number {
+    const [labelled] = framesLabelled(ART, this.closed ? LABEL_ON : LABEL_OFF);
+    if (labelled !== undefined) return labelled;
+    const frames = this.sprite?.texture.getFrameNames().length ?? 0;
+    return this.closed || frames < 2 ? 0 : 1;
+  }
+
+  /**
    * Repaints for the current state.
    *
    * A frame swap where there is art, and where there isn't, a small plate whose
@@ -109,16 +149,18 @@ export class LightSwitch {
    */
   private draw(): void {
     if (this.sprite) {
-      // Two frames if the art has them, frame 0 if it is a single cel.
-      const frames = this.sprite.texture.getFrameNames().length;
-      if (frames > 1) this.sprite.setFrame(this.closed ? 0 : 1);
+      this.sprite.setFrame(this.stateFrame());
       return;
     }
 
     const g = this.plate;
     if (!g) return;
-    const w = this.tileSize * 0.34;
-    const h = this.tileSize * 0.46;
+    // The same box the art will occupy, so the switch does not visibly change size
+    // on the day somebody drops the PNG in. Tight — a quarter tile is 8 world pixels
+    // to fit a plate and a rocker into — but a fallback that lied about the
+    // footprint would make the real art look like a regression when it landed.
+    const w = this.width;
+    const h = this.height;
     g.clear();
     g.fillStyle(0x1a2330, 1);
     g.fillRect(this.x - w / 2, this.y - h / 2, w, h);

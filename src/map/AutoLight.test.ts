@@ -13,6 +13,7 @@ import {
   isDerivedCircuit,
   LIGHT_SWITCH_BOARD,
   LIGHT_SWITCH_COMPONENT,
+  SWITCH_TILES,
   UNLIT_BOARD,
   ZONE_TILES,
 } from "./AutoLight";
@@ -238,6 +239,18 @@ describe("autoLight — switches", () => {
       // Frameless on purpose: the plate is drawn by the entity, and `TileBake`
       // skips a tile with no frame rather than trying to paint one.
       expect(s.frame).toBeUndefined();
+    }
+  });
+
+  it("carries the plate's footprint on the tile, not just in the entity", () => {
+    // `LightSwitch` sizes itself from `tile.colSpan` the way `Breaker` does, so the
+    // span has to be here. `marker()` defaults both to a whole tile, which would
+    // draw the 8x8 art at four times the house pixel density.
+    for (const l of map.levels) {
+      for (const s of switchesOn(l)) {
+        expect(s.colSpan).toBe(SWITCH_TILES);
+        expect(s.rowSpan).toBe(SWITCH_TILES);
+      }
     }
   });
 

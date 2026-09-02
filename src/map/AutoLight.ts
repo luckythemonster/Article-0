@@ -81,6 +81,22 @@ export const DERIVED_RADIUS_TILES = 4.5;
  */
 const DERIVED = "__";
 
+/**
+ * Footprint of a switch plate, in tiles.
+ *
+ * A quarter, and that is arithmetic rather than taste: the house pixel density is one
+ * art pixel per world pixel, a tile is 32 world pixels, and the plate's art is 8x8.
+ * Drawn at the breaker's half-tile instead, every pixel of the switch would be twice
+ * the size of every pixel of the cabinet beside it on the same wall.
+ *
+ * Written onto the tile rather than kept as a constant inside `LightSwitch`, so the
+ * drawn size stays answerable from the map — which is how `Breaker` reads its own
+ * cabinet's. It is the second of a hand-written pair with `displayTiles` on the
+ * `light-switch` sprite spec in `src/entities/EntitySprites.ts`; a test in
+ * `src/render/pixelScale.test.ts` holds the two together.
+ */
+export const SWITCH_TILES = 0.25;
+
 /** The board derived switches are filed on. */
 export const LIGHT_SWITCH_BOARD = "light_switches";
 
@@ -289,6 +305,13 @@ function derivedLight(zone: string, at: TilePos): GameTile {
 function derivedSwitch(zone: string, at: TilePos): GameTile {
   return {
     ...marker(`${zone}_switch`, at.x, at.y),
+    // The plate's footprint, which `LightSwitch` draws to the way `Breaker` draws to
+    // its cabinet's. It has to live on the *tile* rather than as a constant in the
+    // entity: that is what keeps it answerable from the map, and a constant is
+    // exactly what drifted from the sprite spec the first time round.
+    //
+    colSpan: SWITCH_TILES,
+    rowSpan: SWITCH_TILES,
     entityType: LIGHT_SWITCH_COMPONENT,
     components: [{ type: LIGHT_SWITCH_COMPONENT, values: { Target: zone, state: "CLOSED" } }],
   };
