@@ -115,38 +115,37 @@ frames needs no code change.
 
 ---
 
-## Owed — the wall switch
+## Done — the wall switch
 
-`public/assets/sprites/light_switch.aseprite` → `light-switch.png`, **8x8**, drawn
-over a **quarter tile**.
+`light_switch.aseprite` is drawn and wired: **8x8** over a **quarter tile**, all
+ENDESGA-64, eleven frames across four layers (`emergency_light`, `switch_cover`,
+`switch`, `INDICATOR_LIGHT`). `src/entities/LightSwitch.ts` plays the tag whose name
+matches the circuit state, so the authored per-frame timing carries — `ON` (0-2) is a
+long hold with a pair of 29ms catches, and `OFF` (3-8) guttered red behind hazard
+striping. Nothing to wire; it landed by dropping the file in.
 
-**Why 8x8 and why a quarter.** The house density is one art pixel per world pixel —
-that is what "ratio 2" means once `CAMERA_ZOOM` is applied, and every door, locker and
-laser hits it with 32x32 art over a full 32-world-pixel tile. So the canvas *is* the
-footprint: the breaker's 16x16 covers half a tile, and 8x8 covers a quarter. Drawn at
-the breaker's half-tile instead, each of the switch's pixels would be twice the size
-of each of the cabinet's beside it on the same wall, which reads as a scaled-up
-placeholder rather than as a small object. See [The two rules](#the-two-rules).
+**Why 8x8 over a quarter tile.** The house density is one art pixel per world pixel —
+"ratio 2" once `CAMERA_ZOOM` applies — and every door, locker and laser hits it with
+32x32 art over a full 32-world-pixel tile. So the canvas *is* the footprint: the
+breaker's 16x16 covers half a tile, and 8x8 covers a quarter. At the breaker's
+half-tile each of the switch's pixels would be twice the size of the cabinet's beside
+it, which reads as a scaled-up placeholder rather than a small object. See
+[The two rules](#the-two-rules).
 
-**Two frames, and they are the whole state**: the rocker up and lit, and down and
-dark. Label the cels **`ON`** and **`OFF`** — any layer, the code does not narrow to
-one. `src/entities/LightSwitch.ts` picks the frame by that label, falling back to
-frame 0/1 if the labels are missing; the build tool separately reports a sprite with
-no tags and no cel labels as having "nothing for code to address", so the labels are
-worth adding either way. **ENDESGA-64 only** — off-palette colours fail the build
-under `--strict`.
+### Two things the file asks for that the engine does not yet do
 
-Dropping the file in and running `python3 tools/sprites/build_sprites.py` is enough —
-no code change. Until then the entity draws its own plate in `Graphics` at the same
-quarter-tile box (a dark rectangle, a `borderCool` edge, a rocker that is
-`greenBright` while the circuit is closed and `borderDim` while it is cut), so the
-switch will not change size when the art lands. The lit rocker should read as the
-*same* "this circuit is live" green as the breaker cabinet's screen — a player learns
-that colour once and should not have to learn it twice.
+Both are drawn, labelled, and currently unread — recorded here so they are decisions
+rather than oversights.
 
-There are a lot of these on a level: `src/map/AutoLight.ts` derives one per lit zone,
-which is around a dozen per deck. It wants to read as ordinary fixture, not as a
-prize — the point of the switch is that touching one is not evidence of anything.
+- **`light_source {radius=4}`** is on the `emergency_light` layer for frames 3-8,
+  which is exactly the `OFF` range. The art is saying that a switched-off room drops
+  to emergency lighting rather than going black. Today it goes black: nothing parses
+  that label, and `src/ui/Lighting.ts` only knows the fixtures on the `light_sources`
+  board.
+- **`NO_POWER`** labels frames 9-10 on `INDICATOR_LIGHT`, and those two frames are in
+  no tag at all. It is a third state — the circuit is dead upstream (a breaker thrown,
+  or a terminal hacked) as distinct from this switch being off — and `LightSwitch`
+  has only the two.
 
 ---
 

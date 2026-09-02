@@ -3135,7 +3135,7 @@ them to share names they shouldn't.
 
 #### `LightSwitch` — class
 
-`src/entities/LightSwitch.ts:53`
+`src/entities/LightSwitch.ts:56`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -7463,7 +7463,7 @@ GameScene.
 | [LightSample](#undefined) | interface | `src/render/lightSampling.ts:32` |
 | [LightSource](#interface-lightsource) | interface | `src/systems/DetectionSystem.ts:4` |
 | [LightStats](#interface-lightstats) | interface | `src/systems/EntityStats.ts:113` |
-| [LightSwitch](#class-lightswitch) | class | `src/entities/LightSwitch.ts:53` |
+| [LightSwitch](#class-lightswitch) | class | `src/entities/LightSwitch.ts:56` |
 | [LightSwitchStats](#interface-lightswitchstats) | interface | `src/systems/EntityStats.ts:614` |
 | [Locker](#class-locker) | class | `src/entities/Locker.ts:37` |
 | [LockerResult](#type-lockerresult) | type | `src/entities/Locker.ts:117` |

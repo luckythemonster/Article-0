@@ -2,6 +2,8 @@ import type Phaser from "phaser";
 import type { GameTile } from "../map/types";
 import { lightSwitchStatsFor, type LightSwitchStats } from "../systems/EntityStats";
 import {
+  clipFrames,
+  ensureEntityClip,
   entitySpriteKey,
   framesLabelled,
   hasEntitySprite,
@@ -36,19 +38,20 @@ import {
 const ART: EntitySpriteId = "light-switch";
 
 /**
- * The cel labels the art is asked to carry, one per circuit state.
+ * The two clips the art authors, and the labels that back them up.
  *
- * Read by label rather than by frame index for the reason `Breaker` does it — the
- * artist decides how many frames the strip has, and an index is a promise about
- * their file that the code has no business making. The build tool wants an
- * annotation anyway: `tools/sprites/build_sprites.py` reports a sprite with no tags
- * and no cel labels as having "nothing for code to address".
+ * `light_switch.aseprite` tags `ON` as frames 0-2 and `OFF` as 3-8 — each a long
+ * hold followed by a couple of 29ms frames, so the plate reads as a fluorescent
+ * indicator that catches rather than as a static light. Played as *clips* rather
+ * than sampled as stills because that timing is drawn, not incidental: the same
+ * reasoning `BASE_FRAME_RATE` in `EntitySprites` spells out for the camera and the
+ * terminal.
  *
- * Deliberately *not* narrowed to a layer, unlike the breaker's — a two-state plate
- * has no reason to be split across layers, so a label anywhere in the file counts.
+ * The identical names also appear as cel labels on the `switch` layer, which is
+ * what {@link stateFrame} falls back to when a file carries labels but no tags.
  */
-const LABEL_ON = "ON";
-const LABEL_OFF = "OFF";
+const CLIP_ON = "ON";
+const CLIP_OFF = "OFF";
 
 export class LightSwitch {
   readonly tileX: number;
@@ -125,7 +128,7 @@ export class LightSwitch {
   }
 
   /**
-   * Which frame of the strip shows the current state.
+   * Which single frame shows the current state, for art that has no clip to play.
    *
    * The labelled frame where the art carries labels, and frame 0/1 where it does
    * not — so a plain two-frame file still works and costs only a build warning,
@@ -134,7 +137,7 @@ export class LightSwitch {
    * a broken one.
    */
   private stateFrame(): number {
-    const [labelled] = framesLabelled(ART, this.closed ? LABEL_ON : LABEL_OFF);
+    const [labelled] = framesLabelled(ART, this.closed ? CLIP_ON : CLIP_OFF);
     if (labelled !== undefined) return labelled;
     const frames = this.sprite?.texture.getFrameNames().length ?? 0;
     return this.closed || frames < 2 ? 0 : 1;
@@ -149,7 +152,16 @@ export class LightSwitch {
    */
   private draw(): void {
     if (this.sprite) {
-      this.sprite.setFrame(this.stateFrame());
+      const tag = this.closed ? CLIP_ON : CLIP_OFF;
+      const clip = ensureEntityClip(
+        this.sprite.scene,
+        ART,
+        `${entitySpriteKey(ART)}-${tag}`,
+        clipFrames(ART, tag),
+      );
+      // A file with tags animates; one with only labels, or one frame, holds still.
+      if (clip) this.sprite.play(clip, true);
+      else this.sprite.setFrame(this.stateFrame());
       return;
     }
 

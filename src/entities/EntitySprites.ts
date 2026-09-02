@@ -328,7 +328,10 @@ export function entitySpriteKey(id: EntitySpriteId): string {
 
 /** Every frame the tag occurrences named `tag` cover, one array per occurrence. */
 function tagRuns(id: EntitySpriteId, tag: string): number[][] {
-  return SPRITES[id].tags
+  // Same guard, same reason, as {@link framesLabelled} and {@link hasEntitySprite}:
+  // an id declared ahead of its PNG has no manifest entry, and asking it for clips
+  // is the ordinary case rather than a fault.
+  return (SPRITES[id]?.tags ?? [])
     .filter((t) => t.name === tag)
     .map((t) => {
       const frames: number[] = [];
