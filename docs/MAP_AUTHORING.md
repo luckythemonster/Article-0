@@ -497,9 +497,16 @@ lowercases every `DataType` and maps the ones that genuinely differ:
 | `AudioHazard` | `audio_hazard` |
 | `Cover.Height` | `cover.type` |
 
-Field names are left alone apart from the identity fields `Type` / `State` / `Key`, which
-lowercase — the tuning fields (`SightRange`, `HackTime`, `ThermalBleed`, …) keep the
-editor's PascalCase, because that is what the engine has always read them as.
+**Field names are matched without regard to case**, so you do not have to guess the
+engine's convention. Write `radius` or `Radius`; both find `LightSource.radius`.
+
+That was not always true, and the history is worth a line because it explains why the
+shipped map's tuning looks blank. The engine upper-camels its constants (`Radius`,
+`HackTime`, `OperationNoise`) and this editor lower-camels its fields, and the lookup
+used to be exact — so **seven fields across five component types silently missed**, and
+every one of them fell back to an engine default. `vent_core`'s radius-10 amber
+flickers had been drawing at 3.5 since they were placed. The one true rename,
+`Cover.Height` → `cover.type`, is still a rename and still listed above.
 
 This matters more than it looks: an unrecognised component reads as *absent*, silently. A
 map whose terminals are spelled in a way the loader doesn't know has no terminals at all,
@@ -668,10 +675,30 @@ at 32×32, the same 2× reduction `security_node1` gets from the same source siz
 
 ## 5. Gotchas
 
-1. **A numeric field authored as `0` is treated as unset** and replaced by the engine
-   default — see the comment in `EntityStats.num`, *"Map leaves tuning at 0"*. You cannot
-   author a genuine zero: no zero-radius light, no zero sight range. This is why the
-   shipped map runs almost entirely on defaults; its values are all `0` or `null`.
+1. **A numeric field you did not choose is unset, and so is a genuine `0`.** Two rules,
+   both in `EntityStats.num`, and both meaning "the engine's tuned default wins".
+
+   The `0` rule is the old one: you cannot author a zero-radius light or a zero sight
+   range, because the map leaves tuning at `0` and the engine cannot tell that from
+   blank.
+
+   The second is newer and matters more. **The editor fills every blank field with its
+   DataStructure's own `DefaultValues`** — a light you never touched arrives carrying
+   `radius: 7`, `detectionMultiplier: 1` — so by the time the engine sees it, "I chose
+   7" and "I chose nothing" are the same string. `num` compares against those defaults
+   (carried on `ComponentData.defaults`) and treats a match as blank. Without that,
+   believing the editor's `detectionMultiplier: 1` would have removed the detection
+   penalty for standing in light from all nine levels at once.
+
+   The practical consequence for you: **to change a number, change it to something the
+   editor is not already suggesting** — and check the tile ends up somewhere that
+   reads it. Both rooftop relay pedestals author a ten-second `hackTime`, and it has
+   never done anything, because `AdoptAuthored` moves them off the `terminals` board
+   and neither becomes a `Terminal`. Of every numeric field in the export only
+   `LightSource.radius` and `detectionMultiplier` disagree with the engine's own
+   defaults at all, so in practice this only bites on lights. Strings and enums are
+   exempt — `Terminal.type` still arrives as the export's `LOG_CACHE`, which
+   `InertTerminals.ts` depends on.
 2. **Board order is draw order.** Non-entity boards render at `layerIndex * 10`, so put
    `floor` first and stack upward.
 3. **The first board sets the level's dimensions.** `width`/`height` come from

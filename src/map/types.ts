@@ -224,6 +224,23 @@ export interface SpriteFrame {
 export interface ComponentData {
   type: string;
   values: Record<string, string>;
+  /**
+   * The *editor's* own `DefaultValues` for this component's fields.
+   *
+   * Kept beside {@link values} rather than folded into it, because the two mean
+   * opposite things and folding them is what hid a map-wide bug. The editor fills
+   * every blank field with its structure's default, so by the time a component
+   * reaches here "the author chose 7" and "the author chose nothing" are the same
+   * string — and the editor's placeholder then silently outranked the engine's own
+   * tuned default. On the shipped map that took every light's detection multiplier
+   * to the editor's `1`, which is to say it removed the penalty for standing in the
+   * light from the entire game.
+   *
+   * `EntityStats.num` compares against this to tell blank from chosen. Optional
+   * because generated tiles and test fixtures build components by hand and have no
+   * schema behind them; absent means "every value here was chosen".
+   */
+  defaults?: Record<string, string>;
 }
 
 /** A single placed tile in the normalized model. */

@@ -57,9 +57,15 @@ describe("typeInertTerminals", () => {
     const { map } = EdplayLoader.parse(raw, []);
     const tile = map.levels[0].layers[0].tiles[0];
     // Resolved by the loader from the DataStructure, not written here: the point
-    // of patching before the parse is that nothing is invented.
+    // of patching before the parse is that nothing is invented. They arrive marked
+    // as the editor's own defaults too, which is exactly what they are — nobody
+    // chose them — and is what keeps `num` from reading them as authored tuning.
     expect(tile.components).toEqual([
-      { type: "terminal", values: { hackTime: "2.2", type: "LOG_CACHE" } },
+      {
+        type: "terminal",
+        values: { hackTime: "2.2", type: "LOG_CACHE" },
+        defaults: { hackTime: "2.2", type: "LOG_CACHE" },
+      },
     ]);
   });
 

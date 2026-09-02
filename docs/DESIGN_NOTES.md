@@ -11,6 +11,44 @@ Each note names the code it belongs to. If a note and the code disagree, the cod
 
 ## Perception
 
+### The map's tuning had never reached the engine
+
+Worth recording because it went unnoticed for the life of the project, and because the
+shape of it is more general than the bug.
+
+Two lookups sat between an authored value and the code that wanted it, and both dropped
+it. The engine upper-camels its field constants (`Radius`, `HackTime`) and this editor
+lower-camels its fields (`radius`, `hackTime`), and the lookup was exact property
+access — so **seven fields across five component types missed**, every time, and `num`
+answered each miss with an engine default. Nothing looked broken. It looked like a map
+whose author had left the tuning blank, and `MAP_AUTHORING.md` said so in as many words.
+
+The second lookup was worse, and only became visible once the first was fixed. The
+editor writes its `DataStructure` defaults into every field nobody filled in, so a
+blank arrives indistinguishable from a choice — and those placeholders then outranked
+the engine's own tuned defaults. `LightSource.detectionMultiplier` defaults to `1` in
+the editor and `1.6` in the engine, so believing the map would have taken the detection
+penalty for standing in light to nothing, on every level: `main1` went from 93% of its
+floor being dangerous to **0%**. That is the mechanic this document opens with, deleted
+by a fix that was locally correct.
+
+So `ComponentData` now carries the editor's defaults alongside the values, and `num`
+treats a value equal to its default as unset — the same shrug it already gives a `0`.
+The general lesson is the one worth keeping: **a default that arrives as data is
+indistinguishable from a choice, and the two have to be kept apart at the boundary,
+not guessed at afterwards.**
+
+What the map had been trying to say all along, and now does: `vent_core` and
+`main2vault`'s amber flickers reach 10 tiles rather than 3.5 and make you *harder* to
+see (0.75×) rather than easier (1.6×); and doors are noisy in four different degrees
+rather than uniformly 4.
+
+Two defs also author a ten-second `hackTime`, and it still changes nothing: they are
+the rooftop relay pedestals, which `AdoptAuthored` moves off the `terminals` board, so
+neither has ever become a `Terminal` for the value to reach. Every terminal a player
+actually holds is 2.2s, before and after. Recording it because "the map authored it" and
+"the game reads it" turn out to be different claims, and only the second one matters.
+
 ### Darkness is opaque, and it is two layers
 
 The level is filled with *opaque* darkness, soft bright pools are punched out at each

@@ -123,6 +123,82 @@ export const LIGHT_DEFAULTS: LightStats = {
   type: "static",
 };
 
+/**
+ * One component's value for `field`, matched without regard to case.
+ *
+ * ### Why case-insensitively
+ *
+ * The editor lower-camels its field names (`radius`, `hackTime`, `operationNoise`)
+ * and this file upper-camels the strings it asks for (`Radius`, `HackTime`,
+ * `OperationNoise`), and a plain `values[field]` lookup silently missed every time
+ * the two disagreed. It disagreed **seven times across five component types**, and
+ * because {@link num} answers a miss with the engine default, nothing ever looked
+ * broken — it looked like a map that had left its tuning blank. It had not: the
+ * radius-10 amber flickers on `vent_core` and `main2vault` had been drawing at 3.5
+ * since they were placed, and two terminals authored at ten seconds were opening in
+ * two.
+ *
+ * Matching loosely fixes the class rather than those seven instances, which is the
+ * point: they were never typos, they were one convention mismatch, and the next
+ * component added would have landed on the same rock. Safe to do because no
+ * `DataStructure` in the export has two fields differing only in case — a test in
+ * `EntityStats.test.ts` holds the export to that, and to the whole cross-check.
+ *
+ * Exact match first, so the common path costs one property read and an exact name
+ * always wins over a differently-cased one.
+ */
+function rawField(
+  components: ComponentData[],
+  type: string,
+  field: string,
+): string | undefined {
+  return pick(components.find((x) => x.type === type)?.values, field);
+}
+
+/** {@link rawField}'s lookup, over whichever record it is pointed at. */
+function pick(values: Record<string, string> | undefined, field: string): string | undefined {
+  if (!values) return undefined;
+  const exact = values[field];
+  if (exact !== undefined) return exact;
+  const wanted = field.toLowerCase();
+  for (const key of Object.keys(values)) {
+    if (key.toLowerCase() === wanted) return values[key];
+  }
+  return undefined;
+}
+
+/**
+ * True when a component's value for `field` is only what the *editor* filled in.
+ *
+ * The second half of the same bug {@link rawField} fixes, and the more damaging
+ * half. Every blank field arrives carrying its DataStructure's `DefaultValues`, so
+ * a reader that simply believed the value would take the editor's placeholder over
+ * the engine's tuned default — which, on the shipped map, meant every light's
+ * detection multiplier read as the editor's `1` and standing in the light stopped
+ * costing anything, across all nine levels.
+ *
+ * Only {@link num} consults this, deliberately. The numbers are where the editor's
+ * placeholders and the engine's tuning disagree — of every numeric field in the
+ * export only `LightSource.radius` (7 against 3.5) and `detectionMultiplier`
+ * (1 against 1.6) differ at all. The *string* defaults are load-bearing in the other
+ * direction and must keep arriving: `InertTerminals` needs `Terminal.type` to come
+ * through as the export's `LOG_CACHE`, and a door needs its `CLOSED`.
+ *
+ * The cost is that an author cannot deliberately choose the same value the editor
+ * suggests and have it read as a choice. That is the restriction {@link num}
+ * already carries for `0`, for the same reason and to the same shrug.
+ */
+function isEditorBlank(
+  components: ComponentData[],
+  type: string,
+  field: string,
+  raw: string | undefined,
+): boolean {
+  if (raw === undefined) return false;
+  const c = components.find((x) => x.type === type);
+  return c?.defaults !== undefined && pick(c.defaults, field) === raw;
+}
+
 /** Reads a numeric field from a component, falling back to a default. */
 export function num(
   components: ComponentData[],
@@ -130,9 +206,9 @@ export function num(
   field: string,
   fallback: number,
 ): number {
-  const c = components.find((x) => x.type === type);
-  if (!c) return fallback;
-  const raw = c.values[field];
+  const raw = rawField(components, type, field);
+  // A value nobody chose is not a value — see `isEditorBlank`.
+  if (isEditorBlank(components, type, field, raw)) return fallback;
   const parsed = raw !== undefined ? Number(raw) : NaN;
   // Map leaves tuning at 0; treat 0 as "unset" and use the engine default.
   return Number.isFinite(parsed) && parsed !== 0 ? parsed : fallback;
@@ -409,8 +485,7 @@ export function str(
   field: string,
   fallback: string,
 ): string {
-  const c = components.find((x) => x.type === type);
-  const raw = c?.values[field];
+  const raw = rawField(components, type, field);
   return raw !== undefined && raw !== "" ? raw : fallback;
 }
 
@@ -428,8 +503,7 @@ export function str(
  * `1` or `true` and mean it.
  */
 export function flag(components: ComponentData[], type: string, field: string): boolean {
-  const c = components.find((x) => x.type === type);
-  const raw = c?.values[field];
+  const raw = rawField(components, type, field);
   if (raw === undefined || raw === "") return false;
   if (raw.toLowerCase() === "true") return true;
   if (raw.toLowerCase() === "false") return false;
