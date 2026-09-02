@@ -92,6 +92,42 @@ in what they do:
 - a **terminal hack** takes every circuit within six tiles, off the breach the player is
   already paying for — the doors open and the room goes dark together.
 
+### A zone carries two bits, and the switch art is what said so
+
+The three controls above were, for a while, the same move at three sizes: each one
+opened a circuit and the room went black. What broke that open was the art. When
+`light_switch.aseprite` arrived it had a layer called `emergency_light` labelled
+`light_source {radius=4}` across exactly the frames its `OFF` tag covers, and a third
+state, `NO_POWER`, on two frames belonging to no tag at all. The artist had drawn a
+distinction the engine could not make.
+
+The distinction is that **a zone has two independent bits**: whether its own plate is
+on, and whether power reaches it at all. Collapsing them into one boolean is why a room
+somebody switched off and a room a breaker had killed looked identical.
+
+| plate | power | overhead | emergency lamp | the plate reads |
+| --- | --- | --- | --- | --- |
+| on | yes | on | off | `ON` |
+| off | yes | off | **on** | `OFF` |
+| either | no | off | off | `NO_POWER` |
+
+Now the switch and the breaker differ in *kind*. Flipping a plate leaves the room on a
+dim guttering lamp — 45% of the overhead's brightness, 0.75× detection against its
+1.6× — so you can still cross it and are much harder to see in it. A breaker or a hack
+cuts the power that lamp runs on, so those are the ones that buy real darkness. And a
+plate whose circuit is dead greys out and stops offering `[E]`, because flipping it
+would do nothing.
+
+Two things that fell out of building it are worth recording. **`Brightness` had to be
+added to `light_source`**, because dim and small are different: an emergency lamp at
+full strength measured *indistinguishable* from the overhead it replaced — the same lit
+area over the zone, mean brightness 0.376 against 0.381 — and shrinking it instead would
+have stopped it reaching the doorway, which is the one part of a dark room worth
+lighting. And **a terminal hack cannot be recorded as a lever position**: it has no
+fixture, so `PowerGridState` grew a separate `hacked` set. Recorded as a lever, a hacked
+room would come back up on its emergency lamp and read `OFF`, which is exactly the
+distinction the art asked for.
+
 The rooftop opts out (an `unlit` board). Its difficulty *is* the dark, and a grid of
 derived overheads would have quietly deleted the level.
 

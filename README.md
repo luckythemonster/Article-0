@@ -171,14 +171,17 @@ crouching in cover does not hide it. Once they have you it fills their meter 1.8
 too. It drains in about 45 seconds of continuous use, so spend it in bursts, kill it
 before you break line of sight, and let a **Battery** from a chest refill it.
 
-**Light is a circuit, and you can cut it three ways.** Every deck is wired in zones — one
-lamp's worth of room — grouped into four wings. A **wall switch** takes the zone you are
-standing in: instant, barely heard, and nobody is charged or sent. A **breaker** cabinet
-takes a whole wing, but it is heard across the deck, it is logged against you, and the
-facility sends an orderly to put it back — so darkness bought that way is on a clock, and
-only stays yours if nobody left can walk. And a **terminal** hack kills every circuit
-within six tiles as it opens the doors there. Cutting the lights cuts both halves at once:
-a dark room is one you cannot see in *and* one you are much harder to be seen in.
+**Light is a circuit, and you can cut it three ways — but they are not the same cut.** Every
+deck is wired in zones, one lamp's worth of room, grouped into four wings. A **wall switch**
+takes the zone you are standing in: instant, barely heard, nobody charged or sent. It does
+not black the room out, though — an emergency lamp comes up on the wall, dim and guttering,
+so you can still cross the room while being much harder to spot in it. A **breaker** cabinet
+takes a whole wing *and the emergency lamps with it*, which is what real darkness costs: it
+is heard across the deck, logged against you, and the facility sends an orderly to put it
+back, so that darkness is on a clock and only stays yours if nobody left can walk. A
+**terminal** hack does the same to every circuit within six tiles as it opens the doors
+there. Look at the plate to tell which you are in: lit green is on, red is running on
+emergency power, and dead grey means the circuit above it is gone.
 
 **The radar** (top-right) is a Soliton-style minimap: a world-aligned circular plan view
 showing nearby walls, guards and cameras (yellow, red once they're close to spotting you)

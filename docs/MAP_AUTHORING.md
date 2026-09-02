@@ -449,15 +449,35 @@ light in the middle of each zone that has floor in it, nudged to the nearest cel
 player could stand on. A 36×18 deck is 18 zones. Zones group into **wings**, one per
 quadrant, and that is the entire circuit topology:
 
-| Control | Throws | Noise | Breach? | Reset? |
-| --- | --- | --- | --- | --- |
-| **Wall switch** (`light_switches`) | one zone | 2 tiles | no | no |
-| **Breaker** (`power`) | one wing | 7 tiles | yes | an orderly is sent |
-| **Terminal hack** (`terminals`) | every circuit within 6 tiles | — | (the hack's) | no |
+| Control | Throws | Leaves you | Noise | Breach? | Reset? |
+| --- | --- | --- | --- | --- | --- |
+| **Wall switch** (`light_switches`) | one zone | **emergency lighting** | 2 tiles | no | no |
+| **Breaker** (`power`) | one wing | full dark | 7 tiles | yes | an orderly is sent |
+| **Terminal hack** (`terminals`) | every circuit within 6 tiles | full dark | — | (the hack's) | no |
 
 The switch is the quiet move you have to walk into the room for; the breaker is the
 loud one that takes a quarter of the deck and gets somebody sent to undo it. Both are
 tap-`E`. A switch is derived for every lit zone that has a wall to mount on.
+
+**A zone carries two independent bits**, and everything above falls out of the pair:
+whether its own plate is on, and whether power reaches it at all.
+
+| plate | power | overhead | emergency lamp | the plate reads |
+| --- | --- | --- | --- | --- |
+| on | yes | on | off | `ON` |
+| **off** | yes | off | **on** | `OFF` |
+| either | **no** | off | off | **`NO_POWER`** |
+
+So the two controls differ in kind, not just in reach. Flipping a plate drops the room
+to a dim, guttering emergency lamp on the wall — about **45% the brightness** of the
+overhead and **0.75×** detection against its 1.6× — so you can still cross the room and
+are much harder to spot in it. A breaker or a hack cuts the power the lamp runs on, so
+those give you real darkness. A plate with no power greys out and stops offering `[E]`
+at all, because flipping it would do nothing.
+
+Only a zone that got a *plate* gets an emergency lamp — the lamp is drawn on the switch
+sprite, so a zone with no wall to mount on has neither, and can only be darkened by a
+breaker. That is deliberate: a breaker is supposed to mean darkness.
 
 **A derived light's `ref` is its zone's name** — `duct1__z2_1`, and its wing is
 `duct1__wing_10`. That is not decoration: `power_grid.Target` names a `ref`, so those
@@ -516,7 +536,7 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
 | `door` | `key`, `state`, `OperationNoise` | `OpenSpeed` |
 | `glass` | `VisionBlock` | `type` (the sprite conveys it), `BreakNoise` (no breakage mechanic) |
 | `terminal` | `type`, `HackTime` | `password`; `AlertOnFail` is parsed into `TerminalStats` but unused — there is no hack-fail path for it to attach to |
-| `light_source` | `Radius`, `DetectionMultiplier`, `type` (`flicker` in the value → pulses) | `LightOn` — a fixture authored "off" still lights; use a breaker if you want it switchable |
+| `light_source` | `Radius`, `Brightness`, `DetectionMultiplier`, `type` (`flicker` in the value → pulses) | `LightOn` — a fixture authored "off" still lights; use a breaker or a switch if you want it switchable |
 | `cover` | `type` (`low` → crouch to hide, `high` → hides standing), `ThermalBleed`, `Destructible` | — |
 | `chest` | `InteractionTime`, `NoiseOnOpen`, `items`, `item1/2/3` | `state` |
 | `human` | `Job` (`SECURITY` → enforcer, `ORDERLY` → orderly) | `QScore`, `Class`, `Behavior` |
@@ -760,6 +780,16 @@ at 32×32, the same 2× reduction `security_node1` gets from the same source siz
    neighbours' centres. A tile can also be *smaller* than its footprint —
    `ColliderPadding` insets the collision box without moving the art or the cells
    the grid claims (§3.3).
+12. **`Brightness` and `Radius` are different questions.** `Radius` is how far a pool
+   reaches; `Brightness` (0-1, default 1) is how strongly it burns. Reach for
+   `Brightness` when you want a fixture to read as *dim* — shrinking the radius
+   instead makes it stop lighting the doorway, which is the part of a dark room a
+   player actually needs. The engine's own emergency lamps are the worked example: at
+   full brightness one measured indistinguishable from the overhead it replaces
+   (identical lit area over the zone, mean brightness 0.376 against 0.381), and at
+   0.45 the same pool reads as emergency lighting. Note it is the *visible* half
+   only — how easily a guard sees you is still `DetectionMultiplier`, and a lamp can
+   be dim without being safe.
 
 ## 6. Minimum viable map
 

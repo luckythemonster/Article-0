@@ -4,8 +4,12 @@ import type { Orderly } from "../../entities/Orderly";
 import { getAudio } from "../../systems/AudioDirector";
 import type { DetectionSystem } from "../../systems/DetectionSystem";
 import { len } from "../../systems/distance";
+import { emergencyRef, zoneOfEmergency } from "../../map/AutoLight";
 import {
   circuitsForLevel,
+  isCircuitClosed,
+  isHacked,
+  markHacked,
   setCircuitClosed,
   type PowerGridState,
 } from "../../systems/PowerGrid";
@@ -76,6 +80,20 @@ export interface PowerWorld {
    * target with itself and this whole layer costs nothing.
    */
   circuitsFor(target: string): readonly string[];
+  /**
+   * Every derived zone on the level, mapped to the wing above it.
+   *
+   * The reverse of {@link circuitsFor}, and needed for the half of the mechanic
+   * that reads *upward*: whether a zone has power at all depends on its wing's
+   * breaker, and a zone cannot find that out from its own name. The keys double as
+   * the level's zone list, which is what {@link PowerControl.restore} walks.
+   *
+   * Empty on a map with no derived lighting, which is what makes every target on
+   * such a map behave exactly as it did before any of this existed.
+   */
+  zoneWings(): ReadonlyMap<string, string>;
+  /** The plates, so a dead circuit can grey the ones hanging off it. */
+  lightSwitches(): readonly LightSwitch[];
 }
 
 export class PowerControl {
@@ -93,22 +111,87 @@ export class PowerControl {
   }
 
   /**
-   * Powers a circuit on or off across both halves of what "lit" means.
+   * Moves one control's lever and re-applies everything it feeds.
    *
-   * The visible half and the mechanical half are separate systems that happen to
-   * read the same `light_sources` board, and a blackout that moved only one of
-   * them would be a lie in one direction or the other — pitch dark but still
-   * easy to spot, or fully lit but unseeable. They move together, here, or not
-   * at all.
+   * `target` is a *control's* name — a breaker's wing, a plate's zone, or an
+   * authored ref like `light_overhead1` — and `closed` is where that control now
+   * sits. What the zones under it actually do is worked out by {@link applyZone},
+   * because a lever position is only half the answer.
    */
   setCircuit(target: string, closed: boolean): void {
-    // A breaker names a wing, so one throw is several circuits. `Lighting` and
-    // `DetectionSystem` each match a single ref and are deliberately left that way —
-    // the expansion belongs here, next to the reason both halves move together.
-    for (const ref of this.w.circuitsFor(target)) {
-      this.w.lighting().setCircuit(ref, closed);
-      this.w.detection().setCircuit(ref, closed);
+    setCircuitClosed(this.w.powerGrid(), this.w.levelName(), target, closed);
+    this.applyTarget(target);
+  }
+
+  /**
+   * Re-applies every zone one target feeds, without moving anything.
+   *
+   * A breaker names a wing, so one throw is several zones. `Lighting` and
+   * `DetectionSystem` each match a single ref and are deliberately left that way —
+   * the expansion belongs here.
+   */
+  private applyTarget(target: string): void {
+    for (const zone of this.w.circuitsFor(target)) this.applyZone(zone);
+  }
+
+  /**
+   * Works out what one zone is doing, and tells all three things that show it.
+   *
+   * **The whole mechanic is two independent bits.** A zone's plate can be off, and
+   * a zone can have no power reaching it at all — a breaker thrown above it, or a
+   * terminal hacked. Those used to be one boolean, which is why a switched-off room
+   * and a blacked-out one looked identical:
+   *
+   * | plate | power | overhead | emergency | the plate reads |
+   * | ----- | ----- | -------- | --------- | --------------- |
+   * | on    | yes   | on       | off       | `ON`            |
+   * | off   | yes   | off      | **on**    | `OFF`           |
+   * | any   | no    | off      | off       | `NO_POWER`      |
+   *
+   * So flipping a plate buys dim red cover you can still cross; throwing the
+   * breaker takes the emergency lamp with everything else on the circuit and buys
+   * real darkness. The two controls differ in kind now, not just in reach.
+   *
+   * Both halves of "lit" move together here or not at all — they are separate
+   * systems reading the same board, and a blackout that moved one would be a lie in
+   * one direction or the other: pitch dark but still easy to spot, or fully lit but
+   * unseeable.
+   */
+  private applyZone(zone: string): void {
+    const live = this.hasPower(zone);
+    const overhead = live && this.plateClosed(zone);
+    this.drive(zone, overhead);
+    this.drive(emergencyRef(zone), live && !overhead);
+    for (const sw of this.w.lightSwitches()) {
+      if (sw.stats.target === zone) sw.setLive(live);
     }
+  }
+
+  /** Both halves of "lit", for one ref. */
+  private drive(ref: string, on: boolean): void {
+    this.w.lighting().setCircuit(ref, on);
+    this.w.detection().setCircuit(ref, on);
+  }
+
+  /** Where this zone's own plate sits. Absent means nobody has touched it. */
+  private plateClosed(zone: string): boolean {
+    return isCircuitClosed(this.w.powerGrid(), this.w.levelName(), zone, true);
+  }
+
+  /**
+   * Whether power reaches the zone at all, before its plate gets a say.
+   *
+   * A zone with no wing — every target on a map that has no derived lighting, and
+   * `main1`'s `light_overhead1` among them — has nothing above it to fail, so it is
+   * always live and the plate's own position decides everything. That is what keeps
+   * this layer free on a map that never asked for it.
+   */
+  private hasPower(zone: string): boolean {
+    const grid = this.w.powerGrid();
+    const level = this.w.levelName();
+    if (isHacked(grid, level, zone)) return false;
+    const wing = this.w.zoneWings().get(zone);
+    return wing === undefined || isCircuitClosed(grid, level, wing, true);
   }
 
   /**
@@ -123,7 +206,6 @@ export class PowerControl {
   flipSwitch(sw: LightSwitch): void {
     const closed = sw.toggle();
     this.setCircuit(sw.stats.target, closed);
-    setCircuitClosed(this.w.powerGrid(), this.w.levelName(), sw.stats.target, closed);
     getAudio().door();
     this.w.noise().emitAt(sw.x, sw.y, SWITCH_NOISE_TILES * this.w.tileSize());
   }
@@ -137,9 +219,19 @@ export class PowerControl {
    * the hack, which has already charged them, so this is only the power.
    */
   cutCircuits(targets: readonly string[]): void {
-    for (const target of targets) {
-      this.setCircuit(target, false);
-      setCircuitClosed(this.w.powerGrid(), this.w.levelName(), target, false);
+    const grid = this.w.powerGrid();
+    const level = this.w.levelName();
+    // Recorded as a hack rather than as a lever position, because a terminal has no
+    // lever: a room it killed has to read `NO_POWER` and stay dark, not read `OFF`
+    // and come up on emergency lighting the way a room somebody switched off does.
+    //
+    // Mapped back to the zone first. `DetectionSystem.refsWithin` reports whatever
+    // is *lit* near the panel, and in a room that is already switched off that is
+    // the emergency lamp — cutting only the lamp would leave the zone able to come
+    // back on. The `Set` is because both refs of one zone can arrive together.
+    for (const zone of new Set(targets.map(zoneOfEmergency))) {
+      markHacked(grid, level, zone);
+      this.applyTarget(zone);
     }
   }
 
@@ -152,8 +244,16 @@ export class PowerControl {
    * rooms to full brightness on every level change.
    */
   restore(level: string): void {
-    for (const { target, closed } of circuitsForLevel(this.w.powerGrid(), level)) {
-      this.setCircuit(target, closed);
+    // Every zone, not only the ones with an override — because `Lighting` and
+    // `DetectionSystem` both build every fixture powered, so an emergency lamp that
+    // should start dark has to be *told* to. A zone nobody has touched still needs
+    // its overhead on and its emergency off, and only a full pass says so.
+    for (const zone of this.w.zoneWings().keys()) this.applyZone(zone);
+    // Then whatever else this level has an override for — an authored breaker's
+    // `light_overhead1`, which is a control rather than a derived zone and so is not
+    // in the map above.
+    for (const { target } of circuitsForLevel(this.w.powerGrid(), level)) {
+      if (!this.w.zoneWings().has(target)) this.applyTarget(target);
     }
   }
 
@@ -167,7 +267,6 @@ export class PowerControl {
   throwBreaker(breaker: Breaker): void {
     const started = breaker.toggle((closed) => {
       this.setCircuit(breaker.stats.target, closed);
-      setCircuitClosed(this.w.powerGrid(), this.w.levelName(), breaker.stats.target, closed);
       if (closed) this.pending.delete(breaker);
       else this.pending.set(breaker, { orderly: null, retryAt: 0 });
     });

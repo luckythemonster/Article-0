@@ -115,25 +115,39 @@ frames needs no code change.
 
 ---
 
-## Owed — the wall switch
+## Done — the wall switch
 
-`public/assets/sprites/light_switch.aseprite` → `light-switch.png`, **16x16**, drawn
-at a half-tile footprint exactly like the breaker (see [The two rules](#the-two-rules)).
+`light_switch.aseprite` is drawn and wired: **8x8** over a **quarter tile**, all
+ENDESGA-64, eleven frames across four layers (`emergency_light`, `switch_cover`,
+`switch`, `INDICATOR_LIGHT`). `src/entities/LightSwitch.ts` plays the tag whose name
+matches the circuit state, so the authored per-frame timing carries — `ON` (0-2) is a
+long hold with a pair of 29ms catches, and `OFF` (3-8) guttered red behind hazard
+striping. Nothing to wire; it landed by dropping the file in.
 
-**Two frames, and they are the whole state**: frame 0 the rocker up and lit, frame 1
-the rocker down and dark. `src/entities/LightSwitch.ts` picks the frame off
-`isClosed`; nothing else is read, so there are no tags and no timings to get right.
+**Why 8x8 over a quarter tile.** The house density is one art pixel per world pixel —
+"ratio 2" once `CAMERA_ZOOM` applies — and every door, locker and laser hits it with
+32x32 art over a full 32-world-pixel tile. So the canvas *is* the footprint: the
+breaker's 16x16 covers half a tile, and 8x8 covers a quarter. At the breaker's
+half-tile each of the switch's pixels would be twice the size of the cabinet's beside
+it, which reads as a scaled-up placeholder rather than a small object. See
+[The two rules](#the-two-rules).
 
-Dropping the file in is enough — no code change. Until it lands the entity draws its
-own plate in `Graphics` (a dark rectangle, a `borderCool` edge, a rocker that is
-`greenBright` while the circuit is closed and `borderDim` while it is cut), which is
-legible but plainly programmer art. The lit rocker should read as the *same* "this
-circuit is live" green as the breaker cabinet's screen — a player learns that colour
-once and should not have to learn it twice.
+### Everything in the file is wired, including the parts nobody asked for
 
-There are a lot of these on a level: `src/map/AutoLight.ts` derives one per lit zone,
-which is around a dozen per deck. It wants to read as ordinary fixture, not as a
-prize — the point of the switch is that touching one is not evidence of anything.
+Two labels in it were design statements the backlog had not thought to ask for, and
+both are now the mechanic:
+
+- **`light_source {radius=4}`** on the `emergency_light` layer, frames 3-8 — exactly
+  the `OFF` range. `src/map/AutoLight.ts` hangs a real fixture on every plate at that
+  radius, and a switched-off room now falls back to it instead of going black.
+- **`NO_POWER`**, frames 9-10 on `INDICATOR_LIGHT`, in no tag at all. `LightSwitch`
+  plays it from the cel label when the circuit above the plate is dead, and the plate
+  stops offering `[E]` while it shows.
+
+The `BLINK` and `FLASH` labels are read too, in a roundabout way: the emergency
+fixture is authored `FLICKER`, so the lamp in the world gutters the way the plate
+does. If a future file tags `NO_POWER`, nothing here needs changing — the clip lookup
+prefers a tag and falls back to labels.
 
 ---
 
