@@ -11,6 +11,8 @@ function nothing(): PromptCandidates {
     doorDist: Infinity,
     breaker: undefined,
     breakerDist: Infinity,
+    lightSwitch: undefined,
+    lightSwitchDist: Infinity,
     chest: undefined,
     chestDist: Infinity,
     hatch: false,
@@ -28,6 +30,8 @@ const openDoor = { isOpen: true } as PromptCandidates["door"];
 const shutDoor = { isOpen: false } as PromptCandidates["door"];
 const liveBreaker = { isClosed: true } as PromptCandidates["breaker"];
 const cutBreaker = { isClosed: false } as PromptCandidates["breaker"];
+const litSwitch = { isClosed: true } as PromptCandidates["lightSwitch"];
+const darkSwitch = { isClosed: false } as PromptCandidates["lightSwitch"];
 const someTerminal = {} as PromptCandidates["terminal"];
 const someChest = {} as PromptCandidates["chest"];
 
@@ -83,6 +87,42 @@ describe("promptLabelFor", () => {
     expect(promptLabelFor({ ...nothing(), breaker: cutBreaker, breakerDist: 1 })).toBe(
       "[E] Restore power",
     );
+  });
+
+  it("names the outcome of a wall switch rather than the switch", () => {
+    expect(promptLabelFor({ ...nothing(), lightSwitch: litSwitch, lightSwitchDist: 1 })).toBe(
+      "[E] Lights off",
+    );
+    expect(promptLabelFor({ ...nothing(), lightSwitch: darkSwitch, lightSwitchDist: 1 })).toBe(
+      "[E] Lights on",
+    );
+  });
+
+  it("lets a breaker take a tie from a wall switch, matching the tap order", () => {
+    // `updateInteractions` tests the breaker first, so an equal reach is the
+    // cabinet's. The two are never actually adjacent on a derived level, but the
+    // prompt must not be able to advertise a verb the tap would not perform.
+    expect(
+      promptLabelFor({
+        ...nothing(),
+        breaker: liveBreaker,
+        breakerDist: 1,
+        lightSwitch: litSwitch,
+        lightSwitchDist: 1,
+      }),
+    ).toBe("[E] Cut power");
+  });
+
+  it("lets a wall switch take a tie from a door, matching the tap order", () => {
+    expect(
+      promptLabelFor({
+        ...nothing(),
+        lightSwitch: litSwitch,
+        lightSwitchDist: 1,
+        door: shutDoor,
+        doorDist: 1,
+      }),
+    ).toBe("[E] Lights off");
   });
 
   it("names the outcome of a door rather than the door", () => {

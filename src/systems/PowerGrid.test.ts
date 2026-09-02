@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   KEYPAD_DIGITS,
   circuitKey,
+  circuitsForLevel,
   initialPowerGrid,
   isCircuitClosed,
   keypadCode,
@@ -75,5 +76,38 @@ describe("keypadCode", () => {
     // tile (0,0) on its first throw seeds exactly that.
     expect(keypadSeed(0, 0, 0)).toBe(0);
     expect(new Set(keypadCode(0)).size).toBeGreaterThan(1);
+  });
+});
+
+describe("circuitsForLevel", () => {
+  it("returns only this level's overrides, and untangles the key", () => {
+    const state = initialPowerGrid();
+    setCircuitClosed(state, "main1", "light_overhead1", false);
+    setCircuitClosed(state, "main1", "main1__wing_00", false);
+    setCircuitClosed(state, "duct1", "duct1__z0_0", true);
+
+    expect(circuitsForLevel(state, "main1").sort((a, b) => a.target.localeCompare(b.target))).toEqual([
+      { target: "light_overhead1", closed: false },
+      { target: "main1__wing_00", closed: false },
+    ]);
+  });
+
+  it("is empty for a level nobody has thrown anything on", () => {
+    expect(circuitsForLevel(initialPowerGrid(), "main1")).toEqual([]);
+  });
+
+  it("does not match a level whose name is a prefix of another's", () => {
+    // The `\u0000` separator is what makes this safe — `main1` must not pick up
+    // `main1vault`'s circuits just because the string starts the same way.
+    const state = initialPowerGrid();
+    setCircuitClosed(state, "main1vault", "x", false);
+    expect(circuitsForLevel(state, "main1")).toEqual([]);
+  });
+
+  it("round-trips a throw the way the level rebuild reads it back", () => {
+    const state = initialPowerGrid();
+    setCircuitClosed(state, "duct1", "duct1__z2_1", false);
+    const [only] = circuitsForLevel(state, "duct1");
+    expect(isCircuitClosed(state, "duct1", only.target, true)).toBe(only.closed);
   });
 });

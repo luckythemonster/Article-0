@@ -3,6 +3,7 @@ import type { Door } from "../../entities/Door";
 import type { Player } from "../../entities/Player";
 import type { Terminal } from "../../entities/Terminal";
 import { getAudio } from "../../systems/AudioDirector";
+import type { DetectionSystem } from "../../systems/DetectionSystem";
 import { len } from "../../systems/distance";
 import { LOG_ALPHA_ITEM, LOG_BETA_ITEM } from "../../systems/EntityStats";
 import { missionFeatures, readInventory } from "../../systems/GameState";
@@ -19,6 +20,7 @@ import {
 } from "../../systems/Objectives";
 import { pickQualiaRackIndex, QUALIA_RACK_TERMINAL_TYPE } from "../../systems/QualiaLock";
 import type { NoiseEvents } from "./NoiseEvents";
+import type { PowerControl } from "./PowerControl";
 import type { OverlayGate } from "./OverlayGate";
 
 /**
@@ -32,7 +34,15 @@ import type { OverlayGate } from "./OverlayGate";
  * overlay comes back solved, which is why the pending terminal is state.
  */
 
-/** Radius (tiles) around a hacked terminal whose doors it releases. */
+/**
+ * Radius (tiles) around a hacked terminal whose doors it releases — and, since the
+ * lighting became switchable circuits, whose lights it kills.
+ *
+ * One number for both on purpose. A breach is a breach: what a terminal gives you
+ * is authority over the fixtures in this room, and splitting that into a door reach
+ * and a separate light reach would be two rules where the player only ever learns
+ * one. The doors come open and the room goes dark, together.
+ */
 const HACK_UNLOCK_RADIUS = 6;
 
 /** Getters for everything `create()` rebinds per level. */
@@ -41,6 +51,15 @@ export interface HackWorld {
   player(): Player;
   terminals(): readonly Terminal[];
   doors(): readonly Door[];
+  /**
+   * The circuits the hack darkens, and the thing that darkens them.
+   *
+   * Routed through `PowerControl` rather than straight at `Lighting` so a hacked
+   * blackout behaves like every other throw — both halves of "lit" move together,
+   * and it persists across a level change.
+   */
+  power(): PowerControl;
+  detection(): DetectionSystem;
   noise(): NoiseEvents;
   overlays(): OverlayGate;
   objectives(): ObjectiveState;
@@ -254,6 +273,13 @@ export class TerminalHacks {
       const d = len(door.tileX + 0.5 - tx, door.tileY + 0.5 - ty);
       if (d <= HACK_UNLOCK_RADIUS && door.setOpen(true)) noise.doorOperated(door);
     }
+    // The lights in the same reach, off the same breach. This is the remote option
+    // in a set of three: the switch is quiet and local and needs you in the room,
+    // the breaker is loud and takes a wing and gets somebody sent to undo it, and
+    // this costs the hold and the breach the player was already paying for.
+    this.w.power().cutCircuits(
+      this.w.detection().refsWithin(terminal.x, terminal.y, HACK_UNLOCK_RADIUS * ts),
+    );
     getAudio().hack();
     // Breaching a log-cache terminal recovers EIRA-7's logs (mission objective).
     const objectives = this.w.objectives();

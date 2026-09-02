@@ -164,10 +164,18 @@ genuinely black rather than dimmed, and walls cut your view — a lit room on th
 of a wall, and a guard patrolling around the corner, are both invisible until you have
 sight of them. Rowan carries a small pool of his own (dark-adapted eyes rather than a
 lamp; it costs nothing in visibility), so you can always feel your way along a wall.
-Seeing further is what the **flashlight** (**L**) is for, and it matters: only `main1` and
-the vent core carry light fixtures, so the two crawlspaces and main deck 2 are lit by your
-beam alone. It drains in about 45 seconds of continuous use and gives you away badly
-while lit (1.8× detection), so spend it in bursts — a **Battery** from a chest refills it.
+Seeing further is what the **flashlight** (**L**) is for. It drains in about 45 seconds of
+continuous use and gives you away badly while lit (1.8× detection), so spend it in bursts —
+a **Battery** from a chest refills it.
+
+**Light is a circuit, and you can cut it three ways.** Every deck is wired in zones — one
+lamp's worth of room — grouped into four wings. A **wall switch** takes the zone you are
+standing in: instant, barely heard, and nobody is charged or sent. A **breaker** cabinet
+takes a whole wing, but it is heard across the deck, it is logged against you, and the
+facility sends an orderly to put it back — so darkness bought that way is on a clock, and
+only stays yours if nobody left can walk. And a **terminal** hack kills every circuit
+within six tiles as it opens the doors there. Cutting the lights cuts both halves at once:
+a dark room is one you cannot see in *and* one you are much harder to be seen in.
 
 **The radar** (top-right) is a Soliton-style minimap: a world-aligned circular plan view
 showing nearby walls, guards and cameras (yellow, red once they're close to spotting you)

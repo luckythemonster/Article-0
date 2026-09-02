@@ -24,6 +24,8 @@ function world(
   objectives: ObjectiveState,
   terminals: Terminal[],
   memoDecks: string[] = [],
+  cutCircuits: string[] = [],
+  nearbyCircuits: string[] = [],
 ): HackWorld {
   const notes: string[] = [];
   return {
@@ -31,6 +33,11 @@ function world(
     player: () => ({ x: 0, y: 0 }) as any,
     terminals: () => terminals,
     doors: () => [],
+    // The lighting half of a breach. `nearbyCircuits` is what the light index
+    // would report around the panel, and `cutCircuits` records what the hack
+    // asked to darken — `PowerControl`'s own test covers what that then does.
+    power: () => ({ cutCircuits: (t: string[]) => cutCircuits.push(...t) }) as any,
+    detection: () => ({ refsWithin: () => nearbyCircuits }) as any,
     noise: () => ({ doorOperated: () => {} }) as any,
     overlays: () => ({ set: () => {} }) as any,
     objectives: () => objectives,
@@ -151,5 +158,46 @@ describe("TerminalHacks — facility memos", () => {
     h2.onComplete(b);
     h2.settleOverlay("compliance", "closed");
     expect(closed).toEqual([]);
+  });
+});
+
+describe("TerminalHacks — the lights in reach", () => {
+  it("cuts the circuits around a panel it breached", () => {
+    const cut: string[] = [];
+    const beta = terminal(LOG_CACHE_BETA_TYPE);
+    const hacks = new TerminalHacks(
+      world(initialObjectives(), [beta], [], cut, ["main1__z1_1", "main1__wing_00"]),
+    );
+
+    hacks.onComplete(beta);
+    hacks.settleOverlay("compliance", "solved");
+
+    expect(cut).toEqual(["main1__z1_1", "main1__wing_00"]);
+  });
+
+  it("cuts nothing when the breach never lands", () => {
+    // The doors do not open on a failed transmit either. The lights are the same
+    // breach effect and have to fail with it, not beside it.
+    const cut: string[] = [];
+    const beta = terminal(LOG_CACHE_BETA_TYPE);
+    const hacks = new TerminalHacks(
+      world(initialObjectives(), [beta], [], cut, ["main1__z1_1"]),
+    );
+
+    hacks.onComplete(beta);
+    hacks.settleOverlay("compliance", "failed");
+
+    expect(cut).toEqual([]);
+  });
+
+  it("cuts nothing when the room around the panel is already dark", () => {
+    const cut: string[] = [];
+    const beta = terminal(LOG_CACHE_BETA_TYPE);
+    const hacks = new TerminalHacks(world(initialObjectives(), [beta], [], cut, []));
+
+    hacks.onComplete(beta);
+    hacks.settleOverlay("compliance", "solved");
+
+    expect(cut).toEqual([]);
   });
 });

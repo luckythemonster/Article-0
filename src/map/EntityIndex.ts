@@ -77,6 +77,8 @@ export interface EntityIndex {
   chests: GameTile[];
   /** Power breakers — see `src/systems/PowerGrid.ts`. */
   breakers: GameTile[];
+  /** Wall switches, one per lit zone — see `src/entities/LightSwitch.ts`. */
+  lightSwitches: GameTile[];
   /** Body-stash containers — see `src/entities/Locker.ts`. Engine-added. */
   lockers: GameTile[];
   /** Tiles claimed by one of the above; `bakeTileLayers` must skip them. */
@@ -163,6 +165,7 @@ export function indexEntities(level: GameLevel, legacyBoards: ReadonlySet<string
     terminals: [],
     chests: [],
     breakers: [],
+    lightSwitches: [],
     lockers: [],
     claimed: new Set<GameTile>(),
   };
@@ -263,6 +266,10 @@ export function indexFixtures(level: GameLevel, index: EntityIndex): void {
   // absent from GameScene's `ENTITY_LAYERS` and why claiming per tile matters:
   // the breaker must not be baked into the level texture *and* drawn as a sprite.
   take(board("power"), "power_grid", index.breakers);
+  // Almost always the engine's own board (`src/map/AutoLight.ts` derives one switch
+  // per lit zone), but claimed by component like everything else so a map is free to
+  // author its own plates on it beside them.
+  take(board("light_switches"), "light_switch", index.lightSwitches);
   // Lockers carry no component to test — they are engine-added clones of map
   // furniture, and `src/map/Lockers.ts` owns the board wholesale. So the board
   // itself is the claim, which is safe here in a way it would not be for a map

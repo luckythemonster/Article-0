@@ -12,7 +12,13 @@ import { Laser } from "../../entities/Laser";
 import { Orderly } from "../../entities/Orderly";
 import { Player } from "../../entities/Player";
 import { Breaker } from "../../entities/Breaker";
-import { breakerStatsFor, enforcerStatsFor, type EnforcerStats } from "../../systems/EntityStats";
+import { LightSwitch } from "../../entities/LightSwitch";
+import {
+  breakerStatsFor,
+  enforcerStatsFor,
+  lightSwitchStatsFor,
+  type EnforcerStats,
+} from "../../systems/EntityStats";
 import { issueFirearms } from "../../map/ArmedPosts";
 import { isCircuitClosed, type PowerGridState } from "../../systems/PowerGrid";
 import { Sensor } from "../../entities/Sensor";
@@ -58,6 +64,8 @@ export interface BuiltLevel {
   sensors: Sensor[];
   /** Power breakers — see `src/systems/PowerGrid.ts`. */
   breakers: Breaker[];
+  /** Wall switches, one per lit zone — see `src/entities/LightSwitch.ts`. */
+  lightSwitches: LightSwitch[];
   chests: Chest[];
   lasers: Laser[];
   /** Cover tiles the map (or a generator) marks `Destructible` — the rest of the
@@ -136,6 +144,7 @@ export function buildLevel(
     sensors: [],
     chests: [],
     breakers: [],
+    lightSwitches: [],
     lasers: [],
     coverTiles: [],
     wallBodies,
@@ -353,6 +362,13 @@ function spawnInteractables(
     const authored = breakerStatsFor(t.components);
     const closed = isCircuitClosed(powerGrid, level.name, authored.target, authored.closed);
     out.breakers.push(new Breaker(scene, t, tileSize, closed));
+  }
+  for (const t of index.lightSwitches) {
+    // Same persistence question as the breaker's, asked of the zone rather than
+    // the wing: a room the player darkened stays dark when they walk back into it.
+    const authored = lightSwitchStatsFor(t.components);
+    const closed = isCircuitClosed(powerGrid, level.name, authored.target, authored.closed);
+    out.lightSwitches.push(new LightSwitch(scene, t, tileSize, closed));
   }
   for (const t of index.chests) out.chests.push(new Chest(scene, t, tileSize));
   for (const t of index.sensors) {

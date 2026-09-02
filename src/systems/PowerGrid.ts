@@ -58,6 +58,28 @@ export function isCircuitClosed(
   return state.circuits[circuitKey(level, target)] ?? authored;
 }
 
+/**
+ * Every circuit this level has an explicit override for, as `target -> closed`.
+ *
+ * The state is keyed by level *and* target so refs can repeat across decks, which
+ * makes "what has been thrown down here?" a question only this module can answer —
+ * it owns the key's shape. `GameScene` asks it on every level build, because a
+ * circuit can be thrown by three different things now (a breaker, a wall switch, a
+ * terminal hack) and only the state knows about all three. Re-applying from the
+ * *fixtures* would silently lose whichever throw had no fixture behind it.
+ */
+export function circuitsForLevel(
+  state: PowerGridState,
+  level: string,
+): { target: string; closed: boolean }[] {
+  const prefix = `${level}\u0000`;
+  const out: { target: string; closed: boolean }[] = [];
+  for (const [key, closed] of Object.entries(state.circuits)) {
+    if (key.startsWith(prefix)) out.push({ target: key.slice(prefix.length), closed });
+  }
+  return out;
+}
+
 /** Records a throw. */
 export function setCircuitClosed(
   state: PowerGridState,

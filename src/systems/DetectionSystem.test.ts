@@ -253,3 +253,38 @@ describe("thermalRadiusFor", () => {
     expect(d.thermalRadiusFor(4, true)).toBe(0);
   });
 });
+
+describe("DetectionSystem.refsWithin — what a hacked terminal reaches", () => {
+  const near = light(10, 10, 4, 1.6, "z_near");
+  const far = light(30, 30, 4, 1.6, "z_far");
+
+  it("names the circuits with a fixture inside the radius", () => {
+    const d = new DetectionSystem(level([{ name: "light_sources", tiles: [near, far] }]), TILE);
+    expect(d.refsWithin(10.5 * TILE, 10.5 * TILE, 6 * TILE)).toEqual(["z_near"]);
+  });
+
+  it("measures to the fixture, not to the edge of its pool", () => {
+    // A lamp whose glow spills into the room is not a lamp *in* the room. Its
+    // radius-4 pool reaches within 6 tiles of the origin here; the lamp does not.
+    const spill = light(0, 0, 20, 1.6, "z_spill");
+    const d = new DetectionSystem(level([{ name: "light_sources", tiles: [spill] }]), TILE);
+    expect(d.refsWithin(10.5 * TILE, 10.5 * TILE, 6 * TILE)).toEqual([]);
+  });
+
+  it("names a circuit once however many fixtures it owns", () => {
+    const tiles = [light(9, 9, 4, 1.6, "z"), light(10, 10, 4, 1.6, "z"), light(11, 11, 4, 1.6, "z")];
+    const d = new DetectionSystem(level([{ name: "light_sources", tiles }]), TILE);
+    expect(d.refsWithin(10.5 * TILE, 10.5 * TILE, 6 * TILE)).toEqual(["z"]);
+  });
+
+  it("skips a circuit that is already dark", () => {
+    const d = new DetectionSystem(level([{ name: "light_sources", tiles: [near] }]), TILE);
+    d.setCircuit("z_near", false);
+    expect(d.refsWithin(10.5 * TILE, 10.5 * TILE, 6 * TILE)).toEqual([]);
+  });
+
+  it("is empty on a level with no lights at all", () => {
+    const d = new DetectionSystem(level([]), TILE);
+    expect(d.refsWithin(0, 0, 99 * TILE)).toEqual([]);
+  });
+});

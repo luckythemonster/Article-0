@@ -1,9 +1,14 @@
 import type { Breaker } from "../../entities/Breaker";
+import type { LightSwitch } from "../../entities/LightSwitch";
 import type { Orderly } from "../../entities/Orderly";
 import { getAudio } from "../../systems/AudioDirector";
 import type { DetectionSystem } from "../../systems/DetectionSystem";
 import { len } from "../../systems/distance";
-import { setCircuitClosed, type PowerGridState } from "../../systems/PowerGrid";
+import {
+  circuitsForLevel,
+  setCircuitClosed,
+  type PowerGridState,
+} from "../../systems/PowerGrid";
 import type { Lighting } from "../../ui/Lighting";
 import type { NoiseEvents } from "./NoiseEvents";
 
@@ -27,6 +32,15 @@ const BREAKER_RESET_REACH_TILES = 0.8;
  * frame, short enough that the deck does not feel abandoned.
  */
 const BREAKER_RESET_RETRY_SECONDS = 4;
+
+/**
+ * How far a wall switch's flip carries, in tiles.
+ *
+ * A fifth of the breaker's, and quieter than a door. That gap is the whole reason
+ * to walk into a room and use the plate instead of throwing the cabinet: the switch
+ * is the move nobody hears you make. See `src/entities/LightSwitch.ts`.
+ */
+const SWITCH_NOISE_TILES = 2;
 
 /**
  * Cutting the lights, and the facility's answer to it.
@@ -53,6 +67,15 @@ export interface PowerWorld {
   powerGrid(): PowerGridState;
   /** Charges the breach a breaker cabinet earns — the same one a terminal does. */
   violateUnauthorized(): void;
+  /**
+   * The circuits one target actually feeds.
+   *
+   * A *wing* — what a breaker names — expands to the zones under it; anything else
+   * is its own circuit and comes back alone. Backed by `GameLevel.circuits`, which
+   * `src/map/AutoLight.ts` writes, so a map with no derived lighting answers every
+   * target with itself and this whole layer costs nothing.
+   */
+  circuitsFor(target: string): readonly string[];
 }
 
 export class PowerControl {
@@ -79,8 +102,59 @@ export class PowerControl {
    * at all.
    */
   setCircuit(target: string, closed: boolean): void {
-    this.w.lighting().setCircuit(target, closed);
-    this.w.detection().setCircuit(target, closed);
+    // A breaker names a wing, so one throw is several circuits. `Lighting` and
+    // `DetectionSystem` each match a single ref and are deliberately left that way —
+    // the expansion belongs here, next to the reason both halves move together.
+    for (const ref of this.w.circuitsFor(target)) {
+      this.w.lighting().setCircuit(ref, closed);
+      this.w.detection().setCircuit(ref, closed);
+    }
+  }
+
+  /**
+   * A tap on a wall switch: flip it, and let the room go dark.
+   *
+   * Everything the breaker does *besides* cutting power is deliberately absent —
+   * no breach charged, no orderly dispatched, and a noise a fifth as wide. A switch
+   * is a thing the people who work here touch a hundred times a day, so touching one
+   * is not evidence of anything, and nobody comes to undo it. What it costs instead
+   * is reach: one zone, and you have to be standing in it.
+   */
+  flipSwitch(sw: LightSwitch): void {
+    const closed = sw.toggle();
+    this.setCircuit(sw.stats.target, closed);
+    setCircuitClosed(this.w.powerGrid(), this.w.levelName(), sw.stats.target, closed);
+    getAudio().door();
+    this.w.noise().emitAt(sw.x, sw.y, SWITCH_NOISE_TILES * this.w.tileSize());
+  }
+
+  /**
+   * Cuts every circuit named, as one remote act — what a hacked terminal does to
+   * the lighting around it. Persisted like any other throw, so it survives the walk
+   * back up the stairs.
+   *
+   * No fixture is involved and none is animated: the breach and the noise belong to
+   * the hack, which has already charged them, so this is only the power.
+   */
+  cutCircuits(targets: readonly string[]): void {
+    for (const target of targets) {
+      this.setCircuit(target, false);
+      setCircuitClosed(this.w.powerGrid(), this.w.levelName(), target, false);
+    }
+  }
+
+  /**
+   * Re-applies a level's persisted circuit state, whatever threw it.
+   *
+   * Driven off `PowerGridState` rather than off the breakers, which is the point:
+   * a zone killed by a wall switch or a terminal hack has no breaker to be read
+   * back from, and the fixture-driven version this replaced quietly restored those
+   * rooms to full brightness on every level change.
+   */
+  restore(level: string): void {
+    for (const { target, closed } of circuitsForLevel(this.w.powerGrid(), level)) {
+      this.setCircuit(target, closed);
+    }
   }
 
   /**

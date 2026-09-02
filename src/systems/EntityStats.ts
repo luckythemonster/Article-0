@@ -611,6 +611,37 @@ export function breakerStatsFor(components: ComponentData[]): BreakerStats {
 export const CIRCUIT_OPEN = "OPEN";
 export const CIRCUIT_CLOSED = "CLOSED";
 
+export interface LightSwitchStats {
+  /**
+   * The circuit this plate throws.
+   *
+   * Read the same way a breaker's is, and pointing at the same kind of thing — a
+   * `ref` that light tiles carry. The difference is scope, and it comes from what
+   * gets *targeted*: a breaker names a wing, and a switch names one zone. See
+   * `src/map/AutoLight.ts` for where those names come from.
+   */
+  target: string;
+  /** Whether the circuit is closed — that is, whether the lights are **on**. */
+  closed: boolean;
+}
+
+export const LIGHT_SWITCH_DEFAULTS: LightSwitchStats = {
+  // No useful default target exists: a switch that named nothing would throw and
+  // darken nothing, silently. An empty string is the honest version of that, and
+  // `PowerControl` skips it.
+  target: "",
+  closed: true,
+};
+
+/** Reads the `light_switch` component off a switch tile. */
+export function lightSwitchStatsFor(components: ComponentData[]): LightSwitchStats {
+  return {
+    target: str(components, "light_switch", "Target", LIGHT_SWITCH_DEFAULTS.target),
+    closed:
+      str(components, "light_switch", "state", CIRCUIT_CLOSED).toUpperCase() !== CIRCUIT_OPEN,
+  };
+}
+
 export interface ChestStats {
   /** Seconds of held interaction to search/open. */
   interactionTime: number;

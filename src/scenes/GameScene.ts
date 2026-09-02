@@ -40,6 +40,7 @@ import { DeployedItem } from "../entities/DeployedItem";
 import { Door } from "../entities/Door";
 import { Terminal } from "../entities/Terminal";
 import { Breaker } from "../entities/Breaker";
+import { LightSwitch } from "../entities/LightSwitch";
 import { initialPowerGrid, type PowerGridState } from "../systems/PowerGrid";
 import { Laser } from "../entities/Laser";
 import { Sensor } from "../entities/Sensor";
@@ -240,6 +241,8 @@ export class GameScene extends Phaser.Scene {
   private caughtLifting = false;
   private chests: Chest[] = [];
   private breakers: Breaker[] = [];
+  /** Wall switches — the quiet, per-zone half of the power grid. */
+  private lightSwitches: LightSwitch[] = [];
   /**
    * Circuit state, held across level swaps in the registry.
    *
@@ -258,6 +261,7 @@ export class GameScene extends Phaser.Scene {
     noise: () => this.noise,
     powerGrid: () => this.powerGrid,
     violateUnauthorized: () => this.conduct.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED),
+    circuitsFor: (target) => this.level.circuits?.[target] ?? [target],
   });
   /** Destructible cover — the rest of the `cover` board is baked art with no entity. */
   private coverTiles: Cover[] = [];
@@ -373,6 +377,8 @@ export class GameScene extends Phaser.Scene {
     player: () => this.player,
     terminals: () => this.terminals,
     doors: () => this.doors,
+    power: () => this.power,
+    detection: () => this.detection,
     noise: () => this.noise,
     overlays: () => this.overlays,
     objectives: () => this.objectives,
@@ -575,6 +581,7 @@ export class GameScene extends Phaser.Scene {
     this.sensors = built.sensors;
     this.chests = built.chests;
     this.breakers = built.breakers;
+    this.lightSwitches = built.lightSwitches;
     this.lasers = built.lasers;
     this.coverTiles = built.coverTiles;
     this.hacks.designateQualiaRack();
@@ -618,10 +625,13 @@ export class GameScene extends Phaser.Scene {
     this.entityShadows = new EntityShadows(this, this.lighting);
     // Any circuit already thrown — on this visit or a previous one — has to be
     // applied now that both consumers exist. `Lighting` is built after the level,
-    // so the breakers cannot do this for themselves at construction.
-    for (const breaker of this.breakers) {
-      if (!breaker.isClosed) this.power.setCircuit(breaker.stats.target, false);
-    }
+    // so no fixture can do this for itself at construction.
+    //
+    // Read off the persisted state rather than off the breakers, because a breaker
+    // is no longer the only thing that can throw one: a wall switch or a hacked
+    // terminal leaves an override with no fixture behind it, and walking the
+    // fixtures would put those rooms' lights back on.
+    this.power.restore(this.level.name);
 
     // VENT-4 lives only in the vent core. Its continuous audio layers are
     // scene-independent, so silence them on every entry and re-arm to match a
@@ -854,9 +864,10 @@ export class GameScene extends Phaser.Scene {
     this.lasers = [];
     this.sensors = [];
     this.chests = [];
-    // The breakers themselves belong to the level and are rebuilt with it; the
-    // circuit *state* they read does not, and stays in the registry.
+    // The breakers and switches themselves belong to the level and are rebuilt with
+    // it; the circuit *state* they read does not, and stays in the registry.
     this.breakers = [];
+    this.lightSwitches = [];
     this.power.reset();
     this.alert = new AlertState();
     this.firearms = new FirearmsAuthorization();
@@ -2339,6 +2350,17 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // --- Wall switches (tap E) ---
+    let nearestSwitch: LightSwitch | undefined;
+    let nearestSwitchDist = Infinity;
+    for (const sw of this.lightSwitches) {
+      const d = len(sw.x / ts - ptx, sw.y / ts - pty);
+      if (d <= INTERACT_RANGE && d < nearestSwitchDist) {
+        nearestSwitchDist = d;
+        nearestSwitch = sw;
+      }
+    }
+
     // --- Vaulting low cover (tap E) ---
     const vaultTo = this.vault.target();
 
@@ -2380,6 +2402,16 @@ export class GameScene extends Phaser.Scene {
         this.power.throwBreaker(nearestBreaker);
         // Only cutting the lights is the beat. Putting them back is housekeeping.
         if (wasClosed) this.note("blackout");
+      } else if (
+        nearestSwitch &&
+        nearestSwitchDist <= Math.min(nearestDoorDist, hatchDist)
+      ) {
+        // Ranked under the breaker for the same reason the breaker outranks a
+        // door: a cabinet is the thing you crossed the deck for, and a plate is
+        // on the wall you happen to be beside. They are never within reach of
+        // each other on a derived level anyway.
+        adjacentClaimedTap = true;
+        this.power.flipSwitch(nearestSwitch);
       } else if (nearestDoor && nearestDoorDist <= hatchDist) {
         adjacentClaimedTap = true;
         if (nearestDoor.toggle()) {
@@ -2459,6 +2491,8 @@ export class GameScene extends Phaser.Scene {
         doorDist: nearestDoorDist,
         breaker: nearestBreaker,
         breakerDist: nearestBreakerDist,
+        lightSwitch: nearestSwitch,
+        lightSwitchDist: nearestSwitchDist,
         chest: nearestChest,
         chestDist: nearestChestDist,
         locker: nearestLocker ? { occupied: nearestLocker.isOccupied } : undefined,

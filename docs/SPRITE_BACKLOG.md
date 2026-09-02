@@ -115,6 +115,28 @@ frames needs no code change.
 
 ---
 
+## Owed — the wall switch
+
+`public/assets/sprites/light_switch.aseprite` → `light-switch.png`, **16x16**, drawn
+at a half-tile footprint exactly like the breaker (see [The two rules](#the-two-rules)).
+
+**Two frames, and they are the whole state**: frame 0 the rocker up and lit, frame 1
+the rocker down and dark. `src/entities/LightSwitch.ts` picks the frame off
+`isClosed`; nothing else is read, so there are no tags and no timings to get right.
+
+Dropping the file in is enough — no code change. Until it lands the entity draws its
+own plate in `Graphics` (a dark rectangle, a `borderCool` edge, a rocker that is
+`greenBright` while the circuit is closed and `borderDim` while it is cut), which is
+legible but plainly programmer art. The lit rocker should read as the *same* "this
+circuit is live" green as the breaker cabinet's screen — a player learns that colour
+once and should not have to learn it twice.
+
+There are a lot of these on a level: `src/map/AutoLight.ts` derives one per lit zone,
+which is around a dozen per deck. It wants to read as ordinary fixture, not as a
+prize — the point of the switch is that touching one is not evidence of anything.
+
+---
+
 ## Done — the breaker and the power grid
 
 `Breaker.aseprite` is finished and wired. Tapping it cuts a named circuit and taps

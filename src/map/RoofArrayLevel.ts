@@ -13,6 +13,7 @@ import {
   type TilePos,
 } from "./generate";
 import { adoptRoofArray } from "./AdoptAuthored";
+import { UNLIT_BOARD } from "./AutoLight";
 
 /**
  * The rooftop relay — Act IV's level, generated in code and appended at boot like the
@@ -118,7 +119,11 @@ const ROOF_LIGHTS: TilePos[] = [
  */
 export function appendRoofArray(map: GameMap, host: string | null): boolean {
   const authored = map.levels.find((l) => l.name === ROOF_ARRAY_LEVEL);
-  if (authored) return adoptRoofArray(map, authored);
+  if (authored) {
+    const adopted = adoptRoofArray(map, authored);
+    if (adopted) keepDark(authored);
+    return adopted;
+  }
   if (host === null) return false;
   const hostLevel = map.levels.find((l) => l.name === host);
   if (!hostLevel) return false;
@@ -130,6 +135,22 @@ export function appendRoofArray(map: GameMap, host: string | null): boolean {
     if (e instanceof MissingProto) return false;
     throw e;
   }
+}
+
+/**
+ * Opts the roof out of the engine's derived lighting — see `src/map/AutoLight.ts`.
+ *
+ * This deck's difficulty *is* its darkness: three searchlights sweeping an unlit
+ * roof, and a calibration walk that has to cross their arcs. `ROOF_LIGHTS` above
+ * lights the pedestals and the ladder head on purpose and nothing else, so a grid of
+ * derived overheads filling in the gaps would be undoing the level.
+ *
+ * Only the *adopt* path needs this call: `buildRoofArray` declares the board with the
+ * rest of its boards. A roof the map authored is the same roof and gets the same
+ * treatment.
+ */
+function keepDark(level: GameMap["levels"][number]): void {
+  ensureLayer(level, UNLIT_BOARD);
 }
 
 function buildRoofArray(map: GameMap, hostLevel: GameMap["levels"][number]): void {
@@ -180,6 +201,8 @@ function buildRoofArray(map: GameMap, hostLevel: GameMap["levels"][number]): voi
       tiles: [cloneTile(terminalProto, FEED_TERMINAL.x, FEED_TERMINAL.y)],
     },
     { name: "spawn", tiles: [marker("spawn", ROOF_ACCESS.x, ROOF_ACCESS.y)] },
+    // Empty on purpose — see `keepDark`. Its presence is the whole message.
+    { name: UNLIT_BOARD, tiles: [] },
   ];
 
   map.levels.push({

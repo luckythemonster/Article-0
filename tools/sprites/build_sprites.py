@@ -102,6 +102,9 @@ SPRITES: tuple[Spec, ...] = (
     Spec(id="terminal-substation", source="terminal_substation.aseprite", width=32, height=32),
     Spec(id="security-camera", source="security_camera.aseprite", width=16, height=16),
     Spec(id="breaker", source="Breaker.aseprite", width=16, height=16),
+    # Listed before the art exists — see docs/SPRITE_BACKLOG.md. The tool skips a
+    # Spec whose source is absent, so this costs nothing until somebody draws it.
+    Spec(id="light-switch", source="light_switch.aseprite", width=16, height=16),
     # The east-west doors are the one non-square canvas: 48px of art over the
     # 1.5-tile opening they bridge, rather than a 32px square stretched to fill it.
     Spec(id="door-single-east-west", source="door_single_east-west.aseprite", width=32, height=48),
@@ -156,6 +159,13 @@ def build(strict: bool = False) -> None:
 
     for spec in SPRITES:
         src = os.path.join(SPRITE_DIR, spec.source)
+        # A Spec may be declared before anyone has drawn it — see
+        # docs/SPRITE_BACKLOG.md, where an entry names the exact filename and size
+        # so the art is wired the day it lands. Until then there is nothing to cut,
+        # and refusing to build the *other* sprites over it would be absurd.
+        if not os.path.exists(src):
+            print(f"{os.path.relpath(src, ROOT)}: not drawn yet, skipped")
+            continue
         doc = read(src, expect_size=(spec.width, spec.height))
         layers = doc.visible_layers()
         hidden = [layer.name for layer in doc.layers if not layer.visible]
