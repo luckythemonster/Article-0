@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import type { ActiveItemsView } from "../systems/ActiveItems";
+import type { ConsumableSlot } from "../systems/EntityStats";
 import { FONT_MONO } from "./fonts";
 import { PANEL_INSET } from "./hudLayout";
 import { UI, UI_DEPTH, UI_PAD, UI_TEXT } from "./hudTheme";
@@ -75,8 +76,13 @@ export class InventoryHud {
     placePanel(this.panel, this.text.x - this.text.width - PANEL_INSET, this.text.y - this.text.height - PANEL_INSET, w, h);
   }
 
-  update(items: string[], active: ActiveItemsView, selected: string | undefined): void {
-    const body = inventoryLines(items, active, selected).join("\n");
+  update(
+    items: string[],
+    active: ActiveItemsView,
+    selected: string | undefined,
+    slots?: ConsumableSlot[],
+  ): void {
+    const body = inventoryLines(items, active, selected, slots).join("\n");
     // Text.setText reflows the object; skip it when nothing changed.
     if (body === this.lastRender) return;
     this.lastRender = body;

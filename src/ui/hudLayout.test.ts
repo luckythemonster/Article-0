@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { catalogedNames } from "../systems/ItemCatalog";
-import { CONSUMABLE_ORDER, MAX_CONSUMABLES, isKeyItem } from "../systems/EntityStats";
+import { CONSUMABLE_ORDER, MAX_CONSUMABLES, consumableSlots, isKeyItem } from "../systems/EntityStats";
 import { controlsHintLine } from "./Controls";
 import { inventoryLines } from "./inventoryLines";
 import { ACTS, allFeatures, initialObjectives, objectiveSummary, objectiveSummaryText } from "../systems/Objectives";
@@ -97,6 +97,46 @@ describe("hudLayout: the bottom-right inventory", () => {
       top,
       `${WORST_LINES.length} lines reach y=${top}, above the radar's ${INVENTORY_TOP_LIMIT}`,
     ).toBeGreaterThanOrEqual(INVENTORY_TOP_LIMIT);
+  });
+
+  it("benchmarks execution time and verifies parity between uncached and cached slots", () => {
+    const items = worstCaseInventory();
+    const active = {
+      chaffRemaining: 99,
+      thermalRemaining: 99,
+      flashlightOwned: true,
+      flashlightOn: false,
+      flashlightCharge: 1,
+      sackLunchOpened: true,
+    };
+    const selected = CONSUMABLE_ORDER[0];
+    const slots = consumableSlots(items);
+
+    const uncachedResult = inventoryLines(items, active, selected);
+    const cachedResult = inventoryLines(items, active, selected, slots);
+
+    expect(cachedResult).toEqual(uncachedResult);
+
+    const N = 50000;
+    const startUncached = performance.now();
+    for (let i = 0; i < N; i++) {
+      inventoryLines(items, active, selected);
+    }
+    const durationUncached = performance.now() - startUncached;
+
+    const startCached = performance.now();
+    for (let i = 0; i < N; i++) {
+      inventoryLines(items, active, selected, slots);
+    }
+    const durationCached = performance.now() - startCached;
+
+    console.log(
+      `[BENCHMARK] inventoryLines (${N} calls) — Uncached: ${durationUncached.toFixed(
+        2,
+      )}ms, Cached: ${durationCached.toFixed(2)}ms (Speedup: ${(
+        durationUncached / durationCached
+      ).toFixed(2)}x)`,
+    );
   });
 });
 
