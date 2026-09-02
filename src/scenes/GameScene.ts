@@ -243,6 +243,9 @@ export class GameScene extends Phaser.Scene {
   private breakers: Breaker[] = [];
   /** Wall switches — the quiet, per-zone half of the power grid. */
   private lightSwitches: LightSwitch[] = [];
+  /** Memoised {@link zoneWings}, and the level it was built for. */
+  private zoneWingsCache: ReadonlyMap<string, string> = new Map();
+  private zoneWingsFor?: GameLevel;
   /**
    * Circuit state, held across level swaps in the registry.
    *
@@ -262,6 +265,8 @@ export class GameScene extends Phaser.Scene {
     powerGrid: () => this.powerGrid,
     violateUnauthorized: () => this.conduct.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED),
     circuitsFor: (target) => this.level.circuits?.[target] ?? [target],
+    zoneWings: () => this.zoneWings(),
+    lightSwitches: () => this.lightSwitches,
   });
   /** Destructible cover — the rest of the `cover` board is baked art with no entity. */
   private coverTiles: Cover[] = [];
@@ -2354,6 +2359,10 @@ export class GameScene extends Phaser.Scene {
     let nearestSwitch: LightSwitch | undefined;
     let nearestSwitchDist = Infinity;
     for (const sw of this.lightSwitches) {
+      // A plate with no power is not a target: flipping it would change nothing, and
+      // offering "[E] Lights off" on a dead circuit is a promise the tap can't keep.
+      // The art says the same thing — `NO_POWER` shows no indicator at all.
+      if (!sw.isLive) continue;
       const d = len(sw.x / ts - ptx, sw.y / ts - pty);
       if (d <= INTERACT_RANGE && d < nearestSwitchDist) {
         nearestSwitchDist = d;
@@ -2553,6 +2562,25 @@ export class GameScene extends Phaser.Scene {
     const authored = this.map.levels.filter((l) => !l.generated).map((l) => l.name);
     const generated = this.map.levels.filter((l) => l.generated).map((l) => l.name);
     return [...authored, ...generated].slice(0, WARP_SLOTS);
+  }
+
+  /**
+   * Every derived zone on this level, mapped to the wing above it.
+   *
+   * The reverse of `GameLevel.circuits`, which `PowerControl` needs because whether
+   * a zone has power depends on its wing and a zone cannot find that out from its
+   * own name. Rebuilt when the level does — it is a dozen entries on a derived deck
+   * and empty on a map that never asked for derived lighting.
+   */
+  private zoneWings(): ReadonlyMap<string, string> {
+    if (this.zoneWingsFor === this.level) return this.zoneWingsCache;
+    const map = new Map<string, string>();
+    for (const [wing, zones] of Object.entries(this.level.circuits ?? {})) {
+      for (const zone of zones) map.set(zone, wing);
+    }
+    this.zoneWingsFor = this.level;
+    this.zoneWingsCache = map;
+    return map;
   }
 
   /** Warps to a level by restarting the scene at its own spawn tile. */

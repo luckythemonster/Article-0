@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { DetectionSystem } from "./DetectionSystem";
 import type { GameLevel } from "../map/types";
+import { lightStatsFor } from "./EntityStats";
 
 const TILE = 32;
 
@@ -286,5 +287,25 @@ describe("DetectionSystem.refsWithin — what a hacked terminal reaches", () => 
   it("is empty on a level with no lights at all", () => {
     const d = new DetectionSystem(level([]), TILE);
     expect(d.refsWithin(0, 0, 99 * TILE)).toEqual([]);
+  });
+});
+
+describe("light brightness — dim is not the same as small", () => {
+  it("defaults to full, so every fixture drawn before the field is unchanged", () => {
+    expect(lightStatsFor([]).brightness).toBe(1);
+    expect(lightStatsFor([{ type: "light_source", values: { Radius: "4" } }]).brightness).toBe(1);
+  });
+
+  it("reads an authored value", () => {
+    const stats = lightStatsFor([{ type: "light_source", values: { Brightness: "0.45" } }]);
+    expect(stats.brightness).toBe(0.45);
+  });
+
+  it("does not touch detection — a lamp can be dim without being safe", () => {
+    // The two halves are deliberately separate: `brightness` is what you see,
+    // `detectionMultiplier` is what a guard sees. The emergency lamp moves both,
+    // but nothing here makes one imply the other.
+    const dim = lightStatsFor([{ type: "light_source", values: { Brightness: "0.2" } }]);
+    expect(dim.detectionMultiplier).toBe(1.6);
   });
 });
