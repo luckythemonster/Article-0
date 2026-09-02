@@ -125,6 +125,8 @@ export interface EnforcerContext {
    * them to the short-range heat sense while breaking the visible cone.
    */
   playerThermalConcealed: boolean;
+  /** How far a lit flashlight betrays the player, in px — see `SensingWorld`. */
+  beamGiveawayPx?: number;
   /**
    * Which walk surface the player is on — see `src/map/planes.ts`. Sensing does
    * not cross between them, so a guard on the floor loses a player who has

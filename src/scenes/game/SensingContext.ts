@@ -40,6 +40,14 @@ export interface SensingDeps {
   pressed: () => boolean;
   /** Extra detection multipliers applied on top of the map's lights. */
   flashlightMultiplier: number;
+  /**
+   * How far a lit beam betrays Rowan, in tiles — see `FLASHLIGHT_GIVEAWAY_TILES`.
+   *
+   * The other half of {@link flashlightMultiplier}, and the half that bites first:
+   * that one makes a guard who already has him fill faster, this one is what gets
+   * him noticed at all.
+   */
+  beamGiveawayTiles: number;
   rationMultiplier: number;
   /** Below 1, unlike the two above: pressing *reduces* how fast you fill a meter. */
   pressMultiplier: number;
@@ -69,6 +77,13 @@ export class SensingContext {
         (deps.flashlightOn() ? deps.flashlightMultiplier : 1) *
         (deps.rationOpened() ? deps.rationMultiplier : 1) *
         (deps.pressed() ? deps.pressMultiplier : 1),
+      // A getter rather than a per-frame setter, for the same reason
+      // `lightMultiplierAt` is a closure: the answer is already live in
+      // `deps.flashlightOn`, and copying it across every frame would only add a
+      // place for the two to disagree.
+      get beamGiveawayPx() {
+        return deps.flashlightOn() ? deps.beamGiveawayTiles * deps.tileSize : 0;
+      },
       playerNoise: 0,
       playerConcealed: false,
       playerCompliant: false,

@@ -11,6 +11,45 @@ Each note names the code it belongs to. If a note and the code disagree, the cod
 
 ## Perception
 
+### The flashlight had a cost that never applied
+
+The torch was always meant to be a bargain: it is the only way to cross an unlit
+level, and the item's own blurb calls it "a way of seeing that is also a way of being
+seen". `FLASHLIGHT_DETECTION_MULTIPLIER` — 1.8× — was the half that was written down.
+
+It was also the half that almost never mattered, because of where it sat.
+`accrueDetection` opens with `if (!sensed) return decay`, so the multiplier only ever
+applied *after* `canSense` had already said yes. It made a guard who could see Rowan
+fill their meter faster. It did nothing whatsoever about the beam itself, which is the
+actual tell: a light shone down a corridor at a guard facing away, or one standing
+further off than their own 6.5-tile sight, cost precisely nothing.
+
+So the beam is now a **third sensing path**, beside the thermal one it is modelled on:
+any eye with line of sight within `FLASHLIGHT_GIVEAWAY_TILES` (10) senses a lit beam,
+whatever way it is facing. Two deliberate asymmetries in it:
+
+- **It ignores the cone**, because what is noticed is the light rather than the man,
+  and a beam lights the wall in front of somebody who has their back to you.
+- **It ignores concealment**, which is the sharper one. A torch shining out of the
+  crate you are crouched behind is not the problem cover solves, and a crate that hid
+  a lit beam would make the whole tradeoff free. Switching it off is the counterplay,
+  and it should be the only one.
+
+Compliance and an EMP still short-circuit it, along with everything else: a compliant
+Rowan holding a torch is staff doing their job, and a blinded guard is blinded.
+
+The range is the number that carries the design. At 10 tiles against a guard's 6.5 and
+the beam's own 5.5 of reach, the moment the torch betrays you is the moment you light
+up somebody you cannot yet make out — which is the right moment for it to happen.
+
+**Owed: the answer to it.** A late-run upgrade that sees in the dark without emitting,
+so the beam becomes a thing you outgrow rather than a thing you ration. The vocabulary
+is already in the game — Thermal Gel masks body heat and every guard carries a
+`ThermalDetectionRadius` — so the natural shape is that same technology turned around:
+passive thermal sight, no beam, no giveaway, paid for in reach and probably in charge.
+Sized against this: it should be *worse* than the torch at seeing, and better at not
+being seen, or it is not a trade.
+
 ### The map's tuning had never reached the engine
 
 Worth recording because it went unnoticed for the life of the project, and because the

@@ -70,6 +70,16 @@ export interface SensingWorld {
   playerThermalConcealed: boolean;
   chaffZone: { x: number; y: number; radiusPx: number } | null;
   thermalRadiusMultiplier: (baseTiles: number) => number;
+  /**
+   * How far the player's lit flashlight gives their position away, in px. `0` — or
+   * absent — when the beam is off, which is also every eye on a level nobody
+   * carries a torch on.
+   *
+   * One number rather than a flag and a range, so the "is it on" test and the "how
+   * far" test are the same comparison. Exactly the shape {@link Eye.thermalTiles}
+   * already uses, and read the same way.
+   */
+  beamGiveawayPx?: number;
 }
 
 /** The extra context {@link accrueDetection} needs on top of {@link SensingWorld}. */
@@ -84,11 +94,13 @@ export interface DetectionWorld {
 export const DETECTION_DECAY_PER_SECOND = 0.6;
 
 /**
- * True when `eye` senses the player this frame, by either of two paths:
+ * True when `eye` senses the player this frame, by any of three paths:
  *
  *  - **thermal** — a short 360° heat sense within {@link Eye.thermalTiles},
  *    ignoring the cone angle, as long as the player isn't hidden in
  *    heat-blocking cover and there's clear line of sight;
+ *  - **beam** — a lit flashlight within {@link SensingWorld.beamGiveawayPx},
+ *    ignoring the cone angle *and* concealment, with clear line of sight;
  *  - **cone** — inside the vision cone, within {@link Eye.rangeTiles}, with
  *    clear LOS, and not concealed.
  *
@@ -150,6 +162,17 @@ export function canSense(eye: Eye, ctx: SensingWorld): boolean {
   ) {
     return true;
   }
+
+  // Beam: a lit flashlight is a beacon. Deliberately *above* the concealment gate
+  // below, because concealment is about not being picked out of a room and a torch
+  // shining out of the crate you are crouched behind is not that problem — it is the
+  // opposite one. Turning the light off is the counterplay, and it should be the
+  // only one; a crate that hid a lit beam would make the tradeoff free.
+  //
+  // Ignores the cone for the same reason thermal does: what the guard notices is the
+  // light, not Rowan, and a beam lights the wall in front of somebody facing away.
+  const beamPx = ctx.beamGiveawayPx ?? 0;
+  if (beamPx > 0 && dist2 <= beamPx * beamPx && hasLos()) return true;
 
   // Cone: concealment (crouched in cover, or inside the Shared Field) hides the
   // player from the visible cone even in plain line of sight.
