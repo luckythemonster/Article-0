@@ -936,7 +936,7 @@ export const FLASHLIGHT_ITEM = "Flashlight";
  * copy and never did — nothing in the engine read it, while doors have always locked on
  * a *numeric* {@link DoorStats.key}. `Door`'s own class doc anticipated the fix
  * ("only a terminal hack, or, later, a keycard"), and so did the art: the icon is cut
- * from `keycard icon.aseprite`, whose five `clearance_level` frames were drawn waiting
+ * from `keycard_icon.aseprite`, whose five `clearance_level` frames were drawn waiting
  * for items that carry a number.
  *
  * **"Keycard" rather than "Key"** because that is what the rest of the codebase already

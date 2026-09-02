@@ -22,7 +22,7 @@ shipped map spent the project rendering at the wrong radius.
 | **A component field** | `camelCase` | `hackTime`, `operationNoise` | `EntityStats` — **see the warning below** |
 | A component DataStructure | `PascalCase` | `LightSource`, `PowerGrid` | `EdplayLoader` (lowercases it) |
 | An enum *value* | `SCREAMING_SNAKE` | `LOG_CACHE`, `Q2_COGNITIVE` | `str()` comparisons |
-| **An `.aseprite` file** | `snake_case` | `light_switch.aseprite` | `build_sprites.py` `Spec.source` |
+| **An `.aseprite` file** | lowercase; `_` or `-`, not both | `light_switch.aseprite`, `ui-panel.aseprite` | `build_sprites.py` / `build_icons.py` `Spec.source` |
 | **A sprite id / its `.png`** | `kebab-case` | `light-switch.png` | `EntitySpriteId`, texture keys |
 | A cel label or tag | `SCREAMING_SNAKE` | `NO_POWER`, `POWER_ON` | `framesLabelled`, `clipFrames` |
 | **A `.ts` file that *is* a thing** | `PascalCase` | `AutoLight.ts`, `Enforcer.ts` | you |
@@ -69,52 +69,54 @@ Three notes:
 
 ## What is currently wrong
 
-Short list. None of it breaks anything today; all of it is friction.
+**Nothing, on disk.** `tools/naming/naming.test.ts` walks `public/assets`, `src` and
+`tools` on every `npm test` and fails on anything in the table above, so this section
+can only ever describe what the lint would say — and right now it says nothing.
 
-**Filenames — worth fixing, they are one rename each:**
+It did not start that way, and the gap is the argument for the lint in one line: a
+careful read-through of this repo found **four** badly named asset files. The walk
+found **fifteen**. Five had spaces (`rain effect.aseprite`, `big bulkhead.aseprite`
+and three icon sources), eight mixed `-` with `_`, and two were shouting
+(`Breaker.aseprite`, `STAPLE_GUN.aseprite`). All fifteen are renamed and their
+`Spec.source` entries with them.
 
-| Current | Should be | Why |
-| --- | --- | --- |
-| `rain effect.aseprite` | `rain_effect.aseprite` | A space in a filename breaks shell globs and tooling |
-| `Breaker.aseprite` | `breaker.aseprite` | The only PascalCase source; its own PNG is `breaker.png` |
-| `door_single_east-west.aseprite` | `door_single_east_west.aseprite` | Mixes `_` and `-` in one name |
-| `door_glass_single_east-west.aseprite` | `door_glass_single_east_west.aseprite` | Same |
-
-Renaming any of these means updating `Spec.source` in `tools/sprites/build_sprites.py`
-in the same commit — that table is the only thing pointing at them.
-
-**Fields — rename when you next touch the structure, not before:**
-
-`Target` → `target`, `State` → `state`, `Height` → `height`, `Destructible` →
-`destructible`, `Alarm` → `alarm`, `BlockThermal` → `blockThermal`, `VisionBlock` →
-`visionBlock`, `QScore` → `qScore`, `Class` → `class`, `Behavior` → `behavior`,
-`Job` → `job`.
-
-These are safe to leave. The case-insensitive lookup means renaming them changes
-nothing functionally, so do it when it is convenient rather than as a pass.
+**Component fields are the exception, and are grandfathered.** Fourteen are not
+camelCase — `PowerGrid.Target`, `Cover.Height`, `Human.QScore` and the rest. They are
+listed in `GRANDFATHERED_FIELDS` so a *new* one still fails, and they are safe to
+leave: field lookup has been case-insensitive since #169, so renaming one changes
+nothing functionally. Rename them when you next have the editor open and delete the
+matching line from that list. **That list only shrinks.**
 
 **Not wrong, despite looking it:**
 
 - `VENT-4_capacitors`, `EIRA-7`, `EIRA-7_avatar` — proper nouns out of the fiction.
-  A hyphen inside a name the story uses is the story's, not a style slip. Keep them.
+  A hyphen inside a name the story uses is the story's, not a style slip. The lint
+  knows them by name.
 - `tdCement_4X4_10` and its 135 siblings — the editor generates these when you import
-  a tileset. They are not yours to name and not worth touching.
+  a tileset. They are not yours to name, and the lint does not look at them.
 - `security_guard_A` … `_D`, `drone_A`, `enforcer_rail_A` — a deliberate, consistent
-  variant suffix. It is a good pattern; it is in the table above now.
+  variant suffix. It is a good pattern; the lint allows it explicitly.
+- Item icon **PNGs** (`EMP_grenade.png` beside `flashlight-off.png`) — inconsistent,
+  and deliberately unlinted. They are reached through `ITEM_ICON_PATHS`, a
+  hand-written map, so their names are load-bearing in a way a rename would have to
+  chase. The `.aseprite` sources behind them *are* linted.
+- `ui-panel.aseprite` beside `door_single_east_west.aseprite` — the repo uses both
+  separators for art sources and neither is wrong, so the lint only asks that you not
+  mix them inside one name.
 
----
+## You do not have to remember any of this
 
-## How to stop needing this file
+Rules you have to remember are the wrong tool for a consistency problem, so these are
+not only written down — they run. `tools/naming/naming.ts` holds them and
+`tools/naming/naming.test.ts` fails `npm test` on a violation, naming the file *and the
+rename* rather than reporting a count. Same shape as `assertEntitySpriteSizes` and the
+pixel-scale test: a thing somebody had to remember, replaced by a thing that says so.
 
-Rules you have to remember are the wrong tool for a consistency problem. The repo
-already prefers the other kind — `assertEntitySpriteSizes` holds two hand-written size
-tables together, `pixelScale.test.ts` fails the build on a resampled sprite, and CI
-rejects a stale `TYPE_REFERENCE.md`. Each one replaced a thing somebody had to
-remember with a thing that fails loudly.
+Two consequences worth knowing:
 
-The same is available here: a test that walks `edplay.json` and the asset directories
-and fails on a space in a filename, a `-`/`_` mix, or a field that is not `camelCase`.
-It would fail on the four filenames above until they are renamed, which is the point.
-
-Ask for it when you want it — it is small, and it is the version of this document that
-works whether or not you have read it.
+- **A badly named new asset fails the build**, not review. Rename it as the message
+  says, and update its `Spec.source` in the same commit.
+- **The exception lists are the pressure valve.** `PROPER_NOUNS` and
+  `GRANDFATHERED_FIELDS` in `naming.ts` exist so the lint can never force a rename that
+  would be wrong. Adding to `PROPER_NOUNS` is fine when the fiction earns it; adding to
+  `GRANDFATHERED_FIELDS` is not.

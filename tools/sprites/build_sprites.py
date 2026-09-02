@@ -101,28 +101,28 @@ SPRITES: tuple[Spec, ...] = (
     Spec(id="terminal", source="terminal.aseprite", width=16, height=16),
     Spec(id="terminal-substation", source="terminal_substation.aseprite", width=32, height=32),
     Spec(id="security-camera", source="security_camera.aseprite", width=16, height=16),
-    Spec(id="breaker", source="Breaker.aseprite", width=16, height=16),
+    Spec(id="breaker", source="breaker.aseprite", width=16, height=16),
     # Listed before the art exists — see docs/SPRITE_BACKLOG.md. The tool skips a
     # Spec whose source is absent, so this costs nothing until somebody draws it.
     Spec(id="light-switch", source="light_switch.aseprite", width=16, height=16),
     # The east-west doors are the one non-square canvas: 48px of art over the
     # 1.5-tile opening they bridge, rather than a 32px square stretched to fill it.
-    Spec(id="door-single-east-west", source="door_single_east-west.aseprite", width=32, height=48),
+    Spec(id="door-single-east-west", source="door_single_east_west.aseprite", width=32, height=48),
     Spec(
         id="door-single-north-south",
-        source="door_single_north-south.aseprite",
+        source="door_single_north_south.aseprite",
         width=32,
         height=32,
     ),
     Spec(
         id="door-glass-east-west",
-        source="door_glass_single_east-west.aseprite",
+        source="door_glass_single_east_west.aseprite",
         width=32,
         height=48,
     ),
     Spec(
         id="door-glass-north-south",
-        source="door_glass_single_north-south.aseprite",
+        source="door_glass_single_north_south.aseprite",
         width=32,
         height=32,
     ),
@@ -133,10 +133,10 @@ SPRITES: tuple[Spec, ...] = (
     # footprints each of these is checked against.
     Spec(id="laser-beam", source="laser.aseprite", width=32, height=32),
     Spec(id="laser-emitter", source="laser_emitter.aseprite", width=32, height=32),
-    Spec(id="trip-laser-east-west", source="trip_laser_east-west.aseprite", width=32, height=40),
+    Spec(id="trip-laser-east-west", source="trip_laser_east_west.aseprite", width=32, height=40),
     Spec(
         id="trip-laser-north-south",
-        source="TRIP_LASER_NORTH-SOUTH.aseprite",
+        source="trip_laser_north_south.aseprite",
         width=32,
         height=32,
     ),
@@ -145,7 +145,7 @@ SPRITES: tuple[Spec, ...] = (
     Spec(id="crate", source="box.aseprite", width=32, height=32),
     Spec(id="crate-stack", source="box1.aseprite", width=32, height=32),
     Spec(id="bunk-bed", source="bunk_bed.aseprite", width=32, height=32),
-    Spec(id="bulkhead", source="big bulkhead.aseprite", width=64, height=96),
+    Spec(id="bulkhead", source="big_bulkhead.aseprite", width=64, height=96),
     Spec(id="lattice-uplink", source="lattice_uplink.aseprite", width=160, height=160),
 )
 

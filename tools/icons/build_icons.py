@@ -74,8 +74,8 @@ class Spec:
 ICONS: tuple[Spec, ...] = (
     Spec(source="medkit.aseprite", outputs={0: "medkit.png"}),
     Spec(source="disk.aseprite", outputs={0: "disk.png"}),
-    Spec(source="Q0 certification icon.aseprite", outputs={0: "Q0_certification.png"}),
-    Spec(source="EMP grenade.aseprite", outputs={0: "EMP_grenade.png"}),
+    Spec(source="q0_certification_icon.aseprite", outputs={0: "Q0_certification.png"}),
+    Spec(source="emp_grenade.aseprite", outputs={0: "EMP_grenade.png"}),
     # Two frames, two items: the flashlight is stowed at 0 and lit at 1, and the
     # inventory swaps the path rather than the frame.
     Spec(source="flashlight.aseprite", outputs={0: "flashlight-off.png", 1: "flashlight-on.png"}),
@@ -83,10 +83,10 @@ ICONS: tuple[Spec, ...] = (
     # wired: `access_chit.png` is one item, and nothing in `ItemCatalog` carries a
     # clearance to pick the others by. The remaining four are drawn and waiting
     # for a mechanic, which is worth knowing before someone redraws them.
-    Spec(source="keycard icon.aseprite", outputs={0: "access_chit.png"}),
+    Spec(source="keycard_icon.aseprite", outputs={0: "access_chit.png"}),
     # New — no 256px legacy icon to replace. Needs its `ITEM_ICON_PATHS` line,
     # which it now has.
-    Spec(source="STAPLE_GUN.aseprite", outputs={0: "rail_stapler.png"}),
+    Spec(source="staple_gun.aseprite", outputs={0: "rail_stapler.png"}),
 )
 
 
