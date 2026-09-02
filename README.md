@@ -391,6 +391,7 @@ contact them failed.
 | Doc | Read it when |
 | --- | --- |
 | [`docs/MAP_AUTHORING.md`](docs/MAP_AUTHORING.md) | Authoring a map — which boards and components the engine actually reads, which fields it ignores, and the handful of things that throw at boot |
+| [`docs/NAMING.md`](docs/NAMING.md) | Naming anything — boards, refs, component fields, sprites, cel labels, TS files. One table, plus the places the shipped map disagrees with itself |
 | [`docs/DESIGN_NOTES.md`](docs/DESIGN_NOTES.md) | You want to know *why* something is built the way it is before changing it |
 | [`docs/ENTITY_STATS_DEFAULTS.md`](docs/ENTITY_STATS_DEFAULTS.md) | Tuning gameplay numbers — units, scaling, and the map-override rules |
 | [`docs/ART_PIPELINE.md`](docs/ART_PIPELINE.md) | Touching fonts, sprites or VFX, or regenerating any of them |

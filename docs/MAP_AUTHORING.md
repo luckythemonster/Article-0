@@ -528,6 +528,10 @@ every one of them fell back to an engine default. `vent_core`'s radius-10 amber
 flickers had been drawing at 3.5 since they were placed. The one true rename,
 `Cover.Height` → `cover.type`, is still a rename and still listed above.
 
+**Which convention to use when you author one is `docs/NAMING.md`.** It is one table
+covering boards, refs, fields, sprites and cel labels, and it names the handful of
+places the shipped map currently disagrees with itself.
+
 This matters more than it looks: an unrecognised component reads as *absent*, silently. A
 map whose terminals are spelled in a way the loader doesn't know has no terminals at all,
 which means no log caches, which means a run that cannot be won — with nothing logged
