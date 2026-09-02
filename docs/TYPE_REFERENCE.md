@@ -6332,7 +6332,7 @@ UIScene.
 
 #### `InventoryHud` — class
 
-`src/ui/InventoryHud.ts:23`
+`src/ui/InventoryHud.ts:24`
 
 A compact inventory readout pinned to the bottom-right of the screen, in three
 sections: the held CONSUMABLES (with counts and, for timed buffs, their
@@ -6348,7 +6348,7 @@ against the bottom-right budget without standing up a canvas.
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `constructor` | `constructor(scene: Phaser.Scene)` |  |
-| `update` | `update(items: string[], active: ActiveItemsView, selected: string \| undefined): void` |  |
+| `update` | `update( items: string[], active: ActiveItemsView, selected: string \| undefined, slots?: ConsumableSlot[], ): void` |  |
 
 *Plus 4 private members.*
 
@@ -7454,7 +7454,7 @@ GameScene.
 | [Hud](#class-hud) | class | `src/ui/Hud.ts:37` |
 | [InputState](#interface-inputstate) | interface | `src/entities/Player.ts:541` |
 | [InteractPrompt](#class-interactprompt) | class | `src/scenes/game/InteractPrompt.ts:193` |
-| [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:23` |
+| [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:24` |
 | [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:183` |
 | [ItemActions](#class-itemactions) | class | `src/scenes/game/ItemActions.ts:102` |
 | [ItemInfo](#interface-iteminfo) | interface | `src/systems/ItemCatalog.ts:52` |

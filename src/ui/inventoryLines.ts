@@ -1,11 +1,11 @@
 import {
   CHAFF_PACK_ITEM,
   consumableSlots,
-  countConsumables,
   isKeyItem,
   MAX_CONSUMABLES,
   SACK_LUNCH_ITEM,
   THERMAL_GEL_ITEM,
+  type ConsumableSlot,
 } from "../systems/EntityStats";
 import type { ActiveItemsView } from "../systems/ActiveItems";
 
@@ -24,12 +24,18 @@ export function inventoryLines(
   items: string[],
   active: ActiveItemsView,
   selected: string | undefined,
+  cachedSlots?: ConsumableSlot[],
 ): string[] {
   const lines: string[] = [];
 
+  const slots = cachedSlots ?? consumableSlots(items);
+  let held = 0;
+  for (let i = 0; i < slots.length; i++) {
+    held += slots[i].count;
+  }
+
   // --- CONSUMABLES: the item cursor's list, in canonical order ---
-  lines.push(`CONSUMABLES (${countConsumables(items)}/${MAX_CONSUMABLES})`);
-  const slots = consumableSlots(items);
+  lines.push(`CONSUMABLES (${held}/${MAX_CONSUMABLES})`);
   if (slots.length === 0) lines.push("(none)");
   else {
     for (const s of slots) {
@@ -55,9 +61,19 @@ export function inventoryLines(
   }
 
   // --- KEY ITEMS: passive, uncapped ---
-  const keyItems = dedupe(items.filter(isKeyItem));
+  const keyItems: string[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (isKeyItem(item) && !keyItems.includes(item)) {
+      keyItems.push(item);
+    }
+  }
+
   if (keyItems.length > 0) {
-    lines.push("", "KEY ITEMS", ...keyItems.map((i) => `• ${i}`));
+    lines.push("", "KEY ITEMS");
+    for (let i = 0; i < keyItems.length; i++) {
+      lines.push(`• ${keyItems[i]}`);
+    }
   }
 
   return lines;
@@ -68,9 +84,4 @@ function activeRemaining(name: string, active: ActiveItemsView): number {
   if (name === CHAFF_PACK_ITEM) return active.chaffRemaining;
   if (name === THERMAL_GEL_ITEM) return active.thermalRemaining;
   return 0;
-}
-
-/** Distinct names, preserving first-seen order. */
-function dedupe(names: string[]): string[] {
-  return [...new Set(names)];
 }

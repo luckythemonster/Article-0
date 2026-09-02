@@ -124,22 +124,35 @@ export class UIScene extends Phaser.Scene {
     // held; only the keys that move or spend it are gated below.
     const slots = consumableSlots(items);
     let selected = this.registry.get("selectedConsumable") as string | undefined;
-    if (!slots.some((s) => s.name === selected)) {
-      selected = slots[0]?.name;
-      if (selected) this.registry.set("selectedConsumable", selected);
-      else this.registry.remove("selectedConsumable");
+
+    let selectedIndex = -1;
+    for (let i = 0; i < slots.length; i++) {
+      if (slots[i].name === selected) {
+        selectedIndex = i;
+        break;
+      }
     }
+
+    if (selectedIndex === -1) {
+      selected = slots[0]?.name;
+      if (selected) {
+        this.registry.set("selectedConsumable", selected);
+        selectedIndex = 0;
+      } else {
+        this.registry.remove("selectedConsumable");
+      }
+    }
+
     // Skipped while an overlay owns the screen. This scene keeps updating behind
     // the pause menu, the codec and both minigames, so without the gate a
     // keypress there queues an itemUseRequest that GameScene spends the moment
     // play resumes — a consumable vanishing for no reason several seconds later.
     if (!isSuspended(this.registry) && slots.length > 0) {
-      const index = slots.findIndex((s) => s.name === selected);
       if (Phaser.Input.Keyboard.JustDown(this.itemKeys.next)) {
-        selected = slots[(index + 1) % slots.length].name;
+        selected = slots[(selectedIndex + 1) % slots.length].name;
         this.registry.set("selectedConsumable", selected);
       } else if (Phaser.Input.Keyboard.JustDown(this.itemKeys.prev)) {
-        selected = slots[(index - 1 + slots.length) % slots.length].name;
+        selected = slots[(selectedIndex - 1 + slots.length) % slots.length].name;
         this.registry.set("selectedConsumable", selected);
       }
       if (selected && Phaser.Input.Keyboard.JustDown(this.itemKeys.use)) {
@@ -154,7 +167,7 @@ export class UIScene extends Phaser.Scene {
       flashlightCharge: 1,
       sackLunchOpened: false,
     };
-    this.inventory.update(items, activeItems, selected);
+    this.inventory.update(items, activeItems, selected, slots);
 
     // Gated the same as the item keys: a keypress behind the pause menu, the
     // codec or a minigame shouldn't toggle background HUD chrome.
