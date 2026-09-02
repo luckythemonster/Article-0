@@ -521,6 +521,10 @@ Field names are left alone apart from the identity fields `Type` / `State` / `Ke
 lowercase — the tuning fields (`SightRange`, `HackTime`, `ThermalBleed`, …) keep the
 editor's PascalCase, because that is what the engine has always read them as.
 
+**Which convention to use when you author one is `docs/NAMING.md`.** It is one table
+covering boards, refs, fields, sprites and cel labels, and it names the handful of
+places the shipped map currently disagrees with itself.
+
 This matters more than it looks: an unrecognised component reads as *absent*, silently. A
 map whose terminals are spelled in a way the loader doesn't know has no terminals at all,
 which means no log caches, which means a run that cannot be won — with nothing logged

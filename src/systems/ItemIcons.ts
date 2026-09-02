@@ -40,7 +40,7 @@ export function flashlightIconPath(on: boolean): string {
  * The icon for a keycard of any clearance.
  *
  * Every clearance shares one image today. The art does not have to: this file is cut
- * from `keycard icon.aseprite`, which carries **five** numbered `clearance_level`
+ * from `keycard_icon.aseprite`, which carries **five** numbered `clearance_level`
  * frames, and `tools/icons/build_icons.py` says in as many words that the other four
  * were "drawn and waiting for a mechanic" because nothing carried a clearance to pick
  * them by. Something does now — wiring them is one `Spec(outputs={0..4})` line there
