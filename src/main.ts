@@ -7,6 +7,7 @@ import { appendAlignmentVault } from "./map/AlignmentVault";
 import { appendRoofArray } from "./map/RoofArrayLevel";
 import { appendDestructibleCover } from "./map/DestructibleCover";
 import { appendLockers } from "./map/Lockers";
+import { autoLight } from "./map/AutoLight";
 import { graftExtractionEntrance } from "./map/AdoptAuthored";
 import { planFor } from "./map/MapPlan";
 import type { EdPlayFile } from "./map/types";
@@ -103,6 +104,12 @@ class BootScene extends Phaser.Scene {
     // playthrough. Doesn't gate anything, so no flag is stashed for it.
     appendDestructibleCover(parsed.map, plan.startLevel);
     appendLockers(parsed.map, plan.startLevel);
+    // Last, and deliberately so: the engine derives a level's lighting from its
+    // geometry, and every graft above changes that geometry. Lighting `main2`
+    // before the vault's stairwell landed would light a deck that no longer
+    // exists. See `src/map/AutoLight.ts` for what it derives and what it leaves
+    // alone — anything a hand-placed fixture already covers.
+    autoLight(parsed.map);
     this.registry.set("mapPlan", plan);
     this.registry.set("hasVentCore", hasVentCore);
     this.registry.set("hasLogBeta", hasLogBeta);

@@ -296,6 +296,19 @@ export interface GameLevel {
    * this?". Only the level that was actually generated carries the flag.
    */
   generated?: boolean;
+  /**
+   * Derived lighting circuits: a wing's ref -> the zone refs it feeds.
+   *
+   * Written by `src/map/AutoLight.ts`, which cuts a level into zones and groups
+   * them into wings. A zone's ref is the `ref` its light tiles carry, so
+   * `Lighting.setCircuit` and `DetectionSystem.setCircuit` already act on it;
+   * this is the one thing they can't derive for themselves — which zones a
+   * *breaker's* wider throw should reach. See `PowerControl.setCircuit`.
+   *
+   * Optional: a level nobody derived lighting for has no wings, and a target
+   * that isn't a wing is simply its own circuit.
+   */
+  circuits?: Record<string, string[]>;
 }
 
 export interface GameMap {

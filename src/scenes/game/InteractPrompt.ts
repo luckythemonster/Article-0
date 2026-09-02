@@ -1,5 +1,6 @@
 import type Phaser from "phaser";
 import type { Breaker } from "../../entities/Breaker";
+import type { LightSwitch } from "../../entities/LightSwitch";
 import type { Chest } from "../../entities/Chest";
 import type { Door } from "../../entities/Door";
 import type { Terminal } from "../../entities/Terminal";
@@ -36,6 +37,8 @@ export interface PromptCandidates {
   doorDist: number;
   breaker: Breaker | undefined;
   breakerDist: number;
+  lightSwitch: LightSwitch | undefined;
+  lightSwitchDist: number;
   chest: Chest | undefined;
   chestDist: number;
   hatch: boolean;
@@ -106,6 +109,15 @@ export function promptLabelFor(c: PromptCandidates): string | undefined {
   if (c.breaker && c.breakerDist < best) {
     best = c.breakerDist;
     label = c.breaker.isClosed ? "[E] Cut power" : "[E] Restore power";
+  }
+  // Directly under the breaker, matching the tap order again. Same reason for
+  // naming the outcome rather than the fixture: "[E] Switch" says nothing about
+  // which way it goes. It says *Lights* rather than *power* so the two controls
+  // read as different sizes of the same act — the plate takes the room, the
+  // cabinet takes the wing.
+  if (c.lightSwitch && c.lightSwitchDist < best) {
+    best = c.lightSwitchDist;
+    label = c.lightSwitch.isClosed ? "[E] Lights off" : "[E] Lights on";
   }
   if (c.door && c.doorDist < best) {
     best = c.doorDist;

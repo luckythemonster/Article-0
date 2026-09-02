@@ -129,8 +129,10 @@ read by name; the engine's own generators emit them.
 | `terminals` | Tiles **with** a `terminal` component become terminals. A `terminalN` tile here with *no* component is given the export's own `Terminal` defaults — see `InertTerminals.ts` — so anything else on this board should be named something else. | **`terminal` required** |
 | `items` | Tiles **with** a `chest` component become chests. | **`chest` required** |
 | `cover` | Detection dampening (0.4×) and crouch concealment. | `cover` |
-| `light_sources` | Light pools *and* the detection multiplier — the same data drives both. Can be switched off at runtime by a breaker — see `power` below. | `light_source` |
+| `light_sources` | Light pools *and* the detection multiplier — the same data drives both. **You do not have to author this board**; the engine derives one — see §3.5. Can be switched off at runtime by a switch, a breaker or a terminal. | `light_source` |
+| `light_switches` | Tiles **with** a `light_switch` component become wall switches — one zone's lights, thrown quietly. Almost always the engine's own board (§3.5), but yours to add to. | **`light_switch` required** |
 | `power` | Tiles **with** a `power_grid` component become breakers. Claimed per tile, not board-scoped: `main1` files a door on this board that stays art. | **`power_grid` required** |
+| `unlit` | Opts the level out of derived lighting entirely (§3.5). Presence is the whole message — leave it empty. | — |
 | `verticals` | Every way off the level — stairs, ladders, hatches. See the Transitions section. | `Vertical`, optional |
 | `elevator*` | An elevator car. Three or more levels sharing the car's coordinate is a shaft. | — |
 | `extraction` | Marks the level as the win condition's destination (§2). Any tile will do; nothing is drawn. | — |
@@ -435,6 +437,50 @@ coordinate nothing answers, the engine joins those two with a grafted
 `hatch9`/`ladder9` pair, landing the player on the nearest tile they can stand on. It is a
 net, not a feature — author the entrance and it never fires.
 
+
+### 3.5 Lighting you don't have to place
+
+**A level with no `light_sources` board still comes out lit.** At boot, after every
+act has finished grafting, `src/map/AutoLight.ts` derives lighting from the level's
+own geometry. Authoring lights is now an override, not an obligation.
+
+It cuts the level into **zones** — fixed 6-tile squares (`ZONE_TILES`) — and hangs one
+light in the middle of each zone that has floor in it, nudged to the nearest cell a
+player could stand on. A 36×18 deck is 18 zones. Zones group into **wings**, one per
+quadrant, and that is the entire circuit topology:
+
+| Control | Throws | Noise | Breach? | Reset? |
+| --- | --- | --- | --- | --- |
+| **Wall switch** (`light_switches`) | one zone | 2 tiles | no | no |
+| **Breaker** (`power`) | one wing | 7 tiles | yes | an orderly is sent |
+| **Terminal hack** (`terminals`) | every circuit within 6 tiles | — | (the hack's) | no |
+
+The switch is the quiet move you have to walk into the room for; the breaker is the
+loud one that takes a quarter of the deck and gets somebody sent to undo it. Both are
+tap-`E`. A switch is derived for every lit zone that has a wall to mount on.
+
+**A derived light's `ref` is its zone's name** — `duct1__z2_1`, and its wing is
+`duct1__wing_10`. That is not decoration: `power_grid.Target` names a `ref`, so those
+are the strings a breaker or a switch targets, and a double underscore cannot occur in
+an editor ref, so a derived circuit can never collide with one you authored.
+
+Three things to know before you rely on it:
+
+1. **A light you place wins locally.** Any zone whose centre falls inside an authored
+   fixture's radius is left alone entirely — no derived light, no switch, no circuit.
+   That is why `main1`'s fifty hand-placed overheads come through untouched and get
+   nothing added. Light a room yourself and the engine stays out of it.
+2. **Derived lights carry the standard `detectionMultiplier`.** Lighting a deck makes
+   it more dangerous, because the same data drives the pools and the guards' odds of
+   spotting you. A level that was dark and safe becomes lit and hot.
+3. **Some levels should stay dark.** Add an `unlit` board — empty is fine — and the
+   level is skipped. The rooftop does exactly this (`RoofArrayLevel.keepDark`): its
+   difficulty *is* crossing three searchlights in the dark, and a grid of overheads
+   would delete the level.
+
+`ZONE_TILES` and `DERIVED_RADIUS_TILES` are the two numbers that decide how this
+feels. They live at the top of `src/map/AutoLight.ts`.
+
 ## 4. Component fields — read vs ignored
 
 ### Naming: the loader normalises, within limits
@@ -479,6 +525,7 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
 | `sensor` | presence (→ a camera) | every field, `facing` included: it is inferred from the surrounding walls |
 | `vertical` | presence (→ a way out, on a `verticals` board) | `direction`, `material` |
 | `power_grid` | `Target`, `state` | — |
+| `light_switch` | `Target`, `state` | — |
 | `hatch`, `audio_hazard` | **nothing** | every field |
 
 **`Armed` does not behave like the other `enforcer` fields, in two ways.** It is a
@@ -538,6 +585,10 @@ def has no art", not a defect — the tiles are markers, and the things they mar
 It is also why the cast can't be drawn from the map's own spritesheet: there is none.
 See `src/entities/CastArt.ts`.
 
+The fixtures the engine derives (§3.5) are frameless for the same reason and take the
+same path: a derived light has no art at all — the *pool* is what you see, and
+`src/ui/Lighting.ts` draws that — and a derived switch draws its own plate.
+
 ### Oversized sources are normal, but pick the span to match
 
 A def's art is stretched to `ColSpan × RowSpan` tiles regardless of its source
@@ -571,6 +622,9 @@ at 32×32, the same 2× reduction `security_node1` gets from the same source siz
   - `qualia_rack` → opens the Qualia Phase-Lock bypass. Optional; if no terminal is typed
     this way the engine promotes one per level.
   - anything else → a plain terminal whose hack releases doors within 6 tiles.
+
+  Whatever its type, **a landed hack also cuts the lights within that same 6 tiles**
+  — the doors come open and the room goes dark off one breach. See §3.5.
 - **A chest's loot can be written two ways, and the engine reads both.** The tile
   editor's `Chest` structure carries a single **`items`** string — a quoted,
   comma-separated list, `"Battery", "EMP Grenade"` — and that is what every chest on the
@@ -602,6 +656,10 @@ at 32×32, the same 2× reduction `security_node1` gets from the same source siz
   one switch darkens the entire main deck. Target a ref used once and you get one
   lamp. Nothing warns you if `Target` matches no ref at all — the breaker will throw
   and switch nothing.
+  - On a level the engine lit (§3.5) the refs worth naming are its **wings** —
+    `duct1__wing_00` and the three beside it — and a wing expands to every zone under
+    it. A wing is the size a breaker is meant to be; target a single `duct1__z2_1`
+    and you have built a switch with a keypad on it.
   - `state` is the `circuitState` enum, and it reads the electrician's way round:
     **`CLOSED` is on** (a closed circuit conducts) and `OPEN` is off. The art agrees —
     the cabinet's screen is green while the circuit is closed.
@@ -639,9 +697,13 @@ at 32×32, the same 2× reduction `security_node1` gets from the same source siz
    guards learn about noise from discrete events, each with its own radius in tiles — dart 2,
    chest 3, stapler 3, door 4, knock 5, gunfire 6, orderly alarm 6, breaker 7. Quiet vs loud
    flooring does nothing.
-7. **Unlit levels are genuinely dark.** Darkness is opaque and clipped to line of sight, so
-   a level with no `light_sources` board is navigable only by flashlight and radar. Four of
-   the shipped map's nine levels are in that state.
+7. **You no longer have to light a level, but you can still choose to.** Darkness is
+   opaque and clipped to line of sight, so an unlit level would be crossable by
+   flashlight and radar alone — which is what four of the shipped map's nine levels
+   used to be. The engine now derives lighting for any level that hasn't been lit by
+   hand (§3.5), so that state is opt-in: add an `unlit` board to get it back. What is
+   still true is the consequence — **lighting a deck makes it more dangerous**, because
+   the pools and the guards' odds of spotting you are the same data.
 8. **Level order matters too**, separately from board order: the debug warp keys `1`–`9` map
    to your levels in authored order, with engine-*generated* levels last. "Generated" is a
    flag the generator sets, not the level's name — a `vent_core` you authored sorts with

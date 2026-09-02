@@ -145,6 +145,7 @@ describe("the hand-drawn entity sprites", () => {
       "laser-beam",
       "laser-emitter",
       "lattice-uplink",
+      "light-switch",
       "locker",
       "security-camera",
       "terminal",

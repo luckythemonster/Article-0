@@ -162,6 +162,36 @@ export class DetectionSystem {
     }
   }
 
+  /**
+   * The circuits with a live light reaching within `radiusPx` of a point.
+   *
+   * Exists for the terminal hack, which cuts the lighting around itself the same
+   * way it releases the doors around itself. Answered from the *same* flat light
+   * list `setCircuit` walks rather than a second index, so "which circuits are
+   * near here" and "which lights does that circuit own" can never disagree.
+   *
+   * Distance is measured to the light itself, not to the edge of its pool: the
+   * question a hack asks is which fixtures are in this room, and a lamp whose
+   * glow happens to spill six tiles is not one of them.
+   *
+   * Deduplicated, because a circuit is many fixtures — a wing's worth of them on
+   * a derived level — and the caller wants each named once.
+   */
+  refsWithin(px: number, py: number, radiusPx: number): string[] {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    const r2 = radiusPx * radiusPx;
+    for (const light of this.lights) {
+      if (!light.powered || seen.has(light.ref)) continue;
+      const dx = px - light.x;
+      const dy = py - light.y;
+      if (dx * dx + dy * dy > r2) continue;
+      seen.add(light.ref);
+      out.push(light.ref);
+    }
+    return out;
+  }
+
   /** Cover type at a pixel position, or undefined if the tile has no cover. */
   coverTypeAt(px: number, py: number): string | undefined {
     const tx = Math.floor(px / this.tileSize);

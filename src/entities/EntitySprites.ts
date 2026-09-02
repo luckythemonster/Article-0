@@ -39,6 +39,7 @@ export type EntitySpriteId =
   | "terminal-substation"
   | "security-camera"
   | "breaker"
+  | "light-switch"
   | "door-single-east-west"
   | "door-single-north-south"
   | "door-glass-east-west"
@@ -171,6 +172,18 @@ export const ENTITY_SPRITES: readonly EntitySpriteSpec[] = [
     id: "breaker",
     key: "entity-breaker",
     path: "assets/sprites/breaker.png",
+    sourceWidth: 16,
+    sourceHeight: 16,
+    displayTiles: [0.5],
+  },
+  // The breaker's quiet sibling — see `src/entities/LightSwitch.ts`. Listed here
+  // before the art exists, which is what {@link discoverEntitySprites} is for: the
+  // strip is wired the moment somebody drops the PNG in, and until then the probe
+  // finds nothing and the entity draws its own plate. Half a tile, like the cabinet.
+  {
+    id: "light-switch",
+    key: "entity-light-switch",
+    path: "assets/sprites/light-switch.png",
     sourceWidth: 16,
     sourceHeight: 16,
     displayTiles: [0.5],
@@ -488,9 +501,19 @@ export function preloadEntitySprites(scene: Phaser.Scene): void {
   }
 }
 
-/** Whether a sprite's art actually loaded. */
+/**
+ * Whether a sprite's art actually loaded.
+ *
+ * Answers `false` for an id with no spec at all, rather than letting
+ * {@link entitySpriteKey}'s throw out. That distinction is the whole contract of
+ * this module — art that isn't there "costs the upgrade and never the game" — and
+ * an id declared ahead of its PNG is the ordinary case, not a bug: `light-switch`
+ * was added to the union and the spec list a while before anybody drew it, and
+ * every fixture on four decks tried to construct against it.
+ */
 export function hasEntitySprite(scene: Phaser.Scene, id: EntitySpriteId): boolean {
-  return scene.textures.exists(entitySpriteKey(id));
+  const spec = SPEC_BY_ID.get(id);
+  return spec !== undefined && scene.textures.exists(spec.key);
 }
 
 // --- the scale rule ----------------------------------------------------------
@@ -549,7 +572,15 @@ export function assertEntitySpriteScales(): string[] {
  * pair agreeing.
  */
 export function assertEntitySpriteSizes(): string[] {
-  return ENTITY_SPRITES.filter(
-    (s) => SPRITES[s.id]?.width !== s.sourceWidth || SPRITES[s.id]?.height !== s.sourceHeight,
-  ).map((s) => s.id);
+  return ENTITY_SPRITES.filter((s) => {
+    // A sprite declared ahead of its art has no manifest entry, and so has no
+    // second copy of the size to have drifted from — that is what this checks.
+    // Its absence is the documented workflow (docs/SPRITE_BACKLOG.md names the
+    // filename and size so the strip wires itself the day somebody draws it),
+    // not a mismatch. The "covers every sprite that ships" test is what stops
+    // this exemption from quietly swallowing a typo'd id.
+    const drawn = SPRITES[s.id];
+    if (!drawn) return false;
+    return drawn.width !== s.sourceWidth || drawn.height !== s.sourceHeight;
+  }).map((s) => s.id);
 }

@@ -23,6 +23,39 @@ brighter and mechanically easier to be spotted in. The player's own pool is the
 exception: presentation only, never fed to `DetectionSystem`, so it costs nothing in
 visibility — unlike the flashlight beam.
 
+### The lights are derived, and that is what makes them switchable
+
+For a long time every lit tile on every deck was a tile somebody placed. That bought
+nothing and cost a great deal: NW-SMAC-01 carries 127 hand-placed light tiles, fifty of
+them on `main1` alone, and four of its nine levels were never lit at all — which, with
+darkness this opaque, meant four levels crossable only by flashlight. The choice on
+offer was "place fifty lamps" or "the level is unplayable".
+
+`src/map/AutoLight.ts` cuts a level into 6-tile **zones** and hangs one light in each,
+grouping them into four **wings**. A level nobody lit comes out lit; a level somebody
+*did* light is left alone, zone by zone, wherever an authored fixture already reaches.
+Hand placement became the override rather than the obligation.
+
+The part worth keeping is what fell out of it. A breaker's `Target` names a tile-def
+`ref`, and both `Lighting` and `DetectionSystem` already darken every light whose `ref`
+matches — that was a circuit mechanic with nothing worth switching on the other end of
+it, because `light_overhead1` is "all fifty lamps on this deck" and nothing finer
+existed. Naming a derived light after its *zone* is the whole wiring job: neither class
+changed at all, and the map gained a circuit per room the day it gained derived lights.
+
+So the same act now comes in three sizes, and they differ in what they cost rather than
+in what they do:
+
+- a **wall switch** takes one zone, is heard two tiles away, charges nothing and calls
+  nobody — the quiet move, and you have to be standing in the room;
+- a **breaker** takes a wing, is heard seven tiles away, is charged as a breach, and the
+  facility sends an orderly to put it back — a lot of darkness, on a clock;
+- a **terminal hack** takes every circuit within six tiles, off the breach the player is
+  already paying for — the doors open and the room goes dark together.
+
+The rooftop opts out (an `unlit` board). Its difficulty *is* the dark, and a grid of
+derived overheads would have quietly deleted the level.
+
 The two layers are kept apart because they change at different rates. A `RenderTexture`
 holds the lights (recomposited when a light, the beam or the player moves, with every
 stamp erased in one batched call — each `erase` is a framebuffer round-trip), and a
