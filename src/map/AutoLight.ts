@@ -81,6 +81,74 @@ export const DERIVED_RADIUS_TILES = 4.5;
  */
 const DERIVED = "__";
 
+/**
+ * Reach of the emergency light a switched-off zone falls back to, in tiles.
+ *
+ * The art's own number: `light_switch.aseprite` labels its `emergency_light` layer
+ * `light_source {radius=4}` across exactly the frames the `OFF` tag covers. Smaller
+ * than {@link DERIVED_RADIUS_TILES}, and mounted on the wall rather than hung over
+ * the middle of the room, so a room on emergency power reads as a room you can cross
+ * rather than a room that is lit.
+ */
+export const EMERGENCY_RADIUS_TILES = 4;
+
+/**
+ * How much easier a guard finds you in emergency light. Full lighting is 1.6.
+ *
+ * The value `vent_core`'s amber flickers were authored with, and the reason the wall
+ * switch is worth walking into a room for: dim red is better cover than an overhead
+ * but worse than the dark a breaker buys. If it were 1.6 the switch would give
+ * visibility back for nothing; at 0.4 it would be as good as crouching behind a
+ * crate, and the breaker would have no job left.
+ */
+export const EMERGENCY_MULTIPLIER = 0.75;
+
+/**
+ * How bright the emergency lamp burns, against a full fixture's 1.
+ *
+ * Measured rather than guessed. At full brightness the lamp was *indistinguishable*
+ * from the overhead it replaces — same lit area over the zone (0.42 of it either
+ * way) and the same mean brightness (0.376 against 0.381) — because a radius-4 lamp
+ * on the wall reaches almost exactly as far as the radius-4.5 overhead in the
+ * middle. Shrinking it instead would have made it stop reaching the doorway, which
+ * is the one part of a dark room you need to find. Dim is a brightness question.
+ */
+export const EMERGENCY_BRIGHTNESS = 0.45;
+
+/**
+ * The circuit of a zone's emergency light.
+ *
+ * A ref of its own rather than a flag on the zone's light, because `Lighting` and
+ * `DetectionSystem` switch on refs and nothing else — the same reason a zone is
+ * named at all. It is driven as the zone's *complement* while the circuit has power,
+ * which is `PowerControl`'s job, not this module's.
+ */
+export function emergencyRef(zone: string): string {
+  return `${zone}${DERIVED}emergency`;
+}
+
+/** The zone an {@link emergencyRef} belongs to, or the ref itself if it is not one. */
+export function zoneOfEmergency(ref: string): string {
+  const cut = ref.lastIndexOf(`${DERIVED}emergency`);
+  return cut === -1 ? ref : ref.slice(0, cut);
+}
+
+/**
+ * Footprint of a switch plate, in tiles.
+ *
+ * A quarter, and that is arithmetic rather than taste: the house pixel density is one
+ * art pixel per world pixel, a tile is 32 world pixels, and the plate's art is 8x8.
+ * Drawn at the breaker's half-tile instead, every pixel of the switch would be twice
+ * the size of every pixel of the cabinet beside it on the same wall.
+ *
+ * Written onto the tile rather than kept as a constant inside `LightSwitch`, so the
+ * drawn size stays answerable from the map — which is how `Breaker` reads its own
+ * cabinet's. It is the second of a hand-written pair with `displayTiles` on the
+ * `light-switch` sprite spec in `src/entities/EntitySprites.ts`; a test in
+ * `src/render/pixelScale.test.ts` holds the two together.
+ */
+export const SWITCH_TILES = 0.25;
+
 /** The board derived switches are filed on. */
 export const LIGHT_SWITCH_BOARD = "light_switches";
 
@@ -164,7 +232,17 @@ function autoLightLevel(level: GameLevel): void {
       // A plate needs a wall to sit on. A zone with none — the middle of an open
       // deck — simply has no switch, and is thrown from its wing's breaker instead.
       const plate = switchAnchor(level, standable, col, row);
-      if (plate) switches.tiles.push(derivedSwitch(zone, plate));
+      if (plate) {
+        switches.tiles.push(derivedSwitch(zone, plate));
+        // The emergency lamp is part of the *plate*, which is where the art puts it,
+        // so it goes where the plate went and only where there is a plate. A zone
+        // nobody can switch off locally can only be darkened by a breaker, and a
+        // breaker is supposed to mean darkness — so it gets no fallback light.
+        //
+        // Deliberately not filed into `circuits`: that map is the zones a breaker
+        // feeds, and this one is derived from its zone rather than thrown on its own.
+        lights.tiles.push(derivedEmergency(zone, plate));
+      }
     }
   }
 
@@ -177,11 +255,14 @@ function autoLightLevel(level: GameLevel): void {
  * Measured against each authored fixture's *own* reach — asked of `lightStatsFor`,
  * which is the same answer `Lighting` and `DetectionSystem` get. That is the point:
  * suppression has to match what the engine will actually *draw*, not what the export
- * says on paper. (On NW-SMAC-01 those differ, and not in this module's favour: the
- * map writes `radius` / `detectionMultiplier` where `lightStatsFor` reads `Radius` /
- * `DetectionMultiplier`, so every authored light on the shipped map silently runs at
- * the engine default. Reading the raw field here would suppress zones that are not
- * in fact lit.)
+ * says on paper — a fixture the engine renders small must not suppress a zone it
+ * does not reach, and one it renders wide must suppress every zone it does.
+ *
+ * The two used to disagree, which is why this asks rather than reading the field: the
+ * map writes `radius`, `lightStatsFor` read `Radius`, and every authored light ran at
+ * the engine default. Fixed in #169 — the lookup is case-insensitive now, and a value
+ * equal to the editor's own placeholder counts as unset — so `vent_core` and
+ * `main2vault` suppress every zone under their ten-tile lamps rather than none.
  *
  * A tile this module derived on an earlier pass is not "authored" and is not
  * consulted — but `autoLightLevel` has already returned in that case.
@@ -286,9 +367,37 @@ function derivedLight(zone: string, at: TilePos): GameTile {
   return { ...marker(zone, at.x, at.y), components: lightComponent() };
 }
 
+/** The lamp a switched-off zone falls back to — see {@link EMERGENCY_RADIUS_TILES}. */
+function derivedEmergency(zone: string, at: TilePos): GameTile {
+  return {
+    ...marker(emergencyRef(zone), at.x, at.y),
+    components: [
+      {
+        type: "light_source",
+        values: {
+          Radius: String(EMERGENCY_RADIUS_TILES),
+          DetectionMultiplier: String(EMERGENCY_MULTIPLIER),
+          Brightness: String(EMERGENCY_BRIGHTNESS),
+          // Guttering, because the art is: `light_switch.aseprite` labels the
+          // emergency frames `BLINK` and `FLASH`, and a steady fallback lamp would
+          // be the one part of that plate the world underneath it contradicts.
+          type: "FLICKER",
+        },
+      },
+    ],
+  };
+}
+
 function derivedSwitch(zone: string, at: TilePos): GameTile {
   return {
     ...marker(`${zone}_switch`, at.x, at.y),
+    // The plate's footprint, which `LightSwitch` draws to the way `Breaker` draws to
+    // its cabinet's. It has to live on the *tile* rather than as a constant in the
+    // entity: that is what keeps it answerable from the map, and a constant is
+    // exactly what drifted from the sprite spec the first time round.
+    //
+    colSpan: SWITCH_TILES,
+    rowSpan: SWITCH_TILES,
     entityType: LIGHT_SWITCH_COMPONENT,
     components: [{ type: LIGHT_SWITCH_COMPONENT, values: { Target: zone, state: "CLOSED" } }],
   };

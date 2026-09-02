@@ -93,6 +93,12 @@ interface Light {
   /** False once a breaker has opened this light's circuit. See {@link Lighting.setCircuit}. */
   powered: boolean;
   /**
+   * How bright this fixture burns when powered, 0-1 — see `LightStats.brightness`.
+   * Distinct from {@link intensity}, which is this multiplied by whatever the
+   * flicker is doing this frame and zeroed outright when the circuit is dead.
+   */
+  brightness: number;
+  /**
    * Current brightness multiplier, 1 for a steady light and the flicker factor for a
    * guttering one. Written by {@link Lighting.drawLights} where that factor is already
    * being computed for the stamp, and read by {@link Lighting.sampleLight} so a shadow
@@ -220,6 +226,7 @@ export class Lighting {
           .image({ key: RADIAL_STAMP_KEY, add: false })
           .setOrigin(0.5)
           .setPosition(x, y)
+          .setAlpha(s.brightness)
           .setScale((radiusPx * 2) / RADIAL_STAMP_SIZE);
         this.lights.push({
           x,
@@ -228,7 +235,8 @@ export class Lighting {
           flicker: s.type.includes("flick"),
           phase: Math.random() * Math.PI * 2,
           // Steady until `drawLights` says otherwise, which it only does for flickers.
-          intensity: 1,
+          intensity: s.brightness,
+          brightness: s.brightness,
           ref: t.ref,
           powered: true,
           stamp,
@@ -472,8 +480,11 @@ export class Lighting {
       // Zero intensity is also what takes a dead light out of `sampleLight`, and
       // with it out of every ground shadow — `sampleLightAt` drops a light whose
       // contribution is <= 0. A lamp that is off must not still be casting.
-      light.intensity = light.powered ? 1 : 0;
+      light.intensity = light.powered ? light.brightness : 0;
       if (!light.powered) continue;
+      // Steady lights take their alpha once, here; a flicker's is rewritten every
+      // frame in `drawLights`, on top of the same brightness.
+      if (!light.flicker) light.stamp.setAlpha(light.brightness);
       this.eraseList.push(light.stamp);
       if (light.flicker) flicker = true;
     }
@@ -491,8 +502,12 @@ export class Lighting {
       // Gentle irregular pulse in both brightness and reach.
       const f =
         0.82 + 0.18 * Math.sin(this.time * 7 + l.phase) * Math.sin(this.time * 3.1 + l.phase);
-      l.intensity = f;
-      l.stamp.setAlpha(f).setScale(((l.radiusPx * 2) / RADIAL_STAMP_SIZE) * (0.92 + 0.08 * f));
+      // Over the fixture's own brightness, not instead of it: a guttering emergency
+      // lamp is dim *and* unsteady, and the flicker is a factor on what it has.
+      l.intensity = f * l.brightness;
+      l.stamp
+        .setAlpha(l.intensity)
+        .setScale(((l.radiusPx * 2) / RADIAL_STAMP_SIZE) * (0.92 + 0.08 * f));
     }
 
     // Everything in one batched erase — each erase is a framebuffer round-trip, and

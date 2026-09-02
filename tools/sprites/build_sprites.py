@@ -104,7 +104,9 @@ SPRITES: tuple[Spec, ...] = (
     Spec(id="breaker", source="Breaker.aseprite", width=16, height=16),
     # Listed before the art exists — see docs/SPRITE_BACKLOG.md. The tool skips a
     # Spec whose source is absent, so this costs nothing until somebody draws it.
-    Spec(id="light-switch", source="light_switch.aseprite", width=16, height=16),
+    # 8x8 over a quarter tile: the house density is one art pixel per world pixel,
+    # and a tile is 32 world pixels. Must match EntitySprites.ts, per the docstring.
+    Spec(id="light-switch", source="light_switch.aseprite", width=8, height=8),
     # The east-west doors are the one non-square canvas: 48px of art over the
     # 1.5-tile opening they bridge, rather than a 32px square stretched to fill it.
     Spec(id="door-single-east-west", source="door_single_east-west.aseprite", width=32, height=48),

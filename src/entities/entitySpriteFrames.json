@@ -1016,6 +1016,77 @@
       ],
       "width": 160
     },
+    "light-switch": {
+      "cels": {
+        "INDICATOR_LIGHT": {
+          "0": "ON",
+          "1": "FLASH",
+          "10": "NO_POWER",
+          "2": "FLASH",
+          "3": "OFF",
+          "4": "BLINK",
+          "5": "FLASH",
+          "6": "OFF",
+          "7": "BLINK",
+          "8": "FLASH",
+          "9": "NO_POWER"
+        },
+        "emergency_light": {
+          "0": "OFF",
+          "1": "OFF",
+          "10": "OFF",
+          "2": "OFF",
+          "3": "light_source {radius=4}",
+          "4": "light_source {radius=4}",
+          "5": "light_source {radius=4}",
+          "6": "light_source {radius=4}",
+          "7": "light_source {radius=4}",
+          "8": "light_source {radius=4}",
+          "9": "OFF"
+        },
+        "switch": {
+          "0": "ON",
+          "1": "BLINK",
+          "10": "ON",
+          "2": "BLINK",
+          "3": "OFF",
+          "4": "BLINK",
+          "5": "BLINK",
+          "6": "OFF",
+          "7": "BLINK",
+          "8": "BLINK",
+          "9": "OFF"
+        }
+      },
+      "durations": [
+        1000,
+        29,
+        29,
+        1000,
+        1000,
+        29,
+        1000,
+        1000,
+        29,
+        1000,
+        1000
+      ],
+      "frameCount": 11,
+      "height": 8,
+      "tags": [
+        {
+          "from": 0,
+          "name": "ON",
+          "to": 2
+        },
+        {
+          "from": 3,
+          "name": "OFF",
+          "to": 8
+        }
+      ],
+      "width": 8
+    },
     "locker": {
       "cels": {
         "door": {
