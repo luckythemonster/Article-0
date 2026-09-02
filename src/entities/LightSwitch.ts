@@ -53,6 +53,20 @@ const ART: EntitySpriteId = "light-switch";
 const CLIP_ON = "ON";
 const CLIP_OFF = "OFF";
 
+/**
+ * The third state: no power reaches this plate at all.
+ *
+ * Its own thing rather than a shade of `OFF`, because they are different facts and
+ * the player needs to tell them apart — a plate reading `OFF` is one you switched
+ * and can switch back, and one reading this is a plate whose wing a breaker took or
+ * whose circuit a terminal cut. Flipping it would do nothing, so it does not offer.
+ *
+ * Unlike the other two it is *labelled but not tagged* in the shipped art — frames
+ * 9-10 on `INDICATOR_LIGHT` — which is why {@link stateClip} falls back to the
+ * labelled frames. Tag it later and nothing here changes.
+ */
+const CLIP_NO_POWER = "NO_POWER";
+
 export class LightSwitch {
   readonly tileX: number;
   readonly tileY: number;
@@ -61,8 +75,15 @@ export class LightSwitch {
   readonly y: number;
   readonly stats: LightSwitchStats;
 
-  /** Live circuit state: true when the zone's lights are on. */
+  /** The plate's own position: true when this switch is set to on. */
   private closed: boolean;
+  /**
+   * Whether power reaches the plate at all — see {@link CLIP_NO_POWER}.
+   *
+   * Independent of {@link closed}, which is the whole point: a plate can be switched
+   * on and still be dead. `PowerControl.applyZone` owns the answer and pushes it in.
+   */
+  private live = true;
 
   /**
    * The plate, when there is no art on disk to draw it with.
@@ -109,9 +130,21 @@ export class LightSwitch {
     this.draw();
   }
 
-  /** True when the zone's lights are on. */
+  /** True when this plate is set to on. Says nothing about whether it has power. */
   get isClosed(): boolean {
     return this.closed;
+  }
+
+  /** True when power reaches this plate, so flipping it would do something. */
+  get isLive(): boolean {
+    return this.live;
+  }
+
+  /** Told by `PowerControl` whenever the circuit above this plate changes. */
+  setLive(live: boolean): void {
+    if (live === this.live) return;
+    this.live = live;
+    this.draw();
   }
 
   /**
@@ -136,6 +169,22 @@ export class LightSwitch {
    * frame 0 both ways, which reads as a plate that does not animate rather than as
    * a broken one.
    */
+  /**
+   * The clip for one state, built however the art happens to describe it.
+   *
+   * Prefers the tag, because a tag is an ordered range and says where the state
+   * starts. Falls back to whichever frames carry the state's cel label, which is
+   * what makes `NO_POWER` work in the shipped file — it is labelled on two frames
+   * and tagged on none — and means tagging it later is a no-op here.
+   */
+  private stateClip(state: string): string | undefined {
+    const scene = this.sprite?.scene;
+    if (!scene) return undefined;
+    const tagged = clipFrames(ART, state);
+    const frames = tagged.length > 0 ? tagged : [...framesLabelled(ART, state)].sort((a, b) => a - b);
+    return ensureEntityClip(scene, ART, `${entitySpriteKey(ART)}-${state}`, frames);
+  }
+
   private stateFrame(): number {
     const [labelled] = framesLabelled(ART, this.closed ? CLIP_ON : CLIP_OFF);
     if (labelled !== undefined) return labelled;
@@ -152,14 +201,9 @@ export class LightSwitch {
    */
   private draw(): void {
     if (this.sprite) {
-      const tag = this.closed ? CLIP_ON : CLIP_OFF;
-      const clip = ensureEntityClip(
-        this.sprite.scene,
-        ART,
-        `${entitySpriteKey(ART)}-${tag}`,
-        clipFrames(ART, tag),
-      );
-      // A file with tags animates; one with only labels, or one frame, holds still.
+      const state = !this.live ? CLIP_NO_POWER : this.closed ? CLIP_ON : CLIP_OFF;
+      const clip = this.stateClip(state);
+      // A file with frames for this state animates; one without holds still.
       if (clip) this.sprite.play(clip, true);
       else this.sprite.setFrame(this.stateFrame());
       return;
@@ -178,7 +222,10 @@ export class LightSwitch {
     g.fillRect(this.x - w / 2, this.y - h / 2, w, h);
     g.lineStyle(1, 0x424c6e, 1);
     g.strokeRect(this.x - w / 2, this.y - h / 2, w, h);
-    // The rocker: bright and high while the lights are on, dim and low while off.
+    // The rocker: bright and high while the lights are on, dim and low while off,
+    // and gone entirely with no power — a dead plate shows nothing, which is the
+    // same thing the art's `NO_POWER` frames say.
+    if (!this.live) return;
     g.fillStyle(this.closed ? 0xd3fc7e : 0x2a2f4e, 1);
     const rockerH = h * 0.34;
     const top = this.closed ? this.y - h * 0.38 : this.y + h * 0.04;

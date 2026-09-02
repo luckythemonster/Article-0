@@ -25,12 +25,30 @@
  * from the map and can never disagree with it about an untouched breaker.
  */
 export interface PowerGridState {
-  /** {@link circuitKey} -> whether the circuit is closed (powered). */
+  /**
+   * {@link circuitKey} -> whether the circuit is closed (powered).
+   *
+   * Strictly **the position of the control named by the key**: a breaker's lever at
+   * its wing, a wall switch's rocker at its zone. Not "is this zone lit" — a zone
+   * whose plate is on can still be dark because the wing above it is out, and
+   * telling those two apart is the whole of {@link hacked} and of the emergency
+   * lighting that hangs off it. See `src/scenes/game/PowerControl.ts`.
+   */
   circuits: Record<string, boolean>;
+  /**
+   * {@link circuitKey} -> zones a terminal hack cut, upstream of any plate.
+   *
+   * Separate from {@link circuits} because a hack has no fixture and therefore no
+   * lever to record a position for. Recording it as one would make a hacked room
+   * indistinguishable from a room somebody switched off by hand — and those two
+   * differ in what the player sees (a dead plate versus a lit `OFF` one) and in
+   * whether the emergency light comes up.
+   */
+  hacked: Record<string, true>;
 }
 
 export function initialPowerGrid(): PowerGridState {
-  return { circuits: {} };
+  return { circuits: {}, hacked: {} };
 }
 
 /**
@@ -74,10 +92,22 @@ export function circuitsForLevel(
 ): { target: string; closed: boolean }[] {
   const prefix = `${level}\u0000`;
   const out: { target: string; closed: boolean }[] = [];
-  for (const [key, closed] of Object.entries(state.circuits)) {
+  for (const [key, closed] of Object.entries(state.circuits ?? {})) {
     if (key.startsWith(prefix)) out.push({ target: key.slice(prefix.length), closed });
   }
   return out;
+}
+
+/** Whether a terminal hack has cut this circuit upstream of its plate. */
+export function isHacked(state: PowerGridState, level: string, target: string): boolean {
+  // `?? {}` because the state is read straight out of the Phaser registry, which can
+  // hold an object built before this field existed — see `GameScene.create`.
+  return (state.hacked ?? {})[circuitKey(level, target)] === true;
+}
+
+/** Records a hack. There is no un-hacking: nothing in the game restores one. */
+export function markHacked(state: PowerGridState, level: string, target: string): void {
+  (state.hacked ??= {})[circuitKey(level, target)] = true;
 }
 
 /** Records a throw. */

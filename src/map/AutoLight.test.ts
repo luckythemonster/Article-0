@@ -12,8 +12,13 @@ import {
   autoLight,
   isDerivedCircuit,
   LIGHT_SWITCH_BOARD,
+  emergencyRef,
+  EMERGENCY_BRIGHTNESS,
+  EMERGENCY_MULTIPLIER,
+  EMERGENCY_RADIUS_TILES,
   LIGHT_SWITCH_COMPONENT,
   SWITCH_TILES,
+  zoneOfEmergency,
   UNLIT_BOARD,
   ZONE_TILES,
 } from "./AutoLight";
@@ -52,7 +57,17 @@ const lightsOn = (l: GameLevel): GameTile[] =>
 const switchesOn = (l: GameLevel): GameTile[] =>
   l.layers.find((x) => x.name === LIGHT_SWITCH_BOARD)?.tiles ?? [];
 
-const derivedOn = (l: GameLevel): GameTile[] => lightsOn(l).filter((t) => isDerivedCircuit(t.ref));
+/** Every fixture this module added, overheads and emergency lamps alike. */
+const allDerivedOn = (l: GameLevel): GameTile[] =>
+  lightsOn(l).filter((t) => isDerivedCircuit(t.ref));
+
+/** The overheads only — one per lit zone, and what a zone's ref names. */
+const derivedOn = (l: GameLevel): GameTile[] =>
+  allDerivedOn(l).filter((t) => zoneOfEmergency(t.ref) === t.ref);
+
+/** The emergency lamps only — one per zone that got a plate to hang it on. */
+const emergencyOn = (l: GameLevel): GameTile[] =>
+  allDerivedOn(l).filter((t) => zoneOfEmergency(t.ref) !== t.ref);
 
 beforeAll(() => {
   const raw = JSON.parse(readFileSync("public/assets/edplay.json", "utf8")) as EdPlayFile;
@@ -176,6 +191,75 @@ describe("autoLight — staying out of an author's way", () => {
     autoLight(map);
     autoLight(map);
     expect(map.levels.map((l) => [lightsOn(l).length, switchesOn(l).length])).toEqual(before);
+  });
+});
+
+describe("autoLight — emergency lighting", () => {
+  it("hangs one lamp on every plate, and only on a plate", () => {
+    // The art puts the emergency lamp on the switch, so a zone with no wall to
+    // mount a plate has no fallback light — it can only be darkened by a breaker,
+    // and a breaker is supposed to mean darkness.
+    for (const l of map.levels) {
+      const plates = switchesOn(l).map((s) => lightSwitchStatsFor(s.components).target);
+      expect(emergencyOn(l).map((t) => zoneOfEmergency(t.ref)).sort()).toEqual(plates.sort());
+    }
+  });
+
+  it("puts the lamp exactly where the plate is", () => {
+    for (const l of map.levels) {
+      const at = new Map(switchesOn(l).map((s) => [lightSwitchStatsFor(s.components).target, s]));
+      for (const lamp of emergencyOn(l)) {
+        const plate = at.get(zoneOfEmergency(lamp.ref))!;
+        expect({ x: lamp.x, y: lamp.y }).toEqual({ x: plate.x, y: plate.y });
+      }
+    }
+  });
+
+  it("carries the art's own radius and a multiplier that beats full lighting", () => {
+    for (const lamp of emergencyOn(level("duct1"))) {
+      const s = lightStatsFor(lamp.components);
+      expect(s.radius).toBe(EMERGENCY_RADIUS_TILES);
+      expect(s.detectionMultiplier).toBe(EMERGENCY_MULTIPLIER);
+      // The reason the switch is worth walking into a room for.
+      expect(s.detectionMultiplier).toBeLessThan(1);
+    }
+  });
+
+  it("burns dim, and guttering, because neither is the other", () => {
+    // Brightness rather than a smaller radius: at full strength the lamp measured
+    // indistinguishable from the overhead it replaces, and shrinking it instead
+    // would stop it reaching the doorway. Flicker because the art's emergency
+    // frames are labelled `BLINK` and `FLASH`.
+    for (const lamp of emergencyOn(level("duct1"))) {
+      const s = lightStatsFor(lamp.components);
+      expect(s.brightness).toBe(EMERGENCY_BRIGHTNESS);
+      expect(s.brightness).toBeLessThan(1);
+      expect(s.type).toContain("flick");
+    }
+  });
+
+  it("leaves the overheads at full brightness and steady", () => {
+    for (const t of derivedOn(level("duct1"))) {
+      const s = lightStatsFor(t.components);
+      expect(s.brightness).toBe(1);
+      expect(s.type).not.toContain("flick");
+    }
+  });
+
+  it("is never filed into a wing — it is derived from its zone, not thrown on its own", () => {
+    for (const l of map.levels) {
+      const filed = new Set(Object.values(l.circuits ?? {}).flat());
+      for (const lamp of emergencyOn(l)) expect(filed.has(lamp.ref)).toBe(false);
+    }
+  });
+
+  it("round-trips its zone's name", () => {
+    for (const l of map.levels) {
+      for (const t of derivedOn(l)) expect(zoneOfEmergency(emergencyRef(t.ref))).toBe(t.ref);
+    }
+    // A ref that is not an emergency lamp comes back untouched, which is what lets
+    // `cutCircuits` map a mixed list without knowing which is which.
+    expect(zoneOfEmergency("light_overhead1")).toBe("light_overhead1");
   });
 });
 

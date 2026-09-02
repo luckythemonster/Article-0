@@ -132,20 +132,22 @@ half-tile each of the switch's pixels would be twice the size of the cabinet's b
 it, which reads as a scaled-up placeholder rather than a small object. See
 [The two rules](#the-two-rules).
 
-### Two things the file asks for that the engine does not yet do
+### Everything in the file is wired, including the parts nobody asked for
 
-Both are drawn, labelled, and currently unread — recorded here so they are decisions
-rather than oversights.
+Two labels in it were design statements the backlog had not thought to ask for, and
+both are now the mechanic:
 
-- **`light_source {radius=4}`** is on the `emergency_light` layer for frames 3-8,
-  which is exactly the `OFF` range. The art is saying that a switched-off room drops
-  to emergency lighting rather than going black. Today it goes black: nothing parses
-  that label, and `src/ui/Lighting.ts` only knows the fixtures on the `light_sources`
-  board.
-- **`NO_POWER`** labels frames 9-10 on `INDICATOR_LIGHT`, and those two frames are in
-  no tag at all. It is a third state — the circuit is dead upstream (a breaker thrown,
-  or a terminal hacked) as distinct from this switch being off — and `LightSwitch`
-  has only the two.
+- **`light_source {radius=4}`** on the `emergency_light` layer, frames 3-8 — exactly
+  the `OFF` range. `src/map/AutoLight.ts` hangs a real fixture on every plate at that
+  radius, and a switched-off room now falls back to it instead of going black.
+- **`NO_POWER`**, frames 9-10 on `INDICATOR_LIGHT`, in no tag at all. `LightSwitch`
+  plays it from the cel label when the circuit above the plate is dead, and the plate
+  stops offering `[E]` while it shows.
+
+The `BLINK` and `FLASH` labels are read too, in a roundabout way: the emergency
+fixture is authored `FLICKER`, so the lamp in the world gutters the way the plate
+does. If a future file tags `NO_POWER`, nothing here needs changing — the clip lookup
+prefers a tag and falls back to labels.
 
 ---
 

@@ -4,10 +4,13 @@ import {
   circuitKey,
   circuitsForLevel,
   initialPowerGrid,
+  isHacked,
+  markHacked,
   isCircuitClosed,
   keypadCode,
   keypadSeed,
   setCircuitClosed,
+  type PowerGridState,
 } from "./PowerGrid";
 
 describe("circuit state", () => {
@@ -109,5 +112,36 @@ describe("circuitsForLevel", () => {
     setCircuitClosed(state, "duct1", "duct1__z2_1", false);
     const [only] = circuitsForLevel(state, "duct1");
     expect(isCircuitClosed(state, "duct1", only.target, true)).toBe(only.closed);
+  });
+});
+
+describe("hacked — the bit a terminal sets", () => {
+  it("is separate from a lever position, because a hack has no lever", () => {
+    // The distinction the emergency lighting hangs off: a zone somebody *switched*
+    // off comes up on its emergency lamp and reads `OFF`; a zone a terminal cut has
+    // no power at all, so the lamp stays dark and the plate reads `NO_POWER`.
+    const state = initialPowerGrid();
+    markHacked(state, "duct1", "duct1__z0_0");
+    expect(isHacked(state, "duct1", "duct1__z0_0")).toBe(true);
+    expect(isCircuitClosed(state, "duct1", "duct1__z0_0", true)).toBe(true);
+  });
+
+  it("is level-scoped like everything else here", () => {
+    const state = initialPowerGrid();
+    markHacked(state, "duct1", "z");
+    expect(isHacked(state, "duct2", "z")).toBe(false);
+  });
+
+  it("is false for a circuit nobody hacked", () => {
+    expect(isHacked(initialPowerGrid(), "duct1", "z")).toBe(false);
+  });
+
+  it("survives a state built before the field existed", () => {
+    // The grid comes straight out of the Phaser registry, which can hold an object
+    // from an older shape — reading it must not throw, and writing must fill it in.
+    const legacy = { circuits: {} } as PowerGridState;
+    expect(isHacked(legacy, "duct1", "z")).toBe(false);
+    markHacked(legacy, "duct1", "z");
+    expect(isHacked(legacy, "duct1", "z")).toBe(true);
   });
 });

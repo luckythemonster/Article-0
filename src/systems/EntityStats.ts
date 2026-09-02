@@ -113,6 +113,19 @@ export const ENFORCER_DEFAULTS: EnforcerStats = {
 export interface LightStats {
   radius: number;
   detectionMultiplier: number;
+  /**
+   * How bright the pool is, 0-1. How *far* it reaches is {@link radius}, and the
+   * two are genuinely different questions — a fixture can light the same room and
+   * light it less.
+   *
+   * Added for emergency lighting, which needs to read as dim rather than as small:
+   * a lamp shrunk until it looked dim would stop reaching the doorway, and one left
+   * at full strength was measurably indistinguishable from the overhead it replaced
+   * (identical lit area, mean brightness 0.376 against 0.381). Only the *visible*
+   * half: how easily a guard sees you in a pool is {@link detectionMultiplier}'s
+   * job, and a lamp can be dim without being safe.
+   */
+  brightness: number;
   /** "static" | "flicker" | … (edplay LightType values). */
   type: string;
 }
@@ -120,6 +133,8 @@ export interface LightStats {
 export const LIGHT_DEFAULTS: LightStats = {
   radius: 3.5,
   detectionMultiplier: 1.6,
+  // Every fixture that came before this field, and every one that doesn't ask.
+  brightness: 1,
   type: "static",
 };
 
@@ -398,6 +413,7 @@ export function lightStatsFor(components: ComponentData[]): LightStats {
       "DetectionMultiplier",
       LIGHT_DEFAULTS.detectionMultiplier,
     ),
+    brightness: num(components, "light_source", "Brightness", LIGHT_DEFAULTS.brightness),
     type: str(components, "light_source", "type", LIGHT_DEFAULTS.type).toLowerCase(),
   };
 }
