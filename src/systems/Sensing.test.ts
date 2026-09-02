@@ -209,3 +209,64 @@ describe("canSense — benchmark", () => {
     expect(duration).toBeGreaterThan(0);
   });
 });
+
+describe("canSense — the beam", () => {
+  /** The eye is at the origin looking east; the beam range is 10 tiles of it. */
+  const lit = (over: Partial<SensingWorld> = {}): SensingWorld =>
+    world({ beamGiveawayPx: 10 * TILE, ...over });
+
+  it("betrays a player standing behind the guard", () => {
+    // The case the 1.8x multiplier never covered: `accrueDetection` is gated on
+    // this function, so a beam shone past somebody facing away used to cost
+    // nothing at all.
+    const behind = lit({ player: { x: -5 * TILE, y: 0 } });
+    expect(canSense(eye(), world({ player: { x: -5 * TILE, y: 0 } }))).toBe(false);
+    expect(canSense(eye(), behind)).toBe(true);
+  });
+
+  it("betrays a player beyond the guard's own sight range", () => {
+    // 8 tiles out, against a 6.5-tile eye. Light carries further than the thing
+    // holding it, which is the whole reason the range is its own number.
+    const far = { player: { x: 8 * TILE, y: 0 } };
+    expect(canSense(eye({ rangeTiles: 6.5 }), world(far))).toBe(false);
+    expect(canSense(eye({ rangeTiles: 6.5 }), lit(far))).toBe(true);
+  });
+
+  it("is not hidden by concealment — that is the point of the tradeoff", () => {
+    // A torch shining out of the crate you are crouched behind is not the problem
+    // concealment solves. Turning it off is meant to be the only counterplay.
+    expect(canSense(eye(), lit({ playerConcealed: true }))).toBe(true);
+    expect(canSense(eye(), world({ playerConcealed: true }))).toBe(false);
+  });
+
+  it("stops at its range", () => {
+    expect(canSense(eye({ rangeTiles: 1 }), lit({ player: { x: 11 * TILE, y: 0 } }))).toBe(false);
+    expect(canSense(eye({ rangeTiles: 1 }), lit({ player: { x: 9 * TILE, y: 0 } }))).toBe(true);
+  });
+
+  it("needs line of sight, like every other path", () => {
+    const blind = { grid: { hasLineOfSight: () => false } };
+    expect(canSense(eye(), lit({ ...blind, player: { x: -5 * TILE, y: 0 } }))).toBe(false);
+  });
+
+  it("does nothing while the beam is off", () => {
+    // Absent and zero both mean off, and every eye on a level nobody carries a
+    // torch on takes this path.
+    const behind = { player: { x: -5 * TILE, y: 0 } };
+    expect(canSense(eye(), world(behind))).toBe(false);
+    expect(canSense(eye(), world({ ...behind, beamGiveawayPx: 0 }))).toBe(false);
+  });
+
+  it("still loses to compliance, and to an EMP", () => {
+    // Both short-circuit above every path. A compliant Rowan holding a torch is
+    // staff doing their job, and a blinded guard is blinded.
+    expect(canSense(eye(), lit({ playerCompliant: true }))).toBe(false);
+    expect(
+      canSense(eye(), lit({ chaffZone: { x: 0, y: 0, radiusPx: 2 * TILE } })),
+    ).toBe(false);
+  });
+
+  it("does not cross between walk surfaces", () => {
+    expect(canSense(eye({ plane: 1 }), lit({ playerPlane: 0 }))).toBe(false);
+  });
+});

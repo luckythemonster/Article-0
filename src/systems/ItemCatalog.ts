@@ -25,6 +25,7 @@ import {
   CHAFF_PACK_ITEM,
   EIRA7_LOG_ITEM,
   FLASHLIGHT_DETECTION_MULTIPLIER,
+  FLASHLIGHT_GIVEAWAY_TILES,
   FLASHLIGHT_DRAIN_SECONDS,
   FLASHLIGHT_ITEM,
   OPENED_RATION_DETECTION_MULTIPLIER,
@@ -112,8 +113,11 @@ const CATALOG: Record<string, ItemInfo> = {
     blurb:
       "A way of seeing that is also a way of being seen. In the unlit levels there is no third option.",
     effect:
-      `Toggle with [L]. Drains over ${FLASHLIGHT_DRAIN_SECONDS}s of use; ` +
-      `the beam multiplies detection by ${FLASHLIGHT_DETECTION_MULTIPLIER}×.`,
+      `Toggle with [L]. Drains over ${FLASHLIGHT_DRAIN_SECONDS}s of use. ` +
+      `A lit beam is visible to anyone with line of sight within ` +
+      `${FLASHLIGHT_GIVEAWAY_TILES} tiles — whichever way they are facing, and ` +
+      `even from cover — and multiplies detection by ` +
+      `${FLASHLIGHT_DETECTION_MULTIPLIER}× once they have you.`,
   },
   [EIRA7_LOG_ITEM]: {
     name: EIRA7_LOG_ITEM,

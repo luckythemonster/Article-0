@@ -980,6 +980,22 @@ export const LOG_BETA_ITEM = "LOG_CACHE_BETA";
 export const FLASHLIGHT_DRAIN_SECONDS = 45;
 /** Detection-rate multiplier applied while the flashlight beam is emitting. */
 export const FLASHLIGHT_DETECTION_MULTIPLIER = 1.8;
+
+/**
+ * How far a lit flashlight beam betrays Rowan's position, in tiles.
+ *
+ * Larger than a guard's own {@link ENFORCER_DEFAULTS.sightRange} of 6.5 on purpose,
+ * and larger than the beam's own 5.5-tile reach: the point of a torch in the dark is
+ * that it is visible from much further away than the thing holding it, so the moment
+ * it betrays you is the moment you light up somebody you cannot make out yet.
+ *
+ * This is the half of the flashlight's cost that was missing.
+ * {@link FLASHLIGHT_DETECTION_MULTIPLIER} only ever applied *after* a guard could
+ * already see him — `accrueDetection` is gated on `canSense` — so it made a guard who
+ * had him fill faster and did nothing at all about the beam being a beacon. A light
+ * shone down a corridor at somebody facing away used to cost exactly nothing.
+ */
+export const FLASHLIGHT_GIVEAWAY_TILES = 10;
 /** Radius (tiles) of an EMP Grenade's burst, centred on the player. */
 export const CHAFF_EMP_RADIUS_TILES = 4;
 /** Seconds an EMP Grenade's burst disables electronics / blinds guards. */

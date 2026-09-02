@@ -84,6 +84,7 @@ import {
   isKeycard,
   SMAC_DEFAULTS,
   FLASHLIGHT_DETECTION_MULTIPLIER,
+  FLASHLIGHT_GIVEAWAY_TILES,
   GAME_SPEED,
   isConsumable,
   ENFORCER_FIRE_NOISE_TILES,
@@ -759,6 +760,7 @@ export class GameScene extends Phaser.Scene {
       rationOpened: () => this.activeItems.sackLunchOpened,
       pressed: () => this.player.pressed,
       flashlightMultiplier: FLASHLIGHT_DETECTION_MULTIPLIER,
+      beamGiveawayTiles: FLASHLIGHT_GIVEAWAY_TILES,
       rationMultiplier: OPENED_RATION_DETECTION_MULTIPLIER,
       pressMultiplier: WALL_PRESS_DETECTION_MULTIPLIER,
       coverTilesNear: (tx, ty, r) =>
