@@ -11,6 +11,10 @@ import {
   assertEntitySpriteSizes,
   entitySpriteScales,
 } from "../entities/EntitySprites";
+// The footprint the *map* writes onto a switch tile. Importing it here is the point:
+// it and the sprite spec's `displayTiles` are a hand-written pair, and this is what
+// stops them drifting.
+import { SWITCH_TILES } from "../map/AutoLight";
 
 describe("screenPixelsPerSourcePixel", () => {
   it("is the sprite scale times the camera zoom", () => {
@@ -153,6 +157,18 @@ describe("the hand-drawn entity sprites", () => {
       "trip-laser-east-west",
       "trip-laser-north-south",
     ]);
+  });
+
+  it("pins the wall switch at the house density, not merely a whole ratio", () => {
+    // `resamples nothing` above only proves the ratio is an integer, and the
+    // switch's half-tile alternative (ratio 4) satisfies that too — while making
+    // every one of its pixels twice the size of the breaker's beside it. Ratio 2
+    // is the distinction that actually matters here, so it is asserted outright.
+    const sw = entitySpriteScales().find((s) => s.id === "light-switch")!;
+    expect(sw.sourceWidth).toBe(8);
+    expect(sw.sourceHeight).toBe(8);
+    expect(sw.displayTiles).toEqual([SWITCH_TILES]);
+    expect(screenPixelsPerSourcePixel(SWITCH_TILES, sw.sourceWidth)).toBe(2);
   });
 
   it("agrees with the build tool about every frame size", () => {
