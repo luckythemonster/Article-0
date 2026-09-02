@@ -164,9 +164,12 @@ genuinely black rather than dimmed, and walls cut your view — a lit room on th
 of a wall, and a guard patrolling around the corner, are both invisible until you have
 sight of them. Rowan carries a small pool of his own (dark-adapted eyes rather than a
 lamp; it costs nothing in visibility), so you can always feel your way along a wall.
-Seeing further is what the **flashlight** (**L**) is for. It drains in about 45 seconds of
-continuous use and gives you away badly while lit (1.8× detection), so spend it in bursts —
-a **Battery** from a chest refills it.
+Seeing further is what the **flashlight** (**L**) is for, and it is a genuine bargain
+rather than a free upgrade. **A lit beam is visible to anyone with line of sight within 10
+tiles** — further than a guard can see you, whichever way they happen to be facing, and
+crouching in cover does not hide it. Once they have you it fills their meter 1.8× faster
+too. It drains in about 45 seconds of continuous use, so spend it in bursts, kill it
+before you break line of sight, and let a **Battery** from a chest refill it.
 
 **Light is a circuit, and you can cut it three ways — but they are not the same cut.** Every
 deck is wired in zones, one lamp's worth of room, grouped into four wings. A **wall switch**
