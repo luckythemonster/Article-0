@@ -246,7 +246,7 @@ export const LEXICON_ENTRIES: readonly LexiconEntry[] = [
       "unlocks nothing: the door is exactly as shut as it was, and what changes is that the " +
       "door now agrees you are the sort of person it opens for. Every locked thing here is " +
       "locked against a category, and a category is easier to become than a lock is to break.",
-    seeAlso: ["compliance", "orderly"],
+    seeAlso: ["compliance", "orderly", "restricted-area"],
     requires: { journal: ["keys"] },
   },
   {
@@ -334,6 +334,20 @@ export const LEXICON_ENTRIES: readonly LexiconEntry[] = [
       "The transmitter on main deck 2, and the run's extraction point. Reaching it holding the logs " +
       "ends the night the only way it can end well.",
     seeAlso: ["lattice"],
+  },
+  {
+    id: "restricted-area",
+    term: "restricted area",
+    category: "PLACES",
+    body:
+      "Ground the roster does not admit staff to: a terminal, a rack, a vault. No line painted on " +
+      "the floor and no sign on the wall, because the building is not warning anyone — it is only " +
+      "declining to recognise them. Conduct is assessed here exactly as it is assessed in the " +
+      "corridor, and comes out differently for no reason a man could correct by walking more " +
+      "slowly. Nor does the card admit you. It admits the category, and you happen to be standing " +
+      "inside it.",
+    seeAlso: ["keycard", "compliance"],
+    requires: { journal: ["keys"] },
   },
   {
     id: "vent-core",

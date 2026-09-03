@@ -279,4 +279,34 @@ describe("statusMarkerFor", () => {
     expect(statusMarkerFor(standing, false, true)?.color).toBe(UI.blueSoft);
     expect(statusMarkerFor({ ...standing, pressed: true }, false, false)?.color).toBe(UI.amber);
   });
+
+  it("says RESTRICTED where it would have said COMPLIANT, in caution amber", () => {
+    // Nothing is drawn on the ground, so this label is the only thing telling a player
+    // who wandered into a server aisle that the room is why he stopped being cleared.
+    const marker = statusMarkerFor(standing, false, false, true);
+    expect(marker).toEqual({ label: "RESTRICTED", color: UI.amber });
+  });
+
+  it("still ranks concealment and the movement verbs above it", () => {
+    // Crouched into a rack row inside a restricted area, HIDDEN is the more useful
+    // read: it is what is actually protecting him, and it survives what this does not.
+    expect(statusMarkerFor(standing, true, false, true)?.label).toBe("HIDDEN");
+    expect(statusMarkerFor({ ...standing, peeking: true }, false, false, true)?.label).toBe(
+      "PEEKING",
+    );
+    expect(statusMarkerFor({ ...standing, pressed: true }, false, false, true)?.label).toBe(
+      "PRESSED",
+    );
+  });
+
+  it("never competes with COMPLIANT, because trespass is what removed it", () => {
+    // Defensive only: the scene resolves `restricted` from the breach, so the two
+    // cannot both be true. If a refactor ever makes them, compliance is the safer read
+    // to show — claiming a player is exposed when he is not would be the worse lie.
+    expect(statusMarkerFor(standing, false, true, true)?.label).toBe("COMPLIANT");
+  });
+
+  it("defaults to off, so callers that don't know about it are unchanged", () => {
+    expect(statusMarkerFor(standing, false, false)).toBeUndefined();
+  });
 });

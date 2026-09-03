@@ -501,6 +501,50 @@ Three things to know before you rely on it:
 `ZONE_TILES` and `DERIVED_RADIUS_TILES` are the two numbers that decide how this
 feels. They live at the top of `src/map/AutoLight.ts`.
 
+### 3.6 Restricted areas you don't have to place
+
+Same bargain as the lighting, one section up. Ground Rowan is not admitted to without a
+numbered keycard is derived at boot by `src/map/AutoClearance.ts`, from what the level
+already says about itself — so a map gets restricted areas without annotating anything,
+and an author who wants to place them is overriding rather than obliged.
+
+Standing on restricted ground you have no card for is a `TRESPASS` conduct breach: every
+sensor stops clearing you on sight, and the usual stealth rules resume. It does not stop
+you walking in and it trips no alarm. See
+[Design notes](DESIGN_NOTES.md#restricted-areas-are-the-third-thing-and-place-is-what-they-add).
+
+**To declare them yourself:** add a `restricted_areas` board, and give its tiles a
+`restricted` component with a `clearance`. Each tile marks the ground under its own
+footprint, so an area is a stencil of tiles rather than a rectangle. `Keycard N` answers
+clearance `N`, exactly as it answers a door keyed `N` — the number is the same number.
+
+**Two things to know before you do:**
+
+1. **Declaring any suppresses derivation on that level entirely.** Not a merge. An author
+   who marks one room must not also get an apron around every terminal they didn't mark,
+   or the board becomes an addition to something invisible that they can't unmark.
+2. **A tile with no `clearance` restricts nothing.** Blank reads as `0` and `0` is open
+   ground, so an area has to name a clearance to exist. (This is the one component where
+   `num()`'s "a 0 is unset" rule costs nothing — both mean the same thing here.)
+
+**What gets derived when you don't:**
+
+| Source | Shape | Clearance |
+| --- | --- | --- |
+| A door that names a clearance | the space sealed behind it, flood-filled | the door's own `key` |
+| A `terminal` or `silicate` tile | a fill bounded to `POSTED_RADIUS_TILES` steps from it | `POSTED_CLEARANCE` |
+
+The derivation fails **closed** at every step, which is what stops it restricting ground
+it can't justify: a sealed region under `MIN_SEALED_TILES` is dropped (this is what
+discards a lift car — five of the shipped map's six locked doors are elevator doors), one
+over `MAX_SEALED_FRACTION` of the deck is dropped as a leaked fill, and a door whose two
+sides reach the same region is skipped because it separates nothing.
+
+**A locked door needs a matching keycard somewhere in the map, and now so does an area.**
+`src/map/ClearanceCards.ts` grafts one obtainable card into `secret1`'s chest for the
+shipped map. A map that derives areas at a clearance nothing hands out has sealed them
+against everything the player can find.
+
 ## 4. Component fields — read vs ignored
 
 ### Naming: the loader normalises, within limits
@@ -557,6 +601,7 @@ Fields in the ignored column are authored (and sometimes even parsed) but never 
 | `vertical` | presence (→ a way out, on a `verticals` board) | `direction`, `material` |
 | `power_grid` | `Target`, `state` | — |
 | `light_switch` | `Target`, `state` | — |
+| `restricted` | `clearance` | — |
 | `hatch`, `audio_hazard` | **nothing** | every field |
 
 **`Armed` does not behave like the other `enforcer` fields, in two ways.** It is a

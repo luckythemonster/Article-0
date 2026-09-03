@@ -33,6 +33,13 @@ export type ConductBreach =
   | "EVASION"
   | "RUNNING"
   | "SNEAKING"
+  /**
+   * Standing on ground staff clearance does not admit him — see
+   * {@link ../systems/Clearance}. The one breach that is about *place* rather than
+   * behaviour, and so the one no amount of walking normally answers: a numbered
+   * keycard does, and nothing else.
+   */
+  | "TRESPASS"
   /** Working a terminal or a silicate rack. */
   | "UNAUTHORIZED"
   /** Searching a container, rapping on walls. */
@@ -56,6 +63,22 @@ export interface ConductInput {
    * the way to the uplink. It buys nothing during an active ALERT.
    */
   certified: boolean;
+  /**
+   * Standing on restricted ground without the clearance that answers it.
+   *
+   * Resolved by the caller from `src/systems/Clearance.ts` and the inventory, so this
+   * module stays headless and knows nothing about tilemaps or items — the same split
+   * that keeps `certified` a boolean rather than an inventory search.
+   *
+   * A *continuous* condition rather than a discrete {@link ConductState.violate}, and
+   * the distinction is load-bearing twice over. It is a state Rowan is in rather than
+   * an act he committed, so it should hold the flag while he is in there and cost him
+   * the usual beat of honest walking on the way out. And `violate` counts sabotage
+   * acts, which drive EIRA-7's codec branch: standing somewhere is not sabotage, and
+   * counting it would make her read a player who walked through a server aisle as one
+   * who had been pulling the place apart.
+   */
+  trespassing?: boolean;
   /**
    * Tiles walked since the last sample. Accrues into
    * {@link ConductState.complianceDistanceWalked} only while compliant, which is what
@@ -199,7 +222,20 @@ export class ConductState {
 
     // Continuous conditions hold the timer at its floor for as long as they last, so
     // ending one still costs a beat of honest walking.
-    this.live = alertBreach ?? (input.running ? "RUNNING" : input.sneaking ? "SNEAKING" : null);
+    //
+    // Trespass ranks under the alert breaches and over the movement ones. Under,
+    // because a live pursuit is what is happening now and no room explains it. Over,
+    // because it is the more useful of the two to show: a sprint is a choice the player
+    // can stop where they stand, and the wrong room is one they have to leave.
+    this.live =
+      alertBreach ??
+      (input.trespassing
+        ? "TRESPASS"
+        : input.running
+          ? "RUNNING"
+          : input.sneaking
+            ? "SNEAKING"
+            : null);
 
     if (this.live) {
       this.flagged = Math.max(this.flagged, SETTLE_SECONDS);
@@ -249,6 +285,19 @@ export interface ConductView {
   flaggedRemaining: number;
   /** Carrying the Q0 cert — surfaced so the HUD can show the credential doing work. */
   certified: boolean;
+  /**
+   * The clearance the ground under Rowan demands, or 0 on open floor.
+   *
+   * Published alongside {@link ConductView.cleared} rather than folded into one flag,
+   * because the HUD needs to tell three states apart and a boolean only carries two:
+   * not restricted at all, restricted and trespassing, and restricted with the card
+   * answering it. The third is the one that teaches the boundary — a player holding
+   * the right keycard would otherwise cross into a restricted area and see nothing
+   * change, and never learn the areas exist.
+   */
+  restricted: number;
+  /** Whether Rowan's inventory answers {@link ConductView.restricted}. */
+  cleared: boolean;
   /** Distinct sabotage acts this run — drives EIRA-7's codec branch. */
   sabotageActions: number;
   /** Tiles walked while reading as staff. */

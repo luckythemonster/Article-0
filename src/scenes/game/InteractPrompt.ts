@@ -168,11 +168,17 @@ export function promptLabelFor(c: PromptCandidates): string | undefined {
  * Concealed reads as the Shared Field's green, passing-as-staff as the soft
  * blue, and anything else as amber — the caution the style guide reserves for
  * flagged conduct.
+ *
+ * `restricted` is the ground Rowan is standing on refusing him, and it takes the
+ * slot `COMPLIANT` would have. The two can never both be true — trespass is what
+ * removed the compliance — so this is one state reported two ways round rather
+ * than a fifth label competing for the space.
  */
 export function statusMarkerFor(
   anchor: PromptAnchor,
   concealed: boolean,
   compliant: boolean,
+  restricted = false,
 ): { label: string; color: string } | undefined {
   const label = concealed
     ? "HIDDEN"
@@ -182,7 +188,9 @@ export function statusMarkerFor(
         ? "PRESSED"
         : compliant
           ? "COMPLIANT"
-          : null;
+          : restricted
+            ? "RESTRICTED"
+            : null;
   if (!label) return undefined;
   return {
     label,
@@ -274,9 +282,18 @@ export class InteractPrompt {
    * tell: concealment darkens the threat meter, compliance is why nobody reacts, and
    * a peek visibly opens the darkness — but a man flat against a wall looks like a
    * man standing next to one.
+   *
+   * "RESTRICTED" earns one for the same reason and more sharply: nothing is drawn on
+   * the ground, so a player who wanders into a server aisle has no way at all to know
+   * the room is why every sensor just stopped clearing him.
    */
-  showStatus(anchor: PromptAnchor, concealed: boolean, compliant: boolean): void {
-    const marker = statusMarkerFor(anchor, concealed, compliant);
+  showStatus(
+    anchor: PromptAnchor,
+    concealed: boolean,
+    compliant: boolean,
+    restricted = false,
+  ): void {
+    const marker = statusMarkerFor(anchor, concealed, compliant, restricted);
     if (!marker) {
       this.status.setVisible(false);
       return;

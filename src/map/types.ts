@@ -1,3 +1,5 @@
+import type { ClearanceMap } from "../systems/Clearance";
+
 // ---------------------------------------------------------------------------
 // edplay.json schema
 //
@@ -326,6 +328,21 @@ export interface GameLevel {
    * that isn't a wing is simply its own circuit.
    */
   circuits?: Record<string, string[]>;
+  /**
+   * Ground Rowan is not admitted to without a numbered keycard: the clearance
+   * each tile demands, row-major, `0` for open.
+   *
+   * Written by `src/map/AutoClearance.ts` at boot — declared by the map on a
+   * `restricted_areas` board where it has one, and otherwise derived from what
+   * the level already says about itself (what its locked doors seal, and the
+   * ground around its terminals and silicate racks). Read through
+   * `src/systems/Clearance.ts`, never indexed directly.
+   *
+   * Optional for the same reason `circuits` is: a level nobody derived areas
+   * for has no restricted ground, and `clearanceAt` answers `undefined` as
+   * open rather than making every caller check.
+   */
+  restricted?: ClearanceMap;
 }
 
 export interface GameMap {

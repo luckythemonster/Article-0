@@ -942,7 +942,12 @@ function activeRemaining(name: string, active: ActiveItemsView): number {
 
 function conductLabel(conduct?: ConductView): string {
   if (!conduct) return "—";
-  if (conduct.compliant) return conduct.certified ? "OK · CERTIFIED" : "OK";
+  // Same ranking as the HUD's conduct line: the keycard clearing the ground he is on
+  // outranks the standing cert, because it is the credential doing work right here.
+  if (conduct.compliant) {
+    if (conduct.restricted > 0 && conduct.cleared) return "OK · CLEARED";
+    return conduct.certified ? "OK · CERTIFIED" : "OK";
+  }
   return conduct.breach ?? "FLAGGED";
 }
 
