@@ -158,7 +158,7 @@ below) modulate sweep speed, steam, and thermal behaviour on the boss side.
 
 #### `CONSUMABLE_ORDER` — const
 
-`src/systems/EntityStats.ts:1402`
+`src/systems/EntityStats.ts:1431`
 
 The consumables selectable through the item cursor, in canonical display
 order. Held consumables fill the list dynamically (unheld names are
@@ -984,7 +984,7 @@ Snapshot published to the registry for the HUD and the codec.
 
 #### `ConsumableSlot` — interface
 
-`src/systems/EntityStats.ts:1449`
+`src/systems/EntityStats.ts:1478`
 
 One held, distinct consumable type, with its position in the display list.
 
@@ -1800,7 +1800,7 @@ Unit ray directions, split into parallel arrays so casting allocates nothing.
 
 #### `RelayStats` — interface
 
-`src/systems/EntityStats.ts:1677`
+`src/systems/EntityStats.ts:1706`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1997,7 +1997,7 @@ Serializable mid-fight state, so re-entering the level doesn't restart the boss.
 
 #### `SmacStats` — interface
 
-`src/systems/EntityStats.ts:1605`
+`src/systems/EntityStats.ts:1634`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2194,7 +2194,7 @@ Serializable fight progress — kept in the registry across level swaps.
 
 #### `Vent4Stats` — interface
 
-`src/systems/EntityStats.ts:1481`
+`src/systems/EntityStats.ts:1510`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -5070,7 +5070,7 @@ each frame.
 
 #### `ItemActions` — class
 
-`src/scenes/game/ItemActions.ts:102`
+`src/scenes/game/ItemActions.ts:103`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -5079,7 +5079,7 @@ each frame.
 | `reset` | `reset(): void` | Zeroes the cooldown for a fresh run. |
 | `tickCooldowns` | `tickCooldowns(dt: number): void` | Runs down the stapler's cooldown. |
 | `update` | `update(dt: number): void` | Serves the HUD's item-use request, advances the active-item timers, and republishes what the HUD reads back. |
-| `takedown` | `takedown(): boolean` | Rowan's bare-handed takedown — the unarmed half of the `[Q]` verb. **[Q] is one verb with two halves, and which one you get is decided by what you are carrying**, not by a second key: holding a weapon it is the hold-up, empty- handed it is this. See `PLAYER_MELEE_REACH_TILES` for why they read as the same idea. The practical argument for it is that the hold-up needs a weapon Rowan may never find, and a stealth game whose only close-quarters answer is one the player cannot reach has no close-quarters answer at all. Aimed rather than sprayed, so it borrows `HOLD_UP_ARC_DEGREES` (90°) rather than the weapons' 120°: with two orderlies abreast, which one goes down should be a choice you made. Unlike the dart it breaks no cover — a forearm is not a projectile — and unlike the hold-up it is not silent, because a scuffle is not a whisper. Returns false when nothing was in front of him, so the caller can leave the press unspent rather than burning the cooldown on air. |
+| `takedown` | `takedown(): boolean` | Rowan's bare-handed takedown — the unarmed half of the `[Q]` verb. **[Q] is one verb with two halves, and which one you get is decided by what you are carrying**, not by a second key: holding a weapon it is the hold-up, empty- handed it is this. See `PLAYER_MELEE_REACH_TILES` for why they read as the same idea. The practical argument for it is that the hold-up needs a weapon Rowan may never find, and a stealth game whose only close-quarters answer is one the player cannot reach has no close-quarters answer at all. Aimed rather than sprayed, so it borrows `HOLD_UP_ARC_DEGREES` (90°) rather than the weapons' 120°: with two orderlies abreast, which one goes down should be a choice you made. Unlike the dart it breaks no cover — a forearm is not a projectile — and unlike the hold-up it is not silent, because a scuffle is not a whisper. **It is the weaker of the two put-downs, and has to be**, because it is the free one: `PLAYER_MELEE_DOWN_DURATION` is under the dart's, the recovery between attempts is longer, and the noise reaches further than it used to. See those constants for what each was worth before. Returns false when nothing was in front of him, so the caller can leave the press unspent rather than burning the cooldown on air. |
 | `nearestPerson` | `nearestPerson(reachPx: number, arcCos: number): Orderly \| Enforcer \| undefined` | The one person a takedown or a dart would land on, or undefined for empty air. Side-effect free, so the `[Q]` prompt can ask the same question the verb will ask without putting anybody on the floor to find out. Offering a verb the press would then decline is the failure mode this exists to avoid. |
 | `takedownCandidate` | `takedownCandidate(): Orderly \| Enforcer \| undefined` | The person a bare-handed `[Q]` would take down right now, if any. |
 | `staplerFieldCharges` | `staplerFieldCharges(): number` | Field-mode shots left this run — see `STAPLER_FIELD_MAX_CHARGES`. |
@@ -5633,7 +5633,7 @@ Getters for everything `create()` rebinds per level.
 
 #### `ItemWorld` — interface
 
-`src/scenes/game/ItemActions.ts:76`
+`src/scenes/game/ItemActions.ts:77`
 
 Getters for everything `create()` rebinds per level.
 
@@ -5972,7 +5972,7 @@ type OverlayId = "pause" | "codec" | "compliance" | "qualia" | "elevator";
 
 #### `Target` — type *(module-private)*
 
-`src/scenes/game/ItemActions.ts:474`
+`src/scenes/game/ItemActions.ts:486`
 
 ```ts
 type Target = | { x: number; y: number; kind: "cover"; cover: Cover } | { x: number; y: number; kind: "orderly"; orderly: Orderly };
@@ -7356,8 +7356,8 @@ GameScene.
 | [ConductState](#class-conductstate) | class | `src/systems/Conduct.ts:112` |
 | [ConductView](#interface-conductview) | interface | `src/systems/Conduct.ts:246` |
 | [ConeStyle](#interface-conestyle) | interface | `src/ui/VisionCone.ts:35` |
-| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:1402` |
-| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:1449` |
+| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:1431` |
+| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:1478` |
 | [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:20` |
 | [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:42` |
 | [CountKind](#type-countkind) | type | `src/ui/NetworkPanel.ts:29` |
@@ -7456,9 +7456,9 @@ GameScene.
 | [InteractPrompt](#class-interactprompt) | class | `src/scenes/game/InteractPrompt.ts:193` |
 | [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:24` |
 | [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:183` |
-| [ItemActions](#class-itemactions) | class | `src/scenes/game/ItemActions.ts:102` |
+| [ItemActions](#class-itemactions) | class | `src/scenes/game/ItemActions.ts:103` |
 | [ItemInfo](#interface-iteminfo) | interface | `src/systems/ItemCatalog.ts:52` |
-| [ItemWorld](#interface-itemworld) | interface | `src/scenes/game/ItemActions.ts:76` |
+| [ItemWorld](#interface-itemworld) | interface | `src/scenes/game/ItemActions.ts:77` |
 | [JournalEntry](#interface-journalentry) | interface | `src/systems/Journal.ts:49` |
 | [JournalEntryId](#type-journalentryid) | type | `src/systems/Journal.ts:23` |
 | [JournalState](#interface-journalstate) | interface | `src/systems/Journal.ts:477` |
@@ -7576,7 +7576,7 @@ GameScene.
 | [RelayMsg](#interface-relaymsg) | interface | `src/systems/RelayCore.ts:46` |
 | [RelaySnapshot](#interface-relaysnapshot) | interface | `src/systems/RelayCore.ts:40` |
 | [RelayState](#enum-relaystate) | enum | `src/systems/RelayCore.ts:18` |
-| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:1677` |
+| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:1706` |
 | [RelayTickResult](#interface-relaytickresult) | interface | `src/entities/RoofRelay.ts:61` |
 | [RelayTransition](#interface-relaytransition) | interface | `src/systems/RelayCore.ts:35` |
 | [RelayView](#interface-relayview) | interface | `src/systems/RelayCore.ts:55` |
@@ -7613,7 +7613,7 @@ GameScene.
 | [SmacMsg](#interface-smacmsg) | interface | `src/systems/SmacCore.ts:72` |
 | [SmacSnapshot](#interface-smacsnapshot) | interface | `src/systems/SmacCore.ts:63` |
 | [SmacState](#enum-smacstate) | enum | `src/systems/SmacCore.ts:38` |
-| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:1605` |
+| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:1634` |
 | [SmacTickResult](#interface-smactickresult) | interface | `src/entities/BossCore.ts:56` |
 | [SmacTransition](#interface-smactransition) | interface | `src/systems/SmacCore.ts:57` |
 | [SmacView](#interface-smacview) | interface | `src/systems/SmacCore.ts:94` |
@@ -7629,7 +7629,7 @@ GameScene.
 | [SurrenderResult](#interface-surrenderresult) | interface | `src/systems/Surrender.ts:61` |
 | [SurrenderWorld](#interface-surrenderworld) | interface | `src/systems/Surrender.ts:33` |
 | [SynthVoice](#type-synthvoice) | type | `src/systems/SamSpeech.ts:32` |
-| [Target](#type-target) | type | `src/scenes/game/ItemActions.ts:474` |
+| [Target](#type-target) | type | `src/scenes/game/ItemActions.ts:486` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:43` |
 | [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:614` |
 | [TerminalHacks](#class-terminalhacks) | class | `src/scenes/game/TerminalHacks.ts:80` |
@@ -7671,7 +7671,7 @@ GameScene.
 | [Vent4PhysicsSystem](#class-vent4physicssystem) | class | `src/systems/Vent4PhysicsSystem.ts:63` |
 | [Vent4Snapshot](#interface-vent4snapshot) | interface | `src/systems/Vent4Core.ts:34` |
 | [Vent4State](#enum-vent4state) | enum | `src/systems/Vent4Core.ts:17` |
-| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:1481` |
+| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:1510` |
 | [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:67` |
 | [Vent4Transition](#interface-vent4transition) | interface | `src/systems/Vent4Core.ts:28` |
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |

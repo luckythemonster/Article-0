@@ -499,9 +499,9 @@ Deliberately preserved. Do not "finish the job" by removing these:
 
 Holding a weapon, `[Q]` is the hold-up. Empty-handed, it is a bare-handed takedown at
 `PLAYER_MELEE_REACH_TILES` (1.1) — it puts an orderly or a *human* guard on the floor for
-`STUN_ROUND_DURATION`, exactly as a dart does, and leaves silicates alone for the same
-reason the dart does (there is nothing in a sentry for a chemical to act on, and a man
-does not wrestle one either — the EMP stays their answer).
+`PLAYER_MELEE_DOWN_DURATION`, and leaves silicates alone for the same reason the dart does
+(there is nothing in a sentry for a chemical to act on, and a man does not wrestle one
+either — the EMP stays their answer).
 
 Overloading the key rather than spending a new one is what keeps the two readable as the
 same idea: closing on a person instead of firing at one. The practical argument is
@@ -509,9 +509,20 @@ stronger, though — **the hold-up needs a weapon Rowan may never find**, and a 
 whose only close-quarters answer is one the player cannot reach has no close-quarters
 answer at all. It borrows the hold-up's narrower 90° arc rather than the weapons' 120°,
 because it is aimed rather than sprayed. It breaks no cover (a forearm is not a
-projectile) and it is not silent (`PLAYER_MELEE_NOISE_TILES` 1, between the hold-up's
+projectile) and it is not silent (`PLAYER_MELEE_NOISE_TILES` 1.5, between the hold-up's
 documented silence and the dart's 2), which keeps the three ways off the board ordered by
 what they cost to use.
+
+**It is deliberately the weakest of the three, because it is the free one.** The takedown
+costs no item, needs no weapon, and never runs out, so every number it owns is held under
+the dart's: the body stays down 5s rather than 8 (`PLAYER_MELEE_DOWN_DURATION` against
+`STUN_ROUND_DURATION`), the recovery between attempts is 1.6s, and the scuffle carries 1.5
+tiles rather than 1. All three were softer than that, and together they made the unarmed
+verb the answer to every room: it matched the consumable's result exactly, recovered faster
+than Rowan could walk between two people standing a room apart, and was quiet enough that
+the deck effectively never heard the thing the player did most. What the numbers must not
+do is take the verb away — the down window still has to clear `LOCKER_STASH_TIME` plus the
+walk-in and the `[E]`, or a takedown produces a body there is no time to do anything with.
 
 ### Keycards are numbered, and the number is the whole item
 

@@ -32,9 +32,12 @@ import {
   HOLD_UP_REACH_TILES,
   HOLD_UP_RELEASE_ARC_DEGREES,
   HOLD_UP_RELEASE_TILES,
+  LOCKER_STASH_TIME,
   MAX_CONSUMABLES,
   paced,
   PLAYER_DEFAULTS,
+  PLAYER_MELEE_COOLDOWN,
+  PLAYER_MELEE_DOWN_DURATION,
   PLAYER_MELEE_NOISE_TILES,
   PLAYER_MELEE_REACH_TILES,
   PLAYER_WALK_TILES,
@@ -46,6 +49,7 @@ import {
   STAPLER_FIELD_RANGE_TILES,
   STAPLER_PIN_DURATION,
   STUN_ROUND_DURATION,
+  STUN_ROUND_NOISE_TILES,
   STUN_ROUND_REACH_TILES,
   STUN_ROUNDS_ITEM,
   THERMAL_GEL_ITEM,
@@ -309,12 +313,39 @@ describe("Rowan's takedown — balance against the two things it sits between", 
     // The three ways off the board stay ordered by what they cost to use. The hold-up
     // has no noise constant at all, and that absence is documented as the mechanic.
     expect(PLAYER_MELEE_NOISE_TILES).toBeGreaterThan(0);
-    expect(PLAYER_MELEE_NOISE_TILES).toBeLessThan(2);
+    expect(PLAYER_MELEE_NOISE_TILES).toBeLessThan(STUN_ROUND_NOISE_TILES);
+  });
+
+  it("carries about as far as a guard's own strike", () => {
+    // Two people going to the floor together is the same event either way round, so
+    // the player's scuffle should not be quieter than the one done to him.
+    expect(PLAYER_MELEE_NOISE_TILES).toBe(GUARD_MELEE_NOISE_TILES);
   });
 
   it("reaches less far than an orderly can see", () => {
     // Closing to arm's length means standing well inside his eyeline to do it.
     expect(PLAYER_MELEE_REACH_TILES).toBeLessThan(5);
+  });
+
+  it("buys less time than the dart it stands in for", () => {
+    // The free, unlimited verb must not match the scarce consumable's result, or the
+    // dart is worth firing only for its reach and the takedown answers every room.
+    expect(PLAYER_MELEE_DOWN_DURATION).toBeLessThan(STUN_ROUND_DURATION);
+  });
+
+  it("still leaves time to commit to the body it put down", () => {
+    // Past the lift the window stops mattering — a carried body rides regardless — so
+    // what this has to clear is the stash hold plus a moment to close and press [E].
+    expect(PLAYER_MELEE_DOWN_DURATION).toBeGreaterThan(LOCKER_STASH_TIME);
+  });
+
+  it("recovers slower than Rowan can cross the room to the next man", () => {
+    // A pair should be a harder problem than a man alone. While the recovery was
+    // shorter than the walk between two people a room apart (3 tiles, the hold-up's
+    // reach), the second takedown was a follow-up to the same press rather than a
+    // decision made standing over the first body.
+    const walkAcross = HOLD_UP_REACH_TILES / PLAYER_WALK_TILES;
+    expect(PLAYER_MELEE_COOLDOWN).toBeGreaterThan(walkAcross);
   });
 });
 

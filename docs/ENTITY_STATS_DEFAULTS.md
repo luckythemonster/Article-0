@@ -97,6 +97,18 @@ run him down, which he should never do.
 one prod can never on its own hold Rowan inside the window that ends the run — you have to
 eat two. Inverting either turns a single connection into a coin-flip death.
 
+**The takedown against the dart it stands in for.** `PLAYER_MELEE_DOWN_DURATION` (5) is
+held *under* `STUN_ROUND_DURATION` (8) and *over* `LOCKER_STASH_TIME` (3). The takedown is
+free, unlimited and needs no weapon Rowan may never find, so it must not buy as much time
+as the consumable that does the same job from five tiles away — while it was the dart's own
+8s, a dart was worth firing only for its reach. The floor matters as much as the ceiling:
+the window has to leave time to close on the body and tap `[E]`, because past the lift a
+carried body rides regardless of its timer. `PLAYER_MELEE_COOLDOWN` (1.6) is likewise held
+above the walk between two people a room apart (`HOLD_UP_REACH_TILES` 3 ÷ `PLAYER_WALK_TILES`
+3.2 ≈ 0.94s), so a pair is a harder problem than a man alone, and
+`PLAYER_MELEE_NOISE_TILES` (1.5) sits level with `GUARD_MELEE_NOISE_TILES` — the same event
+seen from either side — and still under the dart's 2.
+
 **Firearms against the alert clock.** `FIREARMS_AUTHORIZATION_DELAY` (6) must stay under
 `AlertState`'s own `ALERT_DURATION` (8) or weapons could never be released at all, and
 above 0 or they are released instantly. See

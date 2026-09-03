@@ -1168,18 +1168,47 @@ export const WEAPON_ARC_DEGREES = 120;
  */
 export const PLAYER_MELEE_REACH_TILES = 1.1;
 
-/** Seconds between takedown attempts — a scuffle Rowan has to recover from. */
-export const PLAYER_MELEE_COOLDOWN = 0.9;
+/**
+ * Seconds a bare-handed takedown keeps a body on the floor.
+ *
+ * **Deliberately under {@link STUN_ROUND_DURATION} (8).** It used to be exactly the
+ * dart's number, which made the free, unlimited, never-runs-out verb buy precisely as
+ * much time as the scarce consumable it is supposed to be the fallback for — so the
+ * dart was only ever worth firing for its five tiles of reach, and the takedown was
+ * the answer to every room whether or not Rowan had found anything. A chemical keeps
+ * a man under; a forearm buys you the length of a corridor.
+ *
+ * What it has to stay above is the reaction and the lift: {@link LOCKER_STASH_TIME}
+ * (3) plus a moment to close and tap `[E]`. Past the lift the window stops mattering —
+ * a carried body rides regardless of its timer — so this is the clock on *committing*
+ * to a body, which is the decision the verb should cost you.
+ */
+export const PLAYER_MELEE_DOWN_DURATION = 5;
+
+/**
+ * Seconds between takedown attempts — a scuffle Rowan has to recover from.
+ *
+ * Longer than the half-second it reads as, and longer than it was (0.9), because at
+ * that number two people standing abreast were one press apart: the recovery was
+ * shorter than the walk between them, so a pair was never really a harder problem
+ * than a man alone. Now the second one is a decision made while the first is on the
+ * floor rather than a follow-up to the same press.
+ */
+export const PLAYER_MELEE_COOLDOWN = 1.6;
 
 /**
  * Radius (tiles) of the noise a takedown makes.
  *
  * The three ways off the board stay ordered by what they cost to use: a hold-up is
- * silent and buys only passage, this is 1 tile and takes a man down for good, and the
- * dart is 2 and does it from five tiles away. Paying a little noise to skip the dart
- * you don't have is the trade this verb exists to offer.
+ * silent and buys only passage, this is 1.5 tiles and takes a man down for a stretch,
+ * and the dart is 2 and does it from five tiles away. Paying a little noise to skip
+ * the dart you don't have is the trade this verb exists to offer — but a scuffle at
+ * arm's length carries about as far as a guard's own strike
+ * ({@link GUARD_MELEE_NOISE_TILES}, 1.5), which is the honest number for two people
+ * going to the floor together. At 1 it was quiet enough that the deck effectively
+ * never heard the thing the player did most.
  */
-export const PLAYER_MELEE_NOISE_TILES = 1.0;
+export const PLAYER_MELEE_NOISE_TILES = 1.5;
 
 // --- The hold-up ----------------------------------------------------------
 
