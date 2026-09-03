@@ -929,6 +929,23 @@ export class Orderly {
     this.body.setPosition(x, y);
   }
 
+  /**
+   * Comes round in Rowan's arms — witnesses outright, no check made.
+   *
+   * The end of {@link witnessCheck} without the checks in front of it, and every
+   * one of those is a question this orderly does not need answered: he is at zero
+   * range with his eyes on the man holding him, the ration spoof is a story about
+   * a coworker at a distance, and {@link canSee}'s `playerCompliant` shortcut —
+   * "a coworker walking by is a coworker walking by" — is exactly the reading that
+   * being carried destroys. Going through `witnessCheck` instead would have him
+   * blink, straighten his coat and walk back to his round.
+   */
+  wakeInCustody(): void {
+    this.state = "WITNESSED";
+    this.moving = false;
+    this.bang.setVisible(true);
+  }
+
   /** True while frozen by a Stun Rounds dart — guards treat this as an anomaly. */
   get isStunned(): boolean {
     return this.stunTimer > 0;

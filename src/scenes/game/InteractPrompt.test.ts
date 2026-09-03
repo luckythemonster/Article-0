@@ -196,6 +196,19 @@ describe("promptLabelFor", () => {
     ).toBe("[E] Hack");
   });
 
+  it("never lets a vault steal the slot from a hold either", () => {
+    // The rule `updateInteractions` mirrors when it stands the vault branch down
+    // while a chest or a locker is being worked. A hold in reach always claims the
+    // press — the crate in front of him is scenery he happens to be facing, and
+    // taking him over it is the last thing the press should do.
+    expect(
+      promptLabelFor({ ...nothing(), vault: true, locker: { occupied: false }, lockerDist: 1.3 }),
+    ).toBe("[E] Stash body");
+    expect(promptLabelFor({ ...nothing(), vault: true, chest: someChest, chestDist: 1.3 })).toBe(
+      "[E] Search",
+    );
+  });
+
   it("never lets a vault steal the slot from a door or a hatch", () => {
     // A crate is scenery Rowan happens to be facing; a door is a destination.
     expect(promptLabelFor({ ...nothing(), vault: true, door: shutDoor, doorDist: 1.3 })).toBe(

@@ -131,4 +131,18 @@ export interface StashedBody {
   moveTo(x: number, y: number): void;
   readonly isCarryable: boolean;
   readonly isStashed: boolean;
+  /**
+   * Comes round in the player's arms, having been carried there.
+   *
+   * The one thing a body can do that a locker never asks of it, and it lives on
+   * this interface anyway because it is the same set of two classes and the same
+   * question about a body: `GameScene.updateCarry` is the only caller, and it has
+   * a `StashedBody` in hand rather than an `Orderly` or an `Enforcer`.
+   *
+   * Both implementations skip every check they would normally make first —
+   * range, cone, line of sight, the ration spoof, whether Rowan reads as staff.
+   * A man who wakes up over your shoulder has already seen everything there is
+   * to see, and no story about being a coworker survives being carried.
+   */
+  wakeInCustody(): void;
 }

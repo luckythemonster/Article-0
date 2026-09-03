@@ -530,6 +530,22 @@ export class Enforcer {
     return this.isDown && !this.stashed;
   }
 
+  /**
+   * Comes round in Rowan's arms — sure of what it is looking at, immediately.
+   *
+   * Detection is pinned rather than accrued: {@link updateDetection} fills it over
+   * `auditDelay` from a sighting across a room, and there is nothing to be gradual
+   * about here. The bang follows from the value on the guard's own next frame
+   * (`detection > 0.66`), so this sets the one thing and lets the frame draw it.
+   *
+   * The facility hearing about it is the scene's half — see `updateCarry`, which
+   * reports the sighting that puts every guard on the level into ALERT. This is
+   * only what *this* body knows.
+   */
+  wakeInCustody(): void {
+    this.detection = 1;
+  }
+
   /** Moves a carried body with the carrier. */
   moveTo(x: number, y: number): void {
     this.x = x;

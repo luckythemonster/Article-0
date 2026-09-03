@@ -499,9 +499,9 @@ Deliberately preserved. Do not "finish the job" by removing these:
 
 Holding a weapon, `[Q]` is the hold-up. Empty-handed, it is a bare-handed takedown at
 `PLAYER_MELEE_REACH_TILES` (1.1) — it puts an orderly or a *human* guard on the floor for
-`STUN_ROUND_DURATION`, exactly as a dart does, and leaves silicates alone for the same
-reason the dart does (there is nothing in a sentry for a chemical to act on, and a man
-does not wrestle one either — the EMP stays their answer).
+`PLAYER_MELEE_DOWN_DURATION`, and leaves silicates alone for the same reason the dart does
+(there is nothing in a sentry for a chemical to act on, and a man does not wrestle one
+either — the EMP stays their answer).
 
 Overloading the key rather than spending a new one is what keeps the two readable as the
 same idea: closing on a person instead of firing at one. The practical argument is
@@ -509,9 +509,26 @@ stronger, though — **the hold-up needs a weapon Rowan may never find**, and a 
 whose only close-quarters answer is one the player cannot reach has no close-quarters
 answer at all. It borrows the hold-up's narrower 90° arc rather than the weapons' 120°,
 because it is aimed rather than sprayed. It breaks no cover (a forearm is not a
-projectile) and it is not silent (`PLAYER_MELEE_NOISE_TILES` 1, between the hold-up's
+projectile) and it is not silent (`PLAYER_MELEE_NOISE_TILES` 1.5, between the hold-up's
 documented silence and the dart's 2), which keeps the three ways off the board ordered by
 what they cost to use.
+
+**It is deliberately the weakest of the three, because it is the free one.** The takedown
+costs no item, needs no weapon, and never runs out, so it recovers slowly (1.6s, longer than
+the walk between two people a room apart) and the scuffle carries 1.5 tiles rather than 1.
+Both were softer, and together they made the unarmed verb the answer to every room: it
+recovered faster than Rowan could reach the next man, and was quiet enough that the deck
+effectively never heard the thing the player did most.
+
+**The body-down window is not one of those levers, and trying to use it as one broke the
+stash.** `PLAYER_MELEE_DOWN_DURATION` (7) sits just under `STUN_ROUND_DURATION` (8) rather
+than decisively under it, because it is the clock on the whole loop — lift, carry, stash —
+and a verb needs the whole loop to work at all. It was written as 5 on the reasoning that
+the window stopped mattering once the body was up, which had been true only because a woken
+body used to ride along; once waking mid-carry became real (see *A body is cargo only while
+it is out*), 5s left **2.2 tiles** of carrying and the answer to "carry him where?" was
+"nowhere". At 7 it pays for 5.0 tiles, which reaches five of the six nearest-locker
+distances on `main1`'s two guard beats; the sixth is what the dart's extra second is for.
 
 ### Keycards are numbered, and the number is the whole item
 
@@ -551,6 +568,53 @@ Both are fixed (`chestLoot` in `EntityStats.ts`, `furnishVentCoreChest` in
 `AdoptAuthored.ts`), so the hold-up half of `[Q]` is now genuinely reachable — Stun Rounds
 sit in `main1`'s first chest. The takedown keeps earning its place regardless: it is what
 Rowan has before he finds anything, and on any route that skips the chests.
+
+### A body is cargo only while it is out
+
+The put-down window (`PLAYER_MELEE_DOWN_DURATION`, `STUN_ROUND_DURATION`) is a timer, not
+a state Rowan owns, and it keeps running while he carries the man. **When it expires with
+the body still on his shoulder, the body is dropped, wakes as a witness, and the sighting
+is reported at Rowan's tile** — the same `alert.reportSighting` call, for the same reason,
+as being caught lifting a body in front of somebody. `wakeInCustody` on both body classes
+is what the man himself knows; the scene's `updateCarry` is the facility being told.
+
+Both halves skip every check they would normally make. An orderly goes straight to
+`WITNESSED` without consulting `canSee`, whose first line reads a compliant Rowan as *"a
+coworker walking by"* — a story that cannot survive being carried by him. A guard's
+detection is pinned to 1 rather than accrued over `auditDelay`, because there is nothing
+to become gradually sure of at zero range.
+
+This is what the carry used to do instead: nothing at all. `moveTo` re-pinned the woken
+man to Rowan every frame, so an orderly went back to wandering on his shoulder and a
+guard's vision cone swept the room from inside the person holding it. The most
+incriminating thing in the game was the one thing the facility could not notice.
+
+**Both body-down windows are sized against this rule, and neither was before it existed.**
+While a woken body rode along, the timer only had to last until the lift, and how long the
+carry took was nobody's business; the moment it wakes on the shoulder, the window is the
+whole loop and the locker has a maximum distance measured in tiles. See
+`PLAYER_MELEE_DOWN_DURATION` for the arithmetic, and note which way the dependency runs: a
+slower `CARRY_SPEED_MULTIPLIER` or a longer `LOCKER_STASH_TIME` shortens the reach of both
+windows, so those three constants and the two windows now move together.
+
+### The E-press chain owes the prompt an answer
+
+`promptLabelFor` is the contract: whatever label is on screen is what the press must do.
+The chain in `updateInteractions` matches it for the *taps* by ordering its branches — but
+holds (a hack, a chest search, a locker stash) are resolved above the chain and were not
+all asked about, and two verbs in it have no distance of their own to lose a comparison
+with:
+
+- **"[E] Put down"** fills the prompt slot only when nothing else claimed one, so the tap
+  now stands down for a chest or locker hold in reach. Without that, standing at a locker
+  with a body up, the label read "[E] Stash body" and the press dropped him on its first
+  frame — and because an empty locker with empty hands cannot be worked, the hold that had
+  just started could never finish. The stash verb was unreachable in normal play; it put
+  bodies on the floor wherever you stood, and the locker was never the thing refusing them.
+- **"[E] Vault"** is last in the prompt for the same shape of reason, and now loses to a
+  hold too. It is the branch a press falls into when the ones above it stand down, which
+  is precisely how fixing the put-down would otherwise have handed the same press straight
+  to the crate in front of him.
 
 ---
 

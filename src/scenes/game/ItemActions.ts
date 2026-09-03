@@ -37,6 +37,7 @@ import {
   STUN_ROUNDS_ITEM,
   THERMAL_GEL_ITEM,
   HOLD_UP_ARC_DEGREES,
+  PLAYER_MELEE_DOWN_DURATION,
   PLAYER_MELEE_NOISE_TILES,
   PLAYER_MELEE_REACH_TILES,
   WEAPON_ARC_DEGREES,
@@ -274,13 +275,22 @@ export class ItemActions {
    * choice you made. Unlike the dart it breaks no cover — a forearm is not a projectile
    * — and unlike the hold-up it is not silent, because a scuffle is not a whisper.
    *
+   * **It is the weaker of the two put-downs, and has to be**, because it is the free
+   * one — but the weakness is in the recovery between attempts and the noise, not in
+   * {@link PLAYER_MELEE_DOWN_DURATION}. That window is the clock on the whole
+   * lift-carry-stash loop, so it is sized to let the loop finish rather than to make
+   * a point; see the constant for the arithmetic and for what shortening it cost.
+   *
    * Returns false when nothing was in front of him, so the caller can leave the press
    * unspent rather than burning the cooldown on air.
    */
   takedown(): boolean {
     const player = this.w.player();
     const ts = this.w.tileSize();
-    if (!this.putDownNearest(PLAYER_MELEE_REACH_TILES * ts, HOLD_UP_ARC_COS)) return false;
+    // Its own window rather than the dart's — a little shorter, and sized against the
+    // loop it has to cover. See PLAYER_MELEE_DOWN_DURATION.
+    const down = PLAYER_MELEE_DOWN_DURATION;
+    if (!this.putDownNearest(PLAYER_MELEE_REACH_TILES * ts, HOLD_UP_ARC_COS, down)) return false;
     // Same price as the dart: putting a man on the floor is the least compliant thing
     // in the building however you do it, and charging less for the quieter method would
     // make conduct a tax on equipment rather than on conduct.
@@ -294,10 +304,12 @@ export class ItemActions {
    * Puts down the nearest person in front of Rowan, and reports whether it found one.
    *
    * Shared by the Stun Rounds dart and the bare-handed takedown, which differ only in
-   * their reach and their arc: both pick one body, both prefer the nearer of an orderly
-   * and a human guard, and both leave silicates alone. Written once because the *rule*
-   * is one rule — a dart and a forearm answer the same question about who is in front
-   * of you — and two copies would drift the moment either reach was retuned.
+   * their reach, their arc and how long the body stays down: both pick one body, both
+   * prefer the nearer of an orderly and a human guard, and both leave silicates alone.
+   * Written once because the *rule* is one rule — a dart and a forearm answer the same
+   * question about who is in front of you — and two copies would drift the moment
+   * either reach was retuned. `downSeconds` is the one number they disagree on, and it
+   * is a parameter rather than a second copy of the loop for exactly that reason.
    *
    * **Silicates are excluded**, for the reason humans are excluded from the EMP: a dart
    * is a chemical and there is nothing in a sentry for it to act on, and a man does not
@@ -320,13 +332,14 @@ export class ItemActions {
   private putDownNearest(
     reachPx: number,
     arcCos: number,
+    downSeconds: number,
     deferImpact = false,
   ): Orderly | Enforcer | undefined {
     const ts = this.w.tileSize();
     const victim = this.nearestPerson(reachPx, arcCos);
     if (!victim) return undefined;
-    if (victim instanceof Orderly) victim.stun(STUN_ROUND_DURATION);
-    else victim.putDown(STUN_ROUND_DURATION);
+    if (victim instanceof Orderly) victim.stun(downSeconds);
+    else victim.putDown(downSeconds);
     if (!deferImpact) playVfx(this.w.scene, IMPACT, victim.x, victim.y, ts);
     return victim;
   }
@@ -391,7 +404,7 @@ export class ItemActions {
     const fx = Math.cos(player.facing);
     const fy = Math.sin(player.facing);
     // The spark is deferred: it belongs to the dart landing, not to the press.
-    const victim = this.putDownNearest(reachPx, WEAPON_ARC_COS, true);
+    const victim = this.putDownNearest(reachPx, WEAPON_ARC_COS, STUN_ROUND_DURATION, true);
     // Captured now rather than read on arrival, so nothing holds a sprite across
     // the flight. A body put down this frame does not move, so it stays correct.
     const victimX = victim?.x ?? 0;
