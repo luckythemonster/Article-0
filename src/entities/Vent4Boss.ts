@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import type { GameLevel } from "../map/types";
+import type { GameLayer, GameLevel, GameTile } from "../map/types";
 import type { CollisionGrid } from "../systems/CollisionGrid";
 import { angleDiff } from "../systems/angles";
 import type { EnforcerContext } from "./Enforcer";
@@ -16,7 +16,7 @@ import {
 import { Vent4PhysicsSystem, type Vent4Forces } from "../systems/Vent4PhysicsSystem";
 import { STAPLER_ITEM, VENT4_DEFAULTS, paced, type Vent4Stats } from "../systems/EntityStats";
 import { PressureSubStation } from "./PressureSubStation";
-import { anchorFrom, anchorsFrom, type TilePos } from "../map/generate";
+import { type TilePos } from "../map/generate";
 import {
   HUB_CENTER_TILE,
   VENT_CORE_COLUMNS,
@@ -78,8 +78,8 @@ function anchorsFromMap(
   fallback: readonly TilePos[],
 ): TilePos[] {
   const tiles = layerMap.get(board)?.tiles ?? [];
-  if (tiles.length > 0) return tiles.map((t) => ({ x: t.x, y: t.y }));
-  return fallback.map((t) => ({ x: t.x, y: t.y }));
+  if (tiles.length > 0) return tiles.map((t: GameTile) => ({ x: t.x, y: t.y }));
+  return fallback.map((t: TilePos) => ({ x: t.x, y: t.y }));
 }
 
 /** What happened inside the boss this frame, for the scene to apply/dress. */
