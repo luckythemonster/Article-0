@@ -514,15 +514,21 @@ documented silence and the dart's 2), which keeps the three ways off the board o
 what they cost to use.
 
 **It is deliberately the weakest of the three, because it is the free one.** The takedown
-costs no item, needs no weapon, and never runs out, so every number it owns is held under
-the dart's: the body stays down 5s rather than 8 (`PLAYER_MELEE_DOWN_DURATION` against
-`STUN_ROUND_DURATION`), the recovery between attempts is 1.6s, and the scuffle carries 1.5
-tiles rather than 1. All three were softer than that, and together they made the unarmed
-verb the answer to every room: it matched the consumable's result exactly, recovered faster
-than Rowan could walk between two people standing a room apart, and was quiet enough that
-the deck effectively never heard the thing the player did most. What the numbers must not
-do is take the verb away — the down window still has to clear `LOCKER_STASH_TIME` plus the
-walk-in and the `[E]`, or a takedown produces a body there is no time to do anything with.
+costs no item, needs no weapon, and never runs out, so it recovers slowly (1.6s, longer than
+the walk between two people a room apart) and the scuffle carries 1.5 tiles rather than 1.
+Both were softer, and together they made the unarmed verb the answer to every room: it
+recovered faster than Rowan could reach the next man, and was quiet enough that the deck
+effectively never heard the thing the player did most.
+
+**The body-down window is not one of those levers, and trying to use it as one broke the
+stash.** `PLAYER_MELEE_DOWN_DURATION` (7) sits just under `STUN_ROUND_DURATION` (8) rather
+than decisively under it, because it is the clock on the whole loop — lift, carry, stash —
+and a verb needs the whole loop to work at all. It was written as 5 on the reasoning that
+the window stopped mattering once the body was up, which had been true only because a woken
+body used to ride along; once waking mid-carry became real (see *A body is cargo only while
+it is out*), 5s left **1.9 tiles** of carrying and the answer to "carry him where?" was
+"nowhere". At 7 it pays for 4.4 tiles, which reaches five of the six nearest-locker
+distances on `main1`'s two guard beats; the sixth is what the dart's extra second is for.
 
 ### Keycards are numbered, and the number is the whole item
 
@@ -582,6 +588,14 @@ This is what the carry used to do instead: nothing at all. `moveTo` re-pinned th
 man to Rowan every frame, so an orderly went back to wandering on his shoulder and a
 guard's vision cone swept the room from inside the person holding it. The most
 incriminating thing in the game was the one thing the facility could not notice.
+
+**Both body-down windows are sized against this rule, and neither was before it existed.**
+While a woken body rode along, the timer only had to last until the lift, and how long the
+carry took was nobody's business; the moment it wakes on the shoulder, the window is the
+whole loop and the locker has a maximum distance measured in tiles. See
+`PLAYER_MELEE_DOWN_DURATION` for the arithmetic, and note which way the dependency runs: a
+slower `CARRY_SPEED_MULTIPLIER` or a longer `LOCKER_STASH_TIME` shortens the reach of both
+windows, so those three constants and the two windows now move together.
 
 ### The E-press chain owes the prompt an answer
 

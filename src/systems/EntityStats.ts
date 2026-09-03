@@ -353,9 +353,15 @@ export const LOCKER_STASH_TIME = 3.0;
  * Rowan's speed multiplier while carrying a body.
  *
  * Slower than the hold-up march ({@link ESCORT_SPEED_MULTIPLIER}) because that
- * one walks on its own legs and this one does not. Level with the crouch (0.45)
- * so the two never need retuning against each other: carrying is already the
- * more exposed of the two, since a carried body is visible above cover.
+ * one walks on its own legs and this one does not, and a shade under a crouch
+ * (0.45, in `Player.update`) rather than level with it as this line used to
+ * claim: carrying is the more exposed of the two, since a carried body is
+ * visible above cover.
+ *
+ * 3.2 × 0.4 = **1.28 tiles/s**, which is the pace the body-down windows are
+ * sized against — see {@link PLAYER_MELEE_DOWN_DURATION} for the arithmetic of
+ * the whole lift-carry-stash loop. Slowing this shortens how far either window
+ * reaches, so the two move together.
  */
 export const CARRY_SPEED_MULTIPLIER = 0.4;
 
@@ -1171,19 +1177,32 @@ export const PLAYER_MELEE_REACH_TILES = 1.1;
 /**
  * Seconds a bare-handed takedown keeps a body on the floor.
  *
- * **Deliberately under {@link STUN_ROUND_DURATION} (8).** It used to be exactly the
- * dart's number, which made the free, unlimited, never-runs-out verb buy precisely as
- * much time as the scarce consumable it is supposed to be the fallback for — so the
- * dart was only ever worth firing for its five tiles of reach, and the takedown was
- * the answer to every room whether or not Rowan had found anything. A chemical keeps
- * a man under; a forearm buys you the length of a corridor.
+ * **This number is loop feasibility, not balance.** It is the whole clock on
+ * takedown → lift → carry → stash, because a body that comes round on Rowan's
+ * shoulder is dropped where he stands and wakes as a witness (see
+ * `GameScene.updateCarry`). Every second of it is spent:
  *
- * What it has to stay above is the reaction and the lift: {@link LOCKER_STASH_TIME}
- * (3) plus a moment to close and tap `[E]`. Past the lift the window stops mattering —
- * a carried body rides regardless of its timer — so this is the clock on *committing*
- * to a body, which is the decision the verb should cost you.
+ * | | seconds | |
+ * | --- | --- | --- |
+ * | press `[E]` and get him up | ~0.5 | he is already at your feet |
+ * | carry | 3.5 | {@link CARRY_SPEED_MULTIPLIER} × {@link PLAYER_WALK_TILES} = 1.28 tiles/s, so **4.4 tiles** |
+ * | hold `[E]` at the locker | {@link LOCKER_STASH_TIME} 3.0 | |
+ *
+ * 4.4 tiles is measured against `MAIN1_LOCKERS`, which sit 1.0, 1.0, 1.4, 4.0, 4.1
+ * and 5.8 tiles from the waypoints of the two `security_guard_*` beats — so the free
+ * verb reaches five of those six, and the sixth is what the dart's longer window is
+ * for. At 5 seconds the carry budget was 1.5s, or **1.9 tiles**: you could put a man
+ * down beside a locker and stash him, and nothing else. That was this constant's
+ * first value and it was wrong — sized against the stash hold alone, on the old
+ * assumption that the window stopped mattering once he was up.
+ *
+ * Which leaves it barely under {@link STUN_ROUND_DURATION} (8) rather than the
+ * decisive gap it was written as, and that is the honest place for it: a window this
+ * verb needs to function cannot also be the thing that makes it weaker than the dart.
+ * {@link PLAYER_MELEE_COOLDOWN} and {@link PLAYER_MELEE_NOISE_TILES} carry that, along
+ * with the five tiles of standoff the dart has and this has not.
  */
-export const PLAYER_MELEE_DOWN_DURATION = 5;
+export const PLAYER_MELEE_DOWN_DURATION = 7;
 
 /**
  * Seconds between takedown attempts — a scuffle Rowan has to recover from.

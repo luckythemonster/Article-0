@@ -146,7 +146,7 @@ below) modulate sweep speed, steam, and thermal behaviour on the boss side.
 
 #### `CHEST_DEFAULTS` — const
 
-`src/systems/EntityStats.ts:744`
+`src/systems/EntityStats.ts:750`
 
 | Key | Value | Notes |
 | --- | --- | --- |
@@ -158,7 +158,7 @@ below) modulate sweep speed, steam, and thermal behaviour on the boss side.
 
 #### `CONSUMABLE_ORDER` — const
 
-`src/systems/EntityStats.ts:1431`
+`src/systems/EntityStats.ts:1450`
 
 The consumables selectable through the item cursor, in canonical display
 order. Held consumables fill the list dynamically (unheld names are
@@ -173,7 +173,7 @@ const CONSUMABLE_ORDER = [ CHAFF_PACK_ITEM, THERMAL_GEL_ITEM, RATION_PACK_ITEM, 
 
 #### `DOOR_DEFAULTS` — const
 
-`src/systems/EntityStats.ts:539`
+`src/systems/EntityStats.ts:545`
 
 | Key | Value | Notes |
 | --- | --- | --- |
@@ -207,7 +207,7 @@ const RUN_KEYS = [ "inventory", "selectedConsumable", "staplerFieldCharges", "ob
 
 #### `TERMINAL_DEFAULTS` — const
 
-`src/systems/EntityStats.ts:614`
+`src/systems/EntityStats.ts:620`
 
 | Key | Value | Notes |
 | --- | --- | --- |
@@ -880,7 +880,7 @@ Half-extents of the pressing body, in tiles.
 
 #### `BreakerStats` — interface
 
-`src/systems/EntityStats.ts:665`
+`src/systems/EntityStats.ts:671`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -891,7 +891,7 @@ Half-extents of the pressing body, in tiles.
 
 #### `ChestStats` — interface
 
-`src/systems/EntityStats.ts:735`
+`src/systems/EntityStats.ts:741`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -984,7 +984,7 @@ Snapshot published to the registry for the HUD and the codec.
 
 #### `ConsumableSlot` — interface
 
-`src/systems/EntityStats.ts:1478`
+`src/systems/EntityStats.ts:1497`
 
 One held, distinct consumable type, with its position in the display list.
 
@@ -1066,7 +1066,7 @@ The extra context `accrueDetection` needs on top of `SensingWorld`.
 
 #### `DoorStats` — interface
 
-`src/systems/EntityStats.ts:530`
+`src/systems/EntityStats.ts:536`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1121,7 +1121,7 @@ Everything sensing needs to know about one eye — a guard's, or a camera's.
 
 #### `GlassStats` — interface
 
-`src/systems/EntityStats.ts:588`
+`src/systems/EntityStats.ts:594`
 
 A glazed panel. The map's glass tiles are *also* doors — the shipped tile defs carry a
 `door` and a `glass` component together — so this describes the glazing on top of the
@@ -1234,7 +1234,7 @@ Inputs the visibility rules read — all of it state the run already keeps.
 
 #### `LightSwitchStats` — interface
 
-`src/systems/EntityStats.ts:704`
+`src/systems/EntityStats.ts:710`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1528,7 +1528,7 @@ The player's wave adds an exponential-decay envelope (the DAMPING control).
 
 #### `PlayerStats` — interface
 
-`src/systems/EntityStats.ts:826`
+`src/systems/EntityStats.ts:832`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1800,7 +1800,7 @@ Unit ray directions, split into parallel arrays so casting allocates nothing.
 
 #### `RelayStats` — interface
 
-`src/systems/EntityStats.ts:1706`
+`src/systems/EntityStats.ts:1725`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1898,7 +1898,7 @@ plain object. `EnforcerContext` satisfies this by shape.
 
 #### `SensorStats` — interface
 
-`src/systems/EntityStats.ts:626`
+`src/systems/EntityStats.ts:632`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1997,7 +1997,7 @@ Serializable mid-fight state, so re-entering the level doesn't restart the boss.
 
 #### `SmacStats` — interface
 
-`src/systems/EntityStats.ts:1634`
+`src/systems/EntityStats.ts:1653`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2104,7 +2104,7 @@ The slice of the level this module reads. Structural, so a test can pass a liter
 
 #### `TerminalStats` — interface
 
-`src/systems/EntityStats.ts:605`
+`src/systems/EntityStats.ts:611`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2194,7 +2194,7 @@ Serializable fight progress — kept in the registry across level swaps.
 
 #### `Vent4Stats` — interface
 
-`src/systems/EntityStats.ts:1510`
+`src/systems/EntityStats.ts:1529`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -5082,7 +5082,7 @@ each frame.
 | `reset` | `reset(): void` | Zeroes the cooldown for a fresh run. |
 | `tickCooldowns` | `tickCooldowns(dt: number): void` | Runs down the stapler's cooldown. |
 | `update` | `update(dt: number): void` | Serves the HUD's item-use request, advances the active-item timers, and republishes what the HUD reads back. |
-| `takedown` | `takedown(): boolean` | Rowan's bare-handed takedown — the unarmed half of the `[Q]` verb. **[Q] is one verb with two halves, and which one you get is decided by what you are carrying**, not by a second key: holding a weapon it is the hold-up, empty- handed it is this. See `PLAYER_MELEE_REACH_TILES` for why they read as the same idea. The practical argument for it is that the hold-up needs a weapon Rowan may never find, and a stealth game whose only close-quarters answer is one the player cannot reach has no close-quarters answer at all. Aimed rather than sprayed, so it borrows `HOLD_UP_ARC_DEGREES` (90°) rather than the weapons' 120°: with two orderlies abreast, which one goes down should be a choice you made. Unlike the dart it breaks no cover — a forearm is not a projectile — and unlike the hold-up it is not silent, because a scuffle is not a whisper. **It is the weaker of the two put-downs, and has to be**, because it is the free one: `PLAYER_MELEE_DOWN_DURATION` is under the dart's, the recovery between attempts is longer, and the noise reaches further than it used to. See those constants for what each was worth before. Returns false when nothing was in front of him, so the caller can leave the press unspent rather than burning the cooldown on air. |
+| `takedown` | `takedown(): boolean` | Rowan's bare-handed takedown — the unarmed half of the `[Q]` verb. **[Q] is one verb with two halves, and which one you get is decided by what you are carrying**, not by a second key: holding a weapon it is the hold-up, empty- handed it is this. See `PLAYER_MELEE_REACH_TILES` for why they read as the same idea. The practical argument for it is that the hold-up needs a weapon Rowan may never find, and a stealth game whose only close-quarters answer is one the player cannot reach has no close-quarters answer at all. Aimed rather than sprayed, so it borrows `HOLD_UP_ARC_DEGREES` (90°) rather than the weapons' 120°: with two orderlies abreast, which one goes down should be a choice you made. Unlike the dart it breaks no cover — a forearm is not a projectile — and unlike the hold-up it is not silent, because a scuffle is not a whisper. **It is the weaker of the two put-downs, and has to be**, because it is the free one — but the weakness is in the recovery between attempts and the noise, not in `PLAYER_MELEE_DOWN_DURATION`. That window is the clock on the whole lift-carry-stash loop, so it is sized to let the loop finish rather than to make a point; see the constant for the arithmetic and for what shortening it cost. Returns false when nothing was in front of him, so the caller can leave the press unspent rather than burning the cooldown on air. |
 | `nearestPerson` | `nearestPerson(reachPx: number, arcCos: number): Orderly \| Enforcer \| undefined` | The one person a takedown or a dart would land on, or undefined for empty air. Side-effect free, so the `[Q]` prompt can ask the same question the verb will ask without putting anybody on the floor to find out. Offering a verb the press would then decline is the failure mode this exists to avoid. |
 | `takedownCandidate` | `takedownCandidate(): Orderly \| Enforcer \| undefined` | The person a bare-handed `[Q]` would take down right now, if any. |
 | `staplerFieldCharges` | `staplerFieldCharges(): number` | Field-mode shots left this run — see `STAPLER_FIELD_MAX_CHARGES`. |
@@ -5975,7 +5975,7 @@ type OverlayId = "pause" | "codec" | "compliance" | "qualia" | "elevator";
 
 #### `Target` — type *(module-private)*
 
-`src/scenes/game/ItemActions.ts:486`
+`src/scenes/game/ItemActions.ts:487`
 
 ```ts
 type Target = | { x: number; y: number; kind: "cover"; cover: Cover } | { x: number; y: number; kind: "orderly"; orderly: Orderly };
@@ -7329,7 +7329,7 @@ GameScene.
 | [BossCore](#class-bosscore) | class | `src/entities/BossCore.ts:64` |
 | [BossCoreHud](#class-bosscorehud) | class | `src/ui/BossCoreHud.ts:45` |
 | [Breaker](#class-breaker) | class | `src/entities/Breaker.ts:41` |
-| [BreakerStats](#interface-breakerstats) | interface | `src/systems/EntityStats.ts:665` |
+| [BreakerStats](#interface-breakerstats) | interface | `src/systems/EntityStats.ts:671` |
 | [BuiltLevel](#interface-builtlevel) | interface | `src/scenes/game/LevelBuilder.ts:57` |
 | [BUTTON_STATES](#const-button-states) | const | `src/ui/ElevatorPanel.ts:26` |
 | [ButtonState](#type-buttonstate) | type | `src/ui/ElevatorPanel.ts:28` |
@@ -7338,8 +7338,8 @@ GameScene.
 | [CastingLight](#undefined) | interface | `src/render/lightSampling.ts:15` |
 | [CastRole](#interface-castrole) | interface | `src/entities/CastArt.ts:65` |
 | [Chest](#class-chest) | class | `src/entities/Chest.ts:16` |
-| [CHEST_DEFAULTS](#const-chest-defaults) | const | `src/systems/EntityStats.ts:744` |
-| [ChestStats](#interface-cheststats) | interface | `src/systems/EntityStats.ts:735` |
+| [CHEST_DEFAULTS](#const-chest-defaults) | const | `src/systems/EntityStats.ts:750` |
+| [ChestStats](#interface-cheststats) | interface | `src/systems/EntityStats.ts:741` |
 | [CodecContext](#interface-codeccontext) | interface | `src/ui/Codec.ts:29` |
 | [CodecData](#interface-codecdata) | interface | `src/scenes/CodecScene.ts:15` |
 | [CodecScene](#class-codecscene) | class | `src/scenes/CodecScene.ts:37` |
@@ -7359,8 +7359,8 @@ GameScene.
 | [ConductState](#class-conductstate) | class | `src/systems/Conduct.ts:112` |
 | [ConductView](#interface-conductview) | interface | `src/systems/Conduct.ts:246` |
 | [ConeStyle](#interface-conestyle) | interface | `src/ui/VisionCone.ts:35` |
-| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:1431` |
-| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:1478` |
+| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:1450` |
+| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:1497` |
 | [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:20` |
 | [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:42` |
 | [CountKind](#type-countkind) | type | `src/ui/NetworkPanel.ts:29` |
@@ -7384,10 +7384,10 @@ GameScene.
 | [DIRS_8](#const-dirs-8) | const | `src/entities/directions.ts:20` |
 | [DisplayFootprint](#type-displayfootprint) | type | `src/entities/EntitySprites.ts:114` |
 | [Door](#class-door) | class | `src/entities/Door.ts:172` |
-| [DOOR_DEFAULTS](#const-door-defaults) | const | `src/systems/EntityStats.ts:539` |
+| [DOOR_DEFAULTS](#const-door-defaults) | const | `src/systems/EntityStats.ts:545` |
 | [DoorAccess](#interface-dooraccess) | interface | `src/entities/doorWork.ts:47` |
 | [DoorSeating](#interface-doorseating) | interface | `src/entities/doorGeometry.ts:37` |
-| [DoorStats](#interface-doorstats) | interface | `src/systems/EntityStats.ts:530` |
+| [DoorStats](#interface-doorstats) | interface | `src/systems/EntityStats.ts:536` |
 | [DoorWalker](#interface-doorwalker) | interface | `src/entities/doorWork.ts:30` |
 | [Drone](#class-drone) | class | `src/entities/Drone.ts:14` |
 | [EdAnimation](#interface-edanimation) | interface | `src/map/types.ts:48` |
@@ -7444,7 +7444,7 @@ GameScene.
 | [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:151` |
 | [GameTile](#interface-gametile) | interface | `src/map/types.ts:247` |
 | [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:362` |
-| [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:588` |
+| [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:594` |
 | [GuardAnomaly](#interface-guardanomaly) | interface | `src/entities/Enforcer.ts:93` |
 | [GuardKind](#type-guardkind) | type | `src/map/EntityIndex.ts:46` |
 | [GuardRoute](#interface-guardroute) | interface | `src/map/EntityIndex.ts:50` |
@@ -7478,7 +7478,7 @@ GameScene.
 | [LightSource](#interface-lightsource) | interface | `src/systems/DetectionSystem.ts:4` |
 | [LightStats](#interface-lightstats) | interface | `src/systems/EntityStats.ts:113` |
 | [LightSwitch](#class-lightswitch) | class | `src/entities/LightSwitch.ts:70` |
-| [LightSwitchStats](#interface-lightswitchstats) | interface | `src/systems/EntityStats.ts:704` |
+| [LightSwitchStats](#interface-lightswitchstats) | interface | `src/systems/EntityStats.ts:710` |
 | [Locker](#class-locker) | class | `src/entities/Locker.ts:37` |
 | [LockerResult](#type-lockerresult) | type | `src/entities/Locker.ts:117` |
 | [LogToken](#interface-logtoken) | interface | `src/systems/Compliance.ts:27` |
@@ -7539,7 +7539,7 @@ GameScene.
 | [Player](#class-player) | class | `src/entities/Player.ts:47` |
 | [PlayerAnimName](#type-playeranimname) | type | `src/entities/PlayerAnimations.ts:17` |
 | [PlayerParams](#interface-playerparams) | interface | `src/systems/QualiaLock.ts:35` |
-| [PlayerStats](#interface-playerstats) | interface | `src/systems/EntityStats.ts:826` |
+| [PlayerStats](#interface-playerstats) | interface | `src/systems/EntityStats.ts:832` |
 | [Pose](#interface-pose) | interface | `src/entities/CastArt.ts:55` |
 | [PowerControl](#class-powercontrol) | class | `src/scenes/game/PowerControl.ts:99` |
 | [PowerGridState](#interface-powergridstate) | interface | `src/systems/PowerGrid.ts:27` |
@@ -7579,7 +7579,7 @@ GameScene.
 | [RelayMsg](#interface-relaymsg) | interface | `src/systems/RelayCore.ts:46` |
 | [RelaySnapshot](#interface-relaysnapshot) | interface | `src/systems/RelayCore.ts:40` |
 | [RelayState](#enum-relaystate) | enum | `src/systems/RelayCore.ts:18` |
-| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:1706` |
+| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:1725` |
 | [RelayTickResult](#interface-relaytickresult) | interface | `src/entities/RoofRelay.ts:61` |
 | [RelayTransition](#interface-relaytransition) | interface | `src/systems/RelayCore.ts:35` |
 | [RelayView](#interface-relayview) | interface | `src/systems/RelayCore.ts:55` |
@@ -7597,7 +7597,7 @@ GameScene.
 | [SensingDeps](#interface-sensingdeps) | interface | `src/scenes/game/SensingContext.ts:26` |
 | [SensingWorld](#interface-sensingworld) | interface | `src/systems/Sensing.ts:60` |
 | [Sensor](#class-sensor) | class | `src/entities/Sensor.ts:43` |
-| [SensorStats](#interface-sensorstats) | interface | `src/systems/EntityStats.ts:626` |
+| [SensorStats](#interface-sensorstats) | interface | `src/systems/EntityStats.ts:632` |
 | [SetPieceEvents](#class-setpieceevents) | class | `src/scenes/game/SetPieceEvents.ts:68` |
 | [SetPieceWorld](#interface-setpieceworld) | interface | `src/scenes/game/SetPieceEvents.ts:51` |
 | [Settings](#interface-settings) | interface | `src/systems/Settings.ts:13` |
@@ -7616,7 +7616,7 @@ GameScene.
 | [SmacMsg](#interface-smacmsg) | interface | `src/systems/SmacCore.ts:72` |
 | [SmacSnapshot](#interface-smacsnapshot) | interface | `src/systems/SmacCore.ts:63` |
 | [SmacState](#enum-smacstate) | enum | `src/systems/SmacCore.ts:38` |
-| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:1634` |
+| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:1653` |
 | [SmacTickResult](#interface-smactickresult) | interface | `src/entities/BossCore.ts:56` |
 | [SmacTransition](#interface-smactransition) | interface | `src/systems/SmacCore.ts:57` |
 | [SmacView](#interface-smacview) | interface | `src/systems/SmacCore.ts:94` |
@@ -7632,11 +7632,11 @@ GameScene.
 | [SurrenderResult](#interface-surrenderresult) | interface | `src/systems/Surrender.ts:61` |
 | [SurrenderWorld](#interface-surrenderworld) | interface | `src/systems/Surrender.ts:33` |
 | [SynthVoice](#type-synthvoice) | type | `src/systems/SamSpeech.ts:32` |
-| [Target](#type-target) | type | `src/scenes/game/ItemActions.ts:486` |
+| [Target](#type-target) | type | `src/scenes/game/ItemActions.ts:487` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:43` |
-| [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:614` |
+| [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:620` |
 | [TerminalHacks](#class-terminalhacks) | class | `src/scenes/game/TerminalHacks.ts:80` |
-| [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:605` |
+| [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:611` |
 | [TickState](#type-tickstate) | type | `src/ui/radarDirections.ts:22` |
 | [TilePos](#interface-tilepos) | interface | `src/map/generate.ts:118` |
 | [TileRect](#interface-tilerect) | interface | `src/map/TileBake.ts:424` |
@@ -7674,7 +7674,7 @@ GameScene.
 | [Vent4PhysicsSystem](#class-vent4physicssystem) | class | `src/systems/Vent4PhysicsSystem.ts:63` |
 | [Vent4Snapshot](#interface-vent4snapshot) | interface | `src/systems/Vent4Core.ts:34` |
 | [Vent4State](#enum-vent4state) | enum | `src/systems/Vent4Core.ts:17` |
-| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:1510` |
+| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:1529` |
 | [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:67` |
 | [Vent4Transition](#interface-vent4transition) | interface | `src/systems/Vent4Core.ts:28` |
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |

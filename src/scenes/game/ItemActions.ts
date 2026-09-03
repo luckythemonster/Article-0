@@ -276,9 +276,10 @@ export class ItemActions {
    * — and unlike the hold-up it is not silent, because a scuffle is not a whisper.
    *
    * **It is the weaker of the two put-downs, and has to be**, because it is the free
-   * one: {@link PLAYER_MELEE_DOWN_DURATION} is under the dart's, the recovery between
-   * attempts is longer, and the noise reaches further than it used to. See those
-   * constants for what each was worth before.
+   * one — but the weakness is in the recovery between attempts and the noise, not in
+   * {@link PLAYER_MELEE_DOWN_DURATION}. That window is the clock on the whole
+   * lift-carry-stash loop, so it is sized to let the loop finish rather than to make
+   * a point; see the constant for the arithmetic and for what shortening it cost.
    *
    * Returns false when nothing was in front of him, so the caller can leave the press
    * unspent rather than burning the cooldown on air.
@@ -286,8 +287,8 @@ export class ItemActions {
   takedown(): boolean {
     const player = this.w.player();
     const ts = this.w.tileSize();
-    // Its own, shorter window rather than the dart's — see PLAYER_MELEE_DOWN_DURATION
-    // for why the free verb must not buy as much time as the consumable one.
+    // Its own window rather than the dart's — a little shorter, and sized against the
+    // loop it has to cover. See PLAYER_MELEE_DOWN_DURATION.
     const down = PLAYER_MELEE_DOWN_DURATION;
     if (!this.putDownNearest(PLAYER_MELEE_REACH_TILES * ts, HOLD_UP_ARC_COS, down)) return false;
     // Same price as the dart: putting a man on the floor is the least compliant thing
