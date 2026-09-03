@@ -526,8 +526,8 @@ than decisively under it, because it is the clock on the whole loop — lift, ca
 and a verb needs the whole loop to work at all. It was written as 5 on the reasoning that
 the window stopped mattering once the body was up, which had been true only because a woken
 body used to ride along; once waking mid-carry became real (see *A body is cargo only while
-it is out*), 5s left **1.9 tiles** of carrying and the answer to "carry him where?" was
-"nowhere". At 7 it pays for 4.4 tiles, which reaches five of the six nearest-locker
+it is out*), 5s left **2.2 tiles** of carrying and the answer to "carry him where?" was
+"nowhere". At 7 it pays for 5.0 tiles, which reaches five of the six nearest-locker
 distances on `main1`'s two guard beats; the sixth is what the dart's extra second is for.
 
 ### Keycards are numbered, and the number is the whole item
