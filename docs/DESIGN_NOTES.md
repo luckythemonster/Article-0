@@ -317,6 +317,95 @@ mid-purge and knows exactly what Rowan is.
 still never surviving ALERT. Before that, the optional boss's payout was an item wired to
 nothing.
 
+### Restricted areas are the third thing, and place is what they add
+
+Concealment is geometry and compliance is behaviour, and between them they never asked
+*where Rowan was*. A man who walked at the pace of the corridor was waved through the
+vault anteroom exactly as he was waved through the corridor, because the only question
+anything asked was how he was moving.
+
+The fiction had already written the missing rule. The prologue roster
+(`src/systems/Prologue.ts`) states it in the facility's own words: **"STAFF clearance
+admits the holder to every deck on which the holder has work. It does not admit the
+holder to a terminal, a rack, or a vault."** Nothing read it. Restriction existed in
+exactly one form — a door with a numeric `key` — which is a *threshold* rather than a
+place, and the map had no way to say "this room is not yours" at all.
+
+`TRESPASS` (`src/systems/Conduct.ts`) is that sentence wired up, and it cost almost
+nothing to wire because `ConductState.compliant` already feeds `ctx.playerCompliant` and
+`canSense` short-circuits on it. One new input to the conduct tick reaches every
+enforcer, drone, camera and orderly with **no change to any sensing code**.
+
+**It is a continuous breach, not a `violate()`.** Two reasons, and both bite. Trespass is
+a condition Rowan is *in* rather than an act he committed, so it holds the flag while he
+is in there and costs the usual beat of honest walking on the way out — a discrete
+version would let him stand still in a server aisle and quietly become compliant again
+after the cooldown. And `violate` counts sabotage acts, which drive EIRA-7's codec
+branch: standing somewhere is not sabotage, and counting it would have her read a player
+who walked through a rack row as one who had been pulling the place apart.
+
+It ranks under the alert breaches and over the movement ones. Under, because a live
+pursuit is what is happening now and no room explains it. Over, because it is the more
+useful of the two to show — a sprint is a choice the player can stop where they stand,
+and the wrong room is one they have to leave.
+
+### Where the areas come from, and the derivation that didn't work
+
+The export is committed verbatim and never hand-edited, so the shipped decks cannot
+simply be annotated. `src/map/AutoClearance.ts` derives their restricted ground from what
+they already say about themselves, the same bargain `AutoLight` strikes with lighting: a
+map may declare its own on a `restricted_areas` board, and one that does is not derived
+at all — hand placement is the override, not an addition, or the author ends up with
+ground they did not mark and cannot unmark.
+
+**"The room a terminal stands in" was the first rule tried, and it is wrong on this map.**
+Measured against the real export, a terminal's enclosing region is **48% to 99% of its
+deck**. These levels are open-plan; there is no small room around the equipment to find,
+and whole decks reading as restricted is a worse outcome than none. What works instead is
+a flood fill **bounded to `POSTED_RADIUS_TILES` steps** from the fixture itself. Bounding
+it does two jobs with one mechanism: it cannot leak a deck, because the limit is
+structural rather than a threshold somebody has to keep tuned; and because walls still
+stop it, it clips to the room instead of bleeding a disc through the wall into the
+corridor behind, which a plain distance check would do with nothing on screen to explain
+it. The fill is four-connected for the same reason — an eight-connected one slips between
+two walls that meet at a corner.
+
+**The sealed half is mostly a story about what it refuses to seal.** Filling behind a door
+that names a clearance is a perfectly good rule, and on this map five of the six locked
+doors are **elevator car doors sealing a single tile**. `MIN_SEALED_TILES` drops all five
+without this code needing to know what an elevator is, which is why it is a size floor
+rather than a board-name skip: it keeps working when the next map calls its lift
+something else. Every other guard fails closed the same way — a fill larger than
+`MAX_SEALED_FRACTION` of the deck is discarded rather than trimmed, and a door whose two
+sides reach the same region is skipped, because a door that separates nothing would
+otherwise restrict the corridor as well. The one door left is `main2 (29,3)`, and the
+20-tile room behind it is the only genuinely sealed area on the shipped map.
+
+Every door is treated as a wall during the fill, locked or not. That is the trick that
+keeps a fill in one room: a fill seeded inside a room with two doors would otherwise walk
+straight out of the one nobody locked.
+
+**A card had to become obtainable, or the whole thing is a wall.** The map locks six doors,
+every one on clearance 2, and hands out exactly one keycard — `main1`'s authored `"Key1"`,
+which is clearance 1 and opens nothing. Derive restricted ground on eight of nine decks
+against that and *nothing Rowan can find clears any of it*. `src/map/ClearanceCards.ts`
+grafts one `Keycard 2` into `secret1`'s chest: Act I, so it is reachable long before the
+doors that need it, and behind the optional secret room, so it is earned the way the Q0
+cert is. It appends to the chest's authored `items` string rather than writing the
+`item1/2/3` slots — the slots cap at three and `main1`'s chest already carries four — and
+it reads the existing loot rather than assuming it, so a re-export that changes the
+author's items does not silently drop them.
+
+Posted ground and the locked doors share clearance 2 deliberately. Two numbers would mean
+two collectibles to place and a player who found one and still could not tell why the
+readout stayed amber.
+
+**Known limitation: one byte per tile, so the two walk surfaces share it.** A fill stays on
+the plane it started from — a gantry is a separate room that happens to share a skybox,
+the same rule `canSense` applies to sight — but a `ClearanceMap` has no plane dimension,
+so an apron on a catwalk also restricts the floor directly beneath it. It only bites where
+a fixture stands on `catwalks`, and the fix is a per-plane array if it ever does.
+
 ### Cover
 
 Concealment is gated in the one vision choke point (`Enforcer.canSee`). Thermal detection

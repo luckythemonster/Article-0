@@ -143,6 +143,7 @@ import {
   type ConductMetrics,
   type ConductView,
 } from "../systems/Conduct";
+import { clearanceAt, isCleared, NO_CLEARANCE } from "../systems/Clearance";
 import { DEBUG_ALLOWED } from "../systems/DebugFlag";
 import { len, withinOrEqual } from "../systems/distance";
 import { UI } from "../ui/hudTheme";
@@ -1613,7 +1614,19 @@ export class GameScene extends Phaser.Scene {
     // meddling with anything drops that cover for a cooldown.
     // The Q0 cert (silencing VENT-4) is proof of compliance in good standing: with it
     // Rowan can stand down a *search* and pass as staff again, though never an ALERT.
-    const certified = readInventory(this.registry).includes(CERT_ITEM);
+    const inventory = readInventory(this.registry);
+    const certified = inventory.includes(CERT_ITEM);
+    // Where he is, as well as how he is behaving. Restricted ground is the facility
+    // saying staff clearance does not reach here whatever the pace of his walk, and a
+    // numbered keycard is what reaches it. Read off the level rather than tracked,
+    // because the areas are derived once at boot and never move — see
+    // `src/map/AutoClearance.ts`.
+    const requiredClearance = clearanceAt(
+      this.level.restricted,
+      this.player.x / this.tileSize,
+      this.player.y / this.tileSize,
+    );
+    const cleared = isCleared(requiredClearance, inventory);
     // Distance is sampled from the frame's actual displacement rather than from speed ×
     // dt, so being shoved by VENT-4 or held against a wall reports honestly.
     const movedTiles =
@@ -1630,6 +1643,7 @@ export class GameScene extends Phaser.Scene {
       // is — the rule this file's `Conduct` doc calls "sneaking is a tell".
       sneaking: this.player.crouched || this.player.pressed,
       certified,
+      trespassing: requiredClearance !== NO_CLEARANCE && !cleared,
       movedTiles,
       forced: this.encounters.forcesCompliance,
     });
@@ -1639,6 +1653,8 @@ export class GameScene extends Phaser.Scene {
       breach: this.conduct.breach,
       flaggedRemaining: this.conduct.flaggedRemaining,
       certified,
+      restricted: requiredClearance,
+      cleared,
       sabotageActions: this.conduct.sabotageActions,
       complianceDistanceWalked: this.conduct.complianceDistanceWalked,
       highCompliance: this.conduct.isHighCompliance(),
@@ -1686,7 +1702,7 @@ export class GameScene extends Phaser.Scene {
     const thermalConcealed =
       fieldActive ||
       (coverConceal && !this.detection.thermalBleedAt(concealingTile.x, concealingTile.y));
-    this.prompts.showStatus(this.player, concealed, compliant);
+    this.prompts.showStatus(this.player, concealed, compliant, this.conduct.breach === "TRESPASS");
 
     const phaseBefore = this.alert.phase;
     // Debug freeze-world holds every AI, hazard and timer still while leaving

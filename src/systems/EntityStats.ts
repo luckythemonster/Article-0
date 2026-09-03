@@ -539,6 +539,36 @@ export function flag(components: ComponentData[], type: string, field: string): 
   return Number.isFinite(parsed) && parsed !== 0;
 }
 
+/** What a tile on the `restricted_areas` board declares about the ground it covers. */
+export interface RestrictedStats {
+  /**
+   * The clearance the covered tiles demand; 0 means no card required.
+   *
+   * The same numbering as {@link DoorStats.key}, deliberately — a keycard is a
+   * clearance rather than a key, so the number that answers a door is the number that
+   * answers the room behind it, and `keycardName` resolves both.
+   */
+  clearance: number;
+}
+
+export const RESTRICTED_DEFAULTS = {
+  /**
+   * Zero, meaning a tile that declares nothing restricts nothing.
+   *
+   * The one place `num()`'s "a 0 is unset" rule costs nothing: an authored 0 and an
+   * absent field both mean open ground, so the ambiguity that bites everywhere else in
+   * this file cannot arise here. An author who wants restricted ground has to name a
+   * clearance, which is the statement worth requiring.
+   */
+  clearance: 0,
+} as const;
+
+export function restrictedStatsFor(components: ComponentData[]): RestrictedStats {
+  return {
+    clearance: num(components, "restricted", "clearance", RESTRICTED_DEFAULTS.clearance),
+  };
+}
+
 export interface DoorStats {
   /** Keycard id; 0 means no card required (hand-openable). */
   key: number;

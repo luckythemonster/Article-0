@@ -150,6 +150,11 @@ export const JOURNAL_ENTRIES: readonly JournalEntry[] = [
       "Every locked thing in this building is locked against a category,",
       "and a category is a much easier thing to become than a lock is to",
       "break.",
+      "",
+      "It is not only doors. There is ground here I am not a person for.",
+      "Nobody has painted a line on it. I walked the same as I always",
+      "walk and the room disagreed with me anyway, and the card settled",
+      "it without either of us saying anything.",
     ].join("\n"),
   },
   {

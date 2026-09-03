@@ -192,9 +192,20 @@ export class Hud {
     if (conduct.compliant) {
       // Call the credential out while it's held: a passive buff the player never learns
       // they have is the exact mistake this reward existed as for so long.
-      this.conductText
-        .setText(conduct.certified ? "COMPLIANCE  OK  ·  CERTIFIED" : "COMPLIANCE  OK")
-        .setColor(UI.blueSoft);
+      //
+      // CLEARED is the same argument for the keycard, and it is the only thing that
+      // makes restricted ground legible to a player carrying the card. Nothing is drawn
+      // in the world, so without a readout that changes on the threshold, holding the
+      // right card would mean crossing every area in the game and never learning one
+      // was there. It outranks CERTIFIED because it is the one that is *doing* something
+      // where he is standing; the cert is a standing condition anywhere.
+      const badge =
+        conduct.restricted > 0 && conduct.cleared
+          ? "  ·  CLEARED"
+          : conduct.certified
+            ? "  ·  CERTIFIED"
+            : "";
+      this.conductText.setText(`COMPLIANCE  OK${badge}`).setColor(UI.blueSoft);
       return;
     }
     const countdown =

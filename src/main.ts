@@ -8,6 +8,8 @@ import { appendRoofArray } from "./map/RoofArrayLevel";
 import { appendDestructibleCover } from "./map/DestructibleCover";
 import { appendLockers } from "./map/Lockers";
 import { autoLight } from "./map/AutoLight";
+import { autoClearance } from "./map/AutoClearance";
+import { appendClearanceCards } from "./map/ClearanceCards";
 import { graftExtractionEntrance } from "./map/AdoptAuthored";
 import { planFor } from "./map/MapPlan";
 import type { EdPlayFile } from "./map/types";
@@ -104,12 +106,19 @@ class BootScene extends Phaser.Scene {
     // playthrough. Doesn't gate anything, so no flag is stashed for it.
     appendDestructibleCover(parsed.map, plan.startLevel);
     appendLockers(parsed.map, plan.startLevel);
+    // The one credential that answers the restricted ground derived below. Without it
+    // every area on the map would be sealed against everything Rowan can find.
+    appendClearanceCards(parsed.map);
     // Last, and deliberately so: the engine derives a level's lighting from its
     // geometry, and every graft above changes that geometry. Lighting `main2`
     // before the vault's stairwell landed would light a deck that no longer
     // exists. See `src/map/AutoLight.ts` for what it derives and what it leaves
     // alone — anything a hand-placed fixture already covers.
     autoLight(parsed.map);
+    // Beside the lighting, and last for the same reason: this reads a level's walls,
+    // doors and fixtures to work out what ground staff clearance does not admit Rowan
+    // to, and every graft above changes all three. See `src/map/AutoClearance.ts`.
+    autoClearance(parsed.map);
     this.registry.set("mapPlan", plan);
     this.registry.set("hasVentCore", hasVentCore);
     this.registry.set("hasLogBeta", hasLogBeta);

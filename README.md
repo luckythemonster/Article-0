@@ -144,6 +144,7 @@ it is behaviour, not geometry:
 | `UNAUTHORIZED` | Working a terminal or a silicate rack |
 | `TAMPERING` | Searching a chest, knocking on walls (**R**) |
 | `HOSTILE` | A stun dart, an EMP Grenade burst, a weapon pointed at somebody (**Q**) |
+| `TRESPASS` | Standing somewhere staff clearance doesn't reach (see below) |
 | `EVASION` | Guards are sweeping for you — unless you have papers (see below) |
 | `ALERT` | Active pursuit. Nothing talks you out of that |
 
@@ -151,6 +152,24 @@ Sneaking counting against you inverts the usual stealth reflex: the safe move wh
 relying on cover is the tell when you're relying on conduct. Stopping a breach isn't
 instant either — it takes a beat of honest walking to settle, and the discrete violations
 hold their flag for a cooldown (a terminal ~10s, a stun dart ~14s).
+
+**Restricted areas are where it stops buying traversal too.** Every breach above is
+something you *did*; `TRESPASS` is somewhere you *are*. The staff roster says the rule
+outright — "STAFF clearance admits the holder to every deck on which the holder has work.
+It does not admit the holder to a terminal, a rack, or a vault" — so the ground around
+the server racks and terminals, and the rooms behind the doors that ask for a card, are
+places no amount of walking normally gets you cleared in. Nothing is drawn on the floor:
+the bottom-left readout flips to `COMPLIANCE  TRESPASS` and a **RESTRICTED** marker
+floats over Rowan, and that is the whole of the warning. Walk back out and it settles
+like any other continuous breach.
+
+What answers it is a **sector keycard**, the same numbered card that opens a door of the
+same clearance — the number is the whole item, and it is a clearance rather than a key.
+Carry the right one and the readout reads `COMPLIANCE  OK  ·  CLEARED` instead, which is
+also how you learn where the boundaries are once you're holding it. There is one to find,
+in the chest in `secret1`'s hidden room; it is the same clearance every locked door on
+the map asks for, so finding it opens the facility twice over. You are never *stopped*
+from walking in without it — you just do it as an intruder rather than as staff.
 
 Compliance buys you *traversal*, not progress: every objective is a violation. It isn't a
 free pass while it holds, either — **lasers** are a physical trip rather than a judgement,

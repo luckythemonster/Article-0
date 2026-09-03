@@ -262,3 +262,84 @@ describe("SETTLE_SECONDS", () => {
     expect(c.flaggedRemaining).toBeGreaterThanOrEqual(SETTLE_SECONDS);
   });
 });
+
+/**
+ * Trespass — the one breach that is about where Rowan is rather than how he is moving.
+ *
+ * Whether the ground under him is restricted is `src/systems/Clearance.ts`'s question
+ * and is tested there; this is only about how the answer behaves once it arrives here.
+ */
+describe("ConductState on restricted ground", () => {
+  it("breaks compliance on walking into somewhere he isn't admitted", () => {
+    const c = new ConductState();
+    c.update(0.1, { ...CLEAN, trespassing: true });
+    expect(c.compliant).toBe(false);
+    expect(c.breach).toBe("TRESPASS");
+  });
+
+  it("holds while he stays, rather than expiring under him", () => {
+    // The whole difference from a discrete violation: standing still in a server aisle
+    // must not quietly become compliant again after a cooldown.
+    const c = new ConductState();
+    for (let t = 0; t < 10; t += 0.1) c.update(0.1, { ...CLEAN, trespassing: true });
+    expect(c.compliant).toBe(false);
+    expect(c.breach).toBe("TRESPASS");
+  });
+
+  it("costs a beat of honest walking on the way out, like ending a sprint", () => {
+    const c = new ConductState();
+    c.update(0.1, { ...CLEAN, trespassing: true });
+    c.update(0.1, CLEAN);
+    expect(c.compliant).toBe(false);
+    settle(c, SETTLE_SECONDS + 0.2);
+    expect(c.compliant).toBe(true);
+    expect(c.breach).toBeNull();
+  });
+
+  it("outranks running and sneaking, which are choices he can stop where he stands", () => {
+    const c = new ConductState();
+    c.update(0.1, { ...CLEAN, trespassing: true, running: true, sneaking: true });
+    expect(c.breach).toBe("TRESPASS");
+  });
+
+  it("loses to an active alert and to a search, which no room explains", () => {
+    const alerted = new ConductState();
+    alerted.update(0.1, { ...CLEAN, alertPhase: "ALERT", trespassing: true });
+    expect(alerted.breach).toBe("ALERT");
+
+    const searched = new ConductState();
+    searched.update(0.1, { ...CLEAN, alertPhase: "EVASION", trespassing: true });
+    expect(searched.breach).toBe("EVASION");
+  });
+
+  it("is not sabotage, however long he stands there", () => {
+    // `violate` counts acts, and counting this one would have EIRA-7 read a player who
+    // walked through a server aisle as one who had been pulling the place apart.
+    const c = new ConductState();
+    for (let t = 0; t < 30; t += 0.1) c.update(0.1, { ...CLEAN, trespassing: true });
+    expect(c.sabotageActions).toBe(0);
+  });
+
+  it("stops him banking distance as compliant walking", () => {
+    const c = new ConductState();
+    c.update(0.1, { ...CLEAN, trespassing: true, movedTiles: 5 });
+    expect(c.complianceDistanceWalked).toBe(0);
+  });
+
+  it("is pinned off by the correction field, like every other breach", () => {
+    // NW-SMAC-01 is the thing doing the reading, so it reads him as compliant wherever
+    // he is standing — the memo says as much: "no further clearance handling required".
+    const c = new ConductState();
+    c.update(0.1, { ...CLEAN, trespassing: true, forced: true });
+    expect(c.compliant).toBe(true);
+  });
+
+  it("does nothing at all when he is cleared for the ground", () => {
+    // The caller resolves the keycard, so "cleared" reaches this module simply as an
+    // absence — and an absence has to be indistinguishable from open floor.
+    const c = new ConductState();
+    c.update(0.1, { ...CLEAN, trespassing: false });
+    expect(c.compliant).toBe(true);
+    expect(c.breach).toBeNull();
+  });
+});
