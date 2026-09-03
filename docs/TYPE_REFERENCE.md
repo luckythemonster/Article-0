@@ -3047,6 +3047,7 @@ stays sharper for a while afterward (CAUTIOUS), pursues a confirmed sighting
 | `setStashed` | `setStashed(on: boolean): void` | Puts the guard out of sight, or takes it back out. See `Orderly.setStashed`, which this mirrors exactly — including the timer continuing to run inside the locker. |
 | `isStashed` | `get isStashed(): boolean` | True while out of sight in a locker. |
 | `isCarryable` | `get isCarryable(): boolean` | A body that can be picked up: down, and not already put away. |
+| `wakeInCustody` | `wakeInCustody(): void` | Comes round in Rowan's arms — sure of what it is looking at, immediately. Detection is pinned rather than accrued: `updateDetection` fills it over `auditDelay` from a sighting across a room, and there is nothing to be gradual about here. The bang follows from the value on the guard's own next frame (`detection > 0.66`), so this sets the one thing and lets the frame draw it. The facility hearing about it is the scene's half — see `updateCarry`, which reports the sighting that puts every guard on the level into ALERT. This is only what *this* body knows. |
 | `moveTo` | `moveTo(x: number, y: number): void` | Moves a carried body with the carrier. |
 | `update` | `update(dt: number, ctx: EnforcerContext): EnforcerAttackResult \| undefined` |  |
 | `canWitness` | `canWitness(ctx: EnforcerContext): boolean` | Whether this guard could catch the player doing something *right now* — awake, on its feet, and with a clear sense of the player at its current position/facing. Used for point-in-time "caught in the act" checks (e.g. picking up a body) that can't wait for this guard's own next update — mirrors the stashed/down gating `update` applies before it would ever call `sense`. |
@@ -3252,6 +3253,7 @@ frightened.
 | `isStashed` | `get isStashed(): boolean` | True while out of sight in a locker. |
 | `isCarryable` | `get isCarryable(): boolean` | A body that can be picked up: down, and not already put away. Surrender is deliberately not enough. A man with his hands up is conscious and looking at you, and picking him up would read as an abduction the fiction has no verb for — the hold-up already covers "make him come with you", and it covers it by walking him there on his own feet. |
 | `moveTo` | `moveTo(x: number, y: number): void` | Moves a carried body with the carrier. |
+| `wakeInCustody` | `wakeInCustody(): void` | Comes round in Rowan's arms — witnesses outright, no check made. The end of `witnessCheck` without the checks in front of it, and every one of those is a question this orderly does not need answered: he is at zero range with his eyes on the man holding him, the ration spoof is a story about a coworker at a distance, and `canSee`'s `playerCompliant` shortcut — "a coworker walking by is a coworker walking by" — is exactly the reading that being carried destroys. Going through `witnessCheck` instead would have him blink, straighten his coat and walk back to his round. |
 | `isStunned` | `get isStunned(): boolean` | True while frozen by a Stun Rounds dart — guards treat this as an anomaly. |
 | `isPinned` | `get isPinned(): boolean` | True while pinned to a wall by the Rail-Stapler's field mode — same effect as stun. |
 | `isImmobilized` | `get isImmobilized(): boolean` | Frozen and can't witness, regardless of which effect is holding it. Covers the dart and the staple only. A surrendered orderly is *also* frozen and also can't witness, and is deliberately still excluded here — see the state union's doc for the four call sites that would have changed behind your back. |
@@ -3815,6 +3817,7 @@ through the matching pair of members added alongside this file.
 | `moveTo` | `moveTo(x: number, y: number): void` |  |
 | `isCarryable` | `readonly isCarryable: boolean` |  |
 | `isStashed` | `readonly isStashed: boolean` |  |
+| `wakeInCustody` | `wakeInCustody(): void` | Comes round in the player's arms, having been carried there. The one thing a body can do that a locker never asks of it, and it lives on this interface anyway because it is the same set of two classes and the same question about a body: `GameScene.updateCarry` is the only caller, and it has a `StashedBody` in hand rather than an `Orderly` or an `Enforcer`. Both implementations skip every check they would normally make first — range, cone, line of sight, the ration spoof, whether Rowan reads as staff. A man who wakes up over your shoulder has already seen everything there is to see, and no story about being a coworker survives being carried. |
 
 <a id="interface-steamjet"></a>
 

@@ -1321,7 +1321,36 @@ export class GameScene extends Phaser.Scene {
    * visibly lags.
    */
   private updateCarry(): void {
-    this.carried?.moveTo(this.player.x, this.player.y);
+    const body = this.carried;
+    if (!body) return;
+
+    // **A body that wakes up is no longer cargo.** `isCarryable` is the same
+    // question the pick-up asks — down, and not put away — and the moment it goes
+    // false the man on Rowan's shoulder is a conscious witness at zero range being
+    // carried by an intruder.
+    //
+    // He used to simply ride: nothing dropped him, and `moveTo` re-pinned him to
+    // Rowan every frame, so an orderly who came round went back to wandering (and
+    // `canSee` reads a compliant Rowan as a coworker walking by, so he would not
+    // even raise the alarm) while a guard's cone pointed nowhere useful from inside
+    // the man holding it. The most incriminating thing in the game was the one thing
+    // the facility could not notice.
+    //
+    // The sighting is reported at Rowan's tile — the same call, for the same reason,
+    // as being caught lifting a body in view of somebody, and it is what turns the
+    // woken guard's own ALERT branch on. `wakeInCustody` is what the body itself
+    // knows; this is the facility being told.
+    if (!body.isCarryable) {
+      this.carried = null;
+      body.wakeInCustody();
+      this.alert.reportSighting(
+        Math.floor(this.player.x / this.tileSize),
+        Math.floor(this.player.y / this.tileSize),
+      );
+      return;
+    }
+
+    body.moveTo(this.player.x, this.player.y);
   }
 
   /**
@@ -2397,6 +2426,21 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // **Putting a body down is the press nothing else wanted**, which is exactly how
+    // the prompt has always ranked it: `promptLabelFor` gives "[E] Put down" no
+    // distance of its own and fills the slot with it only once no fixture has claimed
+    // one. The chain honours that for every *tap* by ordering the branches — but the
+    // two **holds** resolved above it, the chest and the locker, were never asked, and
+    // a hold is exactly what a stash is.
+    //
+    // So a stash could not complete. Standing at a locker with a body up, the label
+    // read "[E] Stash body" and the press dropped him on its first frame: with empty
+    // hands and an empty locker `canWork` is false, so the hold that had just started
+    // could never finish, and holding E did nothing more. The verb behaved as "put
+    // down" wherever you stood, which is the bug — the locker was never the thing
+    // refusing the body.
+    const putDownFree = this.carried !== null && !searching && !stashing;
+
     // A tap not consumed by a hack opens/closes a door, uses a hatch, or goes
     // over the crate in front of you — whichever is nearer (a hatch you're
     // standing on always wins). The vault is last of the three because a door and
@@ -2444,7 +2488,7 @@ export class GameScene extends Phaser.Scene {
         // other surface where the link comes out.
         this.traversal.begin(ladder);
         return;
-      } else if (bodyToLift || this.carried) {
+      } else if (bodyToLift || putDownFree) {
         // Picking up and putting down are the same tap, because they are the same
         // decision seen from either side and there is never a frame where both
         // are available: `bodyToLift` is only searched for while his hands are
@@ -2458,7 +2502,13 @@ export class GameScene extends Phaser.Scene {
           this.carried = bodyToLift!;
           this.caughtLifting = true;
         }
-      } else if (vaultTo) {
+      } else if (vaultTo && !searching && !stashing) {
+        // Last of the taps, and the same rule as the put-down above reaches it from
+        // the other end: `promptLabelFor` gives "[E] Vault" the slot only when
+        // *nothing* else claimed one, so a hold in reach always outranks it. Without
+        // this, a press meant for the locker he is standing at would take him over
+        // the crate in front of him instead — which is how the stash fix would have
+        // handed the same press straight to the next verb down.
         adjacentClaimedTap = true;
         this.vault.begin(vaultTo);
         // Hurdling the furniture is not what staff do — charged to the same

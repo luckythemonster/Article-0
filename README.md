@@ -45,7 +45,7 @@ npm test         # vitest, covers the pure systems
 | F | Shared Field — once charged (by staying near a silicate), merge for 3.7s and become undetectable |
 | R | Knock — rap on a wall to lure guards and orderlies to the noise |
 | Q | Hold up — with a weapon in hand, aim at an orderly: hands up, silent, and he walks ahead of you while you hold it |
-| — | Bodies: dart a person or EMP a silicate at close range to put them down, then **E** to lift (slower, no sprinting) and hold **E** at a locker to hide them. Reversible — hold again to get them back |
+| — | Bodies: dart a person or EMP a silicate at close range to put them down, then **E** to lift (slower, no sprinting) and hold **E** at a locker to hide them. Reversible — hold again to get them back. The clock keeps running while you carry: let one come round on your shoulder and he is dropped, wakes as a witness, and the deck is told |
 | , / . | Cycle the selected consumable |
 | Enter | Use the selected consumable (the **Sack Lunch** takes two uses: open, then drop) |
 | C | Open the EIRA-7 codec |

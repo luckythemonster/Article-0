@@ -563,6 +563,45 @@ Both are fixed (`chestLoot` in `EntityStats.ts`, `furnishVentCoreChest` in
 sit in `main1`'s first chest. The takedown keeps earning its place regardless: it is what
 Rowan has before he finds anything, and on any route that skips the chests.
 
+### A body is cargo only while it is out
+
+The put-down window (`PLAYER_MELEE_DOWN_DURATION`, `STUN_ROUND_DURATION`) is a timer, not
+a state Rowan owns, and it keeps running while he carries the man. **When it expires with
+the body still on his shoulder, the body is dropped, wakes as a witness, and the sighting
+is reported at Rowan's tile** — the same `alert.reportSighting` call, for the same reason,
+as being caught lifting a body in front of somebody. `wakeInCustody` on both body classes
+is what the man himself knows; the scene's `updateCarry` is the facility being told.
+
+Both halves skip every check they would normally make. An orderly goes straight to
+`WITNESSED` without consulting `canSee`, whose first line reads a compliant Rowan as *"a
+coworker walking by"* — a story that cannot survive being carried by him. A guard's
+detection is pinned to 1 rather than accrued over `auditDelay`, because there is nothing
+to become gradually sure of at zero range.
+
+This is what the carry used to do instead: nothing at all. `moveTo` re-pinned the woken
+man to Rowan every frame, so an orderly went back to wandering on his shoulder and a
+guard's vision cone swept the room from inside the person holding it. The most
+incriminating thing in the game was the one thing the facility could not notice.
+
+### The E-press chain owes the prompt an answer
+
+`promptLabelFor` is the contract: whatever label is on screen is what the press must do.
+The chain in `updateInteractions` matches it for the *taps* by ordering its branches — but
+holds (a hack, a chest search, a locker stash) are resolved above the chain and were not
+all asked about, and two verbs in it have no distance of their own to lose a comparison
+with:
+
+- **"[E] Put down"** fills the prompt slot only when nothing else claimed one, so the tap
+  now stands down for a chest or locker hold in reach. Without that, standing at a locker
+  with a body up, the label read "[E] Stash body" and the press dropped him on its first
+  frame — and because an empty locker with empty hands cannot be worked, the hold that had
+  just started could never finish. The stash verb was unreachable in normal play; it put
+  bodies on the floor wherever you stood, and the locker was never the thing refusing them.
+- **"[E] Vault"** is last in the prompt for the same shape of reason, and now loses to a
+  hold too. It is the branch a press falls into when the ones above it stand down, which
+  is precisely how fixing the put-down would otherwise have handed the same press straight
+  to the crate in front of him.
+
 ---
 
 ## Orderlies, the Sack Lunch, and the hold-up
