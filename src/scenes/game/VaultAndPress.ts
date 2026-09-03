@@ -91,6 +91,8 @@ export interface VaultWorld {
   player(): Player;
   /** A weapon on somebody claims Rowan's hands — he cannot vault while holding up. */
   heldUp(): boolean;
+  /** A body on his shoulder claims them the same way — see {@link VaultAndPress.target}. */
+  carrying(): boolean;
 }
 
 export class VaultAndPress {
@@ -144,10 +146,24 @@ export class VaultAndPress {
     return found;
   }
 
-  /** The tile a vault would land on, or null when there is nothing to go over. */
+  /**
+   * The tile a vault would land on, or null when there is nothing to go over.
+   *
+   * **Carrying a body refuses it for the same reason holding somebody up does**:
+   * both hands are full. The vault is a hurdle, not a step — `VAULT_SECONDS` of
+   * constant-velocity crossing that ignores the collision grid — and a man over
+   * the shoulder is exactly the load you cannot do that with. Left ungated it was
+   * also the fastest way to move a body in the game: the crossing is unaffected by
+   * {@link CARRY_SPEED_MULTIPLIER}, so hopping crates outran walking with him.
+   *
+   * Refused here rather than in the press chain because this is the one question
+   * both the prompt and the press ask — `GameScene` builds `[E] Vault` from this
+   * same call — so the label goes away with the verb rather than lingering over a
+   * press that would decline it.
+   */
   target(): { x: number; y: number } | null {
     const player = this.w.player();
-    if (player.crouched || player.pressed || this.w.heldUp()) return null;
+    if (player.crouched || player.pressed || this.w.heldUp() || this.w.carrying()) return null;
     const detection = this.w.detection();
     const grid = this.w.grid();
     return vaultTargetFor(

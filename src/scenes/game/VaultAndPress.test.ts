@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { vaultTargetFor, type VaultQuery } from "./VaultAndPress";
+import { VaultAndPress, vaultTargetFor, type VaultQuery, type VaultWorld } from "./VaultAndPress";
 import { VAULT_REACH_TILES } from "../../systems/EntityStats";
 
 const TS = 16;
@@ -83,5 +83,57 @@ describe("vaultTargetFor", () => {
       y: 5,
     });
     expect(vaultTargetFor(board({ "5,6": "low" }), TS, ...at(5, 5), diagonal)).toBeNull();
+  });
+});
+
+/** The four states `target()` refuses on, each off unless a test names it. */
+interface Refusing {
+  heldUp?: boolean;
+  carrying?: boolean;
+  crouched?: boolean;
+  pressed?: boolean;
+}
+
+/**
+ * A world with one low crate due east of Rowan, standing in reach of it.
+ *
+ * Only the members `target()` reads are real — it touches neither the scene, the
+ * audio, nor a physics body — so the fixture is cast rather than constructed, the
+ * same shortcut the prompt tests take with their candidates.
+ */
+function worldWith(refusing: Refusing = {}): VaultWorld {
+  const cells = board({ "6,5": "low" });
+  return {
+    tileSize: TS,
+    grid: () => cells,
+    detection: () => cells,
+    player: () => ({
+      crouched: refusing.crouched ?? false,
+      pressed: refusing.pressed ?? false,
+      x: (5 + 0.5) * TS,
+      y: (5 + 0.5) * TS,
+      facing: EAST,
+    }),
+    heldUp: () => refusing.heldUp ?? false,
+    carrying: () => refusing.carrying ?? false,
+  } as unknown as VaultWorld;
+}
+
+describe("VaultAndPress.target — the states that refuse a vault outright", () => {
+  it("offers the hop with his hands empty", () => {
+    expect(new VaultAndPress(worldWith()).target()).toEqual({ x: 7, y: 5 });
+  });
+
+  it("refuses it while carrying a body", () => {
+    // Both hands are full, exactly as at gunpoint. It was also the fastest way to
+    // move a body in the game: the crossing runs at a constant velocity that
+    // CARRY_SPEED_MULTIPLIER never touches, so hopping crates beat walking him.
+    expect(new VaultAndPress(worldWith({ carrying: true })).target()).toBeNull();
+  });
+
+  it("still refuses it at gunpoint, crouched, or pressed to a wall", () => {
+    expect(new VaultAndPress(worldWith({ heldUp: true })).target()).toBeNull();
+    expect(new VaultAndPress(worldWith({ crouched: true })).target()).toBeNull();
+    expect(new VaultAndPress(worldWith({ pressed: true })).target()).toBeNull();
   });
 });

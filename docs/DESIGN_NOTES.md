@@ -355,7 +355,12 @@ squeeze / press / peek / vault are:
   `body.offset` to lean the art drags the body with it — handing the guards precisely the
   exposure the peek exists to avoid.
 - **Vault** — the fast, loud way over low cover (0.6 noise against the squeeze's 0.15),
-  so crossing a crate is a choice rather than a formality.
+  so crossing a crate is a choice rather than a formality. **It needs both hands**, so
+  `target()` refuses it at gunpoint *and* while carrying a body, which is the same rule
+  read twice. The carry half was missing: the crossing is `VAULT_SECONDS` of constant
+  velocity that `CARRY_SPEED_MULTIPLIER` never touches, so hurdling crates with a man on
+  your shoulder was not merely allowed, it was the fastest way to move him in the game —
+  a body-disposal route that beat walking and left the carry penalty paying for nothing.
 
 `Cover.destroy()` used to leave the tile's static body behind — it cleared the detection
 dampening and erased the art, but nothing removed the collider, so broken cover stayed a wall.

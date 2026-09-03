@@ -5366,7 +5366,7 @@ reads them.
 
 #### `VaultAndPress` — class
 
-`src/scenes/game/VaultAndPress.ts:96`
+`src/scenes/game/VaultAndPress.ts:98`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -5375,7 +5375,7 @@ reads them.
 | `togglePress` | `togglePress(): void` | Flips the wall-press latch — X is a toggle, not a hold. |
 | `releasePress` | `releasePress(): void` | Drops the latch without a keypress, on death, transition or level reset. |
 | `pressSurface` | `pressSurface(): PressState \| null` | The wall face Rowan is holding this frame, or null. Resolved here rather than in `Player` because this is where the collision grid lives; what crosses the seam is plain geometry. The latch is dropped as soon as nothing is in reach, so walking away from a wall releases the press on its own and X never has to be tapped twice to get moving again. |
-| `target` | `target(): { x: number; y: number } \| null` | The tile a vault would land on, or null when there is nothing to go over. |
+| `target` | `target(): { x: number; y: number } \| null` | The tile a vault would land on, or null when there is nothing to go over. **Carrying a body refuses it for the same reason holding somebody up does**: both hands are full. The vault is a hurdle, not a step — `VAULT_SECONDS` of constant-velocity crossing that ignores the collision grid — and a man over the shoulder is exactly the load you cannot do that with. Left ungated it was also the fastest way to move a body in the game: the crossing is unaffected by `CARRY_SPEED_MULTIPLIER`, so hopping crates outran walking with him. Refused here rather than in the press chain because this is the one question both the prompt and the press ask — `GameScene` builds `[E] Vault` from this same call — so the label goes away with the verb rather than lingering over a press that would decline it. |
 | `begin` | `begin(target: { x: number; y: number }): void` | Commits to a vault: a straight, constant-speed crossing to the far side. |
 | `tick` | `tick(dt: number): void` | One frame of a vault. The ordinary player update still runs, driven by a synthetic input pointing the way he is going, so the facing and the walk cycle come out of the code that already knows how to do them. Only the velocity is overwritten — the crossing is scripted, the animation is not. |
 | `pressedCoverCentre` | `pressedCoverCentre(): { x: number; y: number }` | Pixel centre of the face Rowan is holding, or his own position when he is not pressed against anything. |
@@ -5926,6 +5926,7 @@ per-level boards, and a module built before that would hold the wrong ones.
 | `detection` | `detection(): DetectionSystem` |  |
 | `player` | `player(): Player` |  |
 | `heldUp` | `heldUp(): boolean` | A weapon on somebody claims Rowan's hands — he cannot vault while holding up. |
+| `carrying` | `carrying(): boolean` | A body on his shoulder claims them the same way — see `VaultAndPress.target`. |
 
 <a id="interface-witnessanchor"></a>
 
@@ -7659,7 +7660,7 @@ GameScene.
 | [UIScene](#class-uiscene) | class | `src/scenes/UIScene.ts:35` |
 | [UiSheetSpec](#interface-uisheetspec) | interface | `src/ui/UiTextures.ts:63` |
 | [UiTextureSpec](#interface-uitexturespec) | interface | `src/ui/UiTextures.ts:27` |
-| [VaultAndPress](#class-vaultandpress) | class | `src/scenes/game/VaultAndPress.ts:96` |
+| [VaultAndPress](#class-vaultandpress) | class | `src/scenes/game/VaultAndPress.ts:98` |
 | [VaultLayout](#interface-vaultlayout) | interface | `src/map/AlignmentVault.ts:81` |
 | [VaultQuery](#interface-vaultquery) | interface | `src/scenes/game/VaultAndPress.ts:31` |
 | [VaultWorld](#interface-vaultworld) | interface | `src/scenes/game/VaultAndPress.ts:87` |
