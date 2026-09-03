@@ -53,14 +53,33 @@ const STEAM_ARM_TILES = 4;
  * and against a hardcoded three the fight advances a station early and the
  * fourth patch is written past the end of the array.
  */
-function countsFrom(level: GameLevel, stats: Vent4Stats): Vent4Stats {
+function countsFrom(layerMap: Map<string, GameLayer>, stats: Vent4Stats): Vent4Stats {
   const placed = (board: string, fallback: number): number =>
-    level.layers.find((l) => l.name === board)?.tiles.length || fallback;
+    layerMap.get(board)?.tiles.length || fallback;
   return {
     ...stats,
     substationCount: placed("substations", stats.substationCount),
     winchCount: placed("winches", stats.winchCount),
   };
+}
+
+function anchorFromMap(
+  layerMap: Map<string, GameLayer>,
+  board: string,
+  fallback: TilePos,
+): TilePos {
+  const tiles = layerMap.get(board)?.tiles ?? [];
+  return tiles.length > 0 ? { x: tiles[0].x, y: tiles[0].y } : fallback;
+}
+
+function anchorsFromMap(
+  layerMap: Map<string, GameLayer>,
+  board: string,
+  fallback: readonly TilePos[],
+): TilePos[] {
+  const tiles = layerMap.get(board)?.tiles ?? [];
+  if (tiles.length > 0) return tiles.map((t) => ({ x: t.x, y: t.y }));
+  return fallback.map((t) => ({ x: t.x, y: t.y }));
 }
 
 /** What happened inside the boss this frame, for the scene to apply/dress. */
@@ -166,11 +185,13 @@ export class Vent4Boss {
       y: (p.y + 0.5) * ts,
     });
 
+    const layerMap = new Map(level.layers.map((l) => [l.name, l]));
+
     // An authored arena decides how many of each fixture it has by placing them.
     // The counts are what `Vent4Core` sizes its progress arrays from and gates the
     // phase changes on, so a map with four capacitors against a hardcoded three
     // advances a station early and drops the fourth's patch on the floor.
-    this.stats = countsFrom(level, stats);
+    this.stats = countsFrom(layerMap, stats);
     this.authored = level.generated !== true;
     this.core = new Vent4Core(this.stats, restore);
     // Anchors come from the level's own boards when it has them — an authored
@@ -180,18 +201,18 @@ export class Vent4Boss {
     // `HUB_CENTER_TILE` names a pixel centre (20.5 = the middle of the 3×3 hub
     // block), while a board tile names its own cell. The half-tile either side is
     // what makes the two conventions land on the same pixel.
-    const hubTile = anchorFrom(level, "vent_hub", {
+    const hubTile = anchorFromMap(layerMap, "vent_hub", {
       x: HUB_CENTER_TILE.x - 0.5,
       y: HUB_CENTER_TILE.y - 0.5,
     });
     const hubCentre = { x: hubTile.x + 0.5, y: hubTile.y + 0.5 };
-    this.pitons = anchorsFrom(level, "pitons", VENT_CORE_PITONS);
-    this.drips = anchorsFrom(level, "drips", VENT_CORE_DRIPS);
+    this.pitons = anchorsFromMap(layerMap, "pitons", VENT_CORE_PITONS);
+    this.drips = anchorsFromMap(layerMap, "drips", VENT_CORE_DRIPS);
     this.hub = { x: hubCentre.x * ts, y: hubCentre.y * ts };
     this.physics = new Vent4PhysicsSystem(
       {
         hub: this.hub,
-        columns: anchorsFrom(level, "columns", VENT_CORE_COLUMNS).map(toPx),
+        columns: anchorsFromMap(layerMap, "columns", VENT_CORE_COLUMNS).map(toPx),
         pitons: this.pitons.map(toPx),
         drips: this.drips.map(toPx),
       },
@@ -199,20 +220,20 @@ export class Vent4Boss {
       this.stats,
     );
 
-    const subLayer = level.layers.find((l) => l.name === "substations");
+    const grateLayer = layerMap.get("grates");
+    for (const tile of grateLayer?.tiles ?? []) this.grates.add(`${tile.x},${tile.y}`);
+
+    const subLayer = layerMap.get("substations");
     (subLayer?.tiles ?? []).forEach((tile, i) => {
       const sub = new PressureSubStation(scene, tile, ts, i, this.stats);
       if (restore?.patched[i]) sub.restorePatched();
       this.subs.push(sub);
     });
 
-    const grateLayer = level.layers.find((l) => l.name === "grates");
-    for (const tile of grateLayer?.tiles ?? []) this.grates.add(`${tile.x},${tile.y}`);
-
-    const winchTiles = anchorsFrom(level, "winches", VENT_CORE_WINCHES);
+    const winchTiles = anchorsFromMap(layerMap, "winches", VENT_CORE_WINCHES);
     this.winches = winchTiles.map(toPx);
     this.winchProgress = winchTiles.map(() => 0);
-    this.jets = anchorsFrom(level, "steam", VENT_CORE_STEAM)
+    this.jets = anchorsFromMap(layerMap, "steam", VENT_CORE_STEAM)
       .map(toPx)
       .map((p, i) => ({
         x: p.x,
@@ -694,13 +715,20 @@ export class Vent4Boss {
     const ts = this.tileSize;
     const step = ts * 0.25;
     const hubClear = (this.stats.hubRadius + 0.9) * ts;
+    const hubClearSq = hubClear * hubClear;
     const cx = Math.cos(angle);
     const cy = Math.sin(angle);
+    const invTs = 1 / ts;
+
     for (let d = step; d <= maxDist; d += step) {
       const x = ox + cx * d;
       const y = oy + cy * d;
-      if (withinOrEqual(x - this.hub.x, y - this.hub.y, hubClear)) continue;
-      if (this.grid.blocksSight(Math.floor(x / ts), Math.floor(y / ts))) return d - step;
+
+      const dx = x - this.hub.x;
+      const dy = y - this.hub.y;
+      if (dx * dx + dy * dy <= hubClearSq) continue;
+
+      if (this.grid.blocksSight(Math.floor(x * invTs), Math.floor(y * invTs))) return d - step;
     }
     return maxDist;
   }
