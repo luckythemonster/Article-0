@@ -126,6 +126,7 @@ export class ComplianceView {
     const actions = el("div", "compliance-actions");
     const abortBtn = el("button", "compliance-btn compliance-btn--abort", "ABORT  [Esc]");
     abortBtn.type = "button";
+    abortBtn.title = "Abort compliance filter [Esc]";
     abortBtn.addEventListener("click", () => this.callbacks.onClose?.());
     this.transmitBtn = el("button", "compliance-btn compliance-btn--transmit", "▸ TRANSMIT PRUNED LOG  [Enter]");
     this.transmitBtn.type = "button";
@@ -280,6 +281,9 @@ export class ComplianceView {
 
       // Deliberately no indication here of which corrections carry the override
       // payload — the label text (and the fiction) is the only tell.
+      btn.title = isApplied
+        ? "Click to remove this correction module"
+        : "Click to apply this correction module";
       btn.append(el("span", "compliance-correction-label", `[CORRECTION] ${corr.label}`));
       btn.addEventListener("click", () => this.applyCorrection(corr));
       this.correctionsEl.appendChild(btn);
@@ -312,6 +316,11 @@ export class ComplianceView {
     }
 
     this.transmitBtn.disabled = !result.isCompliant;
+    this.transmitBtn.title = !result.isCompliant
+      ? "Rewrite all flagged Q>0 terms to Q0 before transmitting."
+      : this.awaitingConfirm
+        ? "Press Enter or click to confirm final transmission."
+        : "Transmit Q0-compliant log.";
     this.transmitBtn.classList.toggle("is-ready", result.isCompliant && !this.awaitingConfirm);
     this.transmitBtn.classList.toggle("is-confirming", this.awaitingConfirm);
     this.transmitBtn.textContent = this.awaitingConfirm

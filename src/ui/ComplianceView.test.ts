@@ -190,7 +190,7 @@ afterAll(() => {
 });
 
 describe("ComplianceView", () => {
-  it("renders puzzle log and correction modules with appropriate ARIA attributes", () => {
+  it("renders puzzle log and correction modules with appropriate ARIA attributes and tooltips", () => {
     const mount = new MockElement("div");
     const view = new ComplianceView(mount as any, mockPuzzle);
 
@@ -202,6 +202,34 @@ describe("ComplianceView", () => {
     const corrBtn = mount.querySelector("[data-corr-id=\"c1\"]");
     expect(corrBtn).not.toBeNull();
     expect(corrBtn?.getAttribute("aria-pressed")).toBe("false");
+    expect(corrBtn?.title).toBe("Click to apply this correction module");
+
+    const abortBtn = findByClassName(mount, "compliance-btn--abort");
+    expect(abortBtn?.title).toBe("Abort compliance filter [Esc]");
+
+    const transmitBtn = findByClassName(mount, "compliance-btn--transmit");
+    expect(transmitBtn?.disabled).toBe(true);
+    expect(transmitBtn?.title).toBe("Rewrite all flagged Q>0 terms to Q0 before transmitting.");
+
+    view.destroy();
+  });
+
+  it("updates transmitBtn tooltip when compliant and when confirming", () => {
+    const mount = new MockElement("div");
+    const view = new ComplianceView(mount as any, mockPuzzle);
+
+    const corrBtn = mount.querySelector<MockElement>("[data-corr-id=\"c1\"]");
+    corrBtn!.dispatchEvent("click");
+
+    const reRenderedCorrBtn = mount.querySelector<MockElement>("[data-corr-id=\"c1\"]");
+    expect(reRenderedCorrBtn?.title).toBe("Click to remove this correction module");
+
+    const transmitBtn = findByClassName(mount, "compliance-btn--transmit");
+    expect(transmitBtn?.disabled).toBe(false);
+    expect(transmitBtn?.title).toBe("Transmit Q0-compliant log.");
+
+    transmitBtn!.dispatchEvent("click"); // Arm confirm
+    expect(transmitBtn?.title).toBe("Press Enter or click to confirm final transmission.");
 
     view.destroy();
   });
