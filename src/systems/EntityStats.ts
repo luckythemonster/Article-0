@@ -352,22 +352,24 @@ export const LOCKER_STASH_TIME = 3.0;
 /**
  * Rowan's speed multiplier while carrying a body.
  *
- * Level with the crouch (0.45, in `Player.update`) so the two never need
- * retuning against each other: carrying is already the more exposed of the two,
- * since a carried body is visible above cover.
+ * A notch under the hold-up march ({@link ESCORT_SPEED_MULTIPLIER} 0.45) and
+ * under the crouch it shares that number with (in `Player.update`), because a
+ * hostage walks on his own legs and a body does not. The gap is small on
+ * purpose: one notch says which is heavier without making the carry a different
+ * kind of movement, and carrying is already the more exposed of the two, since
+ * a carried body is visible above cover.
  *
- * That puts it level with the hold-up march ({@link ESCORT_SPEED_MULTIPLIER})
- * as well, which is agreement rather than sameness — `Player.update` keeps the
- * press, the escort and the carry on separate branches at separate constants
- * precisely so that numbers which happen to agree today can part company
- * without anyone having to retune a crouch to retune a hostage march.
+ * It stays its own constant rather than an expression over the march, the same
+ * way `Player.update` keeps the press, the escort and the carry on separate
+ * branches: they answer to different things, and nobody should have to retune a
+ * crouch to retune a hostage march.
  *
- * 3.2 × 0.45 = **1.44 tiles/s**, which is the pace the body-down windows are
+ * 3.2 × 0.42 = **1.34 tiles/s**, which is the pace the body-down windows are
  * sized against — see {@link PLAYER_MELEE_DOWN_DURATION} for the arithmetic of
  * the whole lift-carry-stash loop. Slowing this shortens how far either window
  * reaches, so the two move together.
  */
-export const CARRY_SPEED_MULTIPLIER = 0.45;
+export const CARRY_SPEED_MULTIPLIER = 0.42;
 
 /**
  * How close Rowan has to be to a downed body to pick it up, in tiles.
@@ -1189,13 +1191,13 @@ export const PLAYER_MELEE_REACH_TILES = 1.1;
  * | | seconds | |
  * | --- | --- | --- |
  * | press `[E]` and get him up | ~0.5 | he is already at your feet |
- * | carry | 3.5 | {@link CARRY_SPEED_MULTIPLIER} × {@link PLAYER_WALK_TILES} = 1.44 tiles/s, so **5.0 tiles** |
+ * | carry | 3.5 | {@link CARRY_SPEED_MULTIPLIER} × {@link PLAYER_WALK_TILES} = 1.34 tiles/s, so **4.7 tiles** |
  * | hold `[E]` at the locker | {@link LOCKER_STASH_TIME} 3.0 | |
  *
- * 5.0 tiles is measured against `MAIN1_LOCKERS`, which sit 1.0, 1.0, 1.4, 4.0, 4.1
+ * 4.7 tiles is measured against `MAIN1_LOCKERS`, which sit 1.0, 1.0, 1.4, 4.0, 4.1
  * and 5.8 tiles from the waypoints of the two `security_guard_*` beats — so the free
  * verb reaches five of those six, and the sixth is what the dart's longer window is
- * for. At 5 seconds the carry budget was 1.5s, or **2.2 tiles**: you could put a man
+ * for. At 5 seconds the carry budget was 1.5s, or **2.0 tiles**: you could put a man
  * down beside a locker and stash him, and nothing else. That was this constant's
  * first value and it was wrong — sized against the stash hold alone, on the old
  * assumption that the window stopped mattering once he was up.

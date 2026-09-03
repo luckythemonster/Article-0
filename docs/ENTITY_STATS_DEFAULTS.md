@@ -102,12 +102,12 @@ while carried is dropped and wakes as a witness, so `PLAYER_MELEE_DOWN_DURATION`
 `STUN_ROUND_DURATION` (8) are each the whole clock on lift → carry → stash, not a power
 level. Subtract ~0.5s to press `[E]` and `LOCKER_STASH_TIME` (3) to hold it at the locker,
 multiply what is left by the carry pace (`PLAYER_WALK_TILES` 3.2 × `CARRY_SPEED_MULTIPLIER`
-0.45 = **1.44 tiles/s**), and the window says how far away the locker may be: **5.0 tiles**
-for a takedown, 6.5 for a dart, less the walk out to a body dropped at range. Against
+0.42 = **1.34 tiles/s**), and the window says how far away the locker may be: **4.7 tiles**
+for a takedown, 6.0 for a dart, less the walk out to a body dropped at range. Against
 `MAIN1_LOCKERS`, whose four lockers sit 1.0, 1.0, 1.4, 4.0, 4.1 and 5.8 tiles from the
 `security_guard_*` waypoints, that is five of six for the free verb and all six for the
 dart. **Shortening either window past its loop takes the stash away rather than making the
-verb weaker** — at 5s the takedown left 2.2 tiles of carrying, which is a locker you were
+verb weaker** — at 5s the takedown left 2.0 tiles of carrying, which is a locker you were
 already standing at. The balance between the two verbs is carried by
 `PLAYER_MELEE_COOLDOWN` (1.6) — held above the walk between two people a room apart
 (`HOLD_UP_REACH_TILES` 3 ÷ 3.2 ≈ 0.94s), so a pair is a harder problem than a man alone —
