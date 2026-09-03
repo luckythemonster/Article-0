@@ -355,7 +355,12 @@ squeeze / press / peek / vault are:
   `body.offset` to lean the art drags the body with it — handing the guards precisely the
   exposure the peek exists to avoid.
 - **Vault** — the fast, loud way over low cover (0.6 noise against the squeeze's 0.15),
-  so crossing a crate is a choice rather than a formality.
+  so crossing a crate is a choice rather than a formality. **It needs both hands**, so
+  `target()` refuses it at gunpoint *and* while carrying a body, which is the same rule
+  read twice. The carry half was missing: the crossing is `VAULT_SECONDS` of constant
+  velocity that `CARRY_SPEED_MULTIPLIER` never touches, so hurdling crates with a man on
+  your shoulder was not merely allowed, it was the fastest way to move him in the game —
+  a body-disposal route that beat walking and left the carry penalty paying for nothing.
 
 `Cover.destroy()` used to leave the tile's static body behind — it cleared the detection
 dampening and erased the art, but nothing removed the collider, so broken cover stayed a wall.
@@ -526,8 +531,8 @@ than decisively under it, because it is the clock on the whole loop — lift, ca
 and a verb needs the whole loop to work at all. It was written as 5 on the reasoning that
 the window stopped mattering once the body was up, which had been true only because a woken
 body used to ride along; once waking mid-carry became real (see *A body is cargo only while
-it is out*), 5s left **2.2 tiles** of carrying and the answer to "carry him where?" was
-"nowhere". At 7 it pays for 5.0 tiles, which reaches five of the six nearest-locker
+it is out*), 5s left **2.0 tiles** of carrying and the answer to "carry him where?" was
+"nowhere". At 7 it pays for 4.7 tiles, which reaches five of the six nearest-locker
 distances on `main1`'s two guard beats; the sixth is what the dart's extra second is for.
 
 ### Keycards are numbered, and the number is the whole item

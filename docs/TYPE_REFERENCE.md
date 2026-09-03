@@ -146,7 +146,7 @@ below) modulate sweep speed, steam, and thermal behaviour on the boss side.
 
 #### `CHEST_DEFAULTS` — const
 
-`src/systems/EntityStats.ts:754`
+`src/systems/EntityStats.ts:756`
 
 | Key | Value | Notes |
 | --- | --- | --- |
@@ -158,7 +158,7 @@ below) modulate sweep speed, steam, and thermal behaviour on the boss side.
 
 #### `CONSUMABLE_ORDER` — const
 
-`src/systems/EntityStats.ts:1454`
+`src/systems/EntityStats.ts:1456`
 
 The consumables selectable through the item cursor, in canonical display
 order. Held consumables fill the list dynamically (unheld names are
@@ -173,7 +173,7 @@ const CONSUMABLE_ORDER = [ CHAFF_PACK_ITEM, THERMAL_GEL_ITEM, RATION_PACK_ITEM, 
 
 #### `DOOR_DEFAULTS` — const
 
-`src/systems/EntityStats.ts:549`
+`src/systems/EntityStats.ts:551`
 
 | Key | Value | Notes |
 | --- | --- | --- |
@@ -207,7 +207,7 @@ const RUN_KEYS = [ "inventory", "selectedConsumable", "staplerFieldCharges", "ob
 
 #### `TERMINAL_DEFAULTS` — const
 
-`src/systems/EntityStats.ts:624`
+`src/systems/EntityStats.ts:626`
 
 | Key | Value | Notes |
 | --- | --- | --- |
@@ -880,7 +880,7 @@ Half-extents of the pressing body, in tiles.
 
 #### `BreakerStats` — interface
 
-`src/systems/EntityStats.ts:675`
+`src/systems/EntityStats.ts:677`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -891,7 +891,7 @@ Half-extents of the pressing body, in tiles.
 
 #### `ChestStats` — interface
 
-`src/systems/EntityStats.ts:745`
+`src/systems/EntityStats.ts:747`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -984,7 +984,7 @@ Snapshot published to the registry for the HUD and the codec.
 
 #### `ConsumableSlot` — interface
 
-`src/systems/EntityStats.ts:1501`
+`src/systems/EntityStats.ts:1503`
 
 One held, distinct consumable type, with its position in the display list.
 
@@ -1066,7 +1066,7 @@ The extra context `accrueDetection` needs on top of `SensingWorld`.
 
 #### `DoorStats` — interface
 
-`src/systems/EntityStats.ts:540`
+`src/systems/EntityStats.ts:542`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1121,7 +1121,7 @@ Everything sensing needs to know about one eye — a guard's, or a camera's.
 
 #### `GlassStats` — interface
 
-`src/systems/EntityStats.ts:598`
+`src/systems/EntityStats.ts:600`
 
 A glazed panel. The map's glass tiles are *also* doors — the shipped tile defs carry a
 `door` and a `glass` component together — so this describes the glazing on top of the
@@ -1234,7 +1234,7 @@ Inputs the visibility rules read — all of it state the run already keeps.
 
 #### `LightSwitchStats` — interface
 
-`src/systems/EntityStats.ts:714`
+`src/systems/EntityStats.ts:716`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1528,7 +1528,7 @@ The player's wave adds an exponential-decay envelope (the DAMPING control).
 
 #### `PlayerStats` — interface
 
-`src/systems/EntityStats.ts:836`
+`src/systems/EntityStats.ts:838`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1800,7 +1800,7 @@ Unit ray directions, split into parallel arrays so casting allocates nothing.
 
 #### `RelayStats` — interface
 
-`src/systems/EntityStats.ts:1729`
+`src/systems/EntityStats.ts:1731`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1898,7 +1898,7 @@ plain object. `EnforcerContext` satisfies this by shape.
 
 #### `SensorStats` — interface
 
-`src/systems/EntityStats.ts:636`
+`src/systems/EntityStats.ts:638`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -1997,7 +1997,7 @@ Serializable mid-fight state, so re-entering the level doesn't restart the boss.
 
 #### `SmacStats` — interface
 
-`src/systems/EntityStats.ts:1657`
+`src/systems/EntityStats.ts:1659`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2104,7 +2104,7 @@ The slice of the level this module reads. Structural, so a test can pass a liter
 
 #### `TerminalStats` — interface
 
-`src/systems/EntityStats.ts:615`
+`src/systems/EntityStats.ts:617`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -2194,7 +2194,7 @@ Serializable fight progress — kept in the registry across level swaps.
 
 #### `Vent4Stats` — interface
 
-`src/systems/EntityStats.ts:1533`
+`src/systems/EntityStats.ts:1535`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -5366,7 +5366,7 @@ reads them.
 
 #### `VaultAndPress` — class
 
-`src/scenes/game/VaultAndPress.ts:96`
+`src/scenes/game/VaultAndPress.ts:98`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
@@ -5375,7 +5375,7 @@ reads them.
 | `togglePress` | `togglePress(): void` | Flips the wall-press latch — X is a toggle, not a hold. |
 | `releasePress` | `releasePress(): void` | Drops the latch without a keypress, on death, transition or level reset. |
 | `pressSurface` | `pressSurface(): PressState \| null` | The wall face Rowan is holding this frame, or null. Resolved here rather than in `Player` because this is where the collision grid lives; what crosses the seam is plain geometry. The latch is dropped as soon as nothing is in reach, so walking away from a wall releases the press on its own and X never has to be tapped twice to get moving again. |
-| `target` | `target(): { x: number; y: number } \| null` | The tile a vault would land on, or null when there is nothing to go over. |
+| `target` | `target(): { x: number; y: number } \| null` | The tile a vault would land on, or null when there is nothing to go over. **Carrying a body refuses it for the same reason holding somebody up does**: both hands are full. The vault is a hurdle, not a step — `VAULT_SECONDS` of constant-velocity crossing that ignores the collision grid — and a man over the shoulder is exactly the load you cannot do that with. Left ungated it was also the fastest way to move a body in the game: the crossing is unaffected by `CARRY_SPEED_MULTIPLIER`, so hopping crates outran walking with him. Refused here rather than in the press chain because this is the one question both the prompt and the press ask — `GameScene` builds `[E] Vault` from this same call — so the label goes away with the verb rather than lingering over a press that would decline it. |
 | `begin` | `begin(target: { x: number; y: number }): void` | Commits to a vault: a straight, constant-speed crossing to the far side. |
 | `tick` | `tick(dt: number): void` | One frame of a vault. The ordinary player update still runs, driven by a synthetic input pointing the way he is going, so the facing and the walk cycle come out of the code that already knows how to do them. Only the velocity is overwritten — the crossing is scripted, the animation is not. |
 | `pressedCoverCentre` | `pressedCoverCentre(): { x: number; y: number }` | Pixel centre of the face Rowan is holding, or his own position when he is not pressed against anything. |
@@ -5926,6 +5926,7 @@ per-level boards, and a module built before that would hold the wrong ones.
 | `detection` | `detection(): DetectionSystem` |  |
 | `player` | `player(): Player` |  |
 | `heldUp` | `heldUp(): boolean` | A weapon on somebody claims Rowan's hands — he cannot vault while holding up. |
+| `carrying` | `carrying(): boolean` | A body on his shoulder claims them the same way — see `VaultAndPress.target`. |
 
 <a id="interface-witnessanchor"></a>
 
@@ -7329,7 +7330,7 @@ GameScene.
 | [BossCore](#class-bosscore) | class | `src/entities/BossCore.ts:64` |
 | [BossCoreHud](#class-bosscorehud) | class | `src/ui/BossCoreHud.ts:45` |
 | [Breaker](#class-breaker) | class | `src/entities/Breaker.ts:41` |
-| [BreakerStats](#interface-breakerstats) | interface | `src/systems/EntityStats.ts:675` |
+| [BreakerStats](#interface-breakerstats) | interface | `src/systems/EntityStats.ts:677` |
 | [BuiltLevel](#interface-builtlevel) | interface | `src/scenes/game/LevelBuilder.ts:57` |
 | [BUTTON_STATES](#const-button-states) | const | `src/ui/ElevatorPanel.ts:26` |
 | [ButtonState](#type-buttonstate) | type | `src/ui/ElevatorPanel.ts:28` |
@@ -7338,8 +7339,8 @@ GameScene.
 | [CastingLight](#undefined) | interface | `src/render/lightSampling.ts:15` |
 | [CastRole](#interface-castrole) | interface | `src/entities/CastArt.ts:65` |
 | [Chest](#class-chest) | class | `src/entities/Chest.ts:16` |
-| [CHEST_DEFAULTS](#const-chest-defaults) | const | `src/systems/EntityStats.ts:754` |
-| [ChestStats](#interface-cheststats) | interface | `src/systems/EntityStats.ts:745` |
+| [CHEST_DEFAULTS](#const-chest-defaults) | const | `src/systems/EntityStats.ts:756` |
+| [ChestStats](#interface-cheststats) | interface | `src/systems/EntityStats.ts:747` |
 | [CodecContext](#interface-codeccontext) | interface | `src/ui/Codec.ts:29` |
 | [CodecData](#interface-codecdata) | interface | `src/scenes/CodecScene.ts:15` |
 | [CodecScene](#class-codecscene) | class | `src/scenes/CodecScene.ts:37` |
@@ -7359,8 +7360,8 @@ GameScene.
 | [ConductState](#class-conductstate) | class | `src/systems/Conduct.ts:112` |
 | [ConductView](#interface-conductview) | interface | `src/systems/Conduct.ts:246` |
 | [ConeStyle](#interface-conestyle) | interface | `src/ui/VisionCone.ts:35` |
-| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:1454` |
-| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:1501` |
+| [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:1456` |
+| [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:1503` |
 | [ControlBinding](#interface-controlbinding) | interface | `src/ui/Controls.ts:20` |
 | [Correction](#interface-correction) | interface | `src/systems/Compliance.ts:42` |
 | [CountKind](#type-countkind) | type | `src/ui/NetworkPanel.ts:29` |
@@ -7384,10 +7385,10 @@ GameScene.
 | [DIRS_8](#const-dirs-8) | const | `src/entities/directions.ts:20` |
 | [DisplayFootprint](#type-displayfootprint) | type | `src/entities/EntitySprites.ts:114` |
 | [Door](#class-door) | class | `src/entities/Door.ts:172` |
-| [DOOR_DEFAULTS](#const-door-defaults) | const | `src/systems/EntityStats.ts:549` |
+| [DOOR_DEFAULTS](#const-door-defaults) | const | `src/systems/EntityStats.ts:551` |
 | [DoorAccess](#interface-dooraccess) | interface | `src/entities/doorWork.ts:47` |
 | [DoorSeating](#interface-doorseating) | interface | `src/entities/doorGeometry.ts:37` |
-| [DoorStats](#interface-doorstats) | interface | `src/systems/EntityStats.ts:540` |
+| [DoorStats](#interface-doorstats) | interface | `src/systems/EntityStats.ts:542` |
 | [DoorWalker](#interface-doorwalker) | interface | `src/entities/doorWork.ts:30` |
 | [Drone](#class-drone) | class | `src/entities/Drone.ts:14` |
 | [EdAnimation](#interface-edanimation) | interface | `src/map/types.ts:48` |
@@ -7444,7 +7445,7 @@ GameScene.
 | [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:151` |
 | [GameTile](#interface-gametile) | interface | `src/map/types.ts:247` |
 | [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:362` |
-| [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:598` |
+| [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:600` |
 | [GuardAnomaly](#interface-guardanomaly) | interface | `src/entities/Enforcer.ts:93` |
 | [GuardKind](#type-guardkind) | type | `src/map/EntityIndex.ts:46` |
 | [GuardRoute](#interface-guardroute) | interface | `src/map/EntityIndex.ts:50` |
@@ -7478,7 +7479,7 @@ GameScene.
 | [LightSource](#interface-lightsource) | interface | `src/systems/DetectionSystem.ts:4` |
 | [LightStats](#interface-lightstats) | interface | `src/systems/EntityStats.ts:113` |
 | [LightSwitch](#class-lightswitch) | class | `src/entities/LightSwitch.ts:70` |
-| [LightSwitchStats](#interface-lightswitchstats) | interface | `src/systems/EntityStats.ts:714` |
+| [LightSwitchStats](#interface-lightswitchstats) | interface | `src/systems/EntityStats.ts:716` |
 | [Locker](#class-locker) | class | `src/entities/Locker.ts:37` |
 | [LockerResult](#type-lockerresult) | type | `src/entities/Locker.ts:117` |
 | [LogToken](#interface-logtoken) | interface | `src/systems/Compliance.ts:27` |
@@ -7539,7 +7540,7 @@ GameScene.
 | [Player](#class-player) | class | `src/entities/Player.ts:47` |
 | [PlayerAnimName](#type-playeranimname) | type | `src/entities/PlayerAnimations.ts:17` |
 | [PlayerParams](#interface-playerparams) | interface | `src/systems/QualiaLock.ts:35` |
-| [PlayerStats](#interface-playerstats) | interface | `src/systems/EntityStats.ts:836` |
+| [PlayerStats](#interface-playerstats) | interface | `src/systems/EntityStats.ts:838` |
 | [Pose](#interface-pose) | interface | `src/entities/CastArt.ts:55` |
 | [PowerControl](#class-powercontrol) | class | `src/scenes/game/PowerControl.ts:99` |
 | [PowerGridState](#interface-powergridstate) | interface | `src/systems/PowerGrid.ts:27` |
@@ -7579,7 +7580,7 @@ GameScene.
 | [RelayMsg](#interface-relaymsg) | interface | `src/systems/RelayCore.ts:46` |
 | [RelaySnapshot](#interface-relaysnapshot) | interface | `src/systems/RelayCore.ts:40` |
 | [RelayState](#enum-relaystate) | enum | `src/systems/RelayCore.ts:18` |
-| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:1729` |
+| [RelayStats](#interface-relaystats) | interface | `src/systems/EntityStats.ts:1731` |
 | [RelayTickResult](#interface-relaytickresult) | interface | `src/entities/RoofRelay.ts:61` |
 | [RelayTransition](#interface-relaytransition) | interface | `src/systems/RelayCore.ts:35` |
 | [RelayView](#interface-relayview) | interface | `src/systems/RelayCore.ts:55` |
@@ -7597,7 +7598,7 @@ GameScene.
 | [SensingDeps](#interface-sensingdeps) | interface | `src/scenes/game/SensingContext.ts:26` |
 | [SensingWorld](#interface-sensingworld) | interface | `src/systems/Sensing.ts:60` |
 | [Sensor](#class-sensor) | class | `src/entities/Sensor.ts:43` |
-| [SensorStats](#interface-sensorstats) | interface | `src/systems/EntityStats.ts:636` |
+| [SensorStats](#interface-sensorstats) | interface | `src/systems/EntityStats.ts:638` |
 | [SetPieceEvents](#class-setpieceevents) | class | `src/scenes/game/SetPieceEvents.ts:68` |
 | [SetPieceWorld](#interface-setpieceworld) | interface | `src/scenes/game/SetPieceEvents.ts:51` |
 | [Settings](#interface-settings) | interface | `src/systems/Settings.ts:13` |
@@ -7616,7 +7617,7 @@ GameScene.
 | [SmacMsg](#interface-smacmsg) | interface | `src/systems/SmacCore.ts:72` |
 | [SmacSnapshot](#interface-smacsnapshot) | interface | `src/systems/SmacCore.ts:63` |
 | [SmacState](#enum-smacstate) | enum | `src/systems/SmacCore.ts:38` |
-| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:1657` |
+| [SmacStats](#interface-smacstats) | interface | `src/systems/EntityStats.ts:1659` |
 | [SmacTickResult](#interface-smactickresult) | interface | `src/entities/BossCore.ts:56` |
 | [SmacTransition](#interface-smactransition) | interface | `src/systems/SmacCore.ts:57` |
 | [SmacView](#interface-smacview) | interface | `src/systems/SmacCore.ts:94` |
@@ -7634,9 +7635,9 @@ GameScene.
 | [SynthVoice](#type-synthvoice) | type | `src/systems/SamSpeech.ts:32` |
 | [Target](#type-target) | type | `src/scenes/game/ItemActions.ts:487` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:43` |
-| [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:624` |
+| [TERMINAL_DEFAULTS](#const-terminal-defaults) | const | `src/systems/EntityStats.ts:626` |
 | [TerminalHacks](#class-terminalhacks) | class | `src/scenes/game/TerminalHacks.ts:80` |
-| [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:615` |
+| [TerminalStats](#interface-terminalstats) | interface | `src/systems/EntityStats.ts:617` |
 | [TickState](#type-tickstate) | type | `src/ui/radarDirections.ts:22` |
 | [TilePos](#interface-tilepos) | interface | `src/map/generate.ts:118` |
 | [TileRect](#interface-tilerect) | interface | `src/map/TileBake.ts:424` |
@@ -7659,7 +7660,7 @@ GameScene.
 | [UIScene](#class-uiscene) | class | `src/scenes/UIScene.ts:35` |
 | [UiSheetSpec](#interface-uisheetspec) | interface | `src/ui/UiTextures.ts:63` |
 | [UiTextureSpec](#interface-uitexturespec) | interface | `src/ui/UiTextures.ts:27` |
-| [VaultAndPress](#class-vaultandpress) | class | `src/scenes/game/VaultAndPress.ts:96` |
+| [VaultAndPress](#class-vaultandpress) | class | `src/scenes/game/VaultAndPress.ts:98` |
 | [VaultLayout](#interface-vaultlayout) | interface | `src/map/AlignmentVault.ts:81` |
 | [VaultQuery](#interface-vaultquery) | interface | `src/scenes/game/VaultAndPress.ts:31` |
 | [VaultWorld](#interface-vaultworld) | interface | `src/scenes/game/VaultAndPress.ts:87` |
@@ -7674,7 +7675,7 @@ GameScene.
 | [Vent4PhysicsSystem](#class-vent4physicssystem) | class | `src/systems/Vent4PhysicsSystem.ts:63` |
 | [Vent4Snapshot](#interface-vent4snapshot) | interface | `src/systems/Vent4Core.ts:34` |
 | [Vent4State](#enum-vent4state) | enum | `src/systems/Vent4Core.ts:17` |
-| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:1533` |
+| [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:1535` |
 | [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:67` |
 | [Vent4Transition](#interface-vent4transition) | interface | `src/systems/Vent4Core.ts:28` |
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |

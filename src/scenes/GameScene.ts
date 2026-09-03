@@ -599,6 +599,7 @@ export class GameScene extends Phaser.Scene {
       detection: () => this.detection,
       player: () => this.player,
       heldUp: () => this.holdUp.target !== null,
+      carrying: () => this.carried !== null,
     });
 
     // Holds the arrays by reference, so it always sees this level's cast.
