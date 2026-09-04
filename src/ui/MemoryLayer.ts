@@ -124,6 +124,18 @@ export class MemoryLayer {
   }
 
   /**
+   * The remembered-geometry wash and its scanlines, for a camera that must not
+   * draw them.
+   *
+   * Keyed to what *Rowan* has surveyed and clipped to his current sightline
+   * ({@link clipTo}), so on a feed looking at another room it would be a second
+   * room's memory stencilled over the first. See `Lighting.displayObjects`.
+   */
+  get displayObjects(): Phaser.GameObjects.GameObject[] {
+    return [this.rt, this.scanlines];
+  }
+
+  /**
    * Clips both layers to everything *outside* the viewer's line of sight.
    *
    * `fan` is `Lighting`'s shadow geometry, which is already exactly that region

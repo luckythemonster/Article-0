@@ -40,7 +40,9 @@ npm test         # vitest, covers the pure systems
 | Shift | Sneak / crouch — slower, quieter; crouch to squeeze into cover and hide |
 | Space | Run — faster but louder; tap to toggle |
 | X | Press against a wall or cover — slide along it; hold a direction at the end of a wall to peek round the corner |
-| E | Contextual: open/close a door, hack a terminal (hold), search a chest (hold), pick up or put down a downed body, stash one in a locker (hold), use a hatch/ladder, or vault low cover |
+| E | Contextual: open/close a door, hack a terminal (hold), search a chest (hold), pick up or put down a downed body, stash one in a locker (hold), use a hatch/ladder, or vault low cover. Tap it again at a terminal you already breached to bring up that deck's **camera feed** |
+| A/D | *Camera feed only:* change channel |
+| R | *Camera feed only:* loop the channel, blinding that camera for a while |
 | L | Flashlight — the only way to see in the unlit levels, but it drains and makes you far easier to spot |
 | F | Shared Field — once charged (by staying near a silicate), merge for 3.7s and become undetectable |
 | R | Knock — rap on a wall to lure guards and orderlies to the noise |
@@ -222,6 +224,26 @@ sighting ripples through the **alert network**: the unit that spots you rallies 
 guard within its network radius, so one camera lighting up can pull a whole patrol toward
 you. The top-left **NETWORK** readout tracks status, how many units are online, spotting
 or suspicious, how many are converging and on which tile, and the stand-down countdown.
+
+**The camera feed.** A terminal you have already breached is not finished with. Tap **E**
+at one and a monitor comes up in the middle of the screen showing the deck's cameras, one
+channel at a time, rendered live from the camera's own position — the room, the patrol
+walking through it, before you walk into it yourself. **A/D** changes channel; **R** loops
+the one you are on, and for twelve seconds that camera reports nothing at all (the NETWORK
+readout's unit count drops by one, which is how you know it took).
+
+It is not a free look, and the three ways it costs you are the whole design. **The game
+does not pause** — this is the only screen in the game that doesn't — so patrols keep
+walking while you read, and Rowan stands rooted at the panel with `UNAUTHORIZED` on his
+conduct record the entire time; anyone who rounds the corner finds him there. **It jams on
+ALERT**, exactly as the radar does, so the picture dies at the moment you most want it.
+And the **terminal has to be breached first**, which on this map means the compliance
+puzzle is already behind you. The feed is also unlit — a camera runs on its own low-light
+sensor, so it sees straight through a room you blacked out.
+
+Not every deck has something to look at: the cameras are on `main1`, `main2` and
+`main2vault`, and only the first and last of those have a terminal to read them from. The
+vault, with five panels and four cameras, is where the feature is really the tool.
 
 **Chests** are searchable supply containers: hold **E** next to one to fill a search bar,
 and its contents drop into your **inventory** (bottom-right), which persists across level

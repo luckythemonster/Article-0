@@ -365,6 +365,23 @@ export class Lighting {
   }
 
   /**
+   * The darkness and its shadow fan, for a camera that must not draw them.
+   *
+   * Both are built for *one* viewer — the fan is cast from Rowan's eye out to the
+   * edge of `cameras.main`'s view (see {@link drawShadows}) — so a second camera
+   * looking somewhere else would be shown one room's visibility polygon laid over
+   * another room's floor. The security-camera feed calls this and `ignore()`s the
+   * result, which leaves the feed unlit: a camera runs on its own low-light
+   * sensor, so a blacked-out room is exactly the room it can still see.
+   *
+   * Returned as a list rather than two getters because the only caller wants both
+   * and adding a third layer here should not need a third call site.
+   */
+  get displayObjects(): Phaser.GameObjects.GameObject[] {
+    return [this.rt, this.shadowGfx];
+  }
+
+  /**
    * How the point `(x, y)` is lit — see {@link sampleLightAt} for the arithmetic.
    *
    * Exists so `EntityShadows` can throw a character's shadow away from whatever is
