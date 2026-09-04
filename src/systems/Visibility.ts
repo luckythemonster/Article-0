@@ -109,6 +109,17 @@ export function rayDirections(rayCount: number = SIGHT_RAYS): RayDirections {
   return { cos, sin, invCos, invSin, deltaX, deltaY, stepX, stepY };
 }
 
+export function calculateLineOfSight(startX: number, startY: number, endX: number, endY: number, grid: CollisionGrid): boolean {
+  const dx = endX - startX;
+  const dy = endY - startY;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  if (distance === 0) return true;
+  const dirX = dx / distance;
+  const dirY = dy / distance;
+  const reach = rayDistance(grid, startX, startY, dirX, dirY, distance, 0);
+  return reach >= distance;
+}
+
 /**
  * Distance (in tiles) sight reaches from `(originX, originY)` along the unit
  * direction `(dirX, dirY)`, capped at `maxTiles`.

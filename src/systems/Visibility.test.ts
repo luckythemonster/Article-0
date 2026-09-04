@@ -3,6 +3,7 @@ import { CollisionGrid } from "./CollisionGrid";
 import {
   rayDirections,
   rayDistance,
+  calculateLineOfSight,
   sightDistances,
   walkRayCells,
   SIGHT_RAYS,
@@ -392,6 +393,38 @@ describe("sightDistances optimization parity and benchmark", () => {
     console.log(`[BENCHMARK] Fallback path: ${fallbackTime.toFixed(2)}ms, Fast path: ${fastTime.toFixed(2)}ms (Speedup: ${speedup.toFixed(2)}x)`);
 
     expect(fastTime).toBeLessThanOrEqual(fallbackTime + 15.0);
+  });
+});
+
+describe("calculateLineOfSight", () => {
+  it("returns true when line of sight is unobstructed", () => {
+    const g = new CollisionGrid(level());
+    // (0.5, 0.5) to (1.5, 1.5) is open
+    expect(calculateLineOfSight(0.5, 0.5, 1.5, 1.5, g)).toBe(true);
+  });
+
+  it("returns false when a wall blocks the line of sight", () => {
+    const g = new CollisionGrid(level());
+    // The level has a wall column at x=2 for y=0..2
+    // Ray from (0.5, 1.5) to (3.5, 1.5) goes right through the wall at x=2
+    expect(calculateLineOfSight(0.5, 1.5, 3.5, 1.5, g)).toBe(false);
+  });
+
+  it("returns true when distance is 0 (identical start and end)", () => {
+    const g = new CollisionGrid(level());
+    expect(calculateLineOfSight(1.5, 1.5, 1.5, 1.5, g)).toBe(true);
+  });
+
+  it("returns true for horizontal unobstructed line", () => {
+    const g = new CollisionGrid(level());
+    // row 3 is open
+    expect(calculateLineOfSight(0.5, 3.5, 4.5, 3.5, g)).toBe(true);
+  });
+
+  it("returns true for vertical unobstructed line", () => {
+    const g = new CollisionGrid(level());
+    // column 0 is open
+    expect(calculateLineOfSight(0.5, 0.5, 0.5, 4.5, g)).toBe(true);
   });
 });
 
