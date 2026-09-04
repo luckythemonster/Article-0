@@ -33,6 +33,15 @@ import { UI } from "../../ui/hudTheme";
 export interface PromptCandidates {
   terminal: Terminal | undefined;
   terminalDist: number;
+  /**
+   * A terminal already breached, close enough to read its deck's cameras from.
+   *
+   * A boolean rather than the `Terminal`, because unlike every other candidate
+   * here nothing about the panel decides the label — what it offers depends on
+   * whether the *level* has any cameras, which the scene knows and this does not.
+   */
+  surveillance: boolean;
+  surveillanceDist: number;
   door: Door | undefined;
   doorDist: number;
   breaker: Breaker | undefined;
@@ -84,6 +93,15 @@ export function promptLabelFor(c: PromptCandidates): string | undefined {
   if (c.terminal && c.terminalDist < best) {
     best = c.terminalDist;
     label = "[E] Hack";
+  }
+  // Directly under the hack, and the two can never both be in play at the same
+  // panel: a terminal is a candidate for one or the other depending on whether it
+  // has been breached. Ranked here rather than lower down because it matches the
+  // tap order — a panel outranks the door beside it for the same reason the
+  // breaker does, being a thing the player crossed the room for.
+  if (c.surveillance && c.surveillanceDist < best) {
+    best = c.surveillanceDist;
+    label = "[E] Surveillance";
   }
   if (c.ventLabel && (c.ventDist ?? Infinity) < best) {
     best = c.ventDist ?? Infinity;
@@ -241,6 +259,17 @@ export class InteractPrompt {
   /** Whether a verb is currently on screen — the hold-up offer defers to it. */
   get visible(): boolean {
     return this.prompt.visible;
+  }
+
+  /**
+   * Both labels, for a camera that must not draw them.
+   *
+   * They are world-space text pinned over Rowan's head, so a second camera
+   * looking at another room would print "[E] Surveillance" into the middle of it.
+   * See `Lighting.displayObjects`.
+   */
+  get displayObjects(): Phaser.GameObjects.GameObject[] {
+    return [this.prompt, this.status];
   }
 
   /** Shows the winning verb from everything in reach, or clears the prompt. */

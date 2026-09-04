@@ -15,6 +15,7 @@ import { PowerControl } from "./game/PowerControl";
 import { ExploredTracker } from "./game/ExploredTracker";
 import { initialExplored, type ExploredState } from "../systems/Explored";
 import { TerminalHacks } from "./game/TerminalHacks";
+import { CameraFeeds } from "./game/CameraFeeds";
 import { PlaneTraversal } from "./game/PlaneTraversal";
 import { ItemActions } from "./game/ItemActions";
 import { SpriteAtlas } from "../map/SpriteAtlas";
@@ -106,6 +107,7 @@ import {
   WALL_PRESS_DETECTION_MULTIPLIER,
 } from "../systems/EntityStats";
 import { CAMERA_ZOOM } from "../render/pixelScale";
+import { onResize } from "../ui/resize";
 import {
   ActiveItemState,
   CHAFF_PACK_RADIUS_TILES,
@@ -125,6 +127,7 @@ import { Encounters } from "./game/Encounters";
 import { blockingLayerNames, isInteractTransition } from "../map/types";
 import { linkAt, movingToward, planeLinksFor, type PlaneLink } from "../systems/PlaneLinks";
 import { PLANE_FLOOR } from "../map/planes";
+import type { BakedPlane } from "../map/TileBake";
 import { planFor, type MapPlan } from "../map/MapPlan";
 import { getAudio } from "../systems/AudioDirector";
 import { saveGame, clearSave, loadGame, type SlotId } from "../systems/SaveGame";
@@ -299,6 +302,8 @@ export class GameScene extends Phaser.Scene {
   private readonly radarSnapshot = emptyRadarSnapshot();
   /** Refilled each frame by {@link publishFrame}; see the note there. */
   private readonly activeGuards: Enforcer[] = [];
+  /** Cameras still reporting — a looped one is off the mesh. See {@link publishFrame}. */
+  private readonly activeSensors: Sensor[] = [];
   private lighting!: Lighting;
   private entityShadows!: EntityShadows;
   /**
@@ -395,6 +400,24 @@ export class GameScene extends Phaser.Scene {
     levelName: () => this.level.name,
     publishObjectives: () => this.registry.set("objectives", this.objectives),
   });
+  /**
+   * The security-camera feed a breached terminal opens, and the loops it can set.
+   *
+   * Deliberately *not* an `OverlayGate` overlay: the sim keeps running behind it.
+   * See the class comment on {@link CameraFeeds}.
+   */
+  private readonly feeds = new CameraFeeds(this, {
+    sensors: () => this.sensors,
+    tileSize: () => this.tileSize,
+    levelSize: () => this.level,
+    alertPhase: () => this.alert.phase,
+    registry: () => this.registry,
+    ignoreFor: (plane) => this.feedIgnores(plane),
+    violateUnauthorized: () => this.conduct.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED),
+    violateTampering: () => this.conduct.violate("TAMPERING", FLAG_TAMPERING),
+  });
+  /** The baked art per walk surface, kept so the feed camera can ignore the rest. */
+  private bakedPlanes: readonly BakedPlane[] = [];
   /** Mission progress (kept in the registry so it survives level swaps). */
   private objectives!: ObjectiveState;
   /** Rowan's journal — the run's counter-archive, also registry-backed. */
@@ -593,6 +616,9 @@ export class GameScene extends Phaser.Scene {
     this.coverTiles = built.coverTiles;
     this.hacks.designateQualiaRack();
     this.hacks.designateLogCacheNodes();
+    // After the sensors are in `this.sensors`: a channel addresses its camera by
+    // index into that array, so the two are built in the same breath.
+    this.feeds.rebuild();
 
     this.vault = new VaultAndPress({
       tileSize: this.tileSize,
@@ -669,6 +695,11 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player.sprite, true, 0.15, 0.15);
     this.cameras.main.setZoom(CAMERA_ZOOM);
     this.cameras.main.roundPixels = true;
+    // The feed's viewport is derived from the canvas size, and the chrome drawn
+    // around it in `UIScene` re-derives it on the same event — so a monitor left
+    // open across a window resize would otherwise keep its old clipping rect while
+    // its bezel moved off it.
+    onResize(this, (w, h) => this.feeds.layout(w, h));
 
     // Every walk/run/patrol cycle has to advance at the same fraction of real
     // time as the feet it belongs to, or the whole cast skates. This is the
@@ -726,6 +757,7 @@ export class GameScene extends Phaser.Scene {
     );
     this.memory.clipTo(this.lighting.shadowGeometry);
     this.memory.prime(this.tracker.explored);
+    this.bakedPlanes = built.planes;
     this.planeOverlay = new PlaneOverlay(this.level, this.tileSize, built.planes);
     this.planeLinks = planeLinksFor(this.level, this.tileSize);
     if (built.deckEdgeBodies.length > 0) {
@@ -872,6 +904,7 @@ export class GameScene extends Phaser.Scene {
     this.terminals = [];
     this.lasers = [];
     this.sensors = [];
+    this.feeds.reset();
     this.chests = [];
     // The breakers and switches themselves belong to the level and are rebuilt with
     // it; the circuit *state* they read does not, and stays in the registry.
@@ -1383,7 +1416,13 @@ export class GameScene extends Phaser.Scene {
       this.guards.some((e) => e.isSilicate && sees(e.x, e.y, WITNESS_RADIUS_TILES)) ||
       this.encounters.witnessAnchors().some((a) => sees(a.x, a.y, a.radiusTiles));
     this.sharedField.witness(dt, witnessing);
-    if (Phaser.Input.Keyboard.JustDown(this.keys.field) && this.sharedField.activate()) {
+    if (
+      Phaser.Input.Keyboard.JustDown(this.keys.field) &&
+      // Both hands are on the panel. The feed's own branch has already consumed
+      // this press, but the read here is of the key rather than of a banked flag.
+      !this.feeds.watching &&
+      this.sharedField.activate()
+    ) {
       getAudio().merge();
       this.cameras.main.flash(300, 60, 200, 220);
       this.note("we");
@@ -1422,7 +1461,8 @@ export class GameScene extends Phaser.Scene {
     // `inputLocked` releases the hold rather than merely ignoring the key: the roof's
     // discharge is the run's authored ending, and a hostage must not stay frozen
     // through the tribunal because a finger was still on Q.
-    const aiming = this.keys.holdUp.isDown && armed && !this.encounters.inputLocked;
+    const aiming =
+      this.keys.holdUp.isDown && armed && !this.encounters.inputLocked && !this.feeds.watching;
 
     // The unarmed half of the same key. A *tap*, unlike the hold-up's held aim, because
     // the two are different shapes of action: one is a posture Rowan maintains, the
@@ -1438,6 +1478,7 @@ export class GameScene extends Phaser.Scene {
       takedownJust &&
       !armed &&
       !this.encounters.inputLocked &&
+      !this.feeds.watching &&
       this.takedownCooldownLeft <= 0 &&
       this.items.takedown()
     ) {
@@ -1497,7 +1538,11 @@ export class GameScene extends Phaser.Scene {
 
     // The discharge on the roof: Rowan stops being able to act before the tribunal
     // takes the screen, so the last seconds are watched rather than played.
-    if (this.encounters.inputLocked) {
+    // Two ways to lose the controls: the roof's discharge, and standing at a panel
+    // watching a camera feed. They freeze the same set of verbs — no walking,
+    // running, crouching, pressing, peeking or vaulting — so they share the branch
+    // rather than growing a second all-false literal to drift from this one.
+    if (this.encounters.inputLocked || this.feeds.watching) {
       this.vault.releasePress();
       return {
         up: false,
@@ -1557,6 +1602,43 @@ export class GameScene extends Phaser.Scene {
       return this.updateWorld(dt, delta);
     }
 
+    // The camera feed, which is the *other* mode in this file that does not freeze
+    // anything — see `CameraFeeds` and the `summaryUp` branch just above, which it
+    // is modelled on. It claims its own keys for the frame and then falls straight
+    // through to the ordinary sim update, so the patrol the player is watching goes
+    // on walking while they watch it.
+    //
+    // Esc closes the monitor rather than opening the pause menu, and is consumed
+    // here so it cannot do both on the way out. Every read is unconditional and
+    // masked afterwards, per the discipline spelled out below.
+    if (this.feeds.watching) {
+      // The roof's discharge is the run's authored ending and takes Rowan's controls
+      // with it; a monitor still up over the top of it would be the one thing on
+      // screen still asking for input.
+      if (this.encounters.inputLocked) {
+        this.feeds.closeFeed();
+        return this.updateWorld(dt, delta);
+      }
+      const k = this.keys;
+      const close =
+        Phaser.Input.Keyboard.JustDown(k.interact) || Phaser.Input.Keyboard.JustDown(k.pause);
+      const prev =
+        Phaser.Input.Keyboard.JustDown(k.left) || Phaser.Input.Keyboard.JustDown(k.a);
+      const next =
+        Phaser.Input.Keyboard.JustDown(k.right) || Phaser.Input.Keyboard.JustDown(k.d);
+      const loop = Phaser.Input.Keyboard.JustDown(k.knock);
+      // Consuming reads that must still happen while the monitor is up, so the
+      // press is swallowed rather than banked and fired on the frame it closes.
+      Phaser.Input.Keyboard.JustDown(k.codec);
+      Phaser.Input.Keyboard.JustDown(k.holdUp);
+      Phaser.Input.Keyboard.JustDown(k.field);
+      if (close) this.feeds.closeFeed();
+      else if (prev) this.feeds.cycle(-1);
+      else if (next) this.feeds.cycle(1);
+      else if (loop) this.feeds.loopSelected();
+      return this.updateWorld(dt, delta);
+    }
+
     // Pause (Esc), the codec (C), the two minigames and the elevator's floor panel
     // each freeze the sim behind an overlay scene. The minigames and codec suppress
     // the pause/codec toggles, and so does the panel — Esc is its own cancel key,
@@ -1602,6 +1684,11 @@ export class GameScene extends Phaser.Scene {
     // the walk cycle animating through the whole death hold.
     if (this.dyingFor === null) this.updatePlayerFrame(dt, delta);
     this.updateInteractions(dt);
+    // Before the guards and cameras read the world in `tickWorld`, so a channel
+    // looped on this frame is already blind when its camera looks. Ticked whether
+    // or not the monitor is up: a loop set on the way past keeps running while the
+    // player walks into the room it blinded.
+    this.feeds.update(dt);
     this.power.updateResets(this.time.now / 1000);
     this.updateSharedField(dt);
     this.items.update(dt);
@@ -1787,6 +1874,7 @@ export class GameScene extends Phaser.Scene {
     if (!captured && !this.player.alive) {
       if (this.dyingFor === null) {
         this.dyingFor = 0;
+        this.feeds.closeFeed();
         this.beginDeathHold();
       } else {
         this.dyingFor += dt;
@@ -1918,9 +2006,14 @@ export class GameScene extends Phaser.Scene {
     // Not while holding someone up — his hands are full, and a knock is loud, which
     // is the one thing a hold-up is for not being.
     this.knockCooldown = Math.max(0, this.knockCooldown - dt);
+    // R loops the selected channel while the monitor is up, and the branch in
+    // `update` has already consumed the press — but this reads the key itself
+    // rather than a banked flag, so it has to be told as well or a loop would rap
+    // on the wall at the same time.
     if (
       this.knockCooldown <= 0 &&
       !this.holdUp.target &&
+      !this.feeds.watching &&
       Phaser.Input.Keyboard.JustDown(this.keys.knock) &&
       this.noise.knock(this.player.x, this.player.y, this.player.facing)
     ) {
@@ -2186,7 +2279,19 @@ export class GameScene extends Phaser.Scene {
     const active = this.activeGuards;
     active.length = 0;
     for (const g of this.guards) if (!g.isStashed) active.push(g);
-    this.registry.set("alertNetwork", buildAlertNetworkSnapshot(active, this.sensors, this.alert));
+    // A looped camera is the same argument one step over: it is still bolted to the
+    // wall, but it is not a contact the mesh has, and the unit count dropping by one
+    // is the only confirmation the player gets that the loop landed. The radar below
+    // deliberately keeps it — the housing goes on sweeping and the facility believes
+    // the feed, so a blip that vanished would tell the player something the facility
+    // does not know.
+    const liveSensors = this.activeSensors;
+    liveSensors.length = 0;
+    for (const s of this.sensors) if (!s.looped) liveSensors.push(s);
+    this.registry.set(
+      "alertNetwork",
+      buildAlertNetworkSnapshot(active, liveSensors, this.alert),
+    );
     this.registry.set(
       "radar",
       buildRadarSnapshot(
@@ -2313,6 +2418,26 @@ export class GameScene extends Phaser.Scene {
         nearestTerminal = term;
       }
     }
+    // --- Breached terminals (tap E for the camera feed) ---
+    //
+    // A second pass rather than a widened first one: the hold scan above skips a
+    // hacked terminal precisely so a finished panel stops eating E, and folding
+    // the two together would put a terminal back in `nearestTerminal` and restart
+    // its hold. A bricked one is excluded outright — `brick()` sets `hacked` too,
+    // which is why `isBricked` had to exist at all.
+    let nearestBreached: Terminal | undefined;
+    let nearestBreachedDist = Infinity;
+    if (this.feeds.hasFeeds) {
+      for (const term of this.terminals) {
+        if (!term.isHacked || term.isBricked) continue;
+        const d = len(term.x / ts - ptx, term.y / ts - pty);
+        if (d <= INTERACT_RANGE && d < nearestBreachedDist) {
+          nearestBreachedDist = d;
+          nearestBreached = term;
+        }
+      }
+    }
+
     const hacking = !!nearestTerminal && interactDown;
     // Working a panel you have no business at is the clearest possible breach, and
     // re-reporting it every frame keeps the flag topped up for as long as the hold
@@ -2466,6 +2591,13 @@ export class GameScene extends Phaser.Scene {
     let adjacentClaimedTap = false;
     if (!hacking && !encounterHold && interactJust) {
       const hatchDist = hatch ? 0.2 : Infinity;
+      if (nearestBreached && nearestBreachedDist <= Math.min(nearestDoorDist, hatchDist)) {
+        // First of the taps, above even the breaker: a panel you already broke
+        // into is the most deliberate destination on the deck — you walked back
+        // to it — and on `main2vault` five of them stand among the doors.
+        adjacentClaimedTap = true;
+        this.feeds.openFeed();
+      } else
       // A breaker outranks a door at the same reach: it is a thing you walk to
       // deliberately, and main1 puts one on the same board as a door.
       if (nearestBreaker && nearestBreakerDist <= Math.min(nearestDoorDist, hatchDist)) {
@@ -2565,6 +2697,8 @@ export class GameScene extends Phaser.Scene {
       {
         terminal: nearestTerminal,
         terminalDist: nearestTerminalDist,
+        surveillance: nearestBreached !== undefined,
+        surveillanceDist: nearestBreachedDist,
         door: nearestDoor,
         doorDist: nearestDoorDist,
         breaker: nearestBreaker,
@@ -2650,6 +2784,46 @@ export class GameScene extends Phaser.Scene {
     this.zoneWingsFor = this.level;
     this.zoneWingsCache = map;
     return map;
+  }
+
+  /**
+   * What the security-camera feed's camera must not draw, watching `plane`.
+   *
+   * Everything here is built for exactly one viewer — Rowan — and would be a lie
+   * seen from anywhere else. The darkness and its shadow fan are cast from his eye
+   * out to the edge of `cameras.main`'s view; the remembered-geometry wash is keyed
+   * to what *he* has surveyed and clipped to that same fan; the interact prompt and
+   * the HIDDEN/RESTRICTED marker are text pinned over his head. Drawn on a feed
+   * looking three rooms away, each of them stencils one room's answer over another
+   * room's floor.
+   *
+   * Leaving the darkness off has a second consequence worth stating rather than
+   * discovering: **the feed is unlit.** That is the fiction rather than a shortcut —
+   * a security camera runs on its own low-light sensor, so a room the player
+   * blacked out is exactly the room it can still see. Teaching `Lighting` to serve
+   * two viewers is the alternative, and it is a great deal more work for a picture
+   * that would mostly be black.
+   *
+   * The baked art of every *other* walk surface goes too, so a catwalk is not
+   * painted over the room the camera is pointed at.
+   *
+   * One artefact this cannot reach: `PlaneOverlay` fades a surface by setting
+   * `alpha` on the baked texture itself, and alpha belongs to the object rather
+   * than to a camera — so a deck Rowan walks under dims on the feed as well. No
+   * shipped level has both a faded plane and a camera (only `vent_core` and
+   * `roof_array` have the first, and neither has the second), so it is left alone.
+   */
+  private feedIgnores(plane: number): Phaser.GameObjects.GameObject[] {
+    const out: Phaser.GameObjects.GameObject[] = [
+      ...this.lighting.displayObjects,
+      ...this.memory.displayObjects,
+      ...this.prompts.displayObjects,
+    ];
+    for (const baked of this.bakedPlanes) {
+      if (baked.plane !== plane) out.push(baked.texture);
+    }
+    if (this.debug) out.push(...this.debug.displayObjects);
+    return out;
   }
 
   /** Warps to a level by restarting the scene at its own spawn tile. */
@@ -2792,6 +2966,10 @@ export class GameScene extends Phaser.Scene {
 
   private beginTransition(tr: Transition): void {
     this.transitioning = true;
+    // Before the fade: `fadeOut` runs on `cameras.main` and does not touch the feed
+    // camera, so a monitor left up would keep rendering a bright picture of a level
+    // that is about to be torn down and rebuilt.
+    this.feeds.closeFeed();
     this.prompts.clear();
     this.player.sprite.setVelocity(0, 0);
     this.cameras.main.fadeOut(FADE_MS, 5, 7, 10);
