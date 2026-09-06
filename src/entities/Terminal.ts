@@ -73,6 +73,20 @@ export class Terminal {
   }
 
   /**
+   * Whether this terminal was destroyed rather than breached.
+   *
+   * {@link brick} sets `hacked` as well, so every "already done with this one"
+   * check in the interaction scan excludes a bricked panel without knowing the
+   * difference — which was the whole point, right up until something needed to
+   * tell a *breached* terminal from a *dead* one. The camera feed does: a panel
+   * you got into keeps answering (`src/scenes/game/CameraFeeds.ts`), and a panel
+   * you burnt is scrap.
+   */
+  get isBricked(): boolean {
+    return this.bricked;
+  }
+
+  /**
    * Advances the hack while the player holds interact. Returns true on the exact
    * frame the hack completes (so the scene can fire the effect once).
    */

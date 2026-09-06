@@ -39,11 +39,34 @@ const SWEEP_SPEED = paced(0.7);
  * camera plots as a `fixed` unit with a facing tick that reddens past 0.66
  * (`systems/Radar.ts`, `ui/Radar.ts`). That puts the information behind a ten-tile
  * radius that jams during ALERT, rather than on the floor for free.
+ *
+ * **A camera can be looped.** From a breached terminal's feed the player can play
+ * a channel back to itself, and for as long as that lasts the camera reports
+ * nothing. The housing goes on sweeping and the radar tick goes on moving —
+ * neither the camera nor the mesh knows anything is wrong, which is the whole
+ * point of a loop — but {@link update} stops asking {@link canSense}. The timer
+ * belongs to `src/systems/Surveillance.ts`; {@link looped} only ever holds the
+ * answer for the current frame, so the rule stays where a test can drive it.
  */
 export class Sensor {
   readonly stats: SensorStats;
   detection = 0; // 0..1
   facing: number;
+
+  /**
+   * Whether this camera is playing a loop rather than watching, this frame.
+   *
+   * Pushed in by the scene from `SurveillanceState` before {@link update} rather
+   * than counted down here, for two reasons: the timer outlives the monitor — a
+   * channel looped on the way past stays looped while the player walks into the
+   * room it blinded — and a countdown living on a Phaser entity would be rebuilt
+   * to zero by the next `LevelBuilder` pass.
+   *
+   * A map that authors `state: LOOPED` starts true and is never set back. That
+   * enum value has been in the export since v0.3 with nothing reading it; it
+   * means what it says — a camera somebody else already spoofed.
+   */
+  looped = false;
 
   /** Pixel position — public for the same reason as {@link Enforcer.x}. */
   readonly x: number;
@@ -74,6 +97,7 @@ export class Sensor {
   ) {
     this.plane = plane;
     this.stats = sensorStatsFor(tile.components);
+    this.looped = this.stats.state === "looped";
     this.x = (tile.x + 0.5) * tileSize + tile.offsetX;
     this.y = (tile.y + 0.5) * tileSize + tile.offsetY;
     this.baseFacing = inferFacing(grid, tile.x, tile.y);
@@ -105,9 +129,14 @@ export class Sensor {
 
     // The camera never moves, so only the swept axis needs republishing.
     this.eye.facing = this.facing;
+    // A looped camera is fed `false` rather than skipped outright, so whatever it
+    // had already accrued drains away down the same `DETECTION_DECAY_PER_SECOND`
+    // ramp a lost sighting does. Snapping it to zero would let a player loop a
+    // camera that was most of the way to reporting them and erase the near miss:
+    // the loop is there to buy the next few seconds, not to undo the last ones.
     this.detection = accrueDetection(
       this.detection,
-      canSense(this.eye, ctx),
+      !this.looped && canSense(this.eye, ctx),
       dt,
       this.stats.detectionDelay,
       ctx,

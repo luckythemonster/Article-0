@@ -7,6 +7,8 @@ function nothing(): PromptCandidates {
   return {
     terminal: undefined,
     terminalDist: Infinity,
+    surveillance: false,
+    surveillanceDist: Infinity,
     door: undefined,
     doorDist: Infinity,
     breaker: undefined,
@@ -308,5 +310,62 @@ describe("statusMarkerFor", () => {
 
   it("defaults to off, so callers that don't know about it are unchanged", () => {
     expect(statusMarkerFor(standing, false, false)).toBeUndefined();
+  });
+});
+
+describe("promptLabelFor — the camera feed", () => {
+  it("offers the feed at a breached panel", () => {
+    expect(promptLabelFor({ ...nothing(), surveillance: true, surveillanceDist: 1 })).toBe(
+      "[E] Surveillance",
+    );
+  });
+
+  it("keeps the slot from the door and the breaker at the same reach", () => {
+    // Matches the tap order in `updateInteractions`, where the feed is claimed
+    // first of the taps.
+    expect(
+      promptLabelFor({
+        ...nothing(),
+        surveillance: true,
+        surveillanceDist: 1,
+        door: shutDoor,
+        doorDist: 1,
+        breaker: liveBreaker,
+        breakerDist: 1,
+      }),
+    ).toBe("[E] Surveillance");
+  });
+
+  it("loses to something genuinely nearer", () => {
+    expect(
+      promptLabelFor({
+        ...nothing(),
+        surveillance: true,
+        surveillanceDist: 1.2,
+        chest: someChest,
+        chestDist: 0.4,
+      }),
+    ).toBe("[E] Search");
+  });
+
+  it("never competes with the hack — a panel is one or the other", () => {
+    // Belt and braces: the scene cannot produce both, since the hold scan skips a
+    // hacked terminal and the feed scan requires one. If it ever did, the hack
+    // wins the tie, which is the safer of the two.
+    expect(
+      promptLabelFor({
+        ...nothing(),
+        terminal: someTerminal,
+        terminalDist: 1,
+        surveillance: true,
+        surveillanceDist: 1,
+      }),
+    ).toBe("[E] Hack");
+  });
+
+  it("says nothing when the deck has no cameras to offer", () => {
+    expect(promptLabelFor({ ...nothing(), surveillance: false, surveillanceDist: 1 })).toBe(
+      undefined,
+    );
   });
 });

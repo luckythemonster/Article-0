@@ -294,6 +294,50 @@ The renderer survives in `src/ui/VisionCone.ts` for exactly those, plus the deve
 overlay (`` ` `` then `V`), which draws cones *and* thermal rings for every live guard and
 camera — the honest geometry, so the numbers stay tunable.
 
+### The camera feed is the exception the cone rule allows for
+
+Nothing above says the player may never see into a room they are not standing in. It says
+a *drawn cone* gives away both the guard's position and the safe line past it, **for
+free**, on every frame, forever. The security-camera feed
+(`src/scenes/game/CameraFeeds.ts`) gives a live picture of another room and is fine,
+because it is none of those things.
+
+It is bought three times over, and each price answers one of the objections above:
+
+- **It is not free.** The terminal has to be breached first — on the shipped map, through
+  the compliance puzzle — and a breach is already a hold, a noise and an `UNAUTHORIZED`.
+- **It is not on every frame.** It exists only while the player is standing at the panel,
+  and **the game does not pause behind it.** This is the second mode in `GameScene` that
+  runs the sim under a screen-filling overlay; the first is NW-SMAC-01's false completion
+  card, and both exist for the same reason — an overlay that freezes the world costs the
+  player nothing, so a feed that froze it would be the cone with extra steps. Rowan is
+  rooted at the panel for as long as he watches, and the patrol he is watching can walk
+  round the corner and find him.
+- **It is not forever.** `feedJammed` is the radar's own rule reused rather than retyped:
+  during ALERT the mesh he is riding goes with the mesh that is hunting him.
+
+The **loop** verb (`R`, twelve seconds) is the same bargain pointed the other way, and it
+finally reads `sensorState: LOOPED` — an enum value the export has carried since v0.3 that
+no code had ever opened. A looped camera goes on sweeping and goes on plotting its facing
+tick on the radar, because neither it nor the facility knows anything is wrong; what
+changes is that `Sensor.update` stops asking `canSense`, and that the camera drops out of
+the NETWORK readout's unit count. That count dropping by one is deliberately the *only*
+confirmation the player gets.
+
+**The feed is unlit, and that is the fiction rather than a shortcut.** The darkness overlay
+and its shadow fan are cast from Rowan's eye to the edge of `cameras.main`'s view, so the
+feed camera `ignore()`s them (`GameScene.feedIgnores`, `Lighting.displayObjects`) — they
+would otherwise stencil one room's visibility polygon over another room's floor. What
+falls out of that is a camera that sees a blacked-out room perfectly, which is what a
+low-light security sensor does. Teaching `Lighting` to serve two viewers is the
+alternative, and it is a great deal of work for a picture that would mostly be black.
+
+One artefact left alone on purpose: `PlaneOverlay` fades a surface by setting `alpha` on
+the baked texture itself, and alpha belongs to the object rather than to a camera, so a
+deck Rowan walks under would dim on the feed as well. No shipped level has both a faded
+plane and a camera — only `vent_core` and `roof_array` have the first, and neither has the
+second — so it is written down here rather than solved.
+
 ---
 
 ## Concealment and compliance

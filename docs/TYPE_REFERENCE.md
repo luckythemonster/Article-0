@@ -8,14 +8,14 @@ Every enum, class, interface, type alias, and `as const` constant declared under
 
 | Area | Enums | Classes | Interfaces | Type aliases | Constants | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| [Systems](#systems) | 3 | 21 | 96 | 26 | 7 | 153 |
+| [Systems](#systems) | 3 | 21 | 101 | 26 | 8 | 159 |
 | [Entities](#entities) | 0 | 21 | 23 | 18 | 3 | 65 |
 | [Map](#map) | 0 | 4 | 38 | 3 | 1 | 46 |
-| [Scenes](#scenes) | 0 | 25 | 28 | 2 | 0 | 55 |
-| [UI](#ui) | 0 | 24 | 27 | 6 | 7 | 64 |
+| [Scenes](#scenes) | 0 | 26 | 29 | 2 | 0 | 57 |
+| [UI](#ui) | 0 | 25 | 28 | 6 | 7 | 66 |
 | [Testing](#testing) | 0 | 1 | 0 | 0 | 0 | 1 |
 | [Entry points](#entry-points) | 0 | 1 | 0 | 0 | 0 | 1 |
-| **All** | **3** | **97** | **215** | **55** | **18** | **388** |
+| **All** | **3** | **99** | **222** | **55** | **19** | **398** |
 
 ## Conventions
 
@@ -141,6 +141,18 @@ below) modulate sweep speed, steam, and thermal behaviour on the boss side.
 | `DEFEATED` | `"DEFEATED"` |  |
 
 ### Systems — Constants
+
+<a id="const-bearings"></a>
+
+#### `BEARINGS` — const *(module-private)*
+
+`src/systems/Surveillance.ts:74`
+
+The nine bearings a label can carry, by third of the level in each axis.
+
+```ts
+const BEARINGS = [ ["NW", "N", "NE"], ["W", "CENTRAL", "E"], ["SW", "S", "SE"], ] as const;
+```
 
 <a id="const-chest-defaults"></a>
 
@@ -1149,6 +1161,34 @@ Everything sensing needs to know about one eye — a guard's, or a camera's.
 | `readsConduct` *(opt)* | `boolean` | Whether this eye's answer depends on the player's *conduct*. Defaults to true, which is the guard's and the camera's case: they route through the Alignment apparatus, so a compliant Rowan is cleared on sight at any range. Set false for the things that are not making a judgement. NW-SMAC-01's auditing beams *are* the mesh, so being read as compliant by it buys nothing; a rooftop searchlight is a lamp, and a spotlight you could walk through by behaving nicely would gut the phase built around avoiding it. Both used to hand-roll their own cone test to escape the short-circuit below, which is how they quietly ended up with three different decay rates and no light sensitivity between them. |
 | `plane` *(opt)* | `number` | Which walk surface this eye stands on — see `src/map/planes.ts`. Defaults to the floor, which is where every eye on a single-plane level is. |
 
+<a id="interface-feedchannel"></a>
+
+#### `FeedChannel` — interface
+
+`src/systems/Surveillance.ts:34`
+
+One camera on the deck, as the monitor addresses it.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `unit` | `number` | Index into the scene's `sensors` array — how a channel names its camera. An index rather than the `Sensor` itself, because this module never sees a Phaser object and the scene rebuilds every camera on a level change. The array it indexes is rebuilt in the same breath as the channels are, so the two cannot drift apart. |
+| `label` | `string` | `CAM 03 · NE` — printed on the monitor and in the channel list. |
+| `tx` | `number` |  |
+| `ty` | `number` |  |
+
+<a id="interface-feedunit"></a>
+
+#### `FeedUnit` — interface
+
+`src/systems/Surveillance.ts:68`
+
+A camera as this module needs it: a tile, and nothing else.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `tx` | `number` |  |
+| `ty` | `number` |  |
+
 <a id="interface-glassstats"></a>
 
 #### `GlassStats` — interface
@@ -2143,6 +2183,56 @@ The slice of the level this module reads. Structural, so a test can pass a liter
 | --- | --- | --- |
 | `tileSize` | `number` |  |
 | `grid` | `{ hasLineOfSight(x0: number, y0: number, x1: number, y1: number): boolean }` |  |
+
+<a id="interface-surveillancechannelview"></a>
+
+#### `SurveillanceChannelView` — interface
+
+`src/systems/Surveillance.ts:185`
+
+One channel as the monitor's chrome needs to draw it.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `label` | `string` |  |
+| `looped` | `boolean` |  |
+| `remaining` | `number` | Seconds of loop left, for the countdown. 0 while live. |
+
+<a id="interface-surveillancestate"></a>
+
+#### `SurveillanceState` — interface
+
+`src/systems/Surveillance.ts:51`
+
+Which channel is up, and what is looped. Held by the scene across frames.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `channels` | `FeedChannel[]` |  |
+| `index` | `number` | The channel on the monitor. Always a valid index while a feed is open. |
+| `loops` | `number[]` | Seconds of loop left per channel, parallel to `channels`; 0 is live. Parallel to the channels rather than a field on each one because it is the only part of a channel that changes, and it is ticked every frame for the whole deck whether the monitor is up or not — a looped camera stays blind after the player walks away from the terminal, which is the entire point of looping it. |
+
+<a id="interface-surveillanceview"></a>
+
+#### `SurveillanceView` — interface
+
+`src/systems/Surveillance.ts:203`
+
+Everything the monitor's chrome needs for one frame.
+
+Deliberately carries no geometry: where the monitor sits is
+`src/ui/CameraFeed.ts`'s answer and the widget asks it directly, so the rect
+cannot arrive here stale from a frame published before the last resize.
+
+Absent from the registry entirely while no feed is open, which is how
+`CameraFeedHud` knows to draw nothing — the same contract the encounter HUDs
+use rather than a `visible` flag nobody would remember to clear.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `channels` | `SurveillanceChannelView[]` |  |
+| `index` | `number` |  |
+| `jammed` | `boolean` |  |
 
 <a id="interface-terminalstats"></a>
 
@@ -3415,7 +3505,7 @@ the tuning schema the `security_guard_*` boards actually carry — see
 
 #### `Sensor` — class
 
-`src/entities/Sensor.ts:43`
+`src/entities/Sensor.ts:51`
 
 A fixed optical security camera — the `security` board's stationary answer to
 a patrolling guard. It never moves: its cone sweeps back and forth around a
@@ -3435,11 +3525,20 @@ camera plots as a `fixed` unit with a facing tick that reddens past 0.66
 (`systems/Radar.ts`, `ui/Radar.ts`). That puts the information behind a ten-tile
 radius that jams during ALERT, rather than on the floor for free.
 
+**A camera can be looped.** From a breached terminal's feed the player can play
+a channel back to itself, and for as long as that lasts the camera reports
+nothing. The housing goes on sweeping and the radar tick goes on moving —
+neither the camera nor the mesh knows anything is wrong, which is the whole
+point of a loop — but `update` stops asking `canSense`. The timer
+belongs to `src/systems/Surveillance.ts`; `looped` only ever holds the
+answer for the current frame, so the rule stays where a test can drive it.
+
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `stats` | `readonly stats: SensorStats` |  |
 | `detection` | `detection = 0` |  |
 | `facing` | `facing: number` |  |
+| `looped` | `looped = false` | Whether this camera is playing a loop rather than watching, this frame. Pushed in by the scene from `SurveillanceState` before `update` rather than counted down here, for two reasons: the timer outlives the monitor — a channel looped on the way past stays looped while the player walks into the room it blinded — and a countdown living on a Phaser entity would be rebuilt to zero by the next `LevelBuilder` pass. A map that authors `state: LOOPED` starts true and is never set back. That enum value has been in the export since v0.3 with nothing reading it; it means what it says — a camera somebody else already spoofed. |
 | `x` | `readonly x: number` | Pixel position — public for the same reason as `Enforcer.x`. |
 | `y` | `readonly y: number` |  |
 | `plane` | `readonly plane: number` | Which walk surface this camera watches — see `src/map/planes.ts`. |
@@ -3463,6 +3562,7 @@ radius that jams during ALERT, rather than on the floor for free.
 | `stats` | `readonly stats: TerminalStats` |  |
 | `constructor` | `constructor(scene: Phaser.Scene, tile: GameTile, tileSize: number)` |  |
 | `isHacked` | `get isHacked(): boolean` |  |
+| `isBricked` | `get isBricked(): boolean` | Whether this terminal was destroyed rather than breached. `brick` sets `hacked` as well, so every "already done with this one" check in the interaction scan excludes a bricked panel without knowing the difference — which was the whole point, right up until something needed to tell a *breached* terminal from a *dead* one. The camera feed does: a panel you got into keeps answering (`src/scenes/game/CameraFeeds.ts`), and a panel you burnt is scrap. |
 | `hack` | `hack(dt: number): boolean` | Advances the hack while the player holds interact. Returns true on the exact frame the hack completes (so the scene can fire the effect once). |
 | `reopen` | `reopen(): void` | Reverts a completed breach so the terminal can be hacked again. Used when a log-cache breach launches the compliance puzzle and the player aborts it — the mission-critical log must stay recoverable, so the terminal is re-armed. A no-op once bricked: that terminal is gone for the run. |
 | `brick` | `brick(): void` | Permanently destroys the terminal — the compliance puzzle's wrong-answer consequence. Never hackable or reopenable again: `hacked` stays true so the normal "already hacked" checks (the interaction scan, `hack()`) keep excluding it with no changes needed there. |
@@ -4958,6 +5058,29 @@ Phaser scenes and the per-scene helpers `GameScene` delegates to.
 
 *Plus 3 private members.*
 
+<a id="class-camerafeeds"></a>
+
+#### `CameraFeeds` — class
+
+`src/scenes/game/CameraFeeds.ts:65`
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `constructor` | `constructor( private readonly scene: Phaser.Scene, private readonly w: FeedWorld, )` |  |
+| `watching` | `get watching(): boolean` | True while the monitor is up — what pins Rowan in place and claims keys. |
+| `channel` | `get channel(): number` | The channel on the monitor, or -1. |
+| `hasFeeds` | `get hasFeeds(): boolean` | Whether this deck has anything to watch, for the interact prompt. |
+| `rebuild` | `rebuild(): void` | Rebuilds the deck's channels from the level just built. Called once per level, after `LevelBuilder` has spawned the sensors, so the indices in `FeedChannel.unit` address the array that now exists. Any loop running on the deck the player just left goes with it, which is correct: the cameras themselves were destroyed and rebuilt by the same pass. |
+| `reset` | `reset(): void` | Clears everything belonging to a run rather than to a level. |
+| `openFeed` | `openFeed(): boolean` | Puts the monitor up, or reports that there is nothing to put on it. Returning false rather than opening an empty screen lets the interact prompt decline to offer the verb at all: on a deck with no cameras — `secret1`, `secret2`, `duct2`, whose four `sensors` tiles are lasers — a breached terminal should look like what it is, rather than promising a feed and then showing static. |
+| `closeFeed` | `closeFeed(): void` | Takes the monitor down. A no-op when it is already down. |
+| `cycle` | `cycle(delta: number): void` | Moves the monitor one channel along. |
+| `loopSelected` | `loopSelected(): void` | Plays the selected channel back to itself. Charged as `TAMPERING` rather than as another `UNAUTHORIZED`: working a panel you have no business at is one thing, and reaching into the security mesh to falsify what it reports is the same class of act as prising open a chest. |
+| `update` | `update(dt: number): void` | One frame: the loop timers, the cameras they blind, and the monitor. The first two halves run whether or not anybody is watching — that is what makes a loop worth setting on the way past — so this is called from `updateWorld` unconditionally, and before the sensing tick, so a channel looped on this frame is already blind when its camera reads the world. |
+| `layout` | `layout(width: number, height: number): void` | Re-lays the viewport out after a canvas resize. The rect is `src/ui/CameraFeed.ts`'s answer and it moves with the canvas, so a monitor left open across a window resize would otherwise keep its old clipping rect while the chrome drawn around it moved. |
+
+*Plus 5 private members.*
+
 <a id="class-codecscene"></a>
 
 #### `CodecScene` — class
@@ -5016,6 +5139,7 @@ whichever flag while the overlay is up and stops this scene.
 | `worldDraw` | `worldDraw = false` | World-space debug draw: LOS rays, blocked tiles, detection tint. |
 | `frozenWorld` | `frozenWorld = false` | Freeze-world: halts guards, cameras, hazards, alert and capture. |
 | `darknessOff` | `darknessOff = false` | Darkness off — the lighting overlay is hidden so the level reads. |
+| `displayObjects` | `get displayObjects(): Phaser.GameObjects.GameObject[]` | The world-space draw layer, for a camera that must not show it. Clipped to `cameras.main.worldView` (see `draw`), so on the security-camera feed it would be the *player's* viewport's worth of rays and cones drawn across whatever room the feed is pointed at. See `Lighting.displayObjects`. |
 | `constructor` | `constructor( private readonly scene: Phaser.Scene, private readonly host: DebugHost, )` | Construct only when `DEBUG_ALLOWED` — it binds keys and adds a Graphics layer, neither of which a shipped build should pay for. |
 | `selectedItem` | `get selectedItem(): string` | The item name [I] currently grants. |
 | `handleInput` | `handleInput(player: Player): boolean` | Reads the debug hotkeys for the frame and applies them. Returns `true` if a warp was triggered (the scene is restarting, so the caller should bail). |
@@ -5101,7 +5225,7 @@ rather than death: the record simply shows that no subject was harmed.
 
 #### `GameScene` — class
 
-`src/scenes/GameScene.ts:207` · `extends Phaser.Scene`
+`src/scenes/GameScene.ts:210` · `extends Phaser.Scene`
 
 The playable scene. Renders one level's tile art in board z-order, builds the
 wall collision, spawns the player and guards, and drives the stealth systems
@@ -5114,18 +5238,19 @@ each frame.
 | `create` | `create(): void` |  |
 | `update` | `update(_time: number, delta: number): void` |  |
 
-*Plus 130 private members.*
+*Plus 134 private members.*
 
 <a id="class-interactprompt"></a>
 
 #### `InteractPrompt` — class
 
-`src/scenes/game/InteractPrompt.ts:201`
+`src/scenes/game/InteractPrompt.ts:219`
 
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `constructor` | `constructor( scene: Phaser.Scene, private readonly tileSize: number, )` | @param tileSize fixed for the module's life. A level change restarts the   scene, which rebuilds this, so it cannot go stale underneath us. |
 | `visible` | `get visible(): boolean` | Whether a verb is currently on screen — the hold-up offer defers to it. |
+| `displayObjects` | `get displayObjects(): Phaser.GameObjects.GameObject[]` | Both labels, for a camera that must not draw them. They are world-space text pinned over Rowan's head, so a second camera looking at another room would print "[E] Surveillance" into the middle of it. See `Lighting.displayObjects`. |
 | `show` | `show(c: PromptCandidates, anchor: PromptAnchor): void` | Shows the winning verb from everything in reach, or clears the prompt. |
 | `clear` | `clear(): void` | Takes the verb off screen without needing somewhere to have put it. |
 | `set` | `set(label: string \| undefined, anchor: PromptAnchor): void` | Puts a label in the contextual prompt over Rowan's head, or clears it. Split out of `show` rather than becoming another field on `PromptCandidates`: the hold-up is not a nearest-wins candidate at all — it is a state that replaces the whole comparison. |
@@ -5408,7 +5533,7 @@ its 80-column rules intact at any window size, which a canvas `Text` would not.
 
 #### `UIScene` — class
 
-`src/scenes/UIScene.ts:35` · `extends Phaser.Scene`
+`src/scenes/UIScene.ts:37` · `extends Phaser.Scene`
 
 A parallel overlay scene for the HUD.
 
@@ -5424,7 +5549,7 @@ reads them.
 | `create` | `create(): void` |  |
 | `update` | `update(_time: number, delta: number): void` |  |
 
-*Plus 16 private members.*
+*Plus 17 private members.*
 
 <a id="class-vaultandpress"></a>
 
@@ -5657,11 +5782,30 @@ independent of `Lighting`'s. `reload` swaps in the new level's mask.
 | `registry` | `registry(): Phaser.Data.DataManager` |  |
 | `memory` | `memory(): MemoryLayer` |  |
 
+<a id="interface-feedworld"></a>
+
+#### `FeedWorld` — interface
+
+`src/scenes/game/CameraFeeds.ts:42`
+
+Everything the feed needs from the scene, rebound per level.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `sensors` | `sensors(): readonly Sensor[]` | The live cameras, in the order `FeedChannel.unit` indexes. |
+| `tileSize` | `tileSize(): number` |  |
+| `levelSize` | `levelSize(): { width: number; height: number }` | The current level's extent in tiles, for the channel labels. |
+| `alertPhase` | `alertPhase(): AlertPhase` |  |
+| `registry` | `registry(): Phaser.Data.DataManager` |  |
+| `ignoreFor` | `ignoreFor(plane: number): Phaser.GameObjects.GameObject[]` | World objects the feed camera must not draw, given the plane it is watching. Everything built for *one* viewer — the darkness and its shadow fan, the remembered-geometry wash, the prompts pinned over Rowan's head — plus the baked art of any surface other than the one this camera looks at. See `Lighting.displayObjects` for the argument. |
+| `violateUnauthorized` | `violateUnauthorized(): void` | Charges a continuous `UNAUTHORIZED` for this frame at the panel. |
+| `violateTampering` | `violateTampering(): void` | Charges the discrete `TAMPERING` a loop costs. |
+
 <a id="interface-gamescenedata"></a>
 
 #### `GameSceneData` — interface *(module-private)*
 
-`src/scenes/GameScene.ts:152`
+`src/scenes/GameScene.ts:155`
 
 Data passed to `GameScene` when (re)starting for a level swap.
 
@@ -5798,7 +5942,7 @@ capture anything `create()` has not set yet.
 
 #### `PromptAnchor` — interface
 
-`src/scenes/game/InteractPrompt.ts:66`
+`src/scenes/game/InteractPrompt.ts:75`
 
 What the label is pinned to. `Player` satisfies this structurally; naming the
 four fields it actually reads keeps the pure half testable with a literal.
@@ -5828,6 +5972,8 @@ and the rest are optional.
 | --- | --- | --- |
 | `terminal` | `Terminal \| undefined` |  |
 | `terminalDist` | `number` |  |
+| `surveillance` | `boolean` | A terminal already breached, close enough to read its deck's cameras from. A boolean rather than the `Terminal`, because unlike every other candidate here nothing about the panel decides the label — what it offers depends on whether the *level* has any cameras, which the scene knows and this does not. |
+| `surveillanceDist` | `number` |  |
 | `door` | `Door \| undefined` |  |
 | `doorDist` | `number` |  |
 | `breaker` | `Breaker \| undefined` |  |
@@ -6294,6 +6440,19 @@ two things this boss does that nothing else in the game does:
 
 *Plus 9 private members.*
 
+<a id="class-camerafeedhud"></a>
+
+#### `CameraFeedHud` — class
+
+`src/ui/CameraFeedHud.ts:45`
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `constructor` | `constructor(private readonly scene: Phaser.Scene)` |  |
+| `update` | `update(v: SurveillanceView \| null): void` | One frame. `null` — the registry key absent — means the monitor is down. |
+
+*Plus 16 private members.*
+
 <a id="class-complianceview"></a>
 
 #### `ComplianceView` — class
@@ -6457,6 +6616,7 @@ Two layers, deliberately kept apart because they change at different rates:
 | `constructor` | `constructor(scene: Phaser.Scene, level: GameLevel, tileSize: number, grid: CollisionGrid)` |  |
 | `update` | `update(dt: number, viewer: { x: number; y: number }, beam: FlashlightBeam \| null = null): void` | @param viewer the eye the visibility polygon is cast from (the player). @param beam the player's flashlight beam, or null when it isn't emitting. |
 | `shadowGeometry` | `get shadowGeometry(): Phaser.GameObjects.Graphics` | The shadow fan's geometry — the region the viewer *cannot* see. Exposed for `src/ui/MemoryLayer.ts`, which masks itself to exactly this so remembered art appears only outside line of sight. Sharing the geometry rather than casting a second polygon is what keeps the two boundaries the same line by construction, at no extra cost. This hands back the **mask twin**, not the fan that is actually drawn, and the distinction is load-bearing: a `Graphics` that is rendered on the display list does not also work as a geometry-mask source. Masking to the drawn fan silently produced a stencil that passed everywhere, so remembered art washed over the lit room the player was standing in — measurably, the visible floor came out 30% darker. Two objects over one command buffer is what fixes it. |
+| `displayObjects` | `get displayObjects(): Phaser.GameObjects.GameObject[]` | The darkness and its shadow fan, for a camera that must not draw them. Both are built for *one* viewer — the fan is cast from Rowan's eye out to the edge of `cameras.main`'s view (see `drawShadows`) — so a second camera looking somewhere else would be shown one room's visibility polygon laid over another room's floor. The security-camera feed calls this and `ignore()`s the result, which leaves the feed unlit: a camera runs on its own low-light sensor, so a blacked-out room is exactly the room it can still see. Returned as a list rather than two getters because the only caller wants both and adding a third layer here should not need a third call site. |
 | `sampleLight` | `sampleLight(x: number, y: number): LightSample` | How the point `(x, y)` is lit — see `sampleLightAt` for the arithmetic. Exists so `EntityShadows` can throw a character's shadow away from whatever is actually lighting them, off the same `light_sources` this overlay draws and the `DetectionSystem` scores. One source of truth: a spot that reads bright, plays dangerous *and* casts a long shadow, and retuning a light moves all three together. The result is a reused scratch object, valid only until the next call. The whole cast asks this every frame and none of them keep the answer. **Only the fixed `light_source` fixtures cast.** The two moving lights are left out deliberately: - Rowan's carried pool is dark-adapted eyes rather than something he emits — the   same reason `PLAYER_LIGHT_TILES` keeps it out of `DetectionSystem`. Letting   it cast would put a shadow under everyone he walks near, thrown by nothing. - The flashlight is rigidly attached to him, so his own shadow would sit pinned at   a fixed offset no matter how he moved — motionless relative to the only thing   that could reveal it was there. Worth revisiting for *other* casters lit by the   beam, which is a real effect and needs the cone's angular test to get right. |
 | `destroy` | `destroy(): void` | Releases everything this overlay owns. Call on scene shutdown. The stamps are the reason this has to exist. They are built with `scene.make.image({ add: false })` — deliberately, because they are erase brushes stamped into a RenderTexture rather than things the camera should draw — but the cost of staying off the display list is that `Scene.shutdown` never sees them, and so never destroys them. Every level transition is a `scene.restart()` that constructs a fresh `Lighting`, so without this each swap orphaned one stamp per light source (49 of them on `main1`) plus the cone and the player's pool, for the life of the session. `rt` and `shadowGfx` *are* on the display list and would be collected anyway; destroying them here too keeps the ownership in one place rather than split between this class and Phaser's bookkeeping. |
 | `setPlane` | `setPlane(plane: number): void` | Which walk surface sight is cast against — see `src/map/planes.ts`. Changing it invalidates the polygon outright: the deck and the floor beneath it occlude completely differently, so there is nothing to reuse. |
@@ -6474,6 +6634,7 @@ Two layers, deliberately kept apart because they change at different rates:
 | Member | Signature | Notes |
 | --- | --- | --- |
 | `constructor` | `constructor( scene: Phaser.Scene, private readonly level: GameLevel, tileSize: number, skipLayers: ReadonlySet<string>, claimedTiles: ReadonlySet<GameTile>, )` |  |
+| `displayObjects` | `get displayObjects(): Phaser.GameObjects.GameObject[]` | The remembered-geometry wash and its scanlines, for a camera that must not draw them. Keyed to what *Rowan* has surveyed and clipped to his current sightline (`clipTo`), so on a feed looking at another room it would be a second room's memory stencilled over the first. See `Lighting.displayObjects`. |
 | `clipTo` | `clipTo(fan: Phaser.GameObjects.Graphics): void` | Clips both layers to everything *outside* the viewer's line of sight. `fan` is `Lighting`'s shadow geometry, which is already exactly that region — so memory costs no second visibility polygon, and the boundary between "seeing" and "remembering" is by construction the same line. One mask object drives both layers. The fan's `postFX` blur does not apply to a stencil, so this edge is crisp where the darkness's is feathered. At these alphas the difference does not read; if it ever does, the answer is a blur on `rt`, not a second fan. |
 | `prime` | `prime(explored: ExploredMap): void` | Draws every tile already marked seen — a save resumed mid-level. |
 | `remember` | `remember(cells: readonly number[]): void` | Commits newly-seen cells to memory. `cells` are `y * width + x` keys, which is what the explored sweep already has in hand. |
@@ -6902,6 +7063,21 @@ One frame of readout.
 | `covers` | `Uint8Array` | Cells that, with the player standing on them, put this surface overhead. |
 | `under` | `number` | The plane the player must be *on* for this surface to be overhead. |
 | `alpha` | `number` |  |
+
+<a id="interface-feedrect"></a>
+
+#### `FeedRect` — interface
+
+`src/ui/CameraFeed.ts:62`
+
+A screen-space rectangle, in whole pixels.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `x` | `number` |  |
+| `y` | `number` |  |
+| `w` | `number` |  |
+| `h` | `number` |  |
 
 <a id="interface-flashlightbeam"></a>
 
@@ -7385,6 +7561,7 @@ GameScene.
 | [BadgeState](#type-badgestate) | type | `src/ui/NetworkPanel.ts:103` |
 | [BakedPlane](#interface-bakedplane) | interface | `src/map/TileBake.ts:176` |
 | [BarkDecision](#interface-barkdecision) | interface | `src/systems/SilicateBarks.ts:93` |
+| [BEARINGS](#const-bearings) | const | `src/systems/Surveillance.ts:74` |
 | [BeepBoxSongJson](#interface-beepboxsongjson) | interface | `src/systems/MusicSongs.ts:60` |
 | [BinaryHeap](#class-binaryheap) | class | `src/systems/Pathfinder.ts:286` |
 | [BioMonitor](#class-biomonitor) | class | `src/ui/BioMonitor.ts:76` |
@@ -7398,6 +7575,8 @@ GameScene.
 | [BuiltLevel](#interface-builtlevel) | interface | `src/scenes/game/LevelBuilder.ts:57` |
 | [BUTTON_STATES](#const-button-states) | const | `src/ui/ElevatorPanel.ts:26` |
 | [ButtonState](#type-buttonstate) | type | `src/ui/ElevatorPanel.ts:28` |
+| [CameraFeedHud](#class-camerafeedhud) | class | `src/ui/CameraFeedHud.ts:45` |
+| [CameraFeeds](#class-camerafeeds) | class | `src/scenes/game/CameraFeeds.ts:65` |
 | [Cardinal4](#type-cardinal4) | type | `src/entities/directions.ts:69` |
 | [CARDINALS_4](#const-cardinals-4) | const | `src/entities/directions.ts:67` |
 | [CastingLight](#undefined) | interface | `src/render/lightSampling.ts:15` |
@@ -7497,6 +7676,10 @@ GameScene.
 | [ExploredWorld](#interface-exploredworld) | interface | `src/scenes/game/ExploredTracker.ts:26` |
 | [Eye](#interface-eye) | interface | `src/systems/Sensing.ts:20` |
 | [Faded](#interface-faded) | interface | `src/ui/PlaneOverlay.ts:28` |
+| [FeedChannel](#interface-feedchannel) | interface | `src/systems/Surveillance.ts:34` |
+| [FeedRect](#interface-feedrect) | interface | `src/ui/CameraFeed.ts:62` |
+| [FeedUnit](#interface-feedunit) | interface | `src/systems/Surveillance.ts:68` |
+| [FeedWorld](#interface-feedworld) | interface | `src/scenes/game/CameraFeeds.ts:42` |
 | [FillWorld](#interface-fillworld) | interface | `src/map/AutoClearance.ts:169` |
 | [FirearmsAuthorization](#class-firearmsauthorization) | class | `src/systems/Firearms.ts:34` |
 | [FirearmsPosture](#type-firearmsposture) | type | `src/systems/Firearms.ts:10` |
@@ -7507,8 +7690,8 @@ GameScene.
 | [GameMap](#interface-gamemap) | interface | `src/map/types.ts:348` |
 | [GameMode](#type-gamemode) | type | `src/systems/GameState.ts:20` |
 | [GameOverScene](#class-gameoverscene) | class | `src/scenes/GameOverScene.ts:13` |
-| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:207` |
-| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:152` |
+| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:210` |
+| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:155` |
 | [GameTile](#interface-gametile) | interface | `src/map/types.ts:249` |
 | [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:379` |
 | [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:630` |
@@ -7523,7 +7706,7 @@ GameScene.
 | [HoldTarget](#class-holdtarget) | class | `src/entities/HoldTarget.ts:41` |
 | [Hud](#class-hud) | class | `src/ui/Hud.ts:37` |
 | [InputState](#interface-inputstate) | interface | `src/entities/Player.ts:541` |
-| [InteractPrompt](#class-interactprompt) | class | `src/scenes/game/InteractPrompt.ts:201` |
+| [InteractPrompt](#class-interactprompt) | class | `src/scenes/game/InteractPrompt.ts:219` |
 | [InventoryHud](#class-inventoryhud) | class | `src/ui/InventoryHud.ts:24` |
 | [Investigation](#interface-investigation) | interface | `src/entities/Enforcer.ts:183` |
 | [ItemActions](#class-itemactions) | class | `src/scenes/game/ItemActions.ts:103` |
@@ -7621,7 +7804,7 @@ GameScene.
 | [PrologueScene](#class-prologuescene) | class | `src/scenes/PrologueScene.ts:30` |
 | [PrologueScreen](#class-prologuescreen) | class | `src/ui/PrologueScreen.ts:46` |
 | [PrologueVoice](#type-prologuevoice) | type | `src/systems/Prologue.ts:40` |
-| [PromptAnchor](#interface-promptanchor) | interface | `src/scenes/game/InteractPrompt.ts:66` |
+| [PromptAnchor](#interface-promptanchor) | interface | `src/scenes/game/InteractPrompt.ts:75` |
 | [PromptCandidates](#interface-promptcandidates) | interface | `src/scenes/game/InteractPrompt.ts:33` |
 | [PuzzleState](#interface-puzzlestate) | interface | `src/systems/Compliance.ts:57` |
 | [QualiaLockConfig](#interface-qualialockconfig) | interface | `src/systems/QualiaLock.ts:47` |
@@ -7665,7 +7848,7 @@ GameScene.
 | [SensingContext](#class-sensingcontext) | class | `src/scenes/game/SensingContext.ts:59` |
 | [SensingDeps](#interface-sensingdeps) | interface | `src/scenes/game/SensingContext.ts:26` |
 | [SensingWorld](#interface-sensingworld) | interface | `src/systems/Sensing.ts:60` |
-| [Sensor](#class-sensor) | class | `src/entities/Sensor.ts:43` |
+| [Sensor](#class-sensor) | class | `src/entities/Sensor.ts:51` |
 | [SensorStats](#interface-sensorstats) | interface | `src/systems/EntityStats.ts:668` |
 | [SetPieceEvents](#class-setpieceevents) | class | `src/scenes/game/SetPieceEvents.ts:68` |
 | [SetPieceWorld](#interface-setpieceworld) | interface | `src/scenes/game/SetPieceEvents.ts:51` |
@@ -7700,6 +7883,9 @@ GameScene.
 | [SurrenderAim](#class-surrenderaim) | class | `src/systems/Surrender.ts:187` |
 | [SurrenderResult](#interface-surrenderresult) | interface | `src/systems/Surrender.ts:61` |
 | [SurrenderWorld](#interface-surrenderworld) | interface | `src/systems/Surrender.ts:33` |
+| [SurveillanceChannelView](#interface-surveillancechannelview) | interface | `src/systems/Surveillance.ts:185` |
+| [SurveillanceState](#interface-surveillancestate) | interface | `src/systems/Surveillance.ts:51` |
+| [SurveillanceView](#interface-surveillanceview) | interface | `src/systems/Surveillance.ts:203` |
 | [SynthVoice](#type-synthvoice) | type | `src/systems/SamSpeech.ts:32` |
 | [Target](#type-target) | type | `src/scenes/game/ItemActions.ts:487` |
 | [Terminal](#class-terminal) | class | `src/entities/Terminal.ts:43` |
@@ -7725,7 +7911,7 @@ GameScene.
 | [UI_TEXT](#const-ui-text) | const | `src/ui/hudTheme.ts:113` |
 | [UI_TEXTURES](#const-ui-textures) | const | `src/ui/UiTextures.ts:72` |
 | [UiPanelOptions](#interface-uipaneloptions) | interface | `src/ui/NineSlicePanel.ts:25` |
-| [UIScene](#class-uiscene) | class | `src/scenes/UIScene.ts:35` |
+| [UIScene](#class-uiscene) | class | `src/scenes/UIScene.ts:37` |
 | [UiSheetSpec](#interface-uisheetspec) | interface | `src/ui/UiTextures.ts:63` |
 | [UiTextureSpec](#interface-uitexturespec) | interface | `src/ui/UiTextures.ts:27` |
 | [VaultAndPress](#class-vaultandpress) | class | `src/scenes/game/VaultAndPress.ts:98` |

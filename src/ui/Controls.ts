@@ -40,8 +40,20 @@ export const CONTROLS: readonly ControlBinding[] = [
   },
   {
     key: "E",
-    action: "Interact: doors, terminals, chests, hatches, vault low cover (hold where needed)",
+    action:
+      "Interact: doors, terminals, chests, hatches, vault low cover (hold where needed), or open a breached terminal's camera feed",
     hint: "E interact",
+  },
+  // The feed's own two verbs. Deliberately no `hint`: the bottom-of-screen line is
+  // already the widest thing the HUD draws (see `hudLayout.ts`), and these only
+  // mean anything while the monitor is up — where the monitor prints them itself.
+  {
+    key: "A/D",
+    action: "Camera feed only: change channel. The world keeps running while you watch",
+  },
+  {
+    key: "R",
+    action: "Camera feed only: loop the channel — that camera reports nothing for a while",
   },
   { key: "L", action: "Flashlight — the only way to see in the unlit levels" },
   { key: "F", action: "Shared Field — once charged, merge and become undetectable", hint: "F shared-field" },

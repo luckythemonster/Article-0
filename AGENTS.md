@@ -65,6 +65,7 @@ open it first to find that out, so:
 | `systems/Memos.ts` | Facility paperwork found on breached terminals |
 | `systems/Journal.ts` | In-game journal entries |
 | `systems/Explored.ts` | Fog of war for the pause menu's map |
+| `systems/Surveillance.ts` | The camera feed's channels, labels and loop timers |
 
 **The `*Core` suffix is a convention, not decoration.** All three bosses use the
 same split: a pure, Phaser-free state machine in `src/systems/<X>Core.ts` that
@@ -91,6 +92,7 @@ it to `src/scenes/game/`. Start there rather than grepping the scene:
 | What a guard could notice as out of place | `Anomalies.ts` |
 | Breakers, blackouts, and the orderly sent to fix them | `PowerControl.ts` |
 | Completed hacks, and which terminals are special | `TerminalHacks.ts` |
+| The camera feed a breached terminal opens, and looped cameras | `CameraFeeds.ts` |
 | What each item does when used | `ItemActions.ts` |
 | Debug hotkeys and overlays | `DebugOverlay.ts` |
 

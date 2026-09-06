@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { Hud } from "../ui/Hud";
 import { Radar } from "../ui/Radar";
+import { CameraFeedHud } from "../ui/CameraFeedHud";
 import { InventoryHud } from "../ui/InventoryHud";
 import { AlertNetworkHud } from "../ui/AlertNetworkHud";
 import { ObjectiveHud } from "../ui/ObjectiveHud";
@@ -13,6 +14,7 @@ import { ActCard } from "../ui/ActCard";
 import { DEBUG_ALLOWED } from "../systems/DebugFlag";
 import type { AlertPhase } from "../systems/AlertState";
 import type { RadarSnapshot } from "../systems/Radar";
+import { SURVEILLANCE_KEY, type SurveillanceView } from "../systems/Surveillance";
 import type { AlertNetworkSnapshot } from "../systems/AlertNetwork";
 import { ACTS, type ActId, type MissionFeatures, type ObjectiveState } from "../systems/Objectives";
 import type { Vent4View } from "../systems/Vent4Core";
@@ -35,6 +37,8 @@ import { ACT_CARD_KEY, isSuspended, missionFeatures, readInventory } from "../sy
 export class UIScene extends Phaser.Scene {
   private hud!: Hud;
   private radar!: Radar;
+  /** The camera feed's casing — the picture itself belongs to `GameScene`. */
+  private feed!: CameraFeedHud;
   private inventory!: InventoryHud;
   private network!: AlertNetworkHud;
   private objectives!: ObjectiveHud;
@@ -67,6 +71,7 @@ export class UIScene extends Phaser.Scene {
   create(): void {
     this.hud = new Hud(this);
     this.radar = new Radar(this);
+    this.feed = new CameraFeedHud(this);
     this.inventory = new InventoryHud(this);
     this.network = new AlertNetworkHud(this);
     this.objectives = new ObjectiveHud(this);
@@ -113,6 +118,11 @@ export class UIScene extends Phaser.Scene {
 
     const radarSnapshot = this.registry.get("radar") as RadarSnapshot | undefined;
     if (radarSnapshot) this.radar.update(radarSnapshot);
+
+    // The camera feed's casing. Absent key means the monitor is down, which is why
+    // this is passed `null` rather than skipped: the widget has to take itself off
+    // the screen on the frame the feed closes.
+    this.feed.update((this.registry.get(SURVEILLANCE_KEY) as SurveillanceView) ?? null);
 
     const items = readInventory(this.registry);
 

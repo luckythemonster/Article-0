@@ -119,6 +119,18 @@ export class DebugOverlay {
   /** Darkness off — the lighting overlay is hidden so the level reads. */
   darknessOff = false;
 
+  /**
+   * The world-space draw layer, for a camera that must not show it.
+   *
+   * Clipped to `cameras.main.worldView` (see {@link draw}), so on the
+   * security-camera feed it would be the *player's* viewport's worth of rays and
+   * cones drawn across whatever room the feed is pointed at. See
+   * `Lighting.displayObjects`.
+   */
+  get displayObjects(): Phaser.GameObjects.GameObject[] {
+    return [this.gfx];
+  }
+
   /** Every item name the engine can grant, for the give-item cheat to cycle through. */
   private readonly itemNames = catalogedNames();
   /** Index into {@link itemNames} of the item [I] currently grants. */
