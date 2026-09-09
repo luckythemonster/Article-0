@@ -552,7 +552,7 @@ table in between to drift.
 
 #### `NoiseSpamTracker` — class
 
-`src/systems/AlertNetwork.ts:78`
+`src/systems/AlertNetwork.ts:96`
 
 Anti-exploit: tracks recent noise pings by tile so repeated distractions
 in the same area stop being free. Record each ping's origin tile; once more
@@ -5225,7 +5225,7 @@ rather than death: the record simply shows that no subject was harmed.
 
 #### `GameScene` — class
 
-`src/scenes/GameScene.ts:210` · `extends Phaser.Scene`
+`src/scenes/GameScene.ts:214` · `extends Phaser.Scene`
 
 The playable scene. Renders one level's tile art in board z-order, builds the
 wall collision, spawns the player and guards, and drives the stealth systems
@@ -5238,7 +5238,7 @@ each frame.
 | `create` | `create(): void` |  |
 | `update` | `update(_time: number, delta: number): void` |  |
 
-*Plus 134 private members.*
+*Plus 135 private members.*
 
 <a id="class-interactprompt"></a>
 
@@ -5805,7 +5805,7 @@ Everything the feed needs from the scene, rebound per level.
 
 #### `GameSceneData` — interface *(module-private)*
 
-`src/scenes/GameScene.ts:155`
+`src/scenes/GameScene.ts:159`
 
 Data passed to `GameScene` when (re)starting for a level swap.
 
@@ -7690,8 +7690,8 @@ GameScene.
 | [GameMap](#interface-gamemap) | interface | `src/map/types.ts:348` |
 | [GameMode](#type-gamemode) | type | `src/systems/GameState.ts:20` |
 | [GameOverScene](#class-gameoverscene) | class | `src/scenes/GameOverScene.ts:13` |
-| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:210` |
-| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:155` |
+| [GameScene](#class-gamescene) | class | `src/scenes/GameScene.ts:214` |
+| [GameSceneData](#interface-gamescenedata) | interface | `src/scenes/GameScene.ts:159` |
 | [GameTile](#interface-gametile) | interface | `src/map/types.ts:249` |
 | [GENERATED_LEVELS](#const-generated-levels) | const | `src/map/types.ts:379` |
 | [GlassStats](#interface-glassstats) | interface | `src/systems/EntityStats.ts:630` |
@@ -7755,7 +7755,7 @@ GameScene.
 | [NoiseEvents](#class-noiseevents) | class | `src/scenes/game/NoiseEvents.ts:54` |
 | [NoiseLog](#class-noiselog) | class | `src/systems/NoiseLog.ts:40` |
 | [NoiseSectors](#class-noisesectors) | class | `src/systems/Radar.ts:33` |
-| [NoiseSpamTracker](#class-noisespamtracker) | class | `src/systems/AlertNetwork.ts:78` |
+| [NoiseSpamTracker](#class-noisespamtracker) | class | `src/systems/AlertNetwork.ts:96` |
 | [NoiseWorld](#interface-noiseworld) | interface | `src/scenes/game/NoiseEvents.ts:36` |
 | [ObjectiveHud](#class-objectivehud) | class | `src/ui/ObjectiveHud.ts:62` |
 | [ObjectiveLine](#interface-objectiveline) | interface | `src/systems/Objectives.ts:243` |

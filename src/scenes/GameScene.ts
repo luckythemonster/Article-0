@@ -48,7 +48,11 @@ import { Sensor } from "../entities/Sensor";
 import { Chest } from "../entities/Chest";
 import { Locker, type StashedBody } from "../entities/Locker";
 import { Cover } from "../entities/Cover";
-import { buildAlertNetworkSnapshot, NoiseSpamTracker } from "../systems/AlertNetwork";
+import {
+  buildAlertNetworkSnapshot,
+  emptyAlertNetworkSnapshot,
+  NoiseSpamTracker,
+} from "../systems/AlertNetwork";
 import { NoiseLog } from "../systems/NoiseLog";
 import { Lighting } from "../ui/Lighting";
 import { MemoryLayer } from "../ui/MemoryLayer";
@@ -300,6 +304,8 @@ export class GameScene extends Phaser.Scene {
   });
   /** Refilled each frame and republished; see {@link RadarSnapshot}. */
   private readonly radarSnapshot = emptyRadarSnapshot();
+  /** Refilled each frame and republished; see {@link AlertNetworkSnapshot}. */
+  private readonly alertNetworkSnapshot = emptyAlertNetworkSnapshot();
   /** Refilled each frame by {@link publishFrame}; see the note there. */
   private readonly activeGuards: Enforcer[] = [];
   /** Cameras still reporting — a looped one is off the mesh. See {@link publishFrame}. */
@@ -2290,7 +2296,7 @@ export class GameScene extends Phaser.Scene {
     for (const s of this.sensors) if (!s.looped) liveSensors.push(s);
     this.registry.set(
       "alertNetwork",
-      buildAlertNetworkSnapshot(active, liveSensors, this.alert),
+      buildAlertNetworkSnapshot(active, liveSensors, this.alert, this.alertNetworkSnapshot),
     );
     this.registry.set(
       "radar",
