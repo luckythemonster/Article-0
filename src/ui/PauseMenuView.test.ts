@@ -223,6 +223,21 @@ describe("PauseMenuView ARIA live attributes", () => {
   });
 });
 
+describe("PauseMenuView controls tab", () => {
+  it("lists Home / End in the IN THIS MENU keyboard shortcuts", () => {
+    const mount = new MockElement("div");
+    const view = new PauseMenuView(mount as any, mockSnapshot(), mockCallbacks());
+    const panes = (view as any).panes as { node: MockElement }[];
+    // Controls is the 7th pane (index 6)
+    const keys = findElementsByClass(panes[6].node, "pause-key");
+    const keyTexts = keys.map((k) => k.textContent);
+
+    expect(keyTexts).toContain("Home / End");
+
+    view.destroy();
+  });
+});
+
 describe("PauseMenuView archive tab", () => {
   /** Every row label in the ARCHIVE list, in order. */
   function archiveRows(view: PauseMenuView): string[] {

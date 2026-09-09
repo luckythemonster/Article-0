@@ -209,7 +209,7 @@ export class PauseMenuView {
     return el(
       "div",
       "pause-hint",
-      "← → section    ↑ ↓ select    Enter confirm    1–9 jump    Esc resume",
+      "← → section    Home / End bounds    ↑ ↓ select    Enter confirm    1–9 jump    Esc resume",
     );
   }
 
@@ -650,6 +650,7 @@ export class PauseMenuView {
     for (const [key, action] of [
       ["← / →", "Previous / next section"],
       ["1 – 9", "Jump straight to a section"],
+      ["Home / End", "First / last section or item"],
       ["↑ / ↓", "Move within a list"],
       ["Enter", "Confirm"],
       ["Esc", "Resume"],
