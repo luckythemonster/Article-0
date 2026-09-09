@@ -28,6 +28,19 @@ export interface AlertNetworkSnapshot {
 /** Threshold shared across the codebase for "this unit has spotted the player". */
 const ALERTED = 0.66;
 
+/** A blank snapshot to fill — hold one per scene and pass it back in each frame. */
+export function emptyAlertNetworkSnapshot(): AlertNetworkSnapshot {
+  return {
+    status: "INFILTRATION",
+    total: 0,
+    alerted: 0,
+    suspicious: 0,
+    converging: 0,
+    target: null,
+    countdown: 0,
+  };
+}
+
 /**
  * Aggregates every detector plus the alert FSM into one readout. Pure — never
  * touches Phaser — mirroring {@link buildRadarSnapshot}, so it's cheap per frame
@@ -38,34 +51,39 @@ const ALERTED = 0.66;
  * which the caller already knows, and merging the two cost a pair of mapped
  * arrays plus an object per detector on every frame.
  *
+ * Reuses `into` rather than allocating a fresh object per frame to eliminate GC pressure.
+ *
  * @param mobile units that physically converge on a sighting — guards.
  * @param fixed units that only watch — cameras.
+ * @param into reusable snapshot buffer to write into.
  */
 export function buildAlertNetworkSnapshot(
   mobile: readonly NetworkUnit[],
   fixed: readonly NetworkUnit[],
   alert: AlertState,
+  into: AlertNetworkSnapshot = emptyAlertNetworkSnapshot(),
 ): AlertNetworkSnapshot {
   let alerted = 0;
   let suspicious = 0;
-  for (const u of mobile) {
-    if (u.detection > ALERTED) alerted++;
-    else if (u.detection > 0) suspicious++;
+  for (let i = 0; i < mobile.length; i++) {
+    const d = mobile[i].detection;
+    if (d > ALERTED) alerted++;
+    else if (d > 0) suspicious++;
   }
-  for (const u of fixed) {
-    if (u.detection > ALERTED) alerted++;
-    else if (u.detection > 0) suspicious++;
+  for (let i = 0; i < fixed.length; i++) {
+    const d = fixed[i].detection;
+    if (d > ALERTED) alerted++;
+    else if (d > 0) suspicious++;
   }
 
-  return {
-    status: alert.phase,
-    total: mobile.length + fixed.length,
-    alerted,
-    suspicious,
-    converging: alert.isCombatAware ? mobile.length : 0,
-    target: alert.lastKnownTile,
-    countdown: alert.remaining,
-  };
+  into.status = alert.phase;
+  into.total = mobile.length + fixed.length;
+  into.alerted = alerted;
+  into.suspicious = suspicious;
+  into.converging = alert.isCombatAware ? mobile.length : 0;
+  into.target = alert.lastKnownTile;
+  into.countdown = alert.remaining;
+  return into;
 }
 
 /**
