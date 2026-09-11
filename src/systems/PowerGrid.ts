@@ -73,7 +73,8 @@ export function isCircuitClosed(
   target: string,
   authored: boolean,
 ): boolean {
-  return state.circuits[circuitKey(level, target)] ?? authored;
+  // `?? {}` because state can be read straight out of registry or legacy payloads
+  return (state.circuits ?? {})[circuitKey(level, target)] ?? authored;
 }
 
 /**
@@ -117,7 +118,7 @@ export function setCircuitClosed(
   target: string,
   closed: boolean,
 ): void {
-  state.circuits[circuitKey(level, target)] = closed;
+  (state.circuits ??= {})[circuitKey(level, target)] = closed;
 }
 
 // --- the keypad ------------------------------------------------------------
