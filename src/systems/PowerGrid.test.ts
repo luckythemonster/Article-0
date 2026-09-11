@@ -45,6 +45,13 @@ describe("circuit state", () => {
     // The separator has to be something neither half can contain.
     expect(circuitKey("a", "b c")).not.toBe(circuitKey("a b", "c"));
   });
+
+  it("handles uninitialized or legacy state where circuits field is missing", () => {
+    const uninit = { hacked: {} } as unknown as PowerGridState;
+    expect(isCircuitClosed(uninit, "main1", "light_overhead1", true)).toBe(true);
+    setCircuitClosed(uninit, "main1", "light_overhead1", false);
+    expect(isCircuitClosed(uninit, "main1", "light_overhead1", true)).toBe(false);
+  });
 });
 
 describe("keypadCode", () => {
