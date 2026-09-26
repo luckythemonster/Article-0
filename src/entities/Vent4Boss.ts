@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import type { GameLayer, GameLevel, GameTile } from "../map/types";
+import type { GameLayer, GameLevel } from "../map/types";
 import type { CollisionGrid } from "../systems/CollisionGrid";
 import { angleDiff } from "../systems/angles";
 import type { EnforcerContext } from "./Enforcer";
@@ -16,7 +16,7 @@ import {
 import { Vent4PhysicsSystem, type Vent4Forces } from "../systems/Vent4PhysicsSystem";
 import { STAPLER_ITEM, VENT4_DEFAULTS, paced, type Vent4Stats } from "../systems/EntityStats";
 import { PressureSubStation } from "./PressureSubStation";
-import { type TilePos } from "../map/generate";
+import { anchorFrom, anchorsFrom, type TilePos } from "../map/generate";
 import {
   HUB_CENTER_TILE,
   VENT_CORE_COLUMNS,
@@ -61,25 +61,6 @@ function countsFrom(layerMap: Map<string, GameLayer>, stats: Vent4Stats): Vent4S
     substationCount: placed("substations", stats.substationCount),
     winchCount: placed("winches", stats.winchCount),
   };
-}
-
-function anchorFromMap(
-  layerMap: Map<string, GameLayer>,
-  board: string,
-  fallback: TilePos,
-): TilePos {
-  const tiles = layerMap.get(board)?.tiles ?? [];
-  return tiles.length > 0 ? { x: tiles[0].x, y: tiles[0].y } : fallback;
-}
-
-function anchorsFromMap(
-  layerMap: Map<string, GameLayer>,
-  board: string,
-  fallback: readonly TilePos[],
-): TilePos[] {
-  const tiles = layerMap.get(board)?.tiles ?? [];
-  if (tiles.length > 0) return tiles.map((t: GameTile) => ({ x: t.x, y: t.y }));
-  return fallback.map((t: TilePos) => ({ x: t.x, y: t.y }));
 }
 
 /** What happened inside the boss this frame, for the scene to apply/dress. */
@@ -201,18 +182,18 @@ export class Vent4Boss {
     // `HUB_CENTER_TILE` names a pixel centre (20.5 = the middle of the 3×3 hub
     // block), while a board tile names its own cell. The half-tile either side is
     // what makes the two conventions land on the same pixel.
-    const hubTile = anchorFromMap(layerMap, "vent_hub", {
+    const hubTile = anchorFrom(level, "vent_hub", {
       x: HUB_CENTER_TILE.x - 0.5,
       y: HUB_CENTER_TILE.y - 0.5,
     });
     const hubCentre = { x: hubTile.x + 0.5, y: hubTile.y + 0.5 };
-    this.pitons = anchorsFromMap(layerMap, "pitons", VENT_CORE_PITONS);
-    this.drips = anchorsFromMap(layerMap, "drips", VENT_CORE_DRIPS);
+    this.pitons = anchorsFrom(level, "pitons", VENT_CORE_PITONS);
+    this.drips = anchorsFrom(level, "drips", VENT_CORE_DRIPS);
     this.hub = { x: hubCentre.x * ts, y: hubCentre.y * ts };
     this.physics = new Vent4PhysicsSystem(
       {
         hub: this.hub,
-        columns: anchorsFromMap(layerMap, "columns", VENT_CORE_COLUMNS).map(toPx),
+        columns: anchorsFrom(level, "columns", VENT_CORE_COLUMNS).map(toPx),
         pitons: this.pitons.map(toPx),
         drips: this.drips.map(toPx),
       },
@@ -230,10 +211,10 @@ export class Vent4Boss {
       this.subs.push(sub);
     });
 
-    const winchTiles = anchorsFromMap(layerMap, "winches", VENT_CORE_WINCHES);
+    const winchTiles = anchorsFrom(level, "winches", VENT_CORE_WINCHES);
     this.winches = winchTiles.map(toPx);
     this.winchProgress = winchTiles.map(() => 0);
-    this.jets = anchorsFromMap(layerMap, "steam", VENT_CORE_STEAM)
+    this.jets = anchorsFrom(level, "steam", VENT_CORE_STEAM)
       .map(toPx)
       .map((p, i) => ({
         x: p.x,

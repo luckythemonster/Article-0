@@ -562,6 +562,11 @@ export class Enforcer {
     // see `setStashed` — so this ticks it before bailing out.
     if (this.stashed) {
       this.downTimer = Math.max(0, this.downTimer - dt);
+      // The down branch below is what un-pauses the scan animation, on the frame
+      // the timer reaches zero — and it never runs for a guard who came round in
+      // the locker, so he would walk out on a frozen frame. `resume` on an
+      // unpaused animation is a no-op.
+      if (this.downTimer === 0) this.body.anims.resume();
       return undefined;
     }
 
@@ -1283,6 +1288,12 @@ export class Enforcer {
    * are pixels.
    */
   hearNoise(intensity: number, sx: number, sy: number): void {
+    // Noise is broadcast to every guard on the level, including the ones on the
+    // floor and in lockers. An unconscious man hears nothing: left in, a stashed
+    // guard's detection sat at up to 0.9 (feeding the HUD meter, which takes the
+    // max over all guards) and he came out of the locker primed to confirm, off
+    // to investigate a door he "heard" while out cold.
+    if (this.stashed || this.isDown) return;
     this.detection = Math.min(0.9, this.detection + intensity * 0.4);
     this.facing = Math.atan2(sy - this.y, sx - this.x);
     this.pendingNoise = { x: sx, y: sy };
