@@ -214,6 +214,7 @@ export function resumeFromSave(scene: Phaser.Scene, save: SaveData): void {
   registry.set("inventory", save.inventory);
   registry.set("objectives", save.objectives);
   registry.set("journal", save.journal);
+  registry.set("memos", save.memos);
   registry.set("explored", save.explored);
   registry.set("playTimeMs", save.playTimeMs);
   registry.set("playerHp", save.hp);

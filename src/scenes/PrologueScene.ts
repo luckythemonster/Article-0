@@ -60,7 +60,10 @@ export class PrologueScene extends Phaser.Scene {
 
     this.screen = new PrologueScreen(veil, {
       onPage: (page: ProloguePage) => this.readAloud(page),
-      onFinish: () => this.scene.start(this.next),
+      // `{}`, not nothing: the in-game codec leaves `{ interactive: false }` in
+      // CodecScene's settings.data, and a data-less start re-runs its `init`
+      // against that — a briefing with no way to close it (AGENTS.md).
+      onFinish: () => this.scene.start(this.next, {}),
     });
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {

@@ -351,6 +351,11 @@ export class GameScene extends Phaser.Scene {
   private arriveTile?: { x: number; y: number };
   /** A fade + level swap is in flight; input and further triggers are ignored. */
   private transitioning = false;
+  /**
+   * This run is being thrown away for a loaded slot, so SHUTDOWN must not write
+   * its conduct or boss state back over what `resumeFromSave` just restored.
+   */
+  private discardRunState = false;
   /** Seconds the player has been cornered by a silicate during a full alert. */
   private captureProgress = 0;
   /**
@@ -779,7 +784,9 @@ export class GameScene extends Phaser.Scene {
     // The old one owns off-display-list stamps Phaser will not reclaim on its
     // own, so hand them back before this run of the scene goes away.
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.persistRunState();
+      // The instance outlives the restart, so clear the flag as it is read.
+      if (!this.discardRunState) this.persistRunState();
+      this.discardRunState = false;
       this.lighting.destroy();
       this.memory.destroy();
       this.entityShadows.destroy();
@@ -1162,6 +1169,7 @@ export class GameScene extends Phaser.Scene {
         const save = loadGame(request.slot);
         if (!save) return; // Empty slot: the menu stays open, nothing happens.
         this.overlays.set("pause", false);
+        this.discardRunState = true;
         resumeFromSave(this, save);
         return;
       }
@@ -2962,8 +2970,13 @@ export class GameScene extends Phaser.Scene {
    * These used to be published every frame, which meant 60 objects a second to serve a
    * reader that only ever runs in `create()`. Hung off SHUTDOWN rather than off
    * `beginTransition`, because that fires for *every* way this scene ends — a hatch, a
-   * debug warp, a load from the pause menu — and Phaser emits it before the restart's
-   * `create()`, so the values are always there to be read back.
+   * debug warp — and Phaser emits it before the restart's `create()`, so the values are
+   * always there to be read back.
+   *
+   * Except a load from the pause menu: `resumeFromSave` has already reset the registry
+   * and restored the slot by the time SHUTDOWN fires, so persisting here would carry
+   * the abandoned run's conduct and mid-fight boss state into the loaded game. The
+   * load sets {@link discardRunState} to skip it.
    */
   private persistRunState(): void {
     this.registry.set("conductMetrics", this.conduct.metrics());
