@@ -13,6 +13,16 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      # AGENTS.md: package-lock.json is the only lockfile. A stray pnpm-lock.yaml
+      # makes Vercel install with pnpm against a file npm never updates, which
+      # failed the deploy while this job stayed green. It came back once already.
+      - name: package-lock.json is the only lockfile
+        run: |
+          stray=$(git ls-files pnpm-lock.yaml yarn.lock bun.lockb bun.lock)
+          if [ -n "$stray" ]; then
+            for f in $stray; do echo "::error file=$f::Second lockfile. npm is the package manager; delete it."; done
+            exit 1
+          fi
       - run: npm ci
       - run: npm run build
       - run: npm test

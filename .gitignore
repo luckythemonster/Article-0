@@ -7,3 +7,12 @@ dist/
 # Python bytecode from the asset build tools under tools/.
 __pycache__/
 *.pyc
+
+# npm is the package manager; package-lock.json is the only lockfile (AGENTS.md).
+# A second lockfile makes Vercel switch to that manager and install against a
+# file npm never updates — this broke the deploy once and was re-added by a bot
+# a week after it was removed. CI also fails if one is committed.
+pnpm-lock.yaml
+yarn.lock
+bun.lockb
+bun.lock
