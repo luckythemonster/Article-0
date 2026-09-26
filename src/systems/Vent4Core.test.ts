@@ -151,6 +151,32 @@ describe("Vent4Core", () => {
     expect(tr).toEqual({ from: Vent4State.PHASE_1_SWEEP, to: Vent4State.PHASE_3_PURGE });
   });
 
+  it("purges once the last winch is spent, even with compliance above the line", () => {
+    // Without the optional Rail-Stapler no capacitor falls, so the winches alone
+    // cannot reach the purge line — and the vacuum has no other exit.
+    const core = vacuumCore();
+    for (let winch = 0; winch < VENT4_DEFAULTS.winchCount; winch++) {
+      expect(core.state).toBe(Vent4State.PHASE_2_VACUUM);
+      core.noteWinched(winch);
+      core.update(VENT4_DEFAULTS.jamDuration + 0.01);
+    }
+    expect(core.compliance).toBeGreaterThanOrEqual(VENT4_DEFAULTS.purgeBelow);
+    expect(core.state).toBe(Vent4State.PHASE_3_PURGE);
+    expect(core.canPatch(2)).toBe(true);
+  });
+
+  it("releases a vacuum restored with every winch already spent", () => {
+    const stuck = new Vent4Core(VENT4_DEFAULTS, {
+      ...vacuumCore().snapshot(),
+      winchUsed: new Array<boolean>(VENT4_DEFAULTS.winchCount).fill(true),
+    });
+    expect(stuck.state).toBe(Vent4State.PHASE_2_VACUUM);
+    expect(stuck.update(0.016)).toEqual({
+      from: Vent4State.PHASE_2_VACUUM,
+      to: Vent4State.PHASE_3_PURGE,
+    });
+  });
+
   it("round-trips through a snapshot", () => {
     const core = vacuumCore();
     core.noteWinched(1);
