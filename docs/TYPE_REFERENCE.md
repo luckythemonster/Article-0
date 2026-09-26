@@ -404,7 +404,7 @@ so a pane wider than its own cell lost the rest of itself entirely.
 | `update` | `update(dt: number, input: ConductInput): void` |  |
 | `violate` | `violate(reason: ConductBreach, seconds: number): void` | A discrete violation: hold the flag for `seconds`, attributing it to `reason`. Takes the longer of the two rather than overwriting, so calling this every frame an action is held down — a terminal hack, a chest search — reads as "flagged throughout, then a cooldown once you stop", with no extra bookkeeping at the call site and no way for a long flag to be cut short by a lesser one. `sabotageActions` counts **rising edges only** for the same reason: a held hack calls this on every frame, and a metric that counted each of those would be measuring frame rate. One hold is one act. |
 
-*Plus 7 private members.*
+*Plus 8 private members.*
 
 <a id="class-detectionsystem"></a>
 
@@ -1007,7 +1007,7 @@ every time Rowan used a hatch, and "has behaved well *this run*" would silently 
 
 #### `ConductView` — interface
 
-`src/systems/Conduct.ts:282`
+`src/systems/Conduct.ts:297`
 
 Snapshot published to the registry for the HUD and the codec.
 
@@ -3574,7 +3574,7 @@ answer for the current frame, so the rule stays where a test can drive it.
 
 #### `Vent4Boss` — class
 
-`src/entities/Vent4Boss.ts:119`
+`src/entities/Vent4Boss.ts:100`
 
 VENT-4, "The Environmental Triage Engine" — the vent-core boss. A composite
 entity in the codebase's plain-class style: it owns the pure FSM/economy
@@ -3967,7 +3967,7 @@ through the matching pair of members added alongside this file.
 
 #### `SteamJet` — interface *(module-private)*
 
-`src/entities/Vent4Boss.ts:99`
+`src/entities/Vent4Boss.ts:80`
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -3981,7 +3981,7 @@ through the matching pair of members added alongside this file.
 
 #### `Vent4TickResult` — interface
 
-`src/entities/Vent4Boss.ts:86`
+`src/entities/Vent4Boss.ts:67`
 
 What happened inside the boss this frame, for the scene to apply/dress.
 
@@ -4093,7 +4093,7 @@ type GuardState = "PATROL" | "CAUTIOUS" | "SUSPICIOUS" | "ALERT" | "SEARCHING";
 
 #### `Kind` — type *(module-private)*
 
-`src/entities/Vent4Boss.ts:379`
+`src/entities/Vent4Boss.ts:360`
 
 ```ts
 type Kind = "sub" | "subLocked" | "winch" | "piton" | "stapler";
@@ -4298,7 +4298,7 @@ type Stance = "standing" | "crouching-down" | "crouched" | "standing-up";
 
 #### `Vent4InteractResult` — type
 
-`src/entities/Vent4Boss.ts:97`
+`src/entities/Vent4Boss.ts:78`
 
 The boss's claim on this frame's interact key, for the scene's dispatcher.
 
@@ -5238,7 +5238,7 @@ each frame.
 | `create` | `create(): void` |  |
 | `update` | `update(_time: number, delta: number): void` |  |
 
-*Plus 135 private members.*
+*Plus 136 private members.*
 
 <a id="class-interactprompt"></a>
 
@@ -7602,7 +7602,7 @@ GameScene.
 | [ConductInput](#interface-conductinput) | interface | `src/systems/Conduct.ts:53` |
 | [ConductMetrics](#interface-conductmetrics) | interface | `src/systems/Conduct.ts:118` |
 | [ConductState](#class-conductstate) | class | `src/systems/Conduct.ts:135` |
-| [ConductView](#interface-conductview) | interface | `src/systems/Conduct.ts:282` |
+| [ConductView](#interface-conductview) | interface | `src/systems/Conduct.ts:297` |
 | [ConeStyle](#interface-conestyle) | interface | `src/ui/VisionCone.ts:35` |
 | [CONSUMABLE_ORDER](#const-consumable-order) | const | `src/systems/EntityStats.ts:1486` |
 | [ConsumableSlot](#interface-consumableslot) | interface | `src/systems/EntityStats.ts:1533` |
@@ -7715,7 +7715,7 @@ GameScene.
 | [JournalEntry](#interface-journalentry) | interface | `src/systems/Journal.ts:49` |
 | [JournalEntryId](#type-journalentryid) | type | `src/systems/Journal.ts:23` |
 | [JournalState](#interface-journalstate) | interface | `src/systems/Journal.ts:482` |
-| [Kind](#type-kind) | type | `src/entities/Vent4Boss.ts:379` |
+| [Kind](#type-kind) | type | `src/entities/Vent4Boss.ts:360` |
 | [Laser](#class-laser) | class | `src/entities/Laser.ts:58` |
 | [LaserKind](#type-laserkind) | type | `src/entities/Laser.ts:40` |
 | [LevelBodyRects](#interface-levelbodyrects) | interface | `src/map/TileBake.ts:445` |
@@ -7877,7 +7877,7 @@ GameScene.
 | [SpriteFrame](#interface-spriteframe) | interface | `src/map/types.ts:214` |
 | [Stance](#type-stance) | type | `src/entities/Player.ts:45` |
 | [StashedBody](#interface-stashedbody) | interface | `src/entities/Locker.ts:127` |
-| [SteamJet](#interface-steamjet) | interface | `src/entities/Vent4Boss.ts:99` |
+| [SteamJet](#interface-steamjet) | interface | `src/entities/Vent4Boss.ts:80` |
 | [SurfaceColliders](#interface-surfacecolliders) | interface | `src/scenes/game/PlaneTraversal.ts:31` |
 | [Surrenderable](#interface-surrenderable) | interface | `src/systems/Surrender.ts:53` |
 | [SurrenderAim](#class-surrenderaim) | class | `src/systems/Surrender.ts:187` |
@@ -7919,18 +7919,18 @@ GameScene.
 | [VaultQuery](#interface-vaultquery) | interface | `src/scenes/game/VaultAndPress.ts:31` |
 | [VaultWorld](#interface-vaultworld) | interface | `src/scenes/game/VaultAndPress.ts:87` |
 | [Vec2](#interface-vec2) | interface | `src/systems/Vent4PhysicsSystem.ts:15` |
-| [Vent4Boss](#class-vent4boss) | class | `src/entities/Vent4Boss.ts:119` |
+| [Vent4Boss](#class-vent4boss) | class | `src/entities/Vent4Boss.ts:100` |
 | [Vent4Core](#class-vent4core) | class | `src/systems/Vent4Core.ts:67` |
 | [Vent4Forces](#interface-vent4forces) | interface | `src/systems/Vent4PhysicsSystem.ts:31` |
 | [Vent4Hud](#class-vent4hud) | class | `src/ui/Vent4Hud.ts:22` |
-| [Vent4InteractResult](#type-vent4interactresult) | type | `src/entities/Vent4Boss.ts:97` |
+| [Vent4InteractResult](#type-vent4interactresult) | type | `src/entities/Vent4Boss.ts:78` |
 | [Vent4Layout](#interface-vent4layout) | interface | `src/systems/Vent4PhysicsSystem.ts:20` |
 | [Vent4Msg](#interface-vent4msg) | interface | `src/systems/Vent4Core.ts:44` |
 | [Vent4PhysicsSystem](#class-vent4physicssystem) | class | `src/systems/Vent4PhysicsSystem.ts:63` |
 | [Vent4Snapshot](#interface-vent4snapshot) | interface | `src/systems/Vent4Core.ts:34` |
 | [Vent4State](#enum-vent4state) | enum | `src/systems/Vent4Core.ts:17` |
 | [Vent4Stats](#interface-vent4stats) | interface | `src/systems/EntityStats.ts:1565` |
-| [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:86` |
+| [Vent4TickResult](#interface-vent4tickresult) | interface | `src/entities/Vent4Boss.ts:67` |
 | [Vent4Transition](#interface-vent4transition) | interface | `src/systems/Vent4Core.ts:28` |
 | [Vent4View](#interface-vent4view) | interface | `src/systems/Vent4Core.ts:50` |
 | [VfxSource](#type-vfxsource) | type | `src/entities/Vfx.ts:21` |
