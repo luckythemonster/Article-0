@@ -176,6 +176,31 @@ describe("ConductState metrics", () => {
     expect(c.sabotageActions).toBe(2);
   });
 
+  it("counts a held act once even inside a longer flag of another kind", () => {
+    // The shape that used to count every frame: a hack's 10 s flag is still
+    // running when a chest search starts, so TAMPERING never owned the timer and
+    // each frame of the search read as a new act.
+    const c = new ConductState();
+    c.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED);
+    c.update(0.1, CLEAN);
+    for (let i = 0; i < 120; i++) {
+      c.violate("TAMPERING", FLAG_TAMPERING);
+      c.update(1 / 60, CLEAN);
+    }
+    expect(c.sabotageActions).toBe(2);
+  });
+
+  it("still counts a second act of the same kind once its own flag has run out", () => {
+    // ...even though a longer flag of another kind is holding compliance off.
+    const c = new ConductState();
+    c.violate("HOSTILE", FLAG_HOSTILE);
+    c.violate("TAMPERING", FLAG_TAMPERING);
+    settle(c, FLAG_TAMPERING + 1);
+    expect(c.compliant).toBe(false);
+    c.violate("TAMPERING", FLAG_TAMPERING);
+    expect(c.sabotageActions).toBe(3);
+  });
+
   it("accrues distance only while actually passing as staff", () => {
     const c = new ConductState();
     walk(c, 10);

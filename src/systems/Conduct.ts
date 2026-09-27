@@ -141,6 +141,15 @@ export class ConductState {
   private discrete: ConductBreach | null = null;
   /** Distinct sabotage acts committed this run — see {@link violate}. */
   private sabotage = 0;
+  /**
+   * Seconds left on each reason's *own* flag, for telling a held act from a new one.
+   *
+   * Not {@link discrete}: that names only whichever reason owns the longest timer, so
+   * a chest searched inside a terminal hack's longer flag never became `discrete`
+   * and every frame of the search counted as a fresh act — one search could spend
+   * the whole {@link HIGH_COMPLIANCE_MAX_SABOTAGE} budget by itself.
+   */
+  private readonly actRemaining: Partial<Record<ConductBreach, number>> = {};
   /** Tiles walked while reading as staff. */
   private walked = 0;
   /** Compliance pinned on by NW-SMAC-01's correction field. */
@@ -201,6 +210,10 @@ export class ConductState {
   }
 
   update(dt: number, input: ConductInput): void {
+    for (const reason in this.actRemaining) {
+      const key = reason as ConductBreach;
+      this.actRemaining[key] = Math.max(0, (this.actRemaining[key] ?? 0) - dt);
+    }
     this.forced = !!input.forced;
     if (this.forced) {
       // The correction field holds the posture for Rowan. Let the timer keep draining
@@ -272,7 +285,9 @@ export class ConductState {
    */
   violate(reason: ConductBreach, seconds: number): void {
     if (seconds <= 0) return;
-    if (this.flagged <= 0 || this.discrete !== reason) this.sabotage++;
+    const remaining = this.actRemaining[reason] ?? 0;
+    if (remaining <= 0) this.sabotage++;
+    this.actRemaining[reason] = Math.max(remaining, seconds);
     if (seconds >= this.flagged) this.discrete = reason;
     this.flagged = Math.max(this.flagged, seconds);
   }

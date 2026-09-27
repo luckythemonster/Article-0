@@ -351,6 +351,11 @@ export class GameScene extends Phaser.Scene {
   private arriveTile?: { x: number; y: number };
   /** A fade + level swap is in flight; input and further triggers are ignored. */
   private transitioning = false;
+  /**
+   * This run is being thrown away for a loaded slot, so SHUTDOWN must not write
+   * its conduct or boss state back over what `resumeFromSave` just restored.
+   */
+  private discardRunState = false;
   /** Seconds the player has been cornered by a silicate during a full alert. */
   private captureProgress = 0;
   /**
@@ -779,7 +784,9 @@ export class GameScene extends Phaser.Scene {
     // The old one owns off-display-list stamps Phaser will not reclaim on its
     // own, so hand them back before this run of the scene goes away.
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.persistRunState();
+      // The instance outlives the restart, so clear the flag as it is read.
+      if (!this.discardRunState) this.persistRunState();
+      this.discardRunState = false;
       this.lighting.destroy();
       this.memory.destroy();
       this.entityShadows.destroy();
@@ -1162,6 +1169,7 @@ export class GameScene extends Phaser.Scene {
         const save = loadGame(request.slot);
         if (!save) return; // Empty slot: the menu stays open, nothing happens.
         this.overlays.set("pause", false);
+        this.discardRunState = true;
         resumeFromSave(this, save);
         return;
       }
@@ -2444,67 +2452,6 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    const hacking = !!nearestTerminal && interactDown;
-    // Working a panel you have no business at is the clearest possible breach, and
-    // re-reporting it every frame keeps the flag topped up for as long as the hold
-    // lasts (ConductState.violate takes the max), then starts its cooldown when you
-    // let go — no separate "still hacking" bookkeeping needed.
-    if (hacking) this.conduct.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED);
-    if (hacking && nearestTerminal!.hack(dt)) this.hacks.onComplete(nearestTerminal!);
-    for (const term of this.terminals) {
-      if (term !== nearestTerminal || !interactDown) term.idle(dt);
-    }
-
-    // --- Chests (hold E to search) ---
-    let nearestChest: Chest | undefined;
-    let nearestChestDist = Infinity;
-    for (const chest of this.chests) {
-      if (chest.isOpen) continue;
-      const d = len(chest.tileX + 0.5 - ptx, chest.tileY + 0.5 - pty);
-      if (d <= INTERACT_RANGE && d < nearestChestDist) {
-        nearestChestDist = d;
-        nearestChest = chest;
-      }
-    }
-    const searching = !!nearestChest && interactDown && !hacking && !encounterHold;
-    if (searching) this.conduct.violate("TAMPERING", FLAG_TAMPERING);
-    if (searching && nearestChest!.open(dt)) this.collectChest(nearestChest!);
-
-    // --- Lockers (hold E) ---
-    //
-    // Slotted in beside the chest rather than in the tap chain below, because it
-    // is the same shape of interaction: stand still, hold, and be exposed for as
-    // long as it takes. A chest wins a tie at equal reach — it is a thing the
-    // player walked over to on purpose, and a locker is usually just the nearest
-    // wall.
-    let nearestLocker: Locker | undefined;
-    let nearestLockerDist = Infinity;
-    for (const locker of this.lockers) {
-      if (!locker.canWork(this.carried !== null)) continue;
-      const d = len(locker.x / ts - ptx, locker.y / ts - pty);
-      if (d <= INTERACT_RANGE && d < nearestLockerDist) {
-        nearestLockerDist = d;
-        nearestLocker = locker;
-      }
-    }
-    const stashing =
-      !!nearestLocker && interactDown && !hacking && !encounterHold && !searching;
-    // Only a completed stash empties his hands. A retrieval puts the body on the
-    // floor at the locker rather than into them — he opened a door, he did not
-    // catch anybody — so picking it back up is a separate press, and the two
-    // directions of the verb are not each other's inverse.
-    if (stashing && nearestLocker!.work(dt, this.carried) === "stashed") {
-      this.carried = null;
-      getAudio().door();
-      this.note("stashed");
-    }
-    for (const locker of this.lockers) {
-      if (locker !== nearestLocker || !stashing) locker.idle(dt);
-    }
-    for (const chest of this.chests) {
-      if (chest !== nearestChest || !interactDown || hacking || encounterHold) chest.idle(dt);
-    }
-
     // --- Doors (tap E) ---
     let nearestDoor: Door | undefined;
     let nearestDoorDist = Infinity;
@@ -2562,6 +2509,7 @@ export class GameScene extends Phaser.Scene {
     // Only searched for while his hands are empty: with a body already up, the
     // same tap puts it down, and there is nothing to look for.
     let bodyToLift: StashedBody | undefined;
+    let bodyToLiftDist = Infinity;
     if (!this.carried) {
       let bestBodyDist = BODY_PICKUP_TILES;
       for (const body of this.stashables()) {
@@ -2570,8 +2518,97 @@ export class GameScene extends Phaser.Scene {
         if (d <= bestBodyDist) {
           bestBodyDist = d;
           bodyToLift = body;
+          bodyToLiftDist = d;
         }
       }
+    }
+
+    // **A hold claims E only if its target is the nearest thing in reach.** The
+    // prompt has always been one nearest-wins list across holds and taps — the
+    // player cannot tell them apart by looking — but the holds below used to
+    // claim at any distance, and the tap chain still ran on the same frame. So
+    // "[E] Open" on the door in your face hacked the terminal behind it, and one
+    // press both searched the chest and swung the door beside it (charging a
+    // TAMPERING breach for opening a door). Ranking each hold against the nearest
+    // tap here, with ties going the way `promptLabelFor` breaks them, makes the
+    // press do what the label says; the tap chain then stands down for a hold.
+    // These scans have no side effects, which is why they can run up here.
+    const hatchDist = hatch ? 0.2 : Infinity;
+    const tapReach = Math.min(
+      nearestBreachedDist,
+      nearestBreakerDist,
+      nearestSwitchDist,
+      nearestDoorDist,
+      hatchDist,
+      bodyToLiftDist,
+    );
+
+    const hacking = !!nearestTerminal && interactDown && nearestTerminalDist <= tapReach;
+    // Working a panel you have no business at is the clearest possible breach, and
+    // re-reporting it every frame keeps the flag topped up for as long as the hold
+    // lasts (ConductState.violate takes the max), then starts its cooldown when you
+    // let go — no separate "still hacking" bookkeeping needed.
+    if (hacking) this.conduct.violate("UNAUTHORIZED", FLAG_UNAUTHORIZED);
+    if (hacking && nearestTerminal!.hack(dt)) this.hacks.onComplete(nearestTerminal!);
+    for (const term of this.terminals) {
+      if (term !== nearestTerminal || !hacking) term.idle(dt);
+    }
+
+    // --- Chests (hold E to search) ---
+    let nearestChest: Chest | undefined;
+    let nearestChestDist = Infinity;
+    for (const chest of this.chests) {
+      if (chest.isOpen) continue;
+      const d = len(chest.tileX + 0.5 - ptx, chest.tileY + 0.5 - pty);
+      if (d <= INTERACT_RANGE && d < nearestChestDist) {
+        nearestChestDist = d;
+        nearestChest = chest;
+      }
+    }
+    const searching =
+      !!nearestChest && interactDown && !hacking && !encounterHold && nearestChestDist <= tapReach;
+    if (searching) this.conduct.violate("TAMPERING", FLAG_TAMPERING);
+    if (searching && nearestChest!.open(dt)) this.collectChest(nearestChest!);
+
+    // --- Lockers (hold E) ---
+    //
+    // Slotted in beside the chest rather than in the tap chain below, because it
+    // is the same shape of interaction: stand still, hold, and be exposed for as
+    // long as it takes. A chest wins a tie at equal reach — it is a thing the
+    // player walked over to on purpose, and a locker is usually just the nearest
+    // wall.
+    let nearestLocker: Locker | undefined;
+    let nearestLockerDist = Infinity;
+    for (const locker of this.lockers) {
+      if (!locker.canWork(this.carried !== null)) continue;
+      const d = len(locker.x / ts - ptx, locker.y / ts - pty);
+      if (d <= INTERACT_RANGE && d < nearestLockerDist) {
+        nearestLockerDist = d;
+        nearestLocker = locker;
+      }
+    }
+    // Strictly nearer: the prompt ranks a locker under the door and the breaker.
+    const stashing =
+      !!nearestLocker &&
+      interactDown &&
+      !hacking &&
+      !encounterHold &&
+      !searching &&
+      nearestLockerDist < tapReach;
+    // Only a completed stash empties his hands. A retrieval puts the body on the
+    // floor at the locker rather than into them — he opened a door, he did not
+    // catch anybody — so picking it back up is a separate press, and the two
+    // directions of the verb are not each other's inverse.
+    if (stashing && nearestLocker!.work(dt, this.carried) === "stashed") {
+      this.carried = null;
+      getAudio().door();
+      this.note("stashed");
+    }
+    for (const locker of this.lockers) {
+      if (locker !== nearestLocker || !stashing) locker.idle(dt);
+    }
+    for (const chest of this.chests) {
+      if (chest !== nearestChest || !searching) chest.idle(dt);
     }
 
     // **Putting a body down is the press nothing else wanted**, which is exactly how
@@ -2595,8 +2632,7 @@ export class GameScene extends Phaser.Scene {
     // a hatch are both deliberate destinations, while a crate is scenery you
     // happen to be facing: it must never steal the tap from them.
     let adjacentClaimedTap = false;
-    if (!hacking && !encounterHold && interactJust) {
-      const hatchDist = hatch ? 0.2 : Infinity;
+    if (!hacking && !encounterHold && !searching && !stashing && interactJust) {
       if (nearestBreached && nearestBreachedDist <= Math.min(nearestDoorDist, hatchDist)) {
         // First of the taps, above even the breaker: a panel you already broke
         // into is the most deliberate destination on the deck — you walked back
@@ -2683,6 +2719,7 @@ export class GameScene extends Phaser.Scene {
       !hacking &&
       !encounterHold &&
       !searching &&
+      !stashing &&
       !adjacentClaimedTap &&
       !Number.isFinite(encounter.dist) &&
       interactJust &&
@@ -2716,7 +2753,7 @@ export class GameScene extends Phaser.Scene {
         locker: nearestLocker ? { occupied: nearestLocker.isOccupied } : undefined,
         lockerDist: nearestLockerDist,
         body: bodyToLift !== undefined,
-        bodyDist: bodyToLift ? len(bodyToLift.x / ts - ptx, bodyToLift.y / ts - pty) : Infinity,
+        bodyDist: bodyToLiftDist,
         carrying: this.carried !== null,
         hatch: hatch !== undefined || (ladder !== undefined && this.traversal.armedForLink),
         elevator: hatch !== undefined && shaft.length >= 2,
@@ -2962,8 +2999,13 @@ export class GameScene extends Phaser.Scene {
    * These used to be published every frame, which meant 60 objects a second to serve a
    * reader that only ever runs in `create()`. Hung off SHUTDOWN rather than off
    * `beginTransition`, because that fires for *every* way this scene ends — a hatch, a
-   * debug warp, a load from the pause menu — and Phaser emits it before the restart's
-   * `create()`, so the values are always there to be read back.
+   * debug warp — and Phaser emits it before the restart's `create()`, so the values are
+   * always there to be read back.
+   *
+   * Except a load from the pause menu: `resumeFromSave` has already reset the registry
+   * and restored the slot by the time SHUTDOWN fires, so persisting here would carry
+   * the abandoned run's conduct and mid-fight boss state into the loaded game. The
+   * load sets {@link discardRunState} to skip it.
    */
   private persistRunState(): void {
     this.registry.set("conductMetrics", this.conduct.metrics());

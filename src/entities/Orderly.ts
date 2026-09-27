@@ -315,6 +315,11 @@ export class Orderly {
    * from the public getters and drifting.
    */
   distract(sx: number, sy: number): boolean {
+    // In a locker is out of reach whether or not the stun has worn off inside it
+    // (the timer keeps running there). Accepting here made him the nearest
+    // "willing" orderly for a breaker reset he could never walk to, so every
+    // retry picked him again and nobody else was ever sent.
+    if (this.stashed) return false;
     if (this.isImmobilized) return false;
     // A knock does not out-rank an actual work order, and it certainly does not
     // out-rank the weapon pointed at him.

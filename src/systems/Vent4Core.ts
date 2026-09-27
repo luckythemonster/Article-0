@@ -179,13 +179,27 @@ export class Vent4Core {
   }
 
   update(dt: number): Vent4Transition | null {
+    // A vacuum restored from a snapshot taken after the last jam, from before the
+    // purge fallback below existed, is the same dead end — release it too.
+    if (this.st === Vent4State.PHASE_2_VACUUM && !this.winchUsed.some((used) => !used)) {
+      return this.transition(Vent4State.PHASE_3_PURGE);
+    }
     if (this.st !== Vent4State.JAMMED) return null;
     this.jam = Math.max(0, this.jam - dt);
     if (this.jam > 0) return null;
     // Resume wherever the economy now points: JAMMED is only reachable from
-    // PHASE_2, so the fallback is always the vacuum.
+    // PHASE_2, so the fallback is the vacuum — unless the last winch has gone.
+    // Capacitors can only be hit while jammed and only with the optional
+    // Rail-Stapler, the finisher sub-station stays locked until the purge, and the
+    // transmit is purge-only, so a vacuum with no winch left has no way out: a
+    // player who got spotted in the sweep and never found the Stapler was stuck in
+    // the arena for good (the snapshot keeps the spent winches across a reload).
+    // Out of winches, the machine gives up the vacuum and purges instead.
+    const winchesLeft = this.winchUsed.some((used) => !used);
     return this.transition(
-      this.ci < this.stats.purgeBelow ? Vent4State.PHASE_3_PURGE : Vent4State.PHASE_2_VACUUM,
+      this.ci < this.stats.purgeBelow || !winchesLeft
+        ? Vent4State.PHASE_3_PURGE
+        : Vent4State.PHASE_2_VACUUM,
     );
   }
 

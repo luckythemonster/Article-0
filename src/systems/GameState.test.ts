@@ -4,8 +4,10 @@ import {
   NEW_RUN_NEXT_SCENE,
   NEW_RUN_SCENE,
   resetRun,
+  resumeFromSave,
   startFreshRun,
 } from "./GameState";
+import type { SaveData } from "./SaveGame";
 import { STAPLER_FIELD_MAX_CHARGES, STARTING_INVENTORY } from "./EntityStats";
 
 /** A minimal stand-in for Phaser.Data.DataManager — get/set/has/remove over a Map. */
@@ -89,5 +91,43 @@ describe("startFreshRun", () => {
     scene.registry.set("objectives", { logsRecovered: true });
     startFreshRun(scene);
     expect(scene.registry.has("objectives")).toBe(false);
+  });
+});
+
+describe("resumeFromSave", () => {
+  const save: SaveData = {
+    version: 3,
+    level: "deck2",
+    tileX: 4,
+    tileY: 9,
+    hp: 3,
+    inventory: ["Stun Rounds"],
+    objectives: { logsRecovered: true },
+    journal: { entries: [] } as unknown as SaveData["journal"],
+    memos: { collected: ["memo-a", "memo-b"] },
+    explored: {} as SaveData["explored"],
+    playTimeMs: 123_456,
+    savedAt: 0,
+  };
+
+  it("restores every run record the slot carries", () => {
+    // The memos were written to every save and never read back: a load came up
+    // with an empty ARCHIVE, and the next autosave made the loss permanent.
+    const { scene } = fakeScene();
+    resumeFromSave(scene, save);
+    const r = scene.registry;
+    expect(r.get("inventory")).toBe(save.inventory);
+    expect(r.get("objectives")).toBe(save.objectives);
+    expect(r.get("journal")).toBe(save.journal);
+    expect(r.get("memos")).toBe(save.memos);
+    expect(r.get("explored")).toBe(save.explored);
+    expect(r.get("playTimeMs")).toBe(save.playTimeMs);
+    expect(r.get("playerHp")).toBe(save.hp);
+  });
+
+  it("drops the player back where the slot was written", () => {
+    const { scene, starts } = fakeScene();
+    resumeFromSave(scene, save);
+    expect(starts).toEqual([{ key: "GameScene", data: { level: "deck2", arriveX: 4, arriveY: 9 } }]);
   });
 });
